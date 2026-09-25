@@ -106,6 +106,8 @@ async function boot() {
     onFeedPet: doFeedPet,
     onSetActivePet: doSetActivePet,
     onBuyEgg: doBuyEgg,
+    onBuyGear: doBuyGear,
+    onGotoPetShop: doGotoPetShop,
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
@@ -904,6 +906,31 @@ function doBuyEgg(tier) {
   UI.combatLog(`🛒 Bought ${t.emoji} ${t.name} from the Pet Shop.`, 'loot');
   UI.renderParty(s);
   saveNow();
+}
+
+function doBuyGear(stockId) {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.buyGearItem(s, stockId);
+  if (!res.ok) {
+    UI.toast(res.reason === 'gold' ? 'Not enough gold for that gear.' : 'That item is not for sale.', 'error');
+    return;
+  }
+  const entry = Engine.GEAR_SHOP_STOCK.find(e => e.id === stockId);
+  const priceNote = s.infGold ? ' (∞ gold)' : ` for 💰${formatNum(entry.price)} gold`;
+  UI.toast(`${entry.emoji} Bought ${res.item.name}${priceNote}!`, 'success');
+  UI.combatLog(`🛒 Bought ${entry.emoji} ${res.item.name} (${res.item.rarity}) from the Gear Shop.`, 'loot');
+  UI.renderGear(s);
+  saveNow();
+}
+
+function doGotoPetShop() {
+  UI.showTab('party');
+  // Party tab re-renders (incl. the Pet Shop); then jump to it.
+  requestAnimationFrame(() => {
+    const el = document.getElementById('pets-panel');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 }
 
 function doFeedPet(petUid) {

@@ -454,12 +454,11 @@ const STAT_GEN = {
 };
 const SLOT_PRIMARY = { weapon: 'attack', armor: 'defense', helmet: 'maxHp', boots: 'dodge', trinket: 'lifesteal' };
 
-// Returns an item or null. Bosses always drop (rare+ guaranteed).
-// minIdx: minimum rarity index override (e.g. raid bosses drop tier-3 loot).
-export function rollLoot(stage, isBoss = false, minIdx = null) {
-  if (Math.random() > (isBoss ? 1 : 0.25)) return null;
-  const rarity = rollRarity(minIdx !== null ? minIdx : (isBoss ? 2 : 0));
-  const slot = pick(SLOTS);
+// Builds one random-rarity item for a slot with stage-scaled stats.
+// Used by rollLoot (drops) and the Gear Shop (purchases). Never produces
+// privileged gear: shop/drop items always have set: null.
+export function makeLootItem(stage, rarityId, slot) {
+  const rarity = RARITY_BY_ID[rarityId] || RARITIES[0];
   const stats = {};
   const primary = SLOT_PRIMARY[slot];
   stats[primary] = STAT_GEN[primary](rarity.mult, stage);
@@ -478,6 +477,14 @@ export function rollLoot(stage, isBoss = false, minIdx = null) {
     value: Math.max(1, Math.round((4 + stage * 1.5) * rarity.mult)),
     unsellable: false,
   };
+}
+
+// Returns an item or null. Drop chances (set pieces see rollSetDrop):
+// normal enemies 10%, bosses 80% (rare+ guaranteed, raid bosses epic+).
+export function rollLoot(stage, isBoss = false, minIdx = null) {
+  if (Math.random() > (isBoss ? 0.80 : 0.10)) return null;
+  const rarity = rollRarity(minIdx !== null ? minIdx : (isBoss ? 2 : 0));
+  return makeLootItem(stage, rarity.id, pick(SLOTS));
 }
 
 export function equipItem(state, itemId) {
@@ -606,9 +613,8 @@ export function equippedSetInfo(state) {
 // Unlike privileged sets (GM-granted, fixed stats), these drop from gameplay
 // with stage-scaled stats and are the long-term gear chase for regular players.
 // Drop sources (see rollSetDrop):
-//   - any boss kill ............. 6% for a random piece of a random set
-//   - boss kill in dungeon mode . 15%
-//   - raid boss wave ............ 12%
+//   - any boss kill (normal / dungeon / raid) ... 1% for a random piece of a random set
+// Regular enemies never drop set pieces.
 // Set bonuses: 3 pieces and 5 pieces of the same set (applied in computeStats).
 export const PLAYER_SETS = {
   emberheart: {
@@ -683,12 +689,40 @@ export function playerSetInfo(state) {
   return { setId: best.setId, name: def.name, emoji: def.emoji, count: best.count, desc: def.desc };
 }
 
-// Returns a set-piece item or null. Sources documented on PLAYER_SETS above.
+// Returns a set-piece item or null. Really good gear is rare by design:
+// flat 1% on ANY boss kill (normal, dungeon, raid bosses). Regular enemies
+// never drop set pieces.
 export function rollSetDrop(stage, { boss = false, dungeonBoss = false, raidBoss = false } = {}) {
-  const chance = raidBoss ? 0.12 : dungeonBoss ? 0.15 : boss ? 0.06 : 0;
-  if (chance <= 0 || Math.random() >= chance) return null;
+  const isBoss = boss || dungeonBoss || raidBoss;
+  if (!isBoss || Math.random() >= 0.01) return null;
   const setIds = Object.keys(PLAYER_SETS);
   return makePlayerSetPiece(stage, setIds[Math.floor(Math.random() * setIds.length)], pick(SLOTS));
+}
+
+// ---------------- Gear Shop ----------------
+// Armor & weapons purchasable with gold in the Gear tab. Items are generated
+// on purchase (guaranteed rarity, stage-scaled stats — same stat budget as
+// drops). Legendary/mythic rolls and earnable set pieces are NOT sold: those
+// stay drop-only. Privileged gear (GM sets) is never sold or dropped —
+// GM-grant only.
+export const GEAR_SHOP_STOCK = [
+  { id: 'magic-weapon', slot: 'weapon', rarity: 'magic', price: 8000,   emoji: '⚔️', name: 'Fine Weapon',   desc: 'Solid magic weapon, scaled to your stage.' },
+  { id: 'magic-armor',  slot: 'armor',  rarity: 'magic', price: 8000,   emoji: '🛡️', name: 'Fine Armor',    desc: 'Solid magic armor, scaled to your stage.' },
+  { id: 'rare-weapon',  slot: 'weapon', rarity: 'rare',  price: 40000,  emoji: '🗡️', name: 'Gilded Weapon', desc: 'Guaranteed rare weapon with bonus stats.' },
+  { id: 'rare-armor',   slot: 'armor',  rarity: 'rare',  price: 40000,  emoji: '🥋', name: 'Gilded Armor',  desc: 'Guaranteed rare armor with bonus stats.' },
+  { id: 'epic-weapon',  slot: 'weapon', rarity: 'epic',  price: 150000, emoji: '🔱', name: 'Arcane Weapon', desc: 'Guaranteed epic weapon — a real upgrade.' },
+  { id: 'epic-armor',   slot: 'armor',  rarity: 'epic',  price: 150000, emoji: '🦾', name: 'Arcane Armor',  desc: 'Guaranteed epic armor — a real upgrade.' },
+];
+
+// Buys a shop item for gold; the item lands in the inventory. Purchases go
+// through spendGold so the owner infinite-gold perk and the gold cap apply.
+export function buyGearItem(s, stockId) {
+  const entry = GEAR_SHOP_STOCK.find(e => e.id === stockId);
+  if (!entry) return { ok: false, reason: 'bad-item' };
+  if (!spendGold(s, entry.price)) return { ok: false, reason: 'gold' };
+  const item = makeLootItem(Math.max(1, s.stage || 1), entry.rarity, entry.slot);
+  (s.inventory || (s.inventory = [])).push(item);
+  return { ok: true, item };
 }
 
 // ---------------- Pets ----------------

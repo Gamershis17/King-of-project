@@ -80,7 +80,7 @@ export const UI = {
       'boss-badge', 'enemy-hpfill', 'enemy-hptext', 'enemy-atk', 'float-layer',
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
       'tap-btn', 'skill-btn', 'skill-cd', 'combo-meter', 'prestige-box', 'prestige-btn',
-      'prestige-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'inventory-grid', 'inv-count', 'set-progress',
+      'prestige-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'logout-btn', 'modal-root', 'toast-root',
@@ -113,7 +113,7 @@ export const UI = {
       this.handlers.onPrestige && this.handlers.onPrestige();
     });
 
-    // Gear: delegated equip/sell/upgrade
+    // Gear: delegated equip/sell/upgrade/shop
     this.els['inventory-grid'].addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -121,6 +121,13 @@ export const UI = {
       const h = this.handlers;
       if (btn.dataset.action === 'equip' && h.onEquip) h.onEquip(id);
       if (btn.dataset.action === 'sell' && h.onSell) h.onSell(id);
+    });
+    document.getElementById('tab-gear').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn || btn.disabled) return;
+      const h = this.handlers;
+      if (btn.dataset.action === 'buy-gear' && h.onBuyGear) h.onBuyGear(btn.dataset.id);
+      if (btn.dataset.action === 'goto-petshop' && h.onGotoPetShop) h.onGotoPetShop();
     });
     this.els['upgrade-list'].addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-upgrade]');
@@ -781,6 +788,35 @@ export const UI = {
 
   // ---------------- gear ----------------
   renderGear(state) {
+    // --- Gear Shop: buy armor & weapons with gold (guaranteed rarity,
+    // stage-scaled stats). Set pieces and legendary/mythic stay drop-only.
+    const gs = this.els['gear-shop'];
+    if (gs && Engine.GEAR_SHOP_STOCK) {
+      const cards = Engine.GEAR_SHOP_STOCK.map(entry => {
+        const rc = (Engine.RARITY_BY_ID[entry.rarity] || {}).color || '#9aa0a6';
+        const slotName = (Engine.SLOT_INFO[entry.slot] || {}).name || entry.slot;
+        const afford = state.infGold === true || state.gold >= entry.price;
+        const priceLabel = state.infGold === true ? '∞ FREE' : `💰 ${formatNum(entry.price)}`;
+        return `
+          <div class="shop-card r-${entry.rarity}">
+            <div class="shop-emoji">${entry.emoji}</div>
+            <div class="shop-name">${esc(entry.name)}</div>
+            <div class="muted small shop-desc">${esc(entry.desc)}</div>
+            <div class="shop-rarity" style="color:${rc}">${esc(entry.rarity)} · ${esc(slotName)}</div>
+            <button class="btn small" data-action="buy-gear" data-id="${entry.id}" ${afford ? '' : 'disabled'}>
+              ${afford ? `Buy · ${priceLabel}` : `Need ${priceLabel}`}
+            </button>
+          </div>`;
+      }).join('');
+      gs.innerHTML = `
+        <div class="shop-head">
+          <span class="shop-title">🛒 Gear Shop</span>
+          <span class="muted small">guaranteed rarity — set pieces stay boss-drop only</span>
+          <button class="btn small ghost" data-action="goto-petshop">🐾 Pet Shop</button>
+        </div>
+        <div class="shop-grid">${cards}</div>`;
+    }
+
     // loadout strip: one card per slot showing the equipped item
     const strip = this.els['loadout-strip'];
     if (strip && Engine.SLOTS) {

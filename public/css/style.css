@@ -409,6 +409,14 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
   .shop-grid { grid-template-columns: 1fr; }
 }
 
+/* ---------- gear shop ---------- */
+/* Reuses the pet shop's .shop-* classes (same floating-card look). */
+.gear-shop { display: grid; gap: 0.65rem; }
+.gear-shop .shop-card { border-top: 3px solid var(--rc, #9aa0a6); }
+.shop-rarity { font-size: 0.8rem; font-weight: 700; text-transform: capitalize; }
+body.reduce-motion .shop-card { transition: none; }
+body.reduce-motion .shop-card:hover { transform: none; }
+
 /* ---------- pets ---------- */
 .pets-panel { display: grid; gap: 0.7rem; }
 .pet-eggs { background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem; display: grid; gap: 0.4rem; }
