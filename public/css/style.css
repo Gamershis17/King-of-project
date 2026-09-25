@@ -38,6 +38,19 @@ h2 { font-size: 1.15rem; margin: 1.1rem 0 0.6rem; color: var(--gold); }
 h3 { font-size: 1rem; margin: 0 0 0.6rem; color: var(--gold); }
 
 .hidden { display: none !important; }
+
+/* ---------- maintenance banner ---------- */
+.maint-banner {
+  background: linear-gradient(90deg, #7a5b12, #a07d1c);
+  color: #fff8e1;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.45rem 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .muted { color: var(--muted); }
 .small { font-size: 0.8rem; }
 .center { text-align: center; }

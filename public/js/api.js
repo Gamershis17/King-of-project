@@ -33,6 +33,9 @@ export const api = {
   logout: () => post('/api/auth/logout', {}),
   me: () => request('/api/auth/me'),
 
+  // Server status (public — maintenance flag + message)
+  status: () => request('/api/status'),
+
   // Player state
   getState: () => request('/api/state'),
   saveState: (state) => post('/api/state', { state }),

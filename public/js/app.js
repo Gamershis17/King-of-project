@@ -33,9 +33,59 @@ const App = {
   deathStreak: 0,
   saveTimer: null,
   tickTimer: null,
+  statusTimer: null,
+  maintenanceMode: false,
   started: false,
   meter: null, // live damage meter: { startAt, fighters: {key: {label, total, samples:[{t,total}]}} }
 };
+
+// ---------------- server gate (maintenance / deploy windows) ----------------
+// Returns 'maintenance' (show the maintenance screen), 'ok', or
+// 'unreachable' (server still down after retries — fall through to the
+// normal flow, which will surface its own "could not reach" notice).
+async function serverGate() {
+  for (let i = 0; i < 6; i++) {
+    try {
+      const st = await api.status();
+      return st && st.maintenance ? 'maintenance' : 'ok';
+    } catch {
+      await new Promise(r => setTimeout(r, 5000));
+    }
+  }
+  return 'unreachable';
+}
+
+function enterMaintenanceLoop() {
+  const show = async () => {
+    try {
+      const st = await api.status();
+      if (st && !st.maintenance) { location.reload(); return; } // back up — reboot cleanly
+      UI.showMaintenance(st && st.message ? st.message : null);
+    } catch {
+      UI.showMaintenance(null); // still down — keep the screen up
+    }
+  };
+  show();
+  setInterval(show, 30000);
+}
+
+// While playing, poll for maintenance so a mid-session window shows a
+// banner and pauses autosaves instead of failing silently.
+async function pollMaintenance() {
+  if (!App.state) return;
+  try {
+    const st = await api.status();
+    if (st.maintenance && !App.maintenanceMode) {
+      App.maintenanceMode = true;
+      UI.setMaintenanceBanner(st.message || 'Server maintenance is starting — your progress is safe, saves paused.');
+    } else if (!st.maintenance && App.maintenanceMode) {
+      App.maintenanceMode = false;
+      UI.setMaintenanceBanner(null);
+      UI.toast('Maintenance complete — saves resumed.', 'success');
+      saveNow();
+    }
+  } catch { /* unreachable — the save-failure toast already covers outages */ }
+}
 
 // ---------------- boot ----------------
 async function boot() {
@@ -69,6 +119,11 @@ async function boot() {
     },
   };
   UI.init();
+
+  // Maintenance / reachability gate: check the server before anything else.
+  // Retries briefly so a deploy/restart window shows as "updating", not dead.
+  const gate = await serverGate();
+  if (gate === 'maintenance') { enterMaintenanceLoop(); return; }
 
   let user = null;
   try {
@@ -146,6 +201,7 @@ function startGame() {
 
   App.tickTimer = setInterval(tick, TICK_MS);
   App.saveTimer = setInterval(() => saveNow(), AUTOSAVE_MS);
+  App.statusTimer = setInterval(() => pollMaintenance(), 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
   });
@@ -162,6 +218,7 @@ let _saving = false;
 async function saveNow(beaconOnly = false) {
   if (!App.state || _saving) return;
   if (beaconOnly) { api.saveStateBeacon(App.state); return; }
+  if (App.maintenanceMode) { UI.setSaveIndicator('● paused'); return; } // maintenance: hold saves
   _saving = true;
   UI.setSaveIndicator('… saving');
   try {

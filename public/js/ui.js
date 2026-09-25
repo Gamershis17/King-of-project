@@ -171,10 +171,27 @@ export const UI = {
 
   // ---------------- views & tabs ----------------
   showView(name) {
-    for (const v of ['auth', 'race', 'app', 'gm']) {
+    for (const v of ['auth', 'race', 'app', 'gm', 'maintenance']) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
     }
     window.scrollTo(0, 0);
+  },
+
+  // Maintenance screen (full view) + slim in-app banner.
+  showMaintenance(message) {
+    const el = document.getElementById('maintenance-message');
+    if (el && message) el.textContent = message;
+    this.showView('maintenance');
+  },
+  setMaintenanceBanner(message) {
+    const el = document.getElementById('maintenance-banner');
+    if (!el) return;
+    if (message) {
+      el.textContent = '🛠️ ' + message;
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
   },
 
   showTab(name) {

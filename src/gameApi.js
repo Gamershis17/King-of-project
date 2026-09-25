@@ -5,6 +5,7 @@
  *   GET  /api/state        (auth)
  *   POST /api/state        (auth)
  *   GET  /api/leaderboard  (public)
+ *   GET  /api/status       (public — maintenance flag + message)
  *   POST /api/redeem       (auth)
  *
  * Gift-code redemption runs inside a single Postgres transaction with
@@ -24,6 +25,17 @@ const {
 } = require('./db');
 
 const router = express.Router();
+
+// ---------- server status ----------
+// Public. Lets the client show a proper maintenance screen instead of
+// cryptic errors. Toggle with env vars (Render → Environment):
+//   MAINTENANCE_MODE=1            → maintenance screen on
+//   MAINTENANCE_MESSAGE="..."     → optional custom message
+router.get('/status', (req, res) => {
+  const maintenance = /^(1|true|yes)$/i.test(String(process.env.MAINTENANCE_MODE || ''));
+  const message = process.env.MAINTENANCE_MESSAGE || null;
+  res.json({ ok: true, maintenance, message });
+});
 
 /** Fresh default blob per the API contract's state schema. */
 function defaultStateBlob() {

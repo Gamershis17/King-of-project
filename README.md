@@ -104,6 +104,11 @@ This makes the game shareable — anyone with the link can play.
      redeploys automatically).
    - Without `DATABASE_URL` the server will not start — it fails fast with a
      clear error instead of silently losing data.
+   - **Optional: maintenance mode.** To show players a "Down for maintenance"
+     screen instead of errors during updates, add `MAINTENANCE_MODE=1` in the
+     Environment tab (add `MAINTENANCE_MESSAGE` with custom text if you like,
+     e.g. `MAINTENANCE_MESSAGE=Adding new zones — back in 10 minutes!`).
+     Remove `MAINTENANCE_MODE` (or set it to `0`) to bring the game back.
 5. **Open the URL.** Render gives you a link like
    `https://king-of-project.onrender.com`. Open it, register a player account,
    and play. Share the link with friends so they can join and appear on the
