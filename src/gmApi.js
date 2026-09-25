@@ -13,6 +13,14 @@
  *   POST /api/gm/codes        (gm|owner)
  *   GET  /api/gm/roster       (gm|owner)
  *   POST /api/gm/roster       (gm|owner)
+ *   POST /api/gm/title        (owner|admin) — unlock a title for a player
+ *   POST /api/gm/stage        (owner|admin) — set a player's stage
+ *   POST /api/gm/ban          (owner|admin) — stub until users.banned exists
+ *   POST /api/gm/unban        (owner|admin) — stub until users.banned exists
+ *   POST /api/gm/broadcast    (owner|admin|moderator) — server announcement
+ *   GET  /api/broadcasts/latest (public) — newest announcement
+ *   GET  /api/gm/players      (owner|admin|moderator) — player list w/ search
+ *   POST /api/gm/reset-player (owner|admin) — wipe a player's save
  *   POST /api/roles           (owner only)
  *
  * All database access is async (PostgreSQL).
@@ -21,10 +29,12 @@
 const crypto = require('crypto');
 const express = require('express');
 const { requireRole, asyncHandler } = require('./auth');
-const { sanitizeStateBlob } = require('./validation');
+const { sanitizeStateBlob, VALID_ROLES } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const { loadBlob, defaultStateBlob } = require('./gameApi');
+const { addBroadcast, latestBroadcast } = require('./broadcast');
 const {
+  pool,
   getUserByUsername,
   setUserRole,
   getPlayerCount,
@@ -39,8 +49,13 @@ const {
 const router = express.Router();
 const gmOrOwner = requireRole('gm', 'owner');
 const ownerOnly = requireRole('owner');
+// Moderator tier: read-only staff tools + broadcasts. Sensitive grant
+// endpoints stay on gmOrOwner; never widen those to this middleware.
+const requireMod = requireRole('owner', 'admin', 'gm', 'moderator');
+// Admin tier: player-management commands that don't grant power.
+const adminPlus = requireRole('owner', 'admin');
 
-const VALID_ROLES_FOR_ROLES_ROUTE = ['gm', 'admin', 'player'];
+const VALID_ROLES_FOR_ROLES_ROUTE = VALID_ROLES.filter((r) => r !== 'owner');
 const STAR_GRANT_MIN = 1;
 const STAR_GRANT_MAX = 100000;
 
@@ -340,6 +355,135 @@ router.post(
   })
 );
 
+// ---------- player management (admin+) ----------
+// Unlock a title id for a player (mirrors /gm/grant-title; separate route
+// with the admin tier so moderators never touch it).
+router.post(
+  '/gm/title',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { username, title } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (typeof title !== 'string' || !title.trim() || title.length > 64) {
+      return res
+        .status(400)
+        .json({ error: 'title must be a non-empty string of at most 64 characters.' });
+    }
+    const blob = await loadBlob(target.id);
+    if (!Array.isArray(blob.titlesUnlocked)) blob.titlesUnlocked = [];
+    const id = title.trim();
+    if (!blob.titlesUnlocked.includes(id)) blob.titlesUnlocked.push(id);
+    await persistMergedState(target.id, blob);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// Set a player's stage (mirrors /gm/set-stage on the admin tier).
+router.post(
+  '/gm/stage',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { username, stage } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!Number.isInteger(stage) || stage < 1 || stage > 10000) {
+      return res.status(400).json({ error: 'stage must be an integer between 1 and 10000.' });
+    }
+    const blob = await loadBlob(target.id);
+    blob.stage = stage;
+    await persistMergedState(target.id, blob);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- ban / unban (admin+) ----------
+// STUB: the users table has no `banned` column and src/schema.sql is owned
+// by another agent, so enforcement at login is not possible yet. These
+// return 501 until the schema lands; the console UI marks them as pending.
+router.post(
+  '/gm/ban',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (target.role === 'owner') return res.status(403).json({ error: 'The owner cannot be banned.' });
+    await pool.query('UPDATE users SET banned = TRUE WHERE id = $1', [target.id]);
+    res.json({ ok: true, username: target.username, banned: true });
+  })
+);
+
+router.post(
+  '/gm/unban',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    await pool.query('UPDATE users SET banned = FALSE WHERE id = $1', [target.id]);
+    res.json({ ok: true, username: target.username, banned: false });
+  })
+);
+
+// ---------- reset player save (admin+) ----------
+router.post(
+  '/gm/reset-player',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const fresh = defaultStateBlob();
+    await persistMergedState(target.id, fresh);
+    res.json({ ok: true, state: selfState(req, target, fresh) });
+  })
+);
+
+// ---------- broadcast (moderators+) ----------
+// Server-wide announcement persisted in the broadcasts table (see
+// src/broadcast.js). Clients poll GET /api/broadcasts/latest.
+router.post(
+  '/gm/broadcast',
+  requireMod,
+  asyncHandler(async (req, res) => {
+    const { message } = req.body || {};
+    if (typeof message !== 'string' || !message.trim() || message.trim().length > 500) {
+      return res.status(400).json({ error: 'message must be 1–500 characters.' });
+    }
+    const row = await addBroadcast(message.trim(), req.user.username);
+    res.status(201).json({ ok: true, broadcast: row });
+  })
+);
+
+// ---------- latest broadcast (public, no auth) ----------
+router.get(
+  '/broadcasts/latest',
+  asyncHandler(async (req, res) => {
+    res.json({ broadcast: await latestBroadcast() });
+  })
+);
+
+// ---------- player list (moderators+) ----------
+router.get(
+  '/gm/players',
+  requireMod,
+  asyncHandler(async (req, res) => {
+    const search = typeof req.query.search === 'string' ? req.query.search.trim().slice(0, 20) : '';
+    const limit = Math.max(1, Math.min(200, Math.floor(Number(req.query.limit)) || 50));
+    const { rows } = await pool.query(
+      `SELECT u.username, u.role,
+              COALESCE(ps.level, 1) AS level, COALESCE(ps.stage, 1) AS stage
+       FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
+       WHERE ($1 = '' OR LOWER(u.username) LIKE '%' || LOWER($1) || '%')
+       ORDER BY u.created_at ASC
+       LIMIT $2`,
+      [search, limit]
+    );
+    res.json({ players: rows });
+  })
+);
+
 // ---------- gift codes ----------
 router.get(
   '/gm/codes',
@@ -350,7 +494,6 @@ router.get(
     res.json({ codes: codes.map((c) => ({ ...c, created_at: Number(c.created_at) })) });
   })
 );
-
 router.post(
   '/gm/codes',
   gmOrOwner,
@@ -415,7 +558,7 @@ router.post(
     const target = await resolveTarget(username);
     if (!target) return res.status(404).json({ error: 'Target user not found.' });
     if (!VALID_ROLES_FOR_ROLES_ROUTE.includes(role)) {
-      return res.status(400).json({ error: 'Role must be one of gm, admin, player.' });
+      return res.status(400).json({ error: 'Role must be one of gm, admin, moderator, player.' });
     }
     if (target.role === 'owner') {
       return res.status(403).json({ error: 'Owner accounts cannot be changed.' });

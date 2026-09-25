@@ -617,3 +617,54 @@ body.reduce-motion .combo-frenzy { animation: none; }
 .cl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
 .cl-head b { color: var(--gold); }
 .cl-list { margin: 0; padding-left: 1.1rem; color: #cfc8e6; font-size: 0.88rem; display: flex; flex-direction: column; gap: 0.2rem; }
+
+/* ============================================================
+   Auth reskin — dark-fantasy login/register (appended 2026-09-25)
+   Scoped to #view-auth only; maintenance view (.auth-wrap) untouched.
+   ============================================================ */
+#view-auth .auth-fantasy .game-title {
+  color: var(--gold);
+  font-size: 2.1rem;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 18px rgba(255, 210, 63, 0.35), 0 2px 6px rgba(0, 0, 0, 0.8);
+  margin: 0.4rem 0 0.2rem;
+}
+#view-auth .auth-fantasy .logo {
+  font-size: 3rem;
+  filter: drop-shadow(0 0 12px rgba(139, 92, 246, 0.6));
+}
+#view-auth .auth-fantasy .tagline {
+  color: var(--muted);
+  font-style: italic;
+  margin: 0 0 1.2rem;
+}
+#view-auth .auth-card {
+  background: linear-gradient(160deg, var(--bg2), #141021);
+  border: 1px solid rgba(255, 210, 63, 0.35);
+  border-radius: var(--radius);
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.25), 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 1.2rem 1.1rem;
+}
+#view-auth .auth-card .auth-form input {
+  background: #0e0b16;
+  border: 1px solid var(--stone2);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 0.7rem 0.8rem;
+  width: 100%;
+}
+#view-auth .auth-card .auth-form input:focus {
+  outline: none;
+  border-color: var(--arcane);
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.45);
+}
+#view-auth .auth-card .auth-form input::placeholder {
+  color: var(--muted);
+}
+#view-auth .auth-card .auth-tabs {
+  border: 1px solid var(--stone2);
+}
+#view-auth .auth-card .btn.gold {
+  box-shadow: 0 0 14px rgba(255, 210, 63, 0.35);
+  font-weight: 700;
+}

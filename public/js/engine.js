@@ -548,6 +548,7 @@ export const PROFESSIONS = {
 };
 export const professionCost = (level) =>
   Math.round(60 * Math.pow(2.1, Math.max(0, (level || 1) - 1)));
+// ============================================================
 // Returns the gold cost to go from current level to next, or null if maxed.
 export function levelProfession(state, id) {
   const def = PROFESSIONS[id];
@@ -588,6 +589,15 @@ export const TITLES = [
   { id: 'idle-king',       name: 'the Idle King',       desc: 'Prestige once.',                            check: (s) => (s.prestigeCount || 0) >= 1 },
   { id: 'dungeon-master',  name: 'the Dungeon Master',  desc: 'Fill your 3-companion dungeon party.',      check: (s) => (s.party || []).length >= MAX_PARTY },
   { id: 'overlord',        name: 'the Overlord',        desc: 'Reach stage 100.',                          check: (s) => (s.stage || 1) >= 100 },
+  { id: 'sleepless',       name: 'the Sleepless',       desc: 'Play for 1 hour total.',                    check: (s) => (s.stats.playTimeSec || 0) >= 3600 },
+  { id: 'tireless',        name: 'the Tireless',        desc: 'Play for 5 hours total.',                   check: (s) => (s.stats.playTimeSec || 0) >= 18000 },
+  { id: 'eternal',         name: 'the Eternal',         desc: 'Play for 24 hours total.',                  check: (s) => (s.stats.playTimeSec || 0) >= 86400 },
+  { id: 'climber',         name: 'the Climber',         desc: 'Reach stage 25.',                           check: (s) => (s.stage || 1) >= 25 },
+  { id: 'ascendant',       name: 'the Ascendant',       desc: 'Reach stage 50.',                           check: (s) => (s.stage || 1) >= 50 },
+  { id: 'mythical',        name: 'the Mythical',        desc: 'Reach stage 100.',                          check: (s) => (s.stage || 1) >= 100 },
+  { id: 'slayer',          name: 'the Slayer',          desc: 'Slay 100 enemies.',                         check: (s) => (s.stats.kills || 0) >= 100 },
+  { id: 'butcher',         name: 'the Butcher',         desc: 'Slay 1,000 enemies.',                       check: (s) => (s.stats.kills || 0) >= 1000 },
+  { id: 'annihilator',     name: 'the Annihilator',     desc: 'Slay 10,000 enemies.',                      check: (s) => (s.stats.kills || 0) >= 10000 },
 ];
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
 export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }
@@ -688,3 +698,69 @@ export function grantLevels(state, n) {
   state.hero.hp = s2.maxHp;
   return n;
 }
+
+// RAID MODE (PvE endless waves) — appended 2026-09-25
+// Pure logic. raid.js (Raid object) drives the combat loop with these.
+// state.raid = { best: 0 } — best wave reached.
+// Call ensureRaidState(state) on load; call carryRaidPrestige(new, old)
+// right after Engine.prestige(old) so best survives prestige.
+// ============================================================
+
+// Wave scaling: hp 1.18^wave, atk 1.10^wave, gold 1 + wave*0.15.
+// Strictly increasing in wave — difficulty never plateaus.
+export function raidWaveScaling(wave) {
+  const w = Math.max(1, Math.floor(wave || 1));
+  return {
+    hpMult: Math.pow(1.18, w),
+    atkMult: Math.pow(1.10, w),
+    goldMult: 1 + w * 0.15,
+  };
+}
+
+// Raid bosses appear every 5th wave (5, 10, 15, ...).
+export function isRaidBoss(wave) {
+  return Math.floor(wave || 0) % 5 === 0 && Math.floor(wave || 0) > 0;
+}
+
+// Builds the enemy for a raid wave. Base stats come from the player's
+// current stage via enemyFor(), then wave scaling is applied.
+// Raid bosses: 2.5x HP of the wave, epic+ loot tier (minIdx 3), 👹 emoji.
+// Normal waves: common+ loot tier (minIdx 0).
+export function raidEnemyFor(wave, playerStage) {
+  const w = Math.max(1, Math.floor(wave || 1));
+  const stage = Math.max(1, Math.floor(playerStage || 1));
+  const boss = isRaidBoss(w);
+  // Non-boss waves must never inherit the stage's boss identity
+  // (e.g. player sitting on a x10 boss stage).
+  const baseStage = (!boss && isBossStage(stage)) ? stage + 1 : stage;
+  const base = enemyFor(baseStage);
+  const s = raidWaveScaling(w);
+  const hp = Math.max(1, Math.round(base.hp * s.hpMult * (boss ? 2.5 : 1)));
+  return {
+    name: boss ? pick(BOSS_NAMES) : base.name,
+    stage, boss, raidWave: w,
+    hp, maxHp: hp,
+    attack: Math.max(1, Math.round(base.attack * s.atkMult)),
+    emoji: boss ? '👹' : base.emoji,
+    lootTier: boss ? 3 : 0, // minIdx into RARITIES for rollLoot()
+    goldMult: s.goldMult,
+  };
+}
+
+// Normalizes state.raid (safe on old saves that lack it).
+export function ensureRaidState(state) {
+  if (!state || typeof state !== 'object') return state;
+  const r = state.raid;
+  const best = r && Number.isFinite(+r.best) ? Math.max(0, Math.floor(+r.best)) : 0;
+  state.raid = { best };
+  return state;
+}
+
+// Keeps the best-wave record across prestige (call after prestige()).
+export function carryRaidPrestige(newState, oldState) {
+  ensureRaidState(newState);
+  ensureRaidState(oldState);
+  newState.raid.best = Math.max(newState.raid.best, oldState.raid.best);
+  return newState;
+}
+

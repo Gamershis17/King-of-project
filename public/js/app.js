@@ -6,6 +6,8 @@ import * as Engine from './engine.js';
 import { UI, esc, formatNum } from './ui.js';
 import { Auth } from './auth.js';
 import { GM } from './gm.js';
+import { Raid } from './raid.js';
+import { renderGuildSection } from './guild.js';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -177,6 +179,7 @@ async function enterApp(user) {
   }
 
   App.state = state;
+  Raid.init(state);
   UI.showView('app');
 
   // Offline earnings (lastSeenAt null on brand-new accounts).
@@ -211,6 +214,8 @@ function startGame() {
   App.tickTimer = setInterval(tick, TICK_MS);
   App.saveTimer = setInterval(() => saveNow(), AUTOSAVE_MS);
   App.statusTimer = setInterval(() => pollMaintenance(), 60000);
+  pollBroadcast();
+  App.broadcastTimer = setInterval(() => pollBroadcast(), 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
   });
@@ -243,7 +248,10 @@ async function saveNow(beaconOnly = false) {
 // ---------------- combat ----------------
 function spawnEnemy() {
   const s = App.state;
-  App.enemy = Engine.enemyFor(s.stage);
+  // Raid mode spawns scaled waves instead of stage enemies.
+  App.enemy = s.mode === 'raid'
+    ? (Raid.isActive() ? Raid.spawnEnemy(s) : Raid.enter(s))
+    : Engine.enemyFor(s.stage);
   App.enemyTimer = 0;
   App.heroTimer = 0;
   App.companionTimers = {};
@@ -338,8 +346,12 @@ function onKillEnemy() {
   const enemy = App.enemy;
   const stage = enemy.stage;
   const stats = Engine.computeStats(s);
+  // Raid: each kill advances the wave instead of the stage, with a gold bonus.
+  const inRaid = Raid.isActive();
+  const raidLoot = inRaid ? Raid.onKill(s) : null;
 
-  const gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0), s.prestigeBonus);
+  let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0), s.prestigeBonus);
+  if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
   s.gold += gold;
   s.stats.kills += 1;
   if (enemy.boss) {
@@ -367,6 +379,13 @@ function onKillEnemy() {
   }
   checkAch();
 
+  if (inRaid) {
+    // Raid: stay on the same stage, spawn the next wave.
+    UI.combatLog(`🌀 Wave ${raidLoot.wave} cleared!${raidLoot.boss ? ' Boss down!' : ''}`, raidLoot.boss ? 'boss' : 'info');
+    spawnEnemy();
+    UI.updateHUD(s, App.user);
+    return;
+  }
   s.stage += 1;
   spawnEnemy();
   UI.updateHUD(s, App.user);
@@ -421,6 +440,18 @@ function onDefeat() {
   App.respawnAt = Date.now() + RESPAWN_MS;
   const lost = Math.floor(s.gold * 0.02);
   s.gold -= lost;
+  // Raid: death ends the run (loot kept); drop back to clicker mode.
+  if (Raid.isActive()) {
+    const res = Raid.onDeath();
+    Raid.exit();
+    s.mode = 'clicker';
+    UI.setMode('clicker');
+    UI.setDead(true);
+    UI.combatLog(`🌀 Raid run ended at wave ${res.wavesCleared} — best ${res.best}. Lost ${formatNum(lost)} gold. Reviving…`, 'death');
+    UI.toast(`🌀 Raid ended at wave ${res.wavesCleared} (best ${res.best})!`, 'info');
+    saveNow();
+    return;
+  }
   // Mercy rule: dying 3x in a row to the same boss retreats you 5 stages,
   // so a wall becomes a farming trip instead of an endless death loop.
   if (App.enemy && App.enemy.boss) {
@@ -576,13 +607,17 @@ function usePowerStrike() {
 function setMode(mode) {
   const s = App.state;
   if (!s || s.mode === mode) { UI.setMode(mode); return; }
+  const wasRaid = s.mode === 'raid';
+  if (wasRaid) Raid.exit();
   s.mode = mode;
   App.heroTimer = 0;
   App.companionTimers = {};
   UI.setMode(mode);
   UI.renderBattle(s);
   UI.updateHeroPanel(s, Engine.computeStats(s), App);
-  UI.toast({ clicker: '👆 Clicker mode — tap to attack!', auto: '🤖 Auto mode — your hero fights alone.', dungeon: '🏰 Dungeon mode — party fights with you!' }[mode] || mode);
+  UI.toast({ clicker: '👆 Clicker mode — tap to attack!', auto: '🤖 Auto mode — your hero fights alone.', dungeon: '🏰 Dungeon mode — party fights with you!', raid: '🌀 Raid mode — endless waves! Death ends the run.' }[mode] || mode);
+  // Entering or leaving raid needs a fresh enemy (waves vs stage enemies).
+  if (mode === 'raid' || wasRaid) spawnEnemy();
   saveNow();
 }
 
@@ -680,6 +715,7 @@ function doDismiss(id) {
 function applyExternalState(srv) {
   if (!srv) return;
   App.state = Engine.ensureState(srv);
+  Raid.init(App.state);
   const s = App.state;
   UI.updateHUD(s, App.user);
   UI.renderBattle(s);
@@ -705,6 +741,7 @@ async function doPrestige() {
   if (!ok) return;
   const fresh = Engine.prestige(s);
   if (!fresh) return;
+  Raid.carryOver(fresh, s);
   App.state = fresh;
   App.dead = false;
   UI.setDead(false);
@@ -751,12 +788,35 @@ async function doLogout() {
 }
 
 // ---------------- tab switching ----------------
+// Mounts the guild panel into the More tab once per session.
+let guildMounted = false;
+function mountGuild() {
+  const el = document.getElementById('guild-section');
+  if (!el || guildMounted) return;
+  guildMounted = true;
+  try { renderGuildSection(el, api); } catch (e) { console.warn('guild mount failed', e); }
+}
+
+// Polls for staff broadcasts; toasts any announcement newer than the last seen.
+async function pollBroadcast() {
+  try {
+    const b = await api.latestBroadcast();
+    if (!b || !b.id) return;
+    let seen = 0;
+    try { seen = Number(localStorage.getItem('kop-broadcast-seen') || 0); } catch { /* ignore */ }
+    if (b.id > seen) {
+      try { localStorage.setItem('kop-broadcast-seen', String(b.id)); } catch { /* ignore */ }
+      UI.toast(`📢 ${b.message}`, 'info', 6000);
+    }
+  } catch { /* offline-tolerant */ }
+}
+
 async function onTabSwitch(tab, force = false) {
   const s = App.state;
   if (!s) return;
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'party') UI.renderParty(s);
-  else if (tab === 'more') UI.renderMore(s, App.user);
+  else if (tab === 'more') { UI.renderMore(s, App.user); mountGuild(); }
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);

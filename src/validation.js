@@ -7,6 +7,9 @@
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const MAX_BLOB_BYTES = 1024 * 1024; // 1 MB
 
+// All roles recognized by the server, highest privilege first.
+const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'player'];
+
 function validateUsername(username) {
   if (typeof username !== 'string') return 'Username is required.';
   const trimmed = username.trim();
@@ -108,4 +111,5 @@ module.exports = {
   validatePassword,
   sanitizeStateBlob,
   MAX_BLOB_BYTES,
+  VALID_ROLES,
 };

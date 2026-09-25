@@ -1,5 +1,5 @@
 // ============================================================
-// gm.js — GM console UI. Only opened when me.role is owner/gm.
+// gm.js — GM console UI. Only opened for staff roles.
 // ============================================================
 import { api } from './api.js';
 import { UI, esc, formatNum } from './ui.js';
@@ -7,13 +7,19 @@ import { PRIVILEGED_SETS, TITLES, BADGES } from './engine.js';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
+// Staff tiers for the console. Server re-checks every route; this only
+// decides which cards to render.
+const canGm = (role) => role === 'owner' || role === 'gm';          // grant endpoints
+const canAdmin = (role) => role === 'owner' || role === 'admin';     // player-mgmt endpoints
+const canMod = (role) => canAdmin(role) || role === 'moderator';     // moderation endpoints
+
 export const GM = {
   me: null,
 
   open(me) {
     this.me = me;
     const role = (me && me.role) || 'player';
-    if (role !== 'owner' && role !== 'gm') {
+    if (!canGm(role) && !canMod(role)) {
       UI.toast('GM console is for staff only.', 'error');
       return;
     }
@@ -24,29 +30,44 @@ export const GM = {
   async render() {
     const root = document.getElementById('gm-content');
     root.innerHTML = '<p class="muted">Loading console…</p>';
+    // /gm/overview is gm|owner only; admins/moderators get a slim header.
+    let ov;
     try {
-      const ov = await api.gmOverview();
+      ov = await api.gmOverview();
+    } catch (e) {
+      ov = { role: this.me.role, playerCount: null, codeCount: null };
+    }
+    try {
       root.innerHTML = this.template(ov);
       this.bind(root);
-      await Promise.all([this.refreshCodes(root), this.refreshRoster(root)]);
+      if (canGm(this.me.role)) {
+        await Promise.all([this.refreshCodes(root), this.refreshRoster(root)]);
+      }
     } catch (e) {
       root.innerHTML = `<p class="error">Couldn't load GM console: ${esc(e.message)}</p>`;
     }
   },
 
   template(ov) {
-    const isOwner = this.me.role === 'owner';
+    const role = this.me.role;
+    const isOwner = role === 'owner';
+    const gm = canGm(role);
+    const admin = canAdmin(role);
+    const mod = canMod(role);
+    const num = (v) => (v == null ? '—' : formatNum(v));
     const setOptions = SET_IDS.map(id => {
       const locked = id === 'sovereign' && !isOwner;
       return `<option value="${id}" ${locked ? 'disabled' : ''}>${esc(PRIVILEGED_SETS[id].name)}${locked ? ' (owner only)' : ''}</option>`;
     }).join('');
+    const titleOptions = TITLES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
     return `
       <div class="gm-cards">
-        <div class="gm-card"><div class="gm-num">${formatNum(ov.playerCount)}</div><div class="muted small">players</div></div>
-        <div class="gm-card"><div class="gm-num">${formatNum(ov.codeCount)}</div><div class="muted small">gift codes</div></div>
+        <div class="gm-card"><div class="gm-num">${num(ov.playerCount)}</div><div class="muted small">players</div></div>
+        <div class="gm-card"><div class="gm-num">${num(ov.codeCount)}</div><div class="muted small">gift codes</div></div>
         <div class="gm-card"><div class="gm-num">${esc(ov.role)}</div><div class="muted small">your role</div></div>
       </div>
 
+      ${gm ? `
       <div class="card"><h3>🎁 Grant to player</h3>
         <label class="fld"><span>Username</span><input id="gm-grant-user" placeholder="player name" autocomplete="off"></label>
         <div class="row">
@@ -66,7 +87,9 @@ export const GM = {
         <button id="gm-grant-btn" class="btn gold wide">Grant</button>
         <p class="muted small">Gear grants add the full 5-piece set to the player's inventory. Sovereign set is owner-only.</p>
       </div>
+      ` : ''}
 
+      ${gm ? `
       <div class="card"><h3>⚡ Quick commands</h3>
         <label class="fld"><span>Username</span><input id="gm-cmd-user" placeholder="player name" autocomplete="off"></label>
         <div class="row">
@@ -86,7 +109,9 @@ export const GM = {
         </div>
         <p class="muted small">Reset wipes a player's progress back to a fresh hero (keeps account &amp; role).</p>
       </div>
+      ` : ''}
 
+      ${gm ? `
       <div class="card"><h3>🎟️ Gift codes</h3>
         <div class="row">
           <label class="fld"><span>Set</span><select id="gm-code-set">${setOptions}</select></label>
@@ -96,7 +121,9 @@ export const GM = {
         <div id="gm-new-code" class="new-code hidden"></div>
         <div id="gm-code-list" class="code-list"></div>
       </div>
+      ` : ''}
 
+      ${gm ? `
       <div class="card"><h3>🛡️ Admin roster</h3>
         <p class="muted small">Admins are entitled to the Warden Arsenal (in-game status, no console).</p>
         <div class="row">
@@ -107,6 +134,41 @@ export const GM = {
         <h4 class="gm-sub">Game masters</h4>
         <div id="gm-gm-list" class="name-list"></div>
       </div>
+      ` : ''}
+
+      ${admin ? `
+      <div class="card"><h3>🛠️ Player management <span class="muted small">(owner/admin)</span></h3>
+        <label class="fld"><span>Username</span><input id="gm-pm-user" placeholder="player name" autocomplete="off"></label>
+        <div class="row">
+          <label class="fld"><span>Grant title</span>
+            <select id="gm-pm-title">${titleOptions}</select></label>
+          <label class="fld"><span>Set stage (1–10000)</span>
+            <input id="gm-pm-stage" type="number" min="1" max="10000" value="1"></label>
+        </div>
+        <div class="row" style="margin-top:0.6rem">
+          <button id="gm-pm-title-btn" class="btn small">👑 Grant title</button>
+          <button id="gm-pm-stage-btn" class="btn small">🗺️ Set stage</button>
+          <button id="gm-pm-ban-btn" class="btn small danger">🔨 Ban</button>
+          <button id="gm-pm-unban-btn" class="btn small">🔓 Unban</button>
+          <button id="gm-pm-reset-btn" class="btn small danger">♻️ Reset save</button>
+        </div>
+        <p class="muted small">Reset save wipes progress back to a fresh hero (keeps account &amp; role). Banned players cannot log in.</p>
+      </div>
+      ` : ''}
+
+      ${mod ? `
+      <div class="card"><h3>📣 Moderation</h3>
+        <label class="fld"><span>Broadcast message (1–500 chars, seen by all players)</span>
+          <input id="gm-bc-msg" placeholder="Announcement…" maxlength="500" autocomplete="off"></label>
+        <button id="gm-bc-send" class="btn gold wide">Send broadcast</button>
+        <h4 class="gm-sub">Players</h4>
+        <div class="row">
+          <input id="gm-pl-search" placeholder="search username" autocomplete="off">
+          <button id="gm-pl-search-btn" class="btn small">Search</button>
+        </div>
+        <div id="gm-player-list" class="name-list"></div>
+      </div>
+      ` : ''}
 
       ${isOwner ? `
       <div class="card"><h3>👑 Role management <span class="muted small">(owner only)</span></h3>
@@ -115,17 +177,21 @@ export const GM = {
           <select id="gm-role-select">
             <option value="gm">gm</option>
             <option value="admin">admin</option>
+            <option value="moderator">moderator</option>
             <option value="player">player</option>
           </select>
           <button id="gm-role-set" class="btn small gold">Set role</button>
         </div>
-        <p class="muted small">gm: console access. admin: Warden gear entitlement. player: default.</p>
+        <p class="muted small">gm: full console. admin: Warden gear entitlement + player management. moderator: broadcast + player lookup. player: default.</p>
       </div>` : ''}`;
   },
 
   bind(root) {
     const $ = (id) => root.querySelector('#' + id);
+    // Cards render per role tier; elements for other tiers are absent.
+    const on = (id, evt, fn) => { const el = $(id); if (el) el.addEventListener(evt, fn); };
     const kindSel = $('gm-grant-kind');
+    if (kindSel) {
     const amountLabel = $('gm-grant-amount-label');
     const amountInput = $('gm-grant-amount');
     const syncKindUI = () => {
@@ -140,8 +206,9 @@ export const GM = {
     };
     kindSel.addEventListener('change', syncKindUI);
     syncKindUI();
+    }
 
-    $('gm-grant-btn').addEventListener('click', async () => {
+    on('gm-grant-btn', 'click', async () => {
       const username = $('gm-grant-user').value.trim();
       if (!username) return UI.toast('Enter a username.', 'error');
       const kind = kindSel.value;
@@ -196,7 +263,7 @@ export const GM = {
       }
     });
 
-    $('gm-code-create').addEventListener('click', async () => {
+    on('gm-code-create', 'click', async () => {
       const set = $('gm-code-set').value;
       const maxUses = Math.floor(Number($('gm-code-uses').value)) || 1;
       try {
@@ -226,7 +293,7 @@ export const GM = {
       }
     };
 
-    $('gm-cmd-title-btn').addEventListener('click', async () => {
+    on('gm-cmd-title-btn', 'click', async () => {
       const username = cmdUser();
       if (!username) return;
       const titleId = $('gm-cmd-title').value;
@@ -240,7 +307,7 @@ export const GM = {
       }
     });
 
-    $('gm-cmd-badge-btn').addEventListener('click', async () => {
+    on('gm-cmd-badge-btn', 'click', async () => {
       const username = cmdUser();
       if (!username) return;
       const badge = $('gm-cmd-badge').value;
@@ -254,7 +321,7 @@ export const GM = {
       }
     });
 
-    $('gm-cmd-stage-btn').addEventListener('click', async () => {
+    on('gm-cmd-stage-btn', 'click', async () => {
       const username = cmdUser();
       if (!username) return;
       const stage = Math.floor(Number($('gm-cmd-stage').value));
@@ -270,7 +337,7 @@ export const GM = {
       }
     });
 
-    $('gm-cmd-heal-btn').addEventListener('click', async () => {
+    on('gm-cmd-heal-btn', 'click', async () => {
       const username = cmdUser();
       if (!username) return;
       try {
@@ -282,7 +349,7 @@ export const GM = {
       }
     });
 
-    $('gm-cmd-reset-btn').addEventListener('click', async () => {
+    on('gm-cmd-reset-btn', 'click', async () => {
       const username = cmdUser();
       if (!username) return;
       const ok = await UI.confirm(
@@ -301,10 +368,119 @@ export const GM = {
       }
     });
 
-    $('gm-admin-add').addEventListener('click', async () => {
-      const username = $('gm-admin-user').value.trim();
-      if (!username) return UI.toast('Enter a username.', 'error');
+    // ---- player management (owner/admin) ----
+    const pmUser = () => {
+      const u = $('gm-pm-user').value.trim();
+      if (!u) UI.toast('Enter a username for the command.', 'error');
+      return u;
+    };
+
+    on('gm-pm-title-btn', 'click', async () => {
+      const username = pmUser();
+      if (!username) return;
+      const title = $('gm-pm-title').value;
       try {
+        const res = await api.gmTitle(username, title);
+        const t = TITLES.find(x => x.id === title);
+        UI.toast(`👑 Granted title "${t ? t.name : title}" to ${username}.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Grant title failed.', 'error');
+      }
+    });
+
+    on('gm-pm-stage-btn', 'click', async () => {
+      const username = pmUser();
+      if (!username) return;
+      const stage = Math.floor(Number($('gm-pm-stage').value));
+      if (!Number.isFinite(stage) || stage < 1 || stage > 10000) {
+        return UI.toast('Stage must be 1–10000.', 'error');
+      }
+      try {
+        const res = await api.gmStage(username, stage);
+        UI.toast(`🗺️ ${username} moved to stage ${stage}.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Set stage failed.', 'error');
+      }
+    });
+
+    on('gm-pm-ban-btn', 'click', async () => {
+      const username = pmUser();
+      if (!username) return;
+      const ok = await UI.confirm('🔨 Ban player?', `<p>Ban <b>${esc(username)}</b> from logging in?</p>`, 'Ban');
+      if (!ok) return;
+      try {
+        await api.gmBan(username);
+        UI.toast(`🔨 ${username} banned.`, 'success');
+      } catch (e) {
+        UI.toast(e.message || 'Ban failed.', 'error');
+      }
+    });
+
+    on('gm-pm-unban-btn', 'click', async () => {
+      const username = pmUser();
+      if (!username) return;
+      try {
+        await api.gmUnban(username);
+        UI.toast(`🔓 ${username} unbanned.`, 'success');
+      } catch (e) {
+        UI.toast(e.message || 'Unban failed.', 'error');
+      }
+    });
+
+    on('gm-pm-reset-btn', 'click', async () => {
+      const username = pmUser();
+      if (!username) return;
+      const ok = await UI.confirm(
+        '♻️ Reset player save?',
+        `<p>Wipe <b>${esc(username)}</b>'s progress back to a fresh hero?</p>
+         <p class="muted">Keeps their account and role. This cannot be undone.</p>`,
+        'Reset save'
+      );
+      if (!ok) return;
+      try {
+        const res = await api.gmResetPlayer(username);
+        UI.toast(`♻️ ${username}'s save was reset.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Reset failed.', 'error');
+      }
+    });
+
+    // ---- moderation (owner/admin/moderator) ----
+    on('gm-bc-send', 'click', async () => {
+      const message = $('gm-bc-msg').value.trim();
+      if (!message) return UI.toast('Enter a broadcast message.', 'error');
+      try {
+        await api.gmBroadcast(message);
+        $('gm-bc-msg').value = '';
+        UI.toast('📣 Broadcast sent.', 'success');
+      } catch (e) {
+        UI.toast(e.message || 'Broadcast failed.', 'error');
+      }
+    });
+
+    const loadPlayers = async () => {
+      const search = $('gm-pl-search').value.trim();
+      const list = $('gm-player-list');
+      list.innerHTML = '<p class="muted small">Loading…</p>';
+      try {
+        const { players = [] } = await api.gmPlayers(search, 50);
+        if (!players.length) { list.innerHTML = '<p class="muted small">No players found.</p>'; return; }
+        list.innerHTML = players.map(p => `
+          <div class="name-row"><span>${esc(p.username)}</span>
+            <span class="muted small">${esc(p.role)} · Lv ${p.level} · stage ${p.stage}</span></div>`).join('');
+      } catch (e) {
+        list.innerHTML = `<p class="error small">Couldn't load players.</p>`;
+      }
+    };
+    on('gm-pl-search-btn', 'click', loadPlayers);
+    if ($('gm-player-list')) loadPlayers();
+
+    on('gm-admin-add', 'click', async () => {
+      const username = $('gm-admin-user').value.trim();
+      if (!username) return UI.toast('Enter a username.', 'error');      try {
         await api.gmRosterUpdate(username, 'add-admin');
         $('gm-admin-user').value = '';
         this.refreshRoster(root);

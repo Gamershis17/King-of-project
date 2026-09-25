@@ -97,6 +97,9 @@ router.post(
       // Same message either way: don't reveal which part failed.
       return res.status(401).json({ error: 'Invalid username or password.' });
     }
+    if (user.banned) {
+      return res.status(403).json({ error: 'This account has been banned.' });
+    }
     // Fresh session id on login to prevent session fixation.
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: 'Session error.' });

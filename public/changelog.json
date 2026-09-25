@@ -1,6 +1,19 @@
 [
   {
     "date": "2026-09-25",
+    "title": "New titles, moderator role & GM commands",
+    "changes": [
+      "9 new hero titles: playtime titles (the Sleepless, the Tireless, the Eternal), stage titles (the Climber, the Ascendant, the Mythical) and kill titles (the Slayer, the Butcher, the Annihilator)",
+      "New moderator staff role with broadcast and player-lookup tools",
+      "New GM commands: unlock titles, set stage, ban/unban with login enforcement, server-wide broadcasts, player list search, and full save reset",
+      "The latest server broadcast is now publicly readable so the client can show announcements",
+      "Raid mode: endless PvE waves with boss waves every 5, best-wave record survives prestige",
+      "Guilds: create, join, leave, and view your guild roster from the More tab",
+      "Reskinned login screen with dark-fantasy styling"
+    ]
+  },
+  {
+    "date": "2026-09-25",
     "title": "Leaderboard badges & flags, number fixes",
     "changes": [
       "Fixed companion damage numbers showing \"false60\" — crits now display properly",

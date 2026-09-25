@@ -365,7 +365,10 @@ export const UI = {
     const zone = Engine.zoneFor(enemy.stage);
     e['enemy-sprite'].textContent = enemy.emoji;
     e['enemy-name'].textContent = enemy.name;
-    e['enemy-stage'].textContent = `Stage ${enemy.stage} · ${zone.emoji} ${zone.name}`;
+    // Raid waves show the wave counter instead of the stage.
+    e['enemy-stage'].textContent = enemy.raidWave
+      ? `🌀 Raid — Wave ${enemy.raidWave}`
+      : `Stage ${enemy.stage} · ${zone.emoji} ${zone.name}`;
     e['boss-badge'].classList.toggle('hidden', !enemy.boss);
     e['enemy-card'].classList.toggle('boss', !!enemy.boss);
     e['enemy-atk'].textContent = `⚔️ ${formatNum(enemy.attack)} attack`;

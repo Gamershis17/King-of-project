@@ -22,6 +22,12 @@ const {
   saveState,
   getLeaderboardRows,
   redeemGiftCode,
+  createGuild,
+  getGuildByName,
+  getMyGuild,
+  getGuildRoster,
+  joinGuild,
+  leaveGuild,
 } = require('./db');
 
 const router = express.Router();
@@ -190,6 +196,110 @@ router.post(
     }
 
     res.json({ ok: true, set: gearSet });
+  })
+);
+
+// ---------- guilds ----------
+function cleanGuildName(name) {
+  if (typeof name !== 'string') return null;
+  const n = name.trim().replace(/\s+/g, ' ');
+  if (n.length < 3 || n.length > 20) return null;
+  if (!/^[A-Za-z0-9 ]+$/.test(n)) return null;
+  return n;
+}
+
+function cleanGuildTag(tag) {
+  if (typeof tag !== 'string') return null;
+  const t = tag.trim().toUpperCase();
+  if (t.length < 2 || t.length > 4) return null;
+  if (!/^[A-Za-z0-9]+$/.test(t)) return null;
+  return t;
+}
+
+router.post(
+  '/guilds',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const name = cleanGuildName(req.body && req.body.name);
+    const tag = cleanGuildTag(req.body && req.body.tag);
+    if (!name) {
+      return res.status(400).json({ error: 'Guild name must be 3-20 characters (letters, numbers, spaces).' });
+    }
+    if (!tag) {
+      return res.status(400).json({ error: 'Guild tag must be 2-4 characters (letters, numbers).' });
+    }
+    try {
+      const guild = await createGuild(name, tag, req.user.username);
+      res.json({ ok: true, guild });
+    } catch (err) {
+      if (err.code === 'GUILD_NAME_TAKEN') {
+        return res.status(409).json({ error: 'That guild name is taken.' });
+      }
+      if (err.code === 'GUILD_ALREADY_IN') {
+        return res.status(409).json({ error: 'You are already in a guild.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.post(
+  '/guilds/join',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const raw = req.body && typeof req.body.name === 'string' ? req.body.name.trim() : '';
+    if (!raw) return res.status(400).json({ error: 'Guild name is required.' });
+    const guild = await getGuildByName(raw);
+    if (!guild) return res.status(404).json({ error: 'Guild not found.' });
+    try {
+      await joinGuild(guild.id, req.user.username);
+      res.json({ ok: true, guild });
+    } catch (err) {
+      if (err.code === 'GUILD_ALREADY_IN') {
+        return res.status(409).json({ error: 'You are already in a guild. Leave it first.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.post(
+  '/guilds/leave',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await leaveGuild(req.user.username);
+      res.json({ ok: true, guildDeleted: result.guildDeleted, guildName: result.guildName });
+    } catch (err) {
+      if (err.code === 'GUILD_NOT_IN') {
+        return res.status(404).json({ error: 'You are not in a guild.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.get(
+  '/guilds/mine',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const mine = await getMyGuild(req.user.username);
+    if (!mine) return res.json({ guild: null, members: [] });
+    const { my_rank: myRank, ...guild } = mine;
+    const members = await getGuildRoster(guild.id);
+    res.json({ guild: { ...guild, myRank }, members });
+  })
+);
+
+router.get(
+  '/guilds/roster',
+  asyncHandler(async (req, res) => {
+    const raw = req.query && typeof req.query.name === 'string' ? req.query.name.trim() : '';
+    if (!raw) return res.status(400).json({ error: 'Guild name is required.' });
+    const guild = await getGuildByName(raw);
+    if (!guild) return res.status(404).json({ error: 'Guild not found.' });
+    const members = await getGuildRoster(guild.id);
+    res.json({ guild, members });
   })
 );
 

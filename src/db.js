@@ -294,4 +294,160 @@ module.exports = {
   hasRedeemed,
   addRedemption,
   redeemGiftCode,
+  createGuild,
+  getGuildByName,
+  getMyGuild,
+  getGuildRoster,
+  joinGuild,
+  leaveGuild,
+  isInGuild,
 };
+
+// ---------- guilds ----------
+function guildError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
+
+/**
+ * Create a guild and make the creator its leader.
+ * Throws errors with .code: GUILD_NAME_TAKEN | GUILD_ALREADY_IN
+ */
+async function createGuild(name, tag, ownerUsername) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inGuild = await client.query(
+      'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
+      [ownerUsername]
+    );
+    if (inGuild.rows.length > 0) throw guildError('GUILD_ALREADY_IN');
+    const taken = await client.query(
+      'SELECT 1 FROM guilds WHERE LOWER(name) = LOWER($1)',
+      [name]
+    );
+    if (taken.rows.length > 0) throw guildError('GUILD_NAME_TAKEN');
+    const { rows } = await client.query(
+      'INSERT INTO guilds (name, tag, owner_username) VALUES ($1, $2, $3) RETURNING *',
+      [name, tag, ownerUsername]
+    );
+    await client.query(
+      "INSERT INTO guild_members (guild_id, username, rank) VALUES ($1, $2, 'leader')",
+      [rows[0].id, ownerUsername]
+    );
+    await client.query('COMMIT');
+    return rows[0];
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors; the original error is what matters
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function getGuildByName(name) {
+  const { rows } = await pool.query(
+    'SELECT * FROM guilds WHERE LOWER(name) = LOWER($1)',
+    [name]
+  );
+  return rows[0] || null;
+}
+
+/** The guild a player belongs to, with their rank as my_rank. Null if none. */
+async function getMyGuild(username) {
+  const { rows } = await pool.query(
+    `SELECT g.*, m.rank AS my_rank
+     FROM guild_members m
+     JOIN guilds g ON g.id = m.guild_id
+     WHERE LOWER(m.username) = LOWER($1)`,
+    [username]
+  );
+  return rows[0] || null;
+}
+
+/** Roster ordered by join date (earliest first). */
+async function getGuildRoster(guildId) {
+  const { rows } = await pool.query(
+    'SELECT username, rank, joined_at FROM guild_members WHERE guild_id = $1 ORDER BY joined_at ASC',
+    [guildId]
+  );
+  return rows;
+}
+
+/** Throws errors with .code: GUILD_ALREADY_IN */
+async function joinGuild(guildId, username) {
+  const inGuild = await pool.query(
+    'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+  if (inGuild.rows.length > 0) throw guildError('GUILD_ALREADY_IN');
+  await pool.query(
+    "INSERT INTO guild_members (guild_id, username, rank) VALUES ($1, $2, 'member')",
+    [guildId, username]
+  );
+}
+
+/**
+ * Leave the current guild. If the leader leaves and members remain, the
+ * earliest-joined remaining member is promoted to leader. If the last
+ * member leaves, the guild is deleted.
+ * Throws errors with .code: GUILD_NOT_IN
+ * Returns { guildDeleted, guildName }.
+ */
+async function leaveGuild(username) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT m.guild_id, m.rank, g.name
+       FROM guild_members m
+       JOIN guilds g ON g.id = m.guild_id
+       WHERE LOWER(m.username) = LOWER($1)`,
+      [username]
+    );
+    const mem = rows[0] || null;
+    if (!mem) throw guildError('GUILD_NOT_IN');
+    const others = await client.query(
+      'SELECT username FROM guild_members WHERE guild_id = $1 AND LOWER(username) <> LOWER($2) ORDER BY joined_at ASC',
+      [mem.guild_id, username]
+    );
+    await client.query(
+      'DELETE FROM guild_members WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
+      [mem.guild_id, username]
+    );
+    let guildDeleted = false;
+    if (others.rows.length === 0) {
+      await client.query('DELETE FROM guilds WHERE id = $1', [mem.guild_id]);
+      guildDeleted = true;
+    } else if (mem.rank === 'leader') {
+      await client.query(
+        "UPDATE guild_members SET rank = 'leader' WHERE guild_id = $1 AND LOWER(username) = LOWER($2)",
+        [mem.guild_id, others.rows[0].username]
+      );
+    }
+    await client.query('COMMIT');
+    return { guildDeleted, guildName: mem.name };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors; the original error is what matters
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function isInGuild(username) {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+  return rows.length > 0;
+}

@@ -8,10 +8,13 @@ CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   username TEXT NOT NULL,
   password_hash TEXT NOT NULL,
-  role TEXT NOT NULL DEFAULT 'player',   -- 'owner' | 'gm' | 'admin' | 'player'
+  role TEXT NOT NULL DEFAULT 'player',   -- 'owner' | 'gm' | 'admin' | 'moderator' | 'player'
+  banned BOOLEAN NOT NULL DEFAULT FALSE,
   created_at BIGINT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_nocase_uidx ON users (LOWER(username));
+-- Migration for databases created before the banned column existed:
+ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE TABLE IF NOT EXISTS player_state (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -48,3 +51,22 @@ CREATE TABLE IF NOT EXISTS sessions (
   expire TIMESTAMPTZ NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_expire ON sessions (expire);
+
+-- Guilds: player-created groups. One guild per player (enforced in code;
+-- guild_members.username is UNIQUE).
+CREATE TABLE IF NOT EXISTS guilds (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  tag TEXT NOT NULL,
+  owner_username TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS guilds_name_nocase_uidx ON guilds (LOWER(name));
+
+CREATE TABLE IF NOT EXISTS guild_members (
+  guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  username TEXT UNIQUE NOT NULL,
+  rank TEXT NOT NULL DEFAULT 'member',   -- 'leader' | 'member'
+  joined_at TIMESTAMPTZ DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_guild_members_guild ON guild_members (guild_id);

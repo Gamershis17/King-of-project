@@ -67,5 +67,17 @@ export const api = {
   gmCreateCode: (set, maxUses) => post('/api/gm/codes', { set, maxUses }),
   gmRoster: () => request('/api/gm/roster'),
   gmRosterUpdate: (username, action) => post('/api/gm/roster', { username, action }),
+  // Player management (owner|admin)
+  gmTitle: (username, title) => post('/api/gm/title', { username, title }),
+  gmStage: (username, stage) => post('/api/gm/stage', { username, stage }),
+  gmBan: (username) => post('/api/gm/ban', { username }),
+  gmUnban: (username) => post('/api/gm/unban', { username }),
+  gmResetPlayer: (username) => post('/api/gm/reset-player', { username }),
+  // Moderation (owner|admin|moderator)
+  gmBroadcast: (message) => post('/api/gm/broadcast', { message }),
+  gmPlayers: (search, limit) =>
+    request('/api/gm/players?search=' + encodeURIComponent(search || '') + '&limit=' + (limit || 50)),
+  // Public broadcast feed
+  latestBroadcast: () => request('/api/broadcasts/latest'),
   setRole: (username, role) => post('/api/roles', { username, role }),
 };

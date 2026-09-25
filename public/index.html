@@ -12,26 +12,28 @@
 
   <!-- ============ AUTH ============ -->
   <section id="view-auth" class="view">
-    <div class="auth-wrap">
+    <div class="auth-wrap auth-fantasy">
       <div class="logo">⚔️</div>
-      <h1>King of Project</h1>
-      <p class="tagline">An idle dungeon crawler. Tap, loot, prestige.</p>
-      <div class="auth-tabs">
-        <button id="auth-tab-login" class="auth-tab active" type="button">Login</button>
-        <button id="auth-tab-register" class="auth-tab" type="button">Register</button>
+      <h1 class="game-title">KING OF PROJECT</h1>
+      <p class="tagline">Tap. Loot. Prestige.</p>
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <button id="auth-tab-login" class="auth-tab active" type="button">Login</button>
+          <button id="auth-tab-register" class="auth-tab" type="button">Register</button>
+        </div>
+        <form id="login-form" class="auth-form" autocomplete="on">
+          <input id="login-username" placeholder="Username" autocomplete="username" maxlength="20">
+          <input id="login-password" type="password" placeholder="Password" autocomplete="current-password">
+          <button type="submit" class="btn gold">⚔️ Login</button>
+        </form>
+        <form id="register-form" class="auth-form hidden" autocomplete="on">
+          <input id="reg-username" placeholder="Username (3–20, letters/numbers/_)" autocomplete="username" maxlength="20">
+          <input id="reg-password" type="password" placeholder="Password (min 6 chars)" autocomplete="new-password">
+          <input id="reg-password2" type="password" placeholder="Confirm password" autocomplete="new-password">
+          <button type="submit" class="btn gold">✨ Create hero</button>
+        </form>
+        <div id="auth-error" class="auth-error hidden"></div>
       </div>
-      <form id="login-form" class="auth-form" autocomplete="on">
-        <input id="login-username" placeholder="Username" autocomplete="username" maxlength="20">
-        <input id="login-password" type="password" placeholder="Password" autocomplete="current-password">
-        <button type="submit" class="btn gold">⚔️ Login</button>
-      </form>
-      <form id="register-form" class="auth-form hidden" autocomplete="on">
-        <input id="reg-username" placeholder="Username (3–20, letters/numbers/_)" autocomplete="username" maxlength="20">
-        <input id="reg-password" type="password" placeholder="Password (min 6 chars)" autocomplete="new-password">
-        <input id="reg-password2" type="password" placeholder="Confirm password" autocomplete="new-password">
-        <button type="submit" class="btn gold">✨ Create hero</button>
-      </form>
-      <div id="auth-error" class="auth-error hidden"></div>
     </div>
   </section>
 
@@ -86,6 +88,7 @@
           <button class="mode-btn" data-mode="clicker">👆<span>Clicker</span></button>
           <button class="mode-btn" data-mode="auto">🤖<span>Auto</span></button>
           <button class="mode-btn" data-mode="dungeon">🏰<span>Dungeon</span></button>
+          <button class="mode-btn" data-mode="raid">🌀<span>Raid</span></button>
         </div>
 
         <div>
@@ -182,6 +185,10 @@
                    autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">
             <button id="redeem-btn" class="btn">Redeem</button>
           </div>
+        </div>
+        <div class="card" id="guild-card">
+          <h3>🏰 Guild</h3>
+          <div id="guild-section"><p class="muted small">Loading…</p></div>
         </div>
         <div class="card hidden" id="gm-entry-card">
           <h3>🛠️ Staff</h3>
