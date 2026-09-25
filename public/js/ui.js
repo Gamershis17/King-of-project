@@ -76,7 +76,11 @@ export const UI = {
 
     // Bottom tab bar
     $$('#tabbar .tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => this.showTab(btn.dataset.tab));
+      btn.addEventListener('click', () => {
+        // Staff tab is a shortcut into the GM console (role-checked on open).
+        if (btn.dataset.tab === 'staff') { this.handlers.onOpenGM && this.handlers.onOpenGM(); return; }
+        this.showTab(btn.dataset.tab);
+      });
     });
 
     // Battle controls
@@ -735,6 +739,9 @@ export const UI = {
     const role = (user && user.role) || 'player';
     const canGM = role === 'owner' || role === 'gm' || role === 'admin' || role === 'moderator';
     this.els['gm-entry-card'].classList.toggle('hidden', !canGM);
+    // Staff tab in the main nav: visible to staff only, opens the GM console.
+    const staffBtn = document.getElementById('tabbtn-staff');
+    if (staffBtn) staffBtn.classList.toggle('hidden', !canGM);
     const setCount = (state.inventory || []).filter(i => i.set).length;
     const unlocked = new Set(state.titlesUnlocked || ['wanderer']);
     const titleChips = Engine.TITLES.map(t => {

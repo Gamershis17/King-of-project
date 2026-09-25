@@ -182,7 +182,15 @@ const BOSS_NAMES = [
   'Warlord Ghash', 'The Hollow King', 'Broodmother Xix',
   'Ancient Wyrm Vex', 'Dreadlord Malachar', 'The Starless One',
 ];
-const ENEMY_EMOJI = ['🐺', '👺', '🦇', '🕷️', '🐗', '💀', '🧌', '🐍', '🦂', '👻'];
+const ENEMY_ICONS = {
+  'Gloomfang Wolf': '🐺', 'Moss Troll': '🧌', 'Cave Stalker': '🥷', 'Ember Imp': '👺',
+  'Stone Sentinel': '🗿', 'Plague Rat': '🐀', 'Dark Acolyte': '🧙', 'Ridgeback Boar': '🐗',
+  'Frost Wisp': '👻', 'Sand Reaver': '🦂', 'Bone Archer': '💀', 'Crimson Slime': '🩸',
+  'Grave Hound': '🐕', 'Thorn Lurker': '🦔', 'Ash Serpent': '🐍', 'Mire Shambler': '🧟',
+  'Hollow Bat': '🦇', 'Rune Scarab': '🪲', 'Dusk Panther': '🐆', 'Cinder Sprite': '🔥',
+  'Warlord Ghash': '👹', 'The Hollow King': '👑', 'Broodmother Xix': '🕷️',
+  'Ancient Wyrm Vex': '🐉', 'Dreadlord Malachar': '😈', 'The Starless One': '🌑',
+};
 
 export const isBossStage = (stage) => stage % 10 === 0;
 
@@ -190,13 +198,14 @@ export function enemyFor(stage) {
   const boss = isBossStage(stage);
   const hp = Math.round(18 * Math.pow(1.13, stage));
   const atk = Math.round(4 * Math.pow(1.085, stage));
+  const name = boss ? pick(BOSS_NAMES) : pick(ENEMY_NAMES);
   return {
-    name: boss ? pick(BOSS_NAMES) : pick(ENEMY_NAMES),
+    name,
     stage, boss,
     hp: boss ? Math.round(hp * 2.5) : hp,
     maxHp: boss ? Math.round(hp * 2.5) : hp,
     attack: boss ? Math.round(atk * 1.35) : atk,
-    emoji: boss ? '👹' : pick(ENEMY_EMOJI),
+    emoji: ENEMY_ICONS[name] || '👹',
   };
 }
 

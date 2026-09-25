@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-09-25",
+    "title": "Staff tab & enemy icons",
+    "changes": [
+      "New 🛠️ Staff tab in the main navigation for owner, admins, and moderators — opens the GM console (give stats, ban, broadcasts) in one tap; invisible to regular players",
+      "Every enemy now has its own matching icon (Frost Wisp 👻, Stone Sentinel 🗿, dragons 🐉…) instead of a random one"
+    ]
+  },
+  {
+    "date": "2026-09-25",
     "title": "Admin & Mod badges",
     "changes": [
       "New 🛡️ Admin and 🔨 Mod badges, grantable from the GM console — shown next to names on the leaderboard and profile",
