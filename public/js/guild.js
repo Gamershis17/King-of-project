@@ -64,14 +64,51 @@ const STYLE = `
 .guild-input:focus { outline: none; border-color: #e8b33c; }
 .guild-input.short { flex: 0 0 84px; }
 .gbtn {
-  background: linear-gradient(180deg, #7b5bc0, #5a3f96);
-  color: #fff; border: 1px solid #8f74d6; border-radius: 8px;
-  padding: 9px 14px; font-size: 14px; font-weight: 700; cursor: pointer;
-  white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+  background: linear-gradient(180deg, #9a6ff7 0%, #7b5bc0 55%, #5a3f96 100%);
+  color: #fff; border: 1px solid rgba(255,255,255,.18); border-radius: 12px;
+  padding: 0.6rem 0.95rem; font-size: 0.92rem; font-weight: 700; cursor: pointer;
+  white-space: nowrap; min-height: 44px;
+  text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.42),
+    0 2px 6px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.20),
+    inset 0 -3px 6px rgba(0,0,0,.30);
+  transition: transform .12s ease, box-shadow .2s ease, filter .2s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
 }
-.gbtn:active { transform: translateY(1px); }
-.gbtn.gold { background: linear-gradient(180deg, #d99a2b, #a86f14); border-color: #e8b33c; }
-.gbtn.danger { background: linear-gradient(180deg, #a03a3a, #702626); border-color: #c05a5a; }
+.gbtn:active { transform: translateY(1px) scale(.98); box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 2px 6px rgba(0,0,0,.35); }
+.gbtn:disabled {
+  background: linear-gradient(180deg, #3b354e, #2b2639);
+  color: #9690a8; text-shadow: none; border-color: rgba(255,255,255,.07);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.45);
+  cursor: not-allowed; filter: grayscale(.55);
+}
+.gbtn.gold {
+  background: linear-gradient(180deg, #ffe08a 0%, #f5c542 55%, #c9932b 100%);
+  border-color: rgba(255,240,190,.5); color: #2a1e05;
+  text-shadow: 0 1px 0 rgba(255,255,255,.35);
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.42),
+    0 0 16px rgba(255,210,63,.30),
+    inset 0 1px 0 rgba(255,255,255,.55),
+    inset 0 -3px 6px rgba(120,70,0,.35);
+}
+.gbtn.danger {
+  background: linear-gradient(180deg, #e0584d 0%, #b03227 55%, #7a1f16 100%);
+  border-color: rgba(255,180,170,.3);
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.42),
+    0 0 14px rgba(255,91,91,.22),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -3px 6px rgba(0,0,0,.35);
+}
+@media (hover: hover) {
+  .gbtn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.09); }
+}
 .guild-error {
   background: rgba(160, 40, 40, .18); border: 1px solid #a03a3a;
   color: #ffb3b3; border-radius: 8px; padding: 8px 10px;

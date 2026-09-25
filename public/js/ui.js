@@ -1013,13 +1013,13 @@ export const UI = {
         return `
           <div class="row-between">
             <span>${t.emoji} ${esc(t.name)}: <b>${p.shopEggs[tier]}</b></span>
-            <button class="btn small" data-action="hatch-pet" data-tier="${tier}">Hatch ${t.emoji}</button>
+            <button class="btn small success" data-action="hatch-pet" data-tier="${tier}">Hatch ${t.emoji}</button>
           </div>`;
       }).join('');
     eggRow.innerHTML = `
       <div class="row-between">
         <span>🥚 Wild eggs: <b>${wild}</b> <span class="muted small">(15% drop from bosses)</span></span>
-        <button class="btn small" data-action="hatch-pet" data-tier="wild" ${wild < 1 ? 'disabled' : ''}>Hatch 🥚</button>
+        <button class="btn small success" data-action="hatch-pet" data-tier="wild" ${wild < 1 ? 'disabled' : ''}>Hatch 🥚</button>
       </div>${tierRows}`;
     panel.appendChild(eggRow);
     if (!p.collection.length) {

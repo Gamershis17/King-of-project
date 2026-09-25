@@ -90,20 +90,149 @@ input:focus, select:focus { outline: 2px solid var(--arcane); border-color: var(
 label.fld { display: flex; flex-direction: column; gap: 0.3rem; flex: 1; min-width: 140px; text-align: left; }
 label.fld > span { font-size: 0.8rem; color: var(--muted); }
 
-/* ---------- buttons ---------- */
+/* ============================================================
+   BUTTON POLISH — one coherent button language (both themes).
+   Layered drop shadow + inset top highlight + inset bottom shade
+   = the same floating depth as the revamped cards.
+   transform/opacity only; hover states are hover-capable only.
+   ============================================================ */
 .btn {
-  background: linear-gradient(180deg, var(--arcane), var(--arcane-dim));
-  color: #fff; border: 1px solid rgba(255,255,255,.12);
-  border-radius: 12px; padding: 0.8rem 1.2rem; font-size: 1rem; font-weight: 600;
-  cursor: pointer; min-height: 48px; transition: transform .08s, filter .15s;
+  position: relative;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
+  background: linear-gradient(180deg, #9a6ff7 0%, var(--arcane) 52%, var(--arcane-dim) 100%);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 14px;
+  padding: 0.8rem 1.25rem;
+  font-size: 1rem; font-weight: 700; letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(0,0,0,.4);
+  cursor: pointer;
+  min-height: 48px;
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.42),
+    0 2px 6px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.20),
+    inset 0 -3px 6px rgba(0,0,0,.30);
+  transition: transform .12s ease, box-shadow .2s ease, filter .2s ease, background .2s ease;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  touch-action: manipulation;
 }
-.btn:active { transform: scale(0.97); }
-.btn:disabled, .btn.disabled { opacity: 0.45; cursor: not-allowed; }
-.btn.small { padding: 0.5rem 0.8rem; font-size: 0.88rem; min-height: 40px; }
-.btn.gold { background: linear-gradient(180deg, #f5c542, #b57e12); color: #241a05; }
-.btn.danger { background: linear-gradient(180deg, #c0392b, #7a1f16); }
-.btn.ghost { background: transparent; border: 1px solid var(--stone2); color: var(--muted); }
+@media (hover: hover) {
+  .btn:hover:not(:disabled):not(.disabled) {
+    transform: translateY(-2px);
+    filter: brightness(1.09);
+    box-shadow:
+      0 12px 26px rgba(0,0,0,.48),
+      0 3px 8px rgba(0,0,0,.35),
+      0 0 16px rgba(139,92,246,.35),
+      inset 0 1px 0 rgba(255,255,255,.22),
+      inset 0 -3px 6px rgba(0,0,0,.30);
+  }
+}
+.btn:active:not(:disabled):not(.disabled) {
+  transform: translateY(1px) scale(.98);
+  box-shadow:
+    0 3px 8px rgba(0,0,0,.4),
+    inset 0 2px 6px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.08);
+  filter: brightness(.96);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+/* disabled = clearly greyed out, not just dimmed */
+.btn:disabled, .btn.disabled {
+  background: linear-gradient(180deg, #3b354e, #2b2639);
+  color: #9690a8;
+  text-shadow: none;
+  border-color: rgba(255,255,255,.07);
+  box-shadow: inset 0 2px 8px rgba(0,0,0,.45);
+  cursor: not-allowed;
+  filter: grayscale(.55);
+  transform: none;
+  opacity: 1;
+}
+.btn.small {
+  padding: 0.55rem 0.9rem;
+  font-size: 0.9rem;
+  min-height: 44px;
+  border-radius: 12px;
+}
+.btn.gold {
+  background: linear-gradient(180deg, #ffe08a 0%, #f5c542 55%, #c9932b 100%);
+  color: #2a1e05;
+  text-shadow: 0 1px 0 rgba(255,255,255,.35);
+  border-color: rgba(255,240,190,.5);
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.42),
+    0 0 16px rgba(255,210,63,.30),
+    inset 0 1px 0 rgba(255,255,255,.55),
+    inset 0 -3px 6px rgba(120,70,0,.35);
+}
+@media (hover: hover) {
+  .btn.gold:hover:not(:disabled):not(.disabled) {
+    box-shadow:
+      0 12px 26px rgba(0,0,0,.48),
+      0 0 24px rgba(255,210,63,.5),
+      inset 0 1px 0 rgba(255,255,255,.55),
+      inset 0 -3px 6px rgba(120,70,0,.35);
+  }
+}
+.btn.danger {
+  background: linear-gradient(180deg, #e0584d 0%, #b03227 55%, #7a1f16 100%);
+  border-color: rgba(255,180,170,.3);
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.42),
+    0 0 14px rgba(255,91,91,.22),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -3px 6px rgba(0,0,0,.35);
+}
+.btn.success {
+  background: linear-gradient(180deg, #4ade80 0%, #22a355 55%, #147a3c 100%);
+  border-color: rgba(190,255,210,.3);
+  box-shadow:
+    0 8px 20px rgba(0,0,0,.42),
+    0 0 14px rgba(74,222,128,.22),
+    inset 0 1px 0 rgba(255,255,255,.25),
+    inset 0 -3px 6px rgba(0,0,0,.30);
+}
+.btn.ghost {
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--stone2);
+  color: var(--muted);
+  text-shadow: none;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+}
+@media (hover: hover) {
+  .btn.ghost:hover:not(:disabled):not(.disabled) {
+    background: rgba(255,255,255,.08);
+    border-color: var(--arcane-dim);
+    color: var(--text);
+    box-shadow: 0 6px 16px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    filter: none;
+  }
+}
 .btn.wide { width: 100%; }
+
+/* ---------- button layout: grouping, alignment, touch targets ---------- */
+/* shop cards: full-width buy buttons — bigger tap target, cleaner card */
+.shop-card .btn { width: 100%; margin-top: 0.4rem; }
+/* pet egg rows: keep label + hatch button aligned with breathing room */
+.pet-eggs .row-between { align-items: center; gap: 0.6rem; }
+.pet-eggs .row-between .btn { flex: none; }
+/* modal actions: even split, comfortable top spacing */
+.modal-actions { margin-top: 0.5rem; }
+.modal-actions .btn { flex: 1 1 0; min-width: 0; }
+/* title chips: real 44px touch targets */
+.title-chip { min-height: 44px; display: inline-flex; align-items: center; }
+/* segmented controls: consistent tap size */
+.seg-control button { min-height: 44px; }
+/* upgrade-row buttons: never shrink, never wrap mid-label */
+.upgrade-row .btn { flex: none; white-space: nowrap; }
+/* recruit rows: buy button stays put */
+.recruit-row .btn { flex: none; white-space: nowrap; }
 
 /* ---------- HUD ---------- */
 #hud {
@@ -1296,19 +1425,28 @@ body.reduce-motion #view-auth .auth-card {
    transform/opacity only. Killed by the reduce-motion rules.
    ============================================================ */
 
-/* ---- buttons: buttery hover lift + press ---- */
+/* ---- buttons: buttery hover lift + press (matches the polished base) ---- */
 body[data-uistyle="modern"] .btn {
-  transition: transform .16s cubic-bezier(.34,1.4,.64,1), box-shadow .22s ease, filter .22s ease;
+  transition: transform .16s cubic-bezier(.34,1.4,.64,1), box-shadow .22s ease, filter .22s ease, background .2s ease;
 }
-body[data-uistyle="modern"] .btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  filter: brightness(1.1);
-  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 14px rgba(139,92,246,.35);
+@media (hover: hover) {
+  body[data-uistyle="modern"] .btn:hover:not(:disabled):not(.disabled) {
+    box-shadow:
+      0 14px 30px rgba(0,0,0,.5),
+      0 3px 8px rgba(0,0,0,.35),
+      0 0 20px rgba(139,92,246,.45),
+      inset 0 1px 0 rgba(255,255,255,.22),
+      inset 0 -3px 6px rgba(0,0,0,.30);
+  }
+  body[data-uistyle="modern"] .btn.gold:hover:not(:disabled):not(.disabled) {
+    box-shadow:
+      0 14px 30px rgba(0,0,0,.5),
+      0 0 28px rgba(255,210,63,.6),
+      inset 0 1px 0 rgba(255,255,255,.55),
+      inset 0 -3px 6px rgba(120,70,0,.35);
+  }
 }
-body[data-uistyle="modern"] .btn.gold:hover:not(:disabled) {
-  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 18px rgba(255,210,63,.55);
-}
-body[data-uistyle="modern"] .btn:active { transform: scale(.96); }
+body[data-uistyle="modern"] .btn:active:not(:disabled):not(.disabled) { transform: translateY(1px) scale(.97); }
 
 /* ---- cards: gentle hover lift + glow ---- */
 body[data-uistyle="modern"] .card {
