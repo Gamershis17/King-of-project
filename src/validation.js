@@ -20,8 +20,8 @@ function validateUsername(username) {
 }
 
 function validatePassword(password) {
-  if (typeof password !== 'string' || password.length < 6) {
-    return 'Password must be at least 6 characters.';
+  if (typeof password !== 'string' || password.length < 8) {
+    return 'Password must be at least 8 characters.';
   }
   return null;
 }

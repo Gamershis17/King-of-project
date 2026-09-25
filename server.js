@@ -44,6 +44,14 @@ app.use(express.json({ limit: '1mb' }));
 // --- session (PostgreSQL-backed via connect-pg-simple) ---
 let sessionSecret = process.env.SESSION_SECRET;
 if (!sessionSecret) {
+  if (IS_PROD) {
+    // Fail closed: a predictable session secret in production would let an
+    // attacker forge session cookies for any account, including the owner.
+    console.error(
+      '[fatal] SESSION_SECRET is not set. Refusing to boot in production.'
+    );
+    process.exit(1);
+  }
   sessionSecret = 'dev-secret-change-me';
   console.warn(
     '[warn] SESSION_SECRET is not set; using an insecure default. ' +

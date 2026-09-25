@@ -8,6 +8,7 @@
 
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const rateLimit = require('express-rate-limit');
 const {
   getUserByUsername,
   getUserById,
@@ -17,6 +18,27 @@ const { validateUsername, validatePassword } = require('./validation');
 
 const BCRYPT_ROUNDS = 10;
 const router = express.Router();
+
+// Brute-force protection on top of the general /api/auth limiter in
+// server.js: 10 FAILED logins per 15 minutes per IP. Successful logins
+// don't count (skipSuccessfulRequests), so real players are unaffected.
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  skipSuccessfulRequests: true,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many failed login attempts. Try again in 15 minutes.' },
+});
+
+// Mass-registration protection: 10 new accounts per hour per IP.
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many registrations from this address. Try again later.' },
+});
 
 function publicUser(user) {
   return { username: user.username, role: user.role };
@@ -42,6 +64,11 @@ async function requireAuth(req, res, next) {
       req.session.destroy(() => {});
       return res.status(401).json({ error: 'Not signed in.' });
     }
+    if (user.banned) {
+      // Ban takes effect immediately, even on pre-existing sessions.
+      req.session.destroy(() => {});
+      return res.status(403).json({ error: 'This account has been banned.' });
+    }
     req.user = user;
     next();
   } catch (err) {
@@ -64,6 +91,7 @@ function requireRole(...roles) {
 // ---------- routes ----------
 router.post(
   '/register',
+  registerLimiter,
   asyncHandler(async (req, res) => {
     const { username, password } = req.body || {};
 
@@ -80,13 +108,18 @@ router.post(
     const passwordHash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
     const user = await createUser(cleanUsername, passwordHash);
 
-    req.session.userId = user.id;
-    res.status(201).json({ user: publicUser(user) });
+    // Fresh session id on register, same as login (session fixation).
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ error: 'Session error.' });
+      req.session.userId = user.id;
+      res.status(201).json({ user: publicUser(user) });
+    });
   })
 );
 
 router.post(
   '/login',
+  loginLimiter,
   asyncHandler(async (req, res) => {
     const { username, password } = req.body || {};
     if (typeof username !== 'string' || typeof password !== 'string') {

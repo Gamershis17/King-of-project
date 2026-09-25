@@ -29,6 +29,7 @@
 
 const crypto = require('crypto');
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const { requireRole, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, VALID_ROLES } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
@@ -55,6 +56,17 @@ const ownerOnly = requireRole('owner');
 const requireMod = requireRole('owner', 'admin', 'gm', 'moderator');
 // Admin tier: player-management commands that don't grant power.
 const adminPlus = requireRole('owner', 'admin');
+
+// Announcement spam protection: broadcasts toast every active player, so
+// cap them at 5 per 10 minutes per staff member.
+const broadcastLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  keyGenerator: (req) => (req.user && req.user.id ? `u:${req.user.id}` : req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many announcements. Try again later.' },
+});
 
 const VALID_ROLES_FOR_ROLES_ROUTE = VALID_ROLES.filter((r) => r !== 'owner');
 const STAR_GRANT_MIN = 1;
@@ -464,6 +476,7 @@ router.post(
 router.post(
   '/gm/broadcast',
   requireMod,
+  broadcastLimiter,
   asyncHandler(async (req, res) => {
     const { message } = req.body || {};
     if (typeof message !== 'string' || !message.trim() || message.trim().length > 500) {

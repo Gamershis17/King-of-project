@@ -17,6 +17,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const rateLimit = require('express-rate-limit');
 const { requireAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
@@ -35,6 +36,30 @@ const {
 } = require('./db');
 
 const router = express.Router();
+
+// Per-user flood protection (keyed on user id so one bad actor can't
+// exhaust a shared IP budget, e.g. behind NAT). Applied after requireAuth
+// so req.user is populated for the key generator.
+const userKey = (req) => (req.user && req.user.id ? `u:${req.user.id}` : req.ip);
+// Autosave runs every 15s; 30/min is generous for real play and stops
+// tight-loop DB write floods.
+const saveLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  keyGenerator: userKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Saving too fast. Slow down a moment.' },
+});
+// Gift-code guessing protection.
+const redeemLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: userKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many code attempts. Try again in a minute.' },
+});
 
 // ---------- server status ----------
 // Public. Lets the client show a proper maintenance screen instead of
@@ -145,6 +170,7 @@ router.get(
 router.post(
   '/state',
   requireAuth,
+  saveLimiter,
   asyncHandler(async (req, res) => {
     const { state } = req.body || {};
     const result = sanitizeStateBlob(state);
@@ -193,6 +219,7 @@ router.get(
 router.post(
   '/redeem',
   requireAuth,
+  redeemLimiter,
   asyncHandler(async (req, res) => {
     let { code } = req.body || {};
     if (typeof code !== 'string' || !code.trim()) {

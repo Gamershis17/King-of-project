@@ -63,7 +63,7 @@ export const Auth = {
       if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
         return showError('Username: 3–20 chars, letters/numbers/underscore.');
       }
-      if (password.length < 6) return showError('Password must be at least 6 characters.');
+      if (password.length < 8) return showError('Password must be at least 8 characters.');
       if (password !== confirm) return showError('Passwords do not match.');
       setBusy(true);
       try {
