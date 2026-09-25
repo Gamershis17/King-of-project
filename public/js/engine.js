@@ -85,6 +85,8 @@ export function defaultState(race) {
     mastery: { points: 0, spent: { might: 0, vitality: 0, fortune: 0 } },
     professions: { herbalism: 1, smithing: 1 },
     achievements: [],
+    titlesUnlocked: ['wanderer'],
+    activeTitle: 'wanderer',
     restedUntil: 0,
   };
 }
@@ -104,6 +106,8 @@ export function ensureState(raw) {
   s.mastery.points = Math.max(0, Math.floor(s.mastery.points || 0));
   s.professions = { herbalism: 1, smithing: 1, ...(raw.professions || {}) };
   if (!Array.isArray(s.achievements)) s.achievements = [];
+  if (!Array.isArray(s.titlesUnlocked) || !s.titlesUnlocked.length) s.titlesUnlocked = ['wanderer'];
+  if (typeof s.activeTitle !== 'string' || !s.activeTitle) s.activeTitle = s.titlesUnlocked[0];
   s.restedUntil = Number(raw.restedUntil) || 0;
   if (!Array.isArray(s.party)) s.party = [];
   if (!Array.isArray(s.inventory)) s.inventory = [];
@@ -115,7 +119,10 @@ export function ensureState(raw) {
   s.stage = Math.max(1, Math.floor(s.stage || 1));
   s.xpNext = xpForLevel(s.level);
   s.hero.hp = clamp(s.hero.hp, 0, s.hero.maxHp);
-  for (const c of s.party) c.hp = clamp(c.hp, 0, c.maxHp);
+  for (const c of s.party) {
+    c.hp = clamp(c.hp, 0, c.maxHp);
+    if (!c.role) c.role = 'Companion';
+  }
   return s;
 }
 
@@ -419,12 +426,12 @@ export const upgradeCost = (kind, level) => Math.round(30 * Math.pow(1.7, Math.m
 
 // ---------------- Companions / Party ----------------
 export const RECRUITS = [
-  { id: 'gromm',  name: 'Gromm the Axe',    race: 'orc',       emoji: '🪓', cost: 50,   atk: 6,  def: 1, hp: 60,  dodge: 5,  crit: 5 },
-  { id: 'lyra',   name: 'Lyra Swiftbow',    race: 'fae',       emoji: '🧚', cost: 150,  atk: 10, def: 1, hp: 70,  dodge: 15, crit: 10 },
-  { id: 'anselm', name: 'Brother Anselm',   race: 'celestial', emoji: '✨', cost: 300,  atk: 12, def: 3, hp: 120, dodge: 5,  crit: 5, regen: 2 },
-  { id: 'vex',    name: 'Vex Nightwhisper', race: 'revenant',  emoji: '💀', cost: 600,  atk: 18, def: 2, hp: 90,  dodge: 10, crit: 10 },
-  { id: 'ember',  name: 'Ember Scaleborn',  race: 'dragonkin', emoji: '🐉', cost: 1200, atk: 26, def: 3, hp: 110, dodge: 5,  crit: 15 },
-  { id: 'mira',   name: 'Mira Ironhold',    race: 'human',     emoji: '🛡️', cost: 2500, atk: 34, def: 5, hp: 160, dodge: 5,  crit: 10 },
+  { id: 'gromm',  name: 'Gromm the Axe',    race: 'orc',       emoji: '🪓', role: 'Brute',        cost: 50,   atk: 6,  def: 1, hp: 60,  dodge: 5,  crit: 5 },
+  { id: 'lyra',   name: 'Lyra Swiftbow',    race: 'fae',       emoji: '🧚', role: 'Ranger',       cost: 150,  atk: 10, def: 1, hp: 70,  dodge: 15, crit: 10 },
+  { id: 'anselm', name: 'Brother Anselm',   race: 'celestial', emoji: '✨', role: 'Cleric',       cost: 300,  atk: 12, def: 3, hp: 120, dodge: 5,  crit: 5, regen: 2 },
+  { id: 'vex',    name: 'Vex Nightwhisper', race: 'revenant',  emoji: '💀', role: 'Assassin',     cost: 600,  atk: 18, def: 2, hp: 90,  dodge: 10, crit: 10 },
+  { id: 'ember',  name: 'Ember Scaleborn',  race: 'dragonkin', emoji: '🐉', role: 'Dragon Knight', cost: 1200, atk: 26, def: 3, hp: 110, dodge: 5,  crit: 15 },
+  { id: 'mira',   name: 'Mira Ironhold',    race: 'human',     emoji: '🛡️', role: 'Guardian',     cost: 2500, atk: 34, def: 5, hp: 160, dodge: 5,  crit: 10 },
 ];
 export const MAX_PARTY = 3;
 
@@ -433,6 +440,7 @@ export function makeCompanion(recruit, playerLevel) {
   const maxHp = recruit.hp + 15 * (L - 1);
   return {
     id: uid(), name: recruit.name, race: recruit.race, emoji: recruit.emoji,
+    role: recruit.role || 'Companion',
     level: L,
     attack: recruit.atk + 2 * (L - 1),
     defense: recruit.def + Math.floor((L - 1) / 2),
@@ -471,6 +479,9 @@ export function prestige(state) {
   fresh.inventory = kept;
   fresh.equipped = equipped;
   fresh.codesRedeemed = state.codesRedeemed || [];
+  fresh.titlesUnlocked = Array.isArray(state.titlesUnlocked) && state.titlesUnlocked.length
+    ? [...state.titlesUnlocked] : ['wanderer'];
+  fresh.activeTitle = state.activeTitle || fresh.titlesUnlocked[0];
   fresh.mode = state.mode || 'clicker';
   return fresh;
 }
@@ -556,6 +567,41 @@ export const ACHIEVEMENTS = [
   { id: 'prestige-1', name: 'Reborn', emoji: '🔥', desc: 'Prestige once.', stars: 25, check: (s) => (s.prestigeCount || 0) >= 1 },
   { id: 'zone-5', name: 'Explorer', emoji: '🗺️', desc: 'Reach the Ashen Badlands (stage 41).', stars: 10, check: (s) => (s.stage || 1) >= 41 },
 ];
+// ---------------- Titles ----------------
+// Hero titles: unlocked by feats, shown under the profile name and on the
+// leaderboard. No stat effect — pure glory.
+export const TITLES = [
+  { id: 'wanderer',        name: 'the Wanderer',        desc: 'Every hero starts somewhere.',              check: () => true },
+  { id: 'first-blood',     name: 'the Bloodied',        desc: 'Win your first battle.',                    check: (s) => (s.stats.kills || 0) >= 1 },
+  { id: 'tapstorm',        name: 'the Tapstorm',        desc: 'Reach a 50-tap combo.',                     check: (s) => (s.stats.maxCombo || 0) >= 50 },
+  { id: 'bossbane',        name: 'Bossbane',            desc: 'Slay 10 bosses.',                           check: (s) => (s.bossesKilled || 0) >= 10 },
+  { id: 'infernal-slayer', name: 'Slayer of the Infernal', desc: 'Slay 25 bosses.',                        check: (s) => (s.bossesKilled || 0) >= 25 },
+  { id: 'veteran',         name: 'the Veteran',         desc: 'Reach level 50.',                           check: (s) => (s.level || 1) >= 50 },
+  { id: 'unbroken',        name: 'the Unbroken',        desc: 'Reach stage 50.',                           check: (s) => (s.stage || 1) >= 50 },
+  { id: 'goldhoarder',     name: 'the Goldhoarder',     desc: 'Hold 100,000 gold at once.',                check: (s) => (s.gold || 0) >= 100000 },
+  { id: 'idle-king',       name: 'the Idle King',       desc: 'Prestige once.',                            check: (s) => (s.prestigeCount || 0) >= 1 },
+  { id: 'dungeon-master',  name: 'the Dungeon Master',  desc: 'Fill your 3-companion dungeon party.',      check: (s) => (s.party || []).length >= MAX_PARTY },
+  { id: 'overlord',        name: 'the Overlord',        desc: 'Reach stage 100.',                          check: (s) => (s.stage || 1) >= 100 },
+];
+export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
+export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }
+
+// Returns newly unlocked title defs (mutates state.titlesUnlocked).
+export function checkTitles(state) {
+  if (!Array.isArray(state.titlesUnlocked)) state.titlesUnlocked = ['wanderer'];
+  const fresh = [];
+  for (const t of TITLES) {
+    if (state.titlesUnlocked.includes(t.id)) continue;
+    let ok = false;
+    try { ok = !!t.check(state); } catch { ok = false; }
+    if (ok) {
+      state.titlesUnlocked.push(t.id);
+      fresh.push(t);
+    }
+  }
+  return fresh;
+}
+
 // Returns newly unlocked achievements (and applies their star rewards).
 export function checkAchievements(state) {
   if (!Array.isArray(state.achievements)) state.achievements = [];

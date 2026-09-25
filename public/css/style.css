@@ -412,7 +412,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 /* ---------- desktop ---------- */
 @media (min-width: 700px) {
   .inv-grid { grid-template-columns: 1fr 1fr; }
-  .party-slots { grid-template-columns: 1fr 1fr 1fr; }
+  #party-slots { grid-template-columns: 1fr 1fr 1fr; }
   .race-grid { grid-template-columns: 1fr 1fr 1fr; }
 }
 @media (min-width: 1000px) {
@@ -426,7 +426,10 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 /* ---------- reduced motion ---------- */
 body.reduce-motion .float-txt,
 body.reduce-motion .boss-badge,
-body.reduce-motion .r-mythic .item-name { animation: none !important; }
+body.reduce-motion .r-mythic .item-name,
+body.reduce-motion .live-dot,
+body.reduce-motion .set-sovereign,
+body.reduce-motion .new-badge { animation: none !important; }
 body.reduce-motion * { transition-duration: 0.01ms !important; }
 
 /* ---------- tap combo ---------- */
@@ -467,3 +470,131 @@ body.reduce-motion .combo-frenzy { animation: none; }
 
 /* ---------- leaderboard ---------- */
 .lb-table { font-size: 0.82rem; }
+/* QA: contain worst-case table width (max-length usernames) on narrow phones */
+#tab-ranks { overflow-x: auto; }
+
+/* ============================================================
+   UI 2.0 — damage meter, party cards, titles, rainbow gear,
+   share, update log
+   ============================================================ */
+
+/* ---------- damage meter ---------- */
+.meter {
+  background: rgba(0,0,0,.45);
+  border: 1px solid var(--arcane-dim);
+  border-radius: var(--radius);
+  padding: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+.meter-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.meter-title { font-size: 0.72rem; font-weight: 800; letter-spacing: 0.15em; color: #c9b8e8; }
+.live-pill {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.65rem; font-weight: 800; color: #8ce99a;
+  background: rgba(46,125,50,.25); border-radius: 20px; padding: 0.15rem 0.55rem;
+  white-space: nowrap;
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: #51cf66; animation: pulse 1.2s infinite; }
+.total-dps { margin-left: auto; font-size: 0.9rem; font-weight: 800; color: var(--gold); white-space: nowrap; }
+.meter-row { margin-bottom: 0.55rem; }
+.meter-row:last-child { margin-bottom: 0; }
+.meter-info { display: flex; align-items: baseline; gap: 0.4rem; margin-bottom: 0.25rem; }
+.meter-name {
+  font-size: 0.8rem; font-weight: 700; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 1; min-width: 0;
+}
+.meter-dps { font-size: 0.8rem; font-weight: 700; color: var(--gold); white-space: nowrap; }
+.meter-pct { font-size: 0.75rem; color: var(--muted); min-width: 2.6rem; text-align: right; white-space: nowrap; }
+.meter-track { height: 14px; border-radius: 4px; background: #0b0912; overflow: hidden; }
+.meter-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+.meter-foot { margin-top: 0.5rem; font-size: 0.72rem; color: var(--muted); text-align: center; }
+
+/* ---------- party member cards ---------- */
+#party-slots { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin-bottom: 0.6rem; }
+.member {
+  background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius);
+  padding: 0.8rem 0.6rem; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  min-width: 0;
+}
+.member.empty { border-style: dashed; justify-content: center; padding: 1.2rem; display: block; }
+.member.down { opacity: 0.45; filter: grayscale(0.8); }
+.portrait {
+  width: 52px; height: 52px; border-radius: 50%; margin-bottom: 0.3rem;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem; font-weight: 800; color: #fff;
+  border: 2px solid rgba(255,255,255,.25); text-shadow: 0 1px 3px #000;
+  flex: none;
+}
+.member-name {
+  font-size: 0.85rem; font-weight: 700; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.member-role { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.3rem; }
+.hpbar.mini-hp { height: 10px; width: 100%; max-width: 150px; flex: none; }
+.hpbar.mini-hp .hpfill { background: linear-gradient(180deg, #69db7c, #2f9e44); }
+.member-hptext { font-size: 0.7rem; color: var(--muted); margin: 0.15rem 0 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.member-stats { font-size: 0.75rem; color: var(--muted); margin-bottom: 0.4rem; }
+.member-dismiss { margin-top: 0.2rem; }
+/* mini cards in the battle tab's dungeon party row */
+.party-chips { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+.party-chips .member { flex: 1; padding: 0.5rem 0.35rem; }
+.member.mini .portrait { width: 36px; height: 36px; font-size: 1rem; margin-bottom: 0.2rem; }
+.member.mini .member-name { font-size: 0.7rem; }
+.member.mini .member-role { font-size: 0.62rem; margin-bottom: 0.2rem; }
+.member.mini .hpbar.mini-hp { max-width: none; }
+.member.mini .member-hptext { font-size: 0.6rem; margin: 0.1rem 0 0; }
+
+/* ---------- titles ---------- */
+.profile-title { font-style: italic; color: var(--gold); font-size: 0.95rem; margin: 0.15rem 0 0.3rem; }
+.titles-block { margin-bottom: 0.7rem; }
+.titles-label { margin-bottom: 0.35rem; }
+.title-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.title-chip {
+  font-size: 0.78rem; color: #c9b8e8;
+  border: 1px solid var(--arcane-dim); border-radius: 20px;
+  padding: 0.35rem 0.75rem; background: transparent; cursor: pointer;
+  max-width: 100%;
+}
+.title-chip.active { background: var(--gold); border-color: var(--gold); color: #241a05; font-weight: 700; }
+.title-chip.locked { opacity: 0.45; cursor: default; }
+
+/* ---------- rainbow Sovereign gear ---------- */
+@property --rainbow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+.set-sovereign {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--stone), var(--stone)) padding-box,
+    conic-gradient(from var(--rainbow-angle),
+      #ff3b3b, #ff8c1a, #ffd23f, #63e6be, #4da3ff, #b366ff, #ff3b3b) border-box;
+  animation: rainbow-spin 3.5s linear infinite;
+  box-shadow: 0 0 18px rgba(255,110,200,.28);
+}
+@keyframes rainbow-spin { to { --rainbow-angle: 360deg; } }
+.set-badge-sovereign {
+  background: linear-gradient(90deg, #ff3b3b, #ff8c1a, #ffd23f, #63e6be, #4da3ff, #b366ff);
+  color: #14101a;
+}
+
+/* ---------- leaderboard titles ---------- */
+.lb-name { font-weight: 600; }
+.lb-title { font-size: 0.7rem; font-style: italic; color: var(--gold); }
+
+/* ---------- update log ---------- */
+.new-badge {
+  background: var(--danger); color: #fff;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.06em;
+  border-radius: 20px; padding: 0.18rem 0.55rem; vertical-align: middle;
+  animation: pulse 1.5s infinite;
+}
+.cl-log { display: flex; flex-direction: column; gap: 0.9rem; text-align: left; }
+.cl-entry { border-bottom: 1px dotted #2a2440; padding-bottom: 0.7rem; }
+.cl-entry:last-child { border-bottom: 0; padding-bottom: 0; }
+.cl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+.cl-head b { color: var(--gold); }
+.cl-list { margin: 0; padding-left: 1.1rem; color: #cfc8e6; font-size: 0.88rem; display: flex; flex-direction: column; gap: 0.2rem; }

@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js';
 import { UI, esc, formatNum } from './ui.js';
-import { PRIVILEGED_SETS } from './engine.js';
+import { PRIVILEGED_SETS, TITLES } from './engine.js';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
@@ -55,6 +55,7 @@ export const GM = {
               <option value="stars">⭐ Stars</option>
               <option value="gold">💰 Gold</option>
               <option value="levels">⬆️ Levels</option>
+              <option value="xp">✨ XP</option>
               <option value="gear">👑 Gear set</option>
             </select></label>
           <label class="fld" id="gm-grant-amount-wrap"><span id="gm-grant-amount-label">Amount (1–100000)</span>
@@ -64,6 +65,23 @@ export const GM = {
         </div>
         <button id="gm-grant-btn" class="btn gold wide">Grant</button>
         <p class="muted small">Gear grants add the full 5-piece set to the player's inventory. Sovereign set is owner-only.</p>
+      </div>
+
+      <div class="card"><h3>⚡ Quick commands</h3>
+        <label class="fld"><span>Username</span><input id="gm-cmd-user" placeholder="player name" autocomplete="off"></label>
+        <div class="row">
+          <label class="fld"><span>Grant title</span>
+            <select id="gm-cmd-title">${TITLES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label>
+          <label class="fld"><span>Set stage (1–10000)</span>
+            <input id="gm-cmd-stage" type="number" min="1" max="10000" value="1"></label>
+        </div>
+        <div class="row" style="margin-top:0.6rem">
+          <button id="gm-cmd-title-btn" class="btn small">👑 Grant title</button>
+          <button id="gm-cmd-stage-btn" class="btn small">🗺️ Set stage</button>
+          <button id="gm-cmd-heal-btn" class="btn small">💚 Heal</button>
+          <button id="gm-cmd-reset-btn" class="btn small danger">♻️ Reset player</button>
+        </div>
+        <p class="muted small">Reset wipes a player's progress back to a fresh hero (keeps account &amp; role).</p>
       </div>
 
       <div class="card"><h3>🎟️ Gift codes</h3>
@@ -114,6 +132,7 @@ export const GM = {
       $('gm-grant-set-wrap').classList.toggle('hidden', !isGear);
       if (kind === 'gold') { amountLabel.textContent = 'Amount (1–1000000)'; amountInput.max = '1000000'; }
       else if (kind === 'levels') { amountLabel.textContent = 'Levels (1–100)'; amountInput.max = '100'; }
+      else if (kind === 'xp') { amountLabel.textContent = 'XP (1–1000000)'; amountInput.max = '1000000'; }
       else { amountLabel.textContent = 'Amount (1–100000)'; amountInput.max = '100000'; }
     };
     kindSel.addEventListener('change', syncKindUI);
@@ -149,6 +168,13 @@ export const GM = {
           }
           res = await api.gmGrant(username, 'levels', { amount });
           UI.toast(`Granted ⬆️${amount} levels to ${username}.`, 'success');
+        } else if (kind === 'xp') {
+          const amount = Math.floor(Number($('gm-grant-amount').value));
+          if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) {
+            return UI.toast('XP must be 1–1000000.', 'error');
+          }
+          res = await api.gmGrant(username, 'xp', { amount });
+          UI.toast(`Granted ✨${formatNum(amount)} XP to ${username}.`, 'success');
         } else {
           const set = $('gm-grant-set').value;
           res = await api.gmGrant(username, 'gear', { set });
@@ -180,6 +206,81 @@ export const GM = {
         UI.toast('Gift code created.', 'success');
       } catch (e) {
         UI.toast(e.message || 'Could not create code.', 'error');
+      }
+    });
+
+    // ---- quick commands ----
+    const cmdUser = () => {
+      const u = $('gm-cmd-user').value.trim();
+      if (!u) UI.toast('Enter a username for the command.', 'error');
+      return u;
+    };
+    const hotReloadIfSelf = async (username, res) => {
+      if (res && res.state && this.me &&
+          username.toLowerCase() === String(this.me.username).toLowerCase() &&
+          UI.handlers.onExternalState) {
+        UI.handlers.onExternalState(res.state);
+      }
+    };
+
+    $('gm-cmd-title-btn').addEventListener('click', async () => {
+      const username = cmdUser();
+      if (!username) return;
+      const titleId = $('gm-cmd-title').value;
+      try {
+        const res = await api.gmGrantTitle(username, titleId);
+        const t = TITLES.find(x => x.id === titleId);
+        UI.toast(`👑 Granted title "${t ? t.name : titleId}" to ${username}.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Grant title failed.', 'error');
+      }
+    });
+
+    $('gm-cmd-stage-btn').addEventListener('click', async () => {
+      const username = cmdUser();
+      if (!username) return;
+      const stage = Math.floor(Number($('gm-cmd-stage').value));
+      if (!Number.isFinite(stage) || stage < 1 || stage > 10000) {
+        return UI.toast('Stage must be 1–10000.', 'error');
+      }
+      try {
+        const res = await api.gmSetStage(username, stage);
+        UI.toast(`🗺️ ${username} moved to stage ${stage}.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Set stage failed.', 'error');
+      }
+    });
+
+    $('gm-cmd-heal-btn').addEventListener('click', async () => {
+      const username = cmdUser();
+      if (!username) return;
+      try {
+        const res = await api.gmHeal(username);
+        UI.toast(`💚 ${username} healed.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Heal failed.', 'error');
+      }
+    });
+
+    $('gm-cmd-reset-btn').addEventListener('click', async () => {
+      const username = cmdUser();
+      if (!username) return;
+      const ok = await UI.confirm(
+        '♻️ Reset player?',
+        `<p>Wipe <b>${esc(username)}</b>'s progress back to a fresh hero?</p>
+         <p class="muted">Keeps their account and role. This cannot be undone.</p>`,
+        'Reset player'
+      );
+      if (!ok) return;
+      try {
+        const res = await api.gmReset(username);
+        UI.toast(`♻️ ${username}'s progress was reset.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Reset failed.', 'error');
       }
     });
 

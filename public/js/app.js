@@ -34,6 +34,7 @@ const App = {
   saveTimer: null,
   tickTimer: null,
   started: false,
+  meter: null, // live damage meter: { startAt, fighters: {key: {label, total, samples:[{t,total}]}} }
 };
 
 // ---------------- boot ----------------
@@ -56,6 +57,16 @@ async function boot() {
     onSaveState: () => saveNow(),
     onExternalState: applyExternalState,
     onTab: onTabSwitch,
+    onShare: () => UI.shareGame(App.state, App.user),
+    onChangelog: () => UI.openChangelog(),
+    onTitle: (id) => {
+      const s = App.state;
+      if (!s || !(s.titlesUnlocked || []).includes(id)) return;
+      s.activeTitle = id;
+      UI.renderMore(s, App.user);
+      UI.toast(`👑 Title set: ${Engine.titleName(id)}`, 'success');
+      saveNow();
+    },
   };
   UI.init();
 
@@ -173,6 +184,8 @@ function spawnEnemy() {
   // revive downed companions on a fresh enemy
   for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
+  // reset the live damage meter for this fight
+  App.meter = { startAt: Date.now(), fighters: {} };
   // zone change toast
   const zone = Engine.zoneFor(s.stage);
   if (App.lastZone && App.lastZone !== zone.name) {
@@ -186,9 +199,49 @@ function spawnEnemy() {
   }
 }
 
+// ---------------- damage meter ----------------
+// Session-only per-fighter damage tracking. DPS is computed from a rolling
+// 10-second window of cumulative-damage samples.
+const METER_WINDOW_MS = 10000;
+
+function meterHit(key, label, dmg) {
+  if (!App.meter || !(dmg > 0)) return;
+  const now = Date.now();
+  let f = App.meter.fighters[key];
+  if (!f) f = App.meter.fighters[key] = { label, total: 0, samples: [] };
+  f.total += dmg;
+  f.samples.push({ t: now, total: f.total });
+  const cutoff = now - METER_WINDOW_MS;
+  while (f.samples.length > 2 && f.samples[0].t < cutoff) f.samples.shift();
+}
+
+// Returns {rows: [{key,label,dps,total,pct}], totalDps} for the meter UI.
+function meterSnapshot() {
+  const m = App.meter;
+  if (!m) return { rows: [], totalDps: 0 };
+  const now = Date.now();
+  const cutoff = now - METER_WINDOW_MS;
+  const rows = [];
+  let totalDps = 0;
+  for (const [key, f] of Object.entries(m.fighters)) {
+    const s = f.samples.filter(p => p.t >= cutoff);
+    const oldest = s.length ? s[0] : { t: now, total: f.total };
+    const newest = s.length ? s[s.length - 1] : { t: now, total: f.total };
+    const secs = Math.max(0.5, (newest.t - oldest.t) / 1000);
+    const dps = (newest.total - oldest.total) / secs;
+    rows.push({ key, label: f.label, dps, total: f.total });
+    totalDps += dps;
+  }
+  rows.sort((a, b) => b.dps - a.dps);
+  const top = rows.length ? rows[0].dps : 0;
+  for (const r of rows) r.pct = top > 0 ? (r.dps / top) * 100 : 0;
+  return { rows, totalDps };
+}
+
 function heroStrike(stats, mult = 1) {
   const { dmg, crit } = Engine.playerAttack(stats, App.enemy);
   const final = Math.max(1, Math.round(dmg * mult));
+  meterHit('hero', (App.user && App.user.username) || 'You', final);
   damageEnemy(final, crit ? 'CRIT ' : '', 'hero');
   // lifesteal
   if (stats.lifesteal > 0 && !App.dead) {
@@ -201,6 +254,7 @@ function heroStrike(stats, mult = 1) {
 function companionStrike(c) {
   const cs = Engine.companionStats(c);
   const { dmg, crit } = Engine.playerAttack(cs, App.enemy);
+  meterHit(c.id, c.name, dmg);
   damageEnemy(dmg, crit, c.emoji + ' ');
 }
 
@@ -276,6 +330,7 @@ function enemyStrikeTick(stats) {
   if (res.parried) {
     UI.floatText('PARRY', 'parry');
     UI.combatLog(`🛡️ ${tName} parried and countered!`);
+    meterHit('hero', (App.user && App.user.username) || 'You', res.counter);
     damageEnemy(res.counter, '', 'counter');
     return;
   }
@@ -391,7 +446,12 @@ function tick() {
   UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillReadyAt: App.skillReadyAt });
   // keep chips / hero panel fresh at low frequency
   if (!tick._n) tick._n = 0;
-  if (++tick._n % 8 === 0) UI.updateHeroPanel(s, stats, App);
+  if (++tick._n % 8 === 0) {
+    UI.updateHeroPanel(s, stats, App);
+    UI.refreshPartyBars(s);
+  }
+  // live damage meter, every 1s
+  if (tick._n % 4 === 0) UI.renderMeter(meterSnapshot());
 }
 
 // ---------------- player actions ----------------
@@ -415,7 +475,7 @@ function doTap() {
   checkAch();
 }
 
-// Unlock check helper: toasts + logs newly earned achievements.
+// Unlock check helper: toasts + logs newly earned achievements and titles.
 function checkAch() {
   const s = App.state;
   if (!s) return;
@@ -424,7 +484,12 @@ function checkAch() {
     UI.toast(`🏆 ${a.name}! +${a.stars} ⭐`, 'success');
     UI.combatLog(`🏆 Achievement: ${a.name} (+${a.stars} ⭐)`, 'level');
   }
-  if (fresh.length) {
+  const freshTitles = Engine.checkTitles(s);
+  for (const t of freshTitles) {
+    UI.toast(`👑 New title unlocked: ${t.name}!`, 'success');
+    UI.combatLog(`👑 Title unlocked: ${t.name}`, 'level');
+  }
+  if (fresh.length || freshTitles.length) {
     if (UI.activeTab === 'more') UI.renderMore(s, App.user);
     UI.updateHUD(s, App.user);
     saveNow();

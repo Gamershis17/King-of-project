@@ -66,7 +66,8 @@ export const UI = {
       'party-slots', 'recruit-list', 'lb-body', 'lb-refresh', 'profile-card',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'logout-btn', 'modal-root', 'toast-root',
-      'race-grid', 'gm-back',
+      'race-grid', 'gm-back', 'meter-rows', 'total-dps',
+      'share-btn', 'changelog-btn', 'changelog-badge',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
@@ -119,13 +120,22 @@ export const UI = {
       this.handlers.onTab && this.handlers.onTab('ranks', true);
     });
 
-    // More tab: delegated talent / profession buttons
+    // More tab: delegated talent / profession / title buttons
     document.getElementById('tab-more').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;
       const h = this.handlers;
       if (btn.dataset.action === 'talent' && h.onTalent) h.onTalent(btn.dataset.id);
       if (btn.dataset.action === 'prof' && h.onProfession) h.onProfession(btn.dataset.id);
+      if (btn.dataset.action === 'title' && h.onTitle) h.onTitle(btn.dataset.id);
+    });
+
+    // Share + update log (More tab)
+    this.els['share-btn'].addEventListener('click', () => {
+      this.handlers.onShare && this.handlers.onShare();
+    });
+    this.els['changelog-btn'].addEventListener('click', () => {
+      this.handlers.onChangelog && this.handlers.onChangelog();
     });
 
     // More tab
@@ -375,14 +385,12 @@ export const UI = {
       <span>🥾 ${Engine.round1(stats.dodge)}%</span>
       ${rested}
       ${setLine}`;
-    // dungeon party chips
+    // dungeon party mini-cards
     const chips = this.els['dungeon-chips'];
     if (state.mode === 'dungeon' && state.party.length) {
-      chips.innerHTML = state.party.map(c => {
-        const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
-        return `<div class="chip ${c.hp <= 0 ? 'down' : ''}" title="${esc(c.name)}">
-          ${c.emoji} <div class="chip-bar"><div style="width:${pct}%"></div></div></div>`;
-      }).join('');
+      chips.innerHTML = state.party.map(c =>
+        `<div class="member mini${c.hp <= 0 ? ' down' : ''}" title="${esc(c.name)}">${this.memberCardHTML(c, true)}</div>`
+      ).join('');
       chips.classList.remove('hidden');
     } else {
       chips.classList.add('hidden');
@@ -434,6 +442,82 @@ export const UI = {
          <div class="combo-bar"><div style="width:${pct}%"></div></div>`;
   },
 
+  // ---------------- damage meter ----------------
+  _meterKey: null,
+
+  // snapshot: {rows: [{key,label,dps,total,pct}], totalDps}
+  renderMeter(snapshot) {
+    const rowsEl = this.els['meter-rows'];
+    if (!rowsEl) return;
+    const key = (snapshot.rows || []).map(r => r.key).join('|');
+    if (key !== this._meterKey) {
+      // fighter set changed (new fight) — rebuild rows
+      this._meterKey = key;
+      rowsEl.innerHTML = '';
+      const palette = [
+        'linear-gradient(90deg,#f0b429,#c77f1a)',
+        'linear-gradient(90deg,#74c0fc,#3b82c4)',
+        'linear-gradient(90deg,#b197fc,#7b5fc7)',
+        'linear-gradient(90deg,#63e6be,#2f9e44)',
+      ];
+      (snapshot.rows || []).forEach((r, i) => {
+        const row = document.createElement('div');
+        row.className = 'meter-row';
+        row.dataset.fkey = r.key;
+        row.innerHTML =
+          `<div class="meter-info"><span class="meter-name">${esc(r.label)}</span>` +
+          `<span class="meter-dps" data-m="dps">0 DPS</span>` +
+          `<span class="meter-pct" data-m="pct">0%</span></div>` +
+          `<div class="meter-track"><div class="meter-fill" data-m="bar" style="background:${palette[i % palette.length]}"></div></div>`;
+        rowsEl.appendChild(row);
+      });
+      if (!snapshot.rows || !snapshot.rows.length) {
+        rowsEl.innerHTML = '<p class="muted small center">No damage yet — the fight just started!</p>';
+      }
+    }
+    this.els['total-dps'].textContent = formatNum(snapshot.totalDps) + ' DPS';
+    for (const r of (snapshot.rows || [])) {
+      const row = rowsEl.querySelector(`[data-fkey="${CSS.escape(r.key)}"]`);
+      if (!row) continue;
+      row.querySelector('[data-m="dps"]').textContent = formatNum(r.dps) + ' DPS';
+      row.querySelector('[data-m="pct"]').textContent = Math.round(r.pct) + '%';
+      row.querySelector('[data-m="bar"]').style.width = Math.min(100, r.pct) + '%';
+    }
+  },
+
+  // ---------------- party cards ----------------
+  // Deterministic portrait hue from a name.
+  portraitHue(name) {
+    let h = 0;
+    for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+    return h;
+  },
+
+  memberCardHTML(c, mini = false) {
+    const hue = this.portraitHue(c.name);
+    const initial = (c.name || '?').trim().charAt(0).toUpperCase();
+    const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
+    return `
+      <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
+      <div class="member-name">${esc(c.name)}</div>
+      <div class="member-role">${esc(c.role || 'Companion')}</div>
+      <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
+      <div class="member-hptext" data-comp-hptext="${esc(c.id)}">${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}</div>
+      ${mini ? '' : `<div class="member-stats">Lv ${c.level} · ⚔️ ${formatNum(c.attack)} · 🛡️ ${formatNum(c.defense)}${c.regen ? ` · 💚 ${c.regen}/s` : ''}</div>`}`;
+  },
+
+  // Refreshes party HP bars in place (called on a low-frequency tick) so
+  // party-tab cards and dungeon mini-cards stay live without full re-render.
+  refreshPartyBars(state) {
+    if (!state) return;
+    for (const c of (state.party || [])) {
+      const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
+      const txt = `${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}`;
+      $$(`[data-comp-hp="${CSS.escape(c.id)}"]`).forEach(el => { el.style.width = pct + '%'; });
+      $$(`[data-comp-hptext="${CSS.escape(c.id)}"]`).forEach(el => { el.textContent = txt; });
+    }
+  },
+
   // ---------------- gear ----------------
   renderGear(state) {
     // upgrades
@@ -469,12 +553,12 @@ export const UI = {
       const equippedId = state.equipped && state.equipped[item.slot];
       const isEquipped = equippedId === item.id;
       const card = document.createElement('div');
-      card.className = `item-card r-${item.rarity}${item.set ? ' set-item' : ''}${isEquipped ? ' equipped' : ''}`;
+      card.className = `item-card r-${item.rarity}${item.set ? ' set-item' : ''}${item.set === 'sovereign' ? ' set-sovereign' : ''}${isEquipped ? ' equipped' : ''}`;
       card.dataset.id = item.id;
       const statLines = Object.entries(item.stats || {})
         .map(([k, v]) => `<li>+${formatStatVal(k, v)} ${Engine.STAT_LABELS[k] || k}</li>`).join('');
       const setBadge = item.set
-        ? `<div class="set-badge">👑 ${esc(item.setName || item.set)} · full set +${Engine.PRIVILEGED_SETS[item.set]?.setBonus ?? ''}%</div>` : '';
+        ? `<div class="set-badge${item.set === 'sovereign' ? ' set-badge-sovereign' : ''}">👑 ${esc(item.setName || item.set)} · full set +${Engine.PRIVILEGED_SETS[item.set]?.setBonus ?? ''}%</div>` : '';
       card.innerHTML = `
         <div class="item-head">
           <span class="slot-emoji">${Engine.SLOT_INFO[item.slot]?.emoji || '🎒'}</span>
@@ -499,14 +583,11 @@ export const UI = {
     for (let i = 0; i < Engine.MAX_PARTY; i++) {
       const c = state.party[i];
       const div = document.createElement('div');
-      div.className = 'party-slot' + (c ? '' : ' empty');
+      div.className = 'member' + (c ? '' : ' empty');
       if (c) {
         div.innerHTML = `
-          <div class="comp-head"><span class="comp-emoji">${c.emoji}</span>
-            <div><div class="comp-name">${esc(c.name)}</div>
-            <div class="muted small">Lv ${c.level} ${esc(Engine.RACES[c.race]?.name || '')}</div></div></div>
-          <div class="comp-stats">⚔️ ${formatNum(c.attack)} · 🛡️ ${formatNum(c.defense)} · ❤️ ${formatNum(c.maxHp)}</div>
-          <button class="btn small ghost" data-action="dismiss" data-id="${c.id}">Dismiss</button>`;
+          ${this.memberCardHTML(c)}
+          <button class="btn small ghost member-dismiss" data-action="dismiss" data-id="${esc(c.id)}">Dismiss</button>`;
       } else {
         div.innerHTML = '<div class="muted">Empty slot</div>';
       }
@@ -549,9 +630,10 @@ export const UI = {
       const tr = document.createElement('tr');
       if (en.username === meUsername) tr.className = 'me-row';
       const race = Engine.RACES[en.race] || {};
+      const title = en.title ? `<div class="lb-title">${esc(Engine.titleName(en.title))}</div>` : '';
       tr.innerHTML = `
         <td>${medals[i] || (i + 1)}</td>
-        <td>${race.emoji || ''} ${esc(en.username)}</td>
+        <td><div class="lb-name">${race.emoji || ''} ${esc(en.username)}</div>${title}</td>
         <td>${en.level}</td>
         <td>${en.stage}</td>
         <td>${formatNum(en.power || 0)}</td>
@@ -568,14 +650,27 @@ export const UI = {
     const canGM = role === 'owner' || role === 'gm';
     this.els['gm-entry-card'].classList.toggle('hidden', !canGM);
     const setCount = (state.inventory || []).filter(i => i.set).length;
+    const unlocked = new Set(state.titlesUnlocked || ['wanderer']);
+    const titleChips = Engine.TITLES.map(t => {
+      const has = unlocked.has(t.id);
+      const active = state.activeTitle === t.id;
+      return has
+        ? `<button class="title-chip${active ? ' active' : ''}" data-action="title" data-id="${t.id}" title="${esc(t.desc)}">${esc(t.name)}</button>`
+        : `<span class="title-chip locked" title="${esc(t.desc)}">🔒 ${esc(t.name)}</span>`;
+    }).join('');
     this.els['profile-card'].innerHTML = `
       <div class="profile-head">
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
           <div class="profile-name">${esc(user ? user.username : '—')}</div>
+          <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${esc(race.name || '')}</span></div>
         </div>
+      </div>
+      <div class="titles-block">
+        <div class="muted small titles-label">👑 Hero title</div>
+        <div class="title-chips">${titleChips}</div>
       </div>
       <div class="profile-grid">
         <div><span class="muted">Level</span><b>${state.level}</b></div>
@@ -591,6 +686,66 @@ export const UI = {
       ${this.masteryCard(state)}
       ${this.professionsCard(state)}
       ${this.achievementsCard(state)}`;
+    this.checkChangelogBadge();
+  },
+
+  // Shows the NEW badge on "What's New" when the changelog has an entry
+  // newer than the player's last-seen one.
+  checkChangelogBadge() {
+    const badge = this.els['changelog-badge'];
+    if (!badge) return;
+    fetch('changelog.json', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(log => {
+        if (!Array.isArray(log) || !log.length) return;
+        const latest = String(log[0].date || '');
+        let seen = null;
+        try { seen = localStorage.getItem('kop-changelog-seen'); } catch { /* ignore */ }
+        badge.classList.toggle('hidden', !latest || seen === latest);
+      })
+      .catch(() => { /* offline-tolerant */ });
+  },
+
+  async openChangelog() {
+    let log = null;
+    try {
+      const r = await fetch('changelog.json', { cache: 'no-store' });
+      if (r.ok) log = await r.json();
+    } catch { /* ignore */ }
+    if (!Array.isArray(log) || !log.length) {
+      this.toast('No updates logged yet.', 'info');
+      return;
+    }
+    const html = log.map(e => `
+      <div class="cl-entry">
+        <div class="cl-head"><b>${esc(e.title)}</b><span class="muted small">${esc(e.date)}${e.time ? ' · ' + esc(e.time) : ''}${e.version ? ' · v' + esc(e.version) : ''}</span></div>
+        <ul class="cl-list">${(e.changes || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
+      </div>`).join('');
+    this.modal({
+      title: '📰 Update log',
+      html: `<div class="cl-log">${html}</div>`,
+      buttons: [{ label: 'Close', cls: 'gold' }],
+    });
+    try { localStorage.setItem('kop-changelog-seen', String(log[0].date || '')); } catch { /* ignore */ }
+    if (this.els['changelog-badge']) this.els['changelog-badge'].classList.add('hidden');
+  },
+
+  shareGame(state, user) {
+    if (!state) return;
+    const name = (user && user.username) || 'a hero';
+    const url = 'https://king-of-project.onrender.com';
+    const shareText = `⚔️ I'm ${name} — Lv ${state.level}, Stage ${state.stage} in King of Project! Can you beat me? #KingOfProject`;
+    if (navigator.share) {
+      navigator.share({ title: 'King of Project', text: shareText, url }).catch(() => { /* dismissed */ });
+      return;
+    }
+    const full = `${shareText}\n${url}`;
+    const done = () => this.toast('📣 Share text copied — paste it anywhere!', 'success');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(full).then(done, () => this.toast('Copy failed on this device.', 'error'));
+    } else {
+      this.toast('Sharing is not supported on this device.', 'error');
+    }
   },
 
   masteryCard(state) {

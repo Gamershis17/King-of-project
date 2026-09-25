@@ -98,6 +98,16 @@
             <div class="hero-stats" id="hero-stats"></div>
             <div class="party-chips hidden" id="dungeon-chips"></div>
           </div>
+
+          <div class="meter" id="meter-panel">
+            <div class="meter-head">
+              <span class="meter-title">DAMAGE METER</span>
+              <span class="live-pill"><span class="live-dot"></span>LIVE</span>
+              <span class="total-dps" id="total-dps">0 DPS</span>
+            </div>
+            <div id="meter-rows"></div>
+            <div class="meter-foot">resets each fight &middot; updates every second</div>
+          </div>
         </div>
 
         <div>
@@ -145,6 +155,15 @@
       <!-- MORE -->
       <section id="tab-more" class="tab">
         <div id="profile-card" class="card"></div>
+        <div class="card">
+          <h3>📣 Share the game</h3>
+          <p class="muted small">Brag your stats, invite friends, or grab the link for your videos.</p>
+          <button id="share-btn" class="btn gold wide">📣 Share King of Project</button>
+        </div>
+        <div class="card">
+          <h3>📰 What's New <span id="changelog-badge" class="new-badge hidden">NEW</span></h3>
+          <button id="changelog-btn" class="btn wide">View update log</button>
+        </div>
         <div class="card">
           <h3>🎁 Redeem gift code</h3>
           <div class="row">

@@ -55,6 +55,10 @@ export const api = {
   // GM console (role owner|gm; role mgmt owner-only)
   gmOverview: () => request('/api/gm/overview'),
   gmGrant: (username, kind, extra) => post('/api/gm/grant', { username, kind, ...(extra || {}) }),
+  gmGrantTitle: (username, titleId) => post('/api/gm/grant-title', { username, titleId }),
+  gmSetStage: (username, stage) => post('/api/gm/set-stage', { username, stage }),
+  gmHeal: (username) => post('/api/gm/heal', { username }),
+  gmReset: (username) => post('/api/gm/reset', { username }),
   gmCodes: () => request('/api/gm/codes'),
   gmCreateCode: (set, maxUses) => post('/api/gm/codes', { set, maxUses }),
   gmRoster: () => request('/api/gm/roster'),

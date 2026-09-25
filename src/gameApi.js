@@ -103,15 +103,18 @@ router.get(
     const rows = await getLeaderboardRows(100);
     const entries = rows.map((r) => {
       let race = null;
+      let title = null;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
+        if (blob && typeof blob.activeTitle === 'string') title = blob.activeTitle;
       } catch {
-        // leave race null
+        // leave race/title null
       }
       return {
         username: r.username,
         race,
+        title,
         level: r.level,
         stage: r.stage,
         bossesKilled: r.bosses_killed,
