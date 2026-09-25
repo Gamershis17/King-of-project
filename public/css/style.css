@@ -287,7 +287,8 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .member,
 .recruit-row,
 .title-chip,
-.talent-row {
+.talent-row,
+.lb-row {
   content-visibility: auto;
   contain-intrinsic-size: auto 120px;
 }
@@ -346,11 +347,57 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 }
 .recruit-info { display: flex; gap: 0.6rem; align-items: center; }
 
-/* ---------- ranks ---------- */
-.lb-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
-.lb-table th, .lb-table td { padding: 0.55rem 0.4rem; text-align: left; border-bottom: 1px solid #2a2440; }
-.lb-table th { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; }
-.lb-table tr.me-row td { background: rgba(139,92,246,.14); font-weight: 700; }
+/* ---------- ranks (leaderboard cards) ---------- */
+.lb-list { display: flex; flex-direction: column; gap: 0.55rem; max-width: 960px; margin: 0 auto; }
+.lb-empty { padding: 2rem 0; }
+.lb-row {
+  display: flex; align-items: center; gap: 0.7rem;
+  background: var(--stone); border: 1px solid var(--stone2);
+  border-radius: var(--radius); padding: 0.6rem 0.8rem; min-width: 0;
+}
+.lb-rank {
+  flex: 0 0 auto; width: 2.2rem; height: 2.2rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 0.95rem; color: var(--muted);
+  background: rgba(255,255,255,.04); border: 1px solid var(--stone2);
+}
+.lb-medal { font-size: 1.25rem; }
+.lb-row.lb-top1 .lb-rank { border-color: #ffd23f; box-shadow: 0 0 10px rgba(255,210,63,.45); background: radial-gradient(circle at 35% 30%, #fff3c4, #ffd23f 60%, #b8860b); }
+.lb-row.lb-top2 .lb-rank { border-color: #c0c0c0; box-shadow: 0 0 8px rgba(192,192,192,.35); background: radial-gradient(circle at 35% 30%, #ffffff, #c0c0c0 60%, #7a7a7a); }
+.lb-row.lb-top3 .lb-rank { border-color: #cd7f32; box-shadow: 0 0 8px rgba(205,127,50,.35); background: radial-gradient(circle at 35% 30%, #ffd9b3, #cd7f32 60%, #7a4a1e); }
+.lb-row.lb-top1 { border-color: rgba(255,210,63,.55); box-shadow: 0 0 18px rgba(255,210,63,.16); }
+.lb-row.lb-top2 { border-color: rgba(192,192,192,.4); }
+.lb-row.lb-top3 { border-color: rgba(205,127,50,.4); }
+.lb-row.lb-top1 .lb-avatar { transform: scale(1.1); }
+.lb-avatar {
+  flex: 0 0 auto; width: 2.6rem; height: 2.6rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+  background: rgba(0,0,0,.35); border: 2px solid var(--arcane, #8b5cf6);
+}
+.lb-identity { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.lb-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-title { font-size: 0.72rem; font-style: italic; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-badge { filter: drop-shadow(0 0 3px rgba(240,180,41,.6)); }
+.lb-class { margin-left: 0.15rem; }
+.lb-you {
+  font-size: 0.65rem; font-weight: 800; color: #1a1206; background: var(--gold);
+  border-radius: 0.3rem; padding: 0.1rem 0.35rem; margin-left: 0.35rem; vertical-align: middle;
+}
+.lb-row.me-row { border-color: var(--gold); box-shadow: 0 0 14px rgba(240,180,41,.22); background: rgba(139,92,246,.10); font-weight: 700; }
+.lb-chips { flex: 0 0 auto; display: flex; gap: 0.4rem; flex-wrap: wrap; justify-content: flex-end; }
+.lb-chip {
+  font-size: 0.78rem; background: rgba(255,255,255,.05);
+  border: 1px solid var(--stone2); border-radius: 999px; padding: 0.18rem 0.55rem;
+  white-space: nowrap;
+}
+.lb-chip b { color: var(--muted); font-weight: 700; margin-right: 0.25rem; }
+
+/* mobile: identity row on top, chips wrap below — never any horizontal scroll */
+@media (max-width: 560px) {
+  .lb-row { flex-wrap: wrap; row-gap: 0.5rem; }
+  .lb-identity { flex: 1 1 calc(100% - 6.6rem); }
+  .lb-chips { flex: 1 1 100%; justify-content: flex-start; }
+}
 
 /* ---------- more / cards ---------- */
 .card { background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.9rem; margin-bottom: 0.8rem; }
@@ -507,7 +554,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
   #tab-more .card { margin-bottom: 0; }
 
   /* ranks */
-  .lb-table { max-width: 960px; margin: 0 auto; }
+  .lb-list { max-width: 960px; margin: 0 auto; }
 
   /* toasts clear the sidebar */
   #toast-root { left: 210px; bottom: 1.5rem; }
@@ -562,9 +609,7 @@ body.reduce-motion .combo-frenzy { animation: none; }
 .ach-reward { color: var(--gold); font-size: 0.8rem; font-weight: 700; margin-top: 0.2rem; }
 
 /* ---------- leaderboard ---------- */
-.lb-table { font-size: 0.82rem; }
-/* QA: contain worst-case table width (max-length usernames) on narrow phones */
-#tab-ranks { overflow-x: auto; }
+/* (card layout needs no horizontal scroll — rows wrap internally) */
 
 /* ============================================================
    UI 2.0 — damage meter, party cards, titles, rainbow gear,
@@ -1160,6 +1205,29 @@ body[data-uistyle="modern"] .card {
 body[data-uistyle="modern"] .card:hover {
   transform: translateY(-2px);
   box-shadow: 0 14px 38px rgba(0,0,0,.55), 0 0 20px rgba(139,92,246,.22);
+}
+
+/* ---- leaderboard rows: glassy gradient cards (no backdrop-filter, per FPS fix) ---- */
+body[data-uistyle="modern"] .lb-row {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(160deg, rgba(48,34,82,.82), rgba(22,14,38,.9)) padding-box,
+    linear-gradient(160deg, rgba(255,210,63,.35), rgba(139,92,246,.28) 45%, rgba(255,210,63,.12)) border-box;
+  border-radius: 16px;
+  box-shadow: 0 8px 26px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.08);
+  transition: transform .2s ease, box-shadow .25s ease;
+}
+body[data-uistyle="modern"] .lb-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.55), 0 0 18px rgba(139,92,246,.25);
+}
+body[data-uistyle="modern"] .lb-row.me-row {
+  background:
+    linear-gradient(160deg, rgba(64,46,110,.85), rgba(30,18,52,.92)) padding-box,
+    linear-gradient(160deg, rgba(255,210,63,.7), rgba(240,180,41,.4) 50%, rgba(255,210,63,.25)) border-box;
+}
+body[data-uistyle="modern"] .lb-chip {
+  background: rgba(255,255,255,.06); border-color: rgba(139,92,246,.25);
 }
 
 /* ---- mode buttons & inputs ease ---- */

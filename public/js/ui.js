@@ -14,6 +14,12 @@ export function esc(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+// Forward-compat emoji for the (unlaunched) class/spec system on leaderboard
+// entries. Local maps, guarded by existence — entries without playerClass/spec
+// render exactly as before.
+const UI_CLASS_EMOJI = { hunter: '🏹', warrior: '⚔️', mage: '🔮', assassin: '🌙' };
+const UI_SPEC_EMOJI = { tank: '🛡️', dps: '⚔️', healer: '💚', classic: '📜' };
+
 export function formatNum(n) {
   n = Math.floor(Number(n) || 0);
   if (n < 1000) return String(n);
@@ -709,27 +715,42 @@ export const UI = {
     const body = this.els['lb-body'];
     body.innerHTML = '';
     if (!entries.length) {
-      body.innerHTML = '<tr><td colspan="7" class="muted center">No heroes yet.</td></tr>';
+      body.innerHTML = '<div class="lb-empty muted center">No heroes yet.</div>';
       return;
     }
     const medals = ['🥇', '🥈', '🥉'];
     entries.forEach((en, i) => {
-      const tr = document.createElement('tr');
-      if (en.username === meUsername) tr.className = 'me-row';
+      const row = document.createElement('div');
+      row.className = 'lb-row' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      const isMe = en.username === meUsername;
+      if (isMe) row.classList.add('me-row');
       const race = Engine.RACES[en.race] || {};
       const title = en.title ? `<div class="lb-title">${esc(Engine.titleName(en.title))}</div>` : '';
       const flag = en.country ? Engine.countryFlag(en.country) : '';
       const badge = en.badge ? Engine.badgeDef(en.badge) : null;
       const badgeHtml = badge ? `<span class="lb-badge" title="${esc(badge.name)}">${badge.emoji}</span> ` : '';
-      tr.innerHTML = `
-        <td>${medals[i] || (i + 1)}</td>
-        <td><div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${race.emoji || ''} ${esc(en.username)}</div>${title}</td>
-        <td>${en.level}</td>
-        <td>${en.stage}</td>
-        <td>${formatNum(en.power || 0)}</td>
-        <td>${en.bossesKilled}</td>
-        <td>${en.prestige > 0 ? '🔥' + en.prestige : '—'}</td>`;
-      body.appendChild(tr);
+      const clsHtml = en.playerClass && UI_CLASS_EMOJI[en.playerClass]
+        ? `<span class="lb-class" title="${esc(en.playerClass)}">${UI_CLASS_EMOJI[en.playerClass]}</span> ` : '';
+      const specHtml = en.spec && UI_SPEC_EMOJI[en.spec]
+        ? `<span class="lb-class" title="${esc(en.spec)}">${UI_SPEC_EMOJI[en.spec]}</span> ` : '';
+      const rankHtml = medals[i]
+        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}</div>`
+        : `<div class="lb-rank">${i + 1}</div>`;
+      row.innerHTML = `
+        ${rankHtml}
+        <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
+        <div class="lb-identity">
+          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+          ${title}
+        </div>
+        <div class="lb-chips">
+          <span class="lb-chip"><b>Lv</b>${en.level}</span>
+          <span class="lb-chip"><b>Stage</b>${en.stage}</span>
+          <span class="lb-chip"><b>⚔️</b>${formatNum(en.power || 0)}</span>
+          <span class="lb-chip"><b>👑</b>${en.bossesKilled}</span>
+          <span class="lb-chip"><b>🔥</b>${en.prestige > 0 ? en.prestige : '—'}</span>
+        </div>`;
+      body.appendChild(row);
     });
   },
 
