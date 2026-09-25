@@ -306,6 +306,8 @@ function startGame() {
 let _saving = false;
 async function saveNow(beaconOnly = false) {
   if (!App.state || _saving) return;
+  // Stamp leaderboard "power" (hero attack) so /api/leaderboard can show it.
+  try { App.state.power = Math.round(Engine.computeStats(App.state).attack); } catch { /* leave unset */ }
   if (beaconOnly) { api.saveStateBeacon(App.state); return; }
   if (App.maintenanceMode) { UI.setSaveIndicator('● paused'); return; } // maintenance: hold saves
   _saving = true;

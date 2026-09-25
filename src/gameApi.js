@@ -219,6 +219,7 @@ router.get(
       let country = null;
       let playerClass = null;
       let spec = null;
+      let power = 0;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
@@ -231,6 +232,7 @@ router.get(
         if (blob && typeof blob.spec === 'string' && VALID_SPECS.has(blob.spec)) {
           spec = blob.spec;
         }
+        if (blob && Number.isFinite(blob.power) && blob.power >= 0) power = Math.floor(blob.power);
       } catch {
         // leave race/title/badge/country/playerClass/spec null
       }
@@ -244,6 +246,7 @@ router.get(
         spec,
         level: r.level,
         stage: r.stage,
+        power,
         bossesKilled: r.bosses_killed,
         prestige: r.prestige_count,
       };
