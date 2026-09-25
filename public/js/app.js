@@ -109,6 +109,7 @@ async function boot() {
     onSaveState: () => saveNow(),
     onExternalState: applyExternalState,
     onTab: onTabSwitch,
+    onUiStyle: setUiStyle,
     onShare: () => UI.shareGame(App.state, App.user),
     onChangelog: () => UI.openChangelog(),
     onTitle: (id) => {
@@ -199,9 +200,29 @@ async function enterApp(user) {
   startGame();
 }
 
+// ---------------- UI style theme ----------------
+// engine.js is owned by another agent: never read/write uiStyle there.
+// Normalize here: anything that isn't 'classic' is 'modern'.
+function uiStyleOf(s) {
+  return (s && s.uiStyle === 'classic') ? 'classic' : 'modern';
+}
+function applyUiStyle() {
+  const style = uiStyleOf(App.state);
+  document.body.dataset.uistyle = style;
+  UI.setUiStyleSeg(style);
+}
+function setUiStyle(style) {
+  const s = App.state;
+  if (!s) return;
+  s.uiStyle = style === 'classic' ? 'classic' : 'modern';
+  applyUiStyle();
+  saveNow();
+}
+
 function startGame() {
   if (App.started) return;
   App.started = true;
+  applyUiStyle();
   UI.showView('app');
   spawnEnemy();
   UI.renderBattle(App.state);
@@ -334,14 +355,31 @@ function companionStrike(c) {
 
 function damageEnemy(dmg, prefix, sourceLabel) {
   const enemy = App.enemy;
-  if (!enemy || App.dead) return;
+  if (!enemy || App.dead || App.spawnPending) return;
   enemy.hp -= dmg;
+  UI.enemyHitFlash();
   const isCrit = String(prefix).includes('CRIT');
   UI.floatText(`${prefix}${formatNum(dmg)}`, isCrit ? 'crit' : 'dmg');
   if (enemy.hp <= 0) onKillEnemy();
 }
 
+// Spawns the next enemy, delaying briefly when the modern death animation
+// is playing so the fade-out stays visible. App.spawnPending guards the
+// damage pipeline against double-kills during the window.
+function spawnNextEnemy() {
+  if (UI.enemyDeathFade()) {
+    App.spawnPending = true;
+    setTimeout(() => {
+      App.spawnPending = false;
+      if (!App.dead) spawnEnemy();
+    }, 300);
+  } else {
+    spawnEnemy();
+  }
+}
+
 function onKillEnemy() {
+  if (App.spawnPending) return; // already processing a kill
   const s = App.state;
   const enemy = App.enemy;
   const stage = enemy.stage;
@@ -361,7 +399,7 @@ function onKillEnemy() {
     UI.toast(`Boss slain! +${formatNum(gold)} gold, +1 ⭐`, 'success');
   }
   const xpRes = Engine.gainXp(s, Engine.xpForKill(stage));
-  const loot = Engine.rollLoot(stage, enemy.boss);
+  const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null);
   if (loot) {
     s.inventory.push(loot);
     UI.toast(`🎒 Loot: ${loot.name}`, 'loot');
@@ -382,12 +420,12 @@ function onKillEnemy() {
   if (inRaid) {
     // Raid: stay on the same stage, spawn the next wave.
     UI.combatLog(`🌀 Wave ${raidLoot.wave} cleared!${raidLoot.boss ? ' Boss down!' : ''}`, raidLoot.boss ? 'boss' : 'info');
-    spawnEnemy();
+    spawnNextEnemy();
     UI.updateHUD(s, App.user);
     return;
   }
   s.stage += 1;
-  spawnEnemy();
+  spawnNextEnemy();
   UI.updateHUD(s, App.user);
   // prestige unlock may have appeared
   if (s.stage >= 50) UI.renderBattle(s);
@@ -396,6 +434,7 @@ function onKillEnemy() {
 function enemyStrikeTick(stats) {
   const s = App.state;
   const enemy = App.enemy;
+  if (!enemy || App.dead || App.spawnPending) return;
   // pick target: hero, or random alive fighter in dungeon mode
   let target = { kind: 'hero' };
   if (s.mode === 'dungeon') {
@@ -442,7 +481,7 @@ function onDefeat() {
   s.gold -= lost;
   // Raid: death ends the run (loot kept); drop back to clicker mode.
   if (Raid.isActive()) {
-    const res = Raid.onDeath();
+    const res = Raid.onDeath(s);
     Raid.exit();
     s.mode = 'clicker';
     UI.setMode('clicker');
@@ -716,6 +755,7 @@ function applyExternalState(srv) {
   if (!srv) return;
   App.state = Engine.ensureState(srv);
   Raid.init(App.state);
+  applyUiStyle();
   const s = App.state;
   UI.updateHUD(s, App.user);
   UI.renderBattle(s);

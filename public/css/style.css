@@ -110,7 +110,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
   position: sticky; top: 0; z-index: 20;
   background: linear-gradient(180deg, #1c1628, #151020ee);
   border-bottom: 1px solid var(--stone2);
-  padding: 0.55rem 0.8rem calc(0.55rem);
+  padding: 0.55rem max(0.8rem, env(safe-area-inset-right)) 0.55rem max(0.8rem, env(safe-area-inset-left));
   backdrop-filter: blur(6px);
 }
 .hud-row { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.35rem; }
@@ -126,6 +126,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .role-badge.role-owner { background: #5a3d00; color: var(--gold); border: 1px solid var(--gold2); }
 .role-badge.role-gm { background: #3d1f5a; color: #d0a9ff; border: 1px solid var(--arcane); }
 .role-badge.role-admin { background: #1f4a3d; color: #9dffc9; border: 1px solid #2e7d5b; }
+.role-badge.role-moderator { background: #4a2f1f; color: #ffc98a; border: 1px solid #a86a2e; }
 .hud-currencies { margin-left: auto; display: flex; gap: 0.8rem; font-weight: 600; font-size: 0.95rem; white-space: nowrap; }
 .hud-level { font-weight: 700; color: var(--gold); white-space: nowrap; }
 .save-row { justify-content: flex-end; }
@@ -147,7 +148,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .bar.enemy-hp .fill { background: linear-gradient(180deg, #ff8c5a, #a02a1a); }
 
 /* ---------- tabs ---------- */
-#tab-content { max-width: 860px; margin: 0 auto; padding: 0.8rem 0.8rem 1rem; }
+#tab-content { max-width: 860px; margin: 0 auto; padding: 0.9rem max(0.9rem, env(safe-area-inset-right)) 1.25rem max(0.9rem, env(safe-area-inset-left)); }
 .tab { display: none; }
 .tab.active { display: block; animation: fadein .2s; }
 @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
@@ -173,7 +174,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .mode-btn {
   flex: 1; background: var(--stone); border: 1px solid var(--stone2); color: var(--muted);
   border-radius: var(--radius); padding: 0.65rem 0.3rem; font-size: 1.2rem; cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 60px;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 64px;
 }
 .mode-btn span { font-size: 0.75rem; }
 .mode-btn.active { border-color: var(--arcane); color: #fff; background: var(--stone2); box-shadow: 0 0 10px rgba(139,92,246,.35); }
@@ -207,9 +208,20 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .float-parry { color: #9dffc9; }
 .float-skill { color: var(--arcane); font-size: 1.4rem; }
 @keyframes floatup {
-  0% { transform: translateY(0) scale(0.7); opacity: 0; }
-  15% { transform: translateY(-12px) scale(1.15); opacity: 1; }
-  100% { transform: translateY(-70px) scale(1); opacity: 0; }
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  12% { transform: translateY(-10px) scale(1.2); opacity: 1; }
+  25% { transform: translateY(-22px) scale(1); opacity: 1; }
+  65% { transform: translateY(-52px) scale(1); opacity: 1; }
+  100% { transform: translateY(-72px) scale(0.9); opacity: 0; }
+}
+/* ---- low hero HP: pulsing red warning ---- */
+.bar.hp.hp-low .fill {
+  background: linear-gradient(180deg, #ff2d2d, #8f0f0f);
+  animation: hp-low-pulse 0.9s ease-in-out infinite;
+}
+@keyframes hp-low-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(255,45,45,.40); filter: brightness(1); }
+  50% { box-shadow: 0 0 18px rgba(255,45,45,.95); filter: brightness(1.4); }
 }
 .dead-overlay {
   position: absolute; inset: 0; background: rgba(10,5,5,.82); z-index: 5;
@@ -423,18 +435,69 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
   background: var(--bg2); border: 1px solid var(--stone2); border-radius: 8px; padding: 0.45rem 0.7rem;
 }
 
-/* ---------- desktop ---------- */
+/* ---------- mid-size screens ---------- */
 @media (min-width: 700px) {
   .inv-grid { grid-template-columns: 1fr 1fr; }
   #party-slots { grid-template-columns: 1fr 1fr 1fr; }
   .race-grid { grid-template-columns: 1fr 1fr 1fr; }
 }
-@media (min-width: 1000px) {
-  #tab-content, .gm-content { max-width: 980px; }
-  .inv-grid { grid-template-columns: 1fr 1fr 1fr; }
-  #tab-battle.active { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1rem; align-items: start; }
-  #tab-battle .mode-switch { grid-column: 1 / -1; }
-  .tap-btn { width: 200px; height: 200px; }
+
+/* ---------- desktop revamp ---------- */
+@media (min-width: 1024px) {
+  #tab-content, .gm-content { max-width: 1180px; padding: 1.25rem 1.5rem 2rem; }
+  .inv-grid { grid-template-columns: repeat(4, 1fr); }
+  .upgrade-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  #party-slots { grid-template-columns: repeat(3, 1fr); }
+  .race-grid { grid-template-columns: repeat(3, 1fr); }
+
+  /* sidebar navigation */
+  #view-app { padding-left: 210px; padding-bottom: 2rem; }
+  #tabbar {
+    top: 0; bottom: 0; left: 0; right: auto;
+    width: 210px; height: auto;
+    flex-direction: column; justify-content: flex-start;
+    padding: calc(1rem + env(safe-area-inset-top)) 0.6rem 1rem;
+    border-top: 0; border-right: 1px solid var(--stone2);
+    gap: 0.25rem;
+  }
+  .tab-btn {
+    flex: none; flex-direction: row; justify-content: flex-start; align-items: center;
+    gap: 0.75rem; padding: 0.85rem 1rem; min-height: 0;
+    font-size: 0.95rem; border-radius: 10px; text-align: left;
+  }
+  .tab-btn .ticon { font-size: 1.35rem; }
+
+  /* richer HUD */
+  #hud { padding: 0.7rem 1.5rem; }
+  .hud-row { max-width: 1180px; margin: 0 auto 0.4rem; }
+  .hud-row:last-child { margin-bottom: 0; }
+  #hud-emoji { font-size: 2rem; }
+  #hud-username { font-size: 1.1rem; max-width: none; }
+  .hud-currencies { gap: 1.4rem; font-size: 1.05rem; }
+
+  /* battle: combat left, actions right */
+  #tab-battle.active {
+    display: grid;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    gap: 1.25rem; align-items: start;
+  }
+  #tab-battle .mode-switch { grid-column: 1 / -1; margin-bottom: 0; max-width: 840px; }
+  #tab-battle .battle-main, #tab-battle .battle-side { min-width: 0; }
+  #tab-battle .battle-main > *, #tab-battle .battle-side > * { margin-bottom: 1rem; }
+  #tab-battle .battle-side { position: sticky; top: 120px; }
+  .tap-btn { width: 220px; height: 220px; margin-top: 1rem; }
+  .combat-log { max-height: 280px; overflow-y: auto; }
+
+  /* more tab: two-column cards */
+  #tab-more.active { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+  #tab-more #profile-card, #tab-more #logout-btn { grid-column: 1 / -1; }
+  #tab-more .card { margin-bottom: 0; }
+
+  /* ranks */
+  .lb-table { max-width: 960px; margin: 0 auto; }
+
+  /* toasts clear the sidebar */
+  #toast-root { left: 210px; bottom: 1.5rem; }
 }
 
 /* ---------- reduced motion ---------- */
@@ -443,6 +506,9 @@ body.reduce-motion .boss-badge,
 body.reduce-motion .r-mythic .item-name,
 body.reduce-motion .live-dot,
 body.reduce-motion .set-sovereign,
+body.reduce-motion .set-voidwalker,
+body.reduce-motion .set-dragonscale,
+body.reduce-motion .bar.hp.hp-low .fill,
 body.reduce-motion .new-badge { animation: none !important; }
 body.reduce-motion * { transition-duration: 0.01ms !important; }
 
@@ -594,6 +660,41 @@ body.reduce-motion .combo-frenzy { animation: none; }
   background: linear-gradient(90deg, #ff3b3b, #ff8c1a, #ffd23f, #63e6be, #4da3ff, #b366ff);
   color: #14101a;
 }
+/* ---------- Voidwalker (void purple-black) gear ---------- */
+.set-voidwalker {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--stone), var(--stone)) padding-box,
+    linear-gradient(135deg, #8b2ff7, #2a0a4a, #05050a, #8b2ff7) border-box;
+  animation: void-pulse 2.8s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(139,47,247,.45);
+}
+@keyframes void-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(139,47,247,.35); }
+  50% { box-shadow: 0 0 26px rgba(139,47,247,.75); }
+}
+.set-badge-voidwalker {
+  background: linear-gradient(90deg, #8b2ff7, #2a0a4a);
+  color: #e8d6ff;
+}
+/* ---------- Dragonscale (dragonfire red-gold) gear ---------- */
+.set-dragonscale {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--stone), var(--stone)) padding-box,
+    linear-gradient(135deg, #ff3b1f, #ffb21f, #7a1a00, #ff3b1f) border-box;
+  animation: dragon-flicker 2.2s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(255,100,30,.5);
+}
+@keyframes dragon-flicker {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,100,30,.4); }
+  30% { box-shadow: 0 0 22px rgba(255,178,31,.65); }
+  60% { box-shadow: 0 0 26px rgba(255,59,31,.7); }
+}
+.set-badge-dragonscale {
+  background: linear-gradient(90deg, #ff3b1f, #ffb21f);
+  color: #1a0d00;
+}
 
 /* ---------- leaderboard titles ---------- */
 .lb-name { font-weight: 600; }
@@ -667,4 +768,397 @@ body.reduce-motion .combo-frenzy { animation: none; }
 #view-auth .auth-card .btn.gold {
   box-shadow: 0 0 14px rgba(255, 210, 63, 0.35);
   font-weight: 700;
+}
+
+/* ============================================================
+   UI STYLE SETTING — segmented control (More → Settings).
+   Base styling works in both themes (new markup, no classic
+   rules touched); the modern theme elevates it further below.
+   ============================================================ */
+.setting-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.8rem; padding: 0.5rem 0; font-size: 0.95rem;
+}
+.setting-label { color: var(--muted); }
+.seg-control {
+  display: inline-flex; background: var(--stone); border: 1px solid var(--stone2);
+  border-radius: 10px; padding: 3px; gap: 3px;
+}
+.seg-control button {
+  border: 0; background: transparent; color: var(--muted);
+  padding: 0.42rem 0.95rem; border-radius: 7px; font-size: 0.85rem; cursor: pointer;
+}
+.seg-control button.active { background: var(--arcane); color: #fff; font-weight: 700; }
+
+/* ============================================================
+   MODERN THEME — everything below is scoped under
+   body[data-uistyle="modern"]. Classic styles above are untouched.
+   ============================================================ */
+
+/* ---- glassmorphic cards ---- */
+body[data-uistyle="modern"] .card {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(160deg, rgba(48,34,82,.80), rgba(22,14,38,.88)) padding-box,
+    linear-gradient(160deg, rgba(255,210,63,.50), rgba(139,92,246,.38) 45%, rgba(255,210,63,.16)) border-box;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border-radius: 18px;
+  box-shadow: 0 10px 34px rgba(0,0,0,.50), inset 0 1px 0 rgba(255,255,255,.09);
+}
+
+/* ---- richer gold buttons ---- */
+body[data-uistyle="modern"] .btn.gold {
+  background: linear-gradient(180deg, #ffe08a, #e9b93c 55%, #b57e12);
+  box-shadow: 0 0 20px rgba(255,210,63,.50), inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 6px rgba(120,70,0,.35);
+  font-weight: 800;
+}
+body[data-uistyle="modern"] .btn.gold:active { transform: scale(.96); }
+
+/* ---- refined tab bar ---- */
+body[data-uistyle="modern"] #tabbar {
+  background: rgba(20,14,32,.90);
+  border-top: 1px solid rgba(255,210,63,.22);
+  box-shadow: 0 -8px 24px rgba(0,0,0,.45);
+}
+body[data-uistyle="modern"] .tab-btn { transition: color .2s, transform .2s; }
+body[data-uistyle="modern"] .tab-btn.active { color: #ffe9a8; }
+body[data-uistyle="modern"] .tab-btn.active .ticon {
+  filter: drop-shadow(0 0 8px rgba(255,210,63,.90));
+  transform: translateY(-2px);
+}
+
+/* ---- refined mode buttons ---- */
+body[data-uistyle="modern"] .mode-btn { transition: transform .18s, box-shadow .18s, border-color .18s; }
+body[data-uistyle="modern"] .mode-btn.active {
+  border-color: rgba(255,210,63,.60);
+  background: linear-gradient(180deg, rgba(139,92,246,.38), rgba(44,29,82,.65));
+  box-shadow: 0 0 16px rgba(139,92,246,.50), inset 0 1px 0 rgba(255,255,255,.12);
+}
+
+/* ---- gradient headings ---- */
+body[data-uistyle="modern"] .profile-name,
+body[data-uistyle="modern"] .modal-title,
+body[data-uistyle="modern"] .enemy-name {
+  background: linear-gradient(180deg, #fff3c4, #f5c542 60%, #c9932b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ---- modern segmented control elevation ---- */
+body[data-uistyle="modern"] .seg-control {
+  background: rgba(20,14,32,.7);
+  border-color: rgba(139,92,246,.45);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+body[data-uistyle="modern"] .seg-control button.active {
+  background: linear-gradient(180deg, #a78bfa, #6d3fd4);
+  box-shadow: 0 0 12px rgba(139,92,246,.55);
+}
+
+/* ============================================================
+   MODERN THEME ANIMATIONS
+   ============================================================ */
+
+/* ---- enemy idle bob ---- */
+@keyframes modern-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-9px); }
+}
+body[data-uistyle="modern"] .enemy-sprite {
+  display: inline-block;
+  animation: modern-bob 2.8s ease-in-out infinite;
+}
+
+/* ---- hit: quick shake + white flash (class toggled by UI.enemyHitFlash) ---- */
+@keyframes modern-hit-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-7px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-3px); }
+}
+body[data-uistyle="modern"] .enemy-card.modern-hit { animation: modern-hit-shake .18s ease-out; }
+body[data-uistyle="modern"] .enemy-card.modern-hit .enemy-sprite {
+  filter: brightness(2.4) drop-shadow(0 0 14px rgba(255,255,255,.80));
+}
+
+/* ---- death: fade/scale out (class toggled by UI.enemyDeathFade) ---- */
+@keyframes modern-death {
+  to { opacity: 0; transform: scale(.55) translateY(14px); }
+}
+body[data-uistyle="modern"] .enemy-card.modern-death {
+  animation: modern-death .28s ease-in forwards;
+  pointer-events: none;
+}
+
+/* ---- smooth HP/XP bars ---- */
+body[data-uistyle="modern"] .bar .fill {
+  transition: width .35s cubic-bezier(.22,1,.36,1);
+}
+
+/* ---- tap button: springy press + expanding ripple ring ---- */
+body[data-uistyle="modern"] .tap-btn {
+  position: relative;
+  transition: transform .14s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+}
+body[data-uistyle="modern"] .tap-btn:active { transform: scale(.88); }
+body[data-uistyle="modern"] .tap-btn::after {
+  content: ''; position: absolute; inset: -5px; border-radius: 50%;
+  border: 3px solid rgba(255,210,63,.85); opacity: 0; pointer-events: none;
+}
+body[data-uistyle="modern"] .tap-btn:active::after { animation: modern-ripple .5s ease-out; }
+@keyframes modern-ripple {
+  0% { transform: scale(.65); opacity: .95; }
+  100% { transform: scale(1.40); opacity: 0; }
+}
+
+/* ---- tab switch: slide/fade ---- */
+@keyframes modern-tab-in {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
+}
+body[data-uistyle="modern"] .tab.active { animation: modern-tab-in .26s ease-out; }
+
+/* ---- modal entrance: scale/fade ---- */
+@keyframes modern-modal-in {
+  from { opacity: 0; transform: scale(.82) translateY(14px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+body[data-uistyle="modern"] .modal-overlay.show .modal {
+  animation: modern-modal-in .34s cubic-bezier(.34,1.35,.64,1);
+}
+
+/* ---- crit damage numbers: extra pop (mirrors floatup timing + pop) ---- */
+@keyframes modern-crit-float {
+  0% { transform: translateY(0) scale(.4); opacity: 0; }
+  12% { transform: translateY(-10px) scale(1.40); opacity: 1; }
+  30% { transform: translateY(-22px) scale(1); opacity: 1; }
+  65% { transform: translateY(-52px) scale(1); opacity: 1; }
+  100% { transform: translateY(-72px) scale(.9); opacity: 0; }
+}
+body[data-uistyle="modern"] .float-crit { animation: modern-crit-float 1.05s ease-out forwards; }
+
+/* ============================================================
+   REDUCE MOTION — kill every modern keyframe animation.
+   (Transitions are already zeroed globally by the existing
+   body.reduce-motion * rule.)
+   ============================================================ */
+body.reduce-motion .enemy-sprite,
+body.reduce-motion .enemy-card.modern-hit,
+body.reduce-motion .enemy-card.modern-death,
+body.reduce-motion .tab.active,
+body.reduce-motion .modal-overlay.show .modal,
+body.reduce-motion .float-crit,
+body.reduce-motion .tap-btn::after {
+  animation: none !important;
+}
+
+/* ============================================================
+   MODERN THEME — renewed auth / main-menu screen.
+   Everything below is scoped under body[data-uistyle="modern"].
+   Classic login styles above are untouched.
+   ============================================================ */
+
+/* ---- ember / spark background layers (pure CSS particles) ---- */
+body[data-uistyle="modern"] #view-auth { position: relative; overflow: hidden; }
+body[data-uistyle="modern"] #view-auth::before,
+body[data-uistyle="modern"] #view-auth::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: transparent;
+  pointer-events: none;
+  z-index: 0;
+}
+body[data-uistyle="modern"] #view-auth::before {
+  box-shadow:
+    8vw 78vh 0 0 rgba(255,178,31,.85),
+    22vw 90vh 0 -1px rgba(255,120,40,.70),
+    41vw 72vh 0 0 rgba(255,210,63,.80),
+    58vw 92vh 0 -2px rgba(255,150,50,.65),
+    72vw 74vh 0 0 rgba(255,178,31,.75),
+    88vw 88vh 0 -1px rgba(255,210,63,.70),
+    15vw 62vh 0 -2px rgba(255,140,40,.55),
+    95vw 64vh 0 0 rgba(255,178,31,.60);
+  animation: auth-ember-rise 11s linear infinite;
+}
+body[data-uistyle="modern"] #view-auth::after {
+  box-shadow:
+    12vw 82vh 0 -1px rgba(167,139,250,.80),
+    35vw 70vh 0 0 rgba(139,92,246,.70),
+    52vw 86vh 0 -2px rgba(196,132,255,.65),
+    68vw 68vh 0 0 rgba(167,139,250,.75),
+    82vw 84vh 0 -1px rgba(139,92,246,.70),
+    5vw 92vh 0 0 rgba(196,132,255,.60);
+  animation: auth-ember-rise 15s linear -6s infinite;
+}
+@keyframes auth-ember-rise {
+  0% { transform: translateY(10vh); opacity: 0; }
+  12% { opacity: .9; }
+  85% { opacity: .9; }
+  100% { transform: translateY(-26vh); opacity: 0; }
+}
+body[data-uistyle="modern"] #view-auth .auth-wrap { position: relative; z-index: 1; }
+
+/* ---- staggered main-menu entrance ---- */
+body[data-uistyle="modern"] #view-auth .logo {
+  animation: auth-fade-down .5s ease-out both, auth-logo-glow 4s ease-in-out .6s infinite;
+}
+body[data-uistyle="modern"] #view-auth .game-title { animation: auth-fade-down .5s ease-out .07s both, auth-title-shimmer 4.5s linear .6s infinite; }
+body[data-uistyle="modern"] #view-auth .tagline { animation: auth-fade-down .5s ease-out .14s both; }
+body[data-uistyle="modern"] #view-auth .auth-card { animation: auth-card-in .65s cubic-bezier(.18,.9,.26,1.12) .22s both; }
+@keyframes auth-fade-down {
+  from { opacity: 0; transform: translateY(-14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes auth-card-in {
+  from { opacity: 0; transform: translateY(28px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes auth-logo-glow {
+  0%, 100% { filter: drop-shadow(0 0 10px rgba(139,92,246,.55)); }
+  50% { filter: drop-shadow(0 0 24px rgba(139,92,246,.95)); }
+}
+
+/* ---- shimmering gold heading ---- */
+body[data-uistyle="modern"] #view-auth .game-title {
+  background: linear-gradient(110deg, #9a7418 5%, #ffd23f 32%, #fff7cf 50%, #ffd23f 68%, #9a7418 95%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  font-size: 2.3rem;
+  letter-spacing: 0.14em;
+  filter: drop-shadow(0 2px 10px rgba(255,210,63,.30));
+}
+@keyframes auth-title-shimmer {
+  to { background-position: -220% 0; }
+}
+body[data-uistyle="modern"] #view-auth .tagline {
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+}
+
+/* ---- glassmorphic auth card (matches modern in-game cards) ---- */
+body[data-uistyle="modern"] #view-auth .auth-card {
+  background:
+    linear-gradient(160deg, rgba(48,34,82,.82), rgba(22,14,38,.90)) padding-box,
+    linear-gradient(160deg, rgba(255,210,63,.55), rgba(139,92,246,.40) 45%, rgba(255,210,63,.18)) border-box;
+  border: 1px solid transparent;
+  border-radius: 18px;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 40px rgba(0,0,0,.55), 0 0 28px rgba(139,92,246,.22), inset 0 1px 0 rgba(255,255,255,.09);
+  padding: 1.3rem 1.2rem;
+}
+
+/* ---- glowing gold buttons ---- */
+body[data-uistyle="modern"] #view-auth .btn.gold {
+  background: linear-gradient(180deg, #ffe08a, #e9b93c 55%, #b57e12);
+  box-shadow: 0 0 22px rgba(255,210,63,.55), inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 6px rgba(120,70,0,.35);
+  font-weight: 800;
+  transition: transform .15s, box-shadow .15s;
+}
+body[data-uistyle="modern"] #view-auth .btn.gold:hover {
+  box-shadow: 0 0 32px rgba(255,210,63,.75), inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 6px rgba(120,70,0,.35);
+}
+body[data-uistyle="modern"] #view-auth .btn.gold:active { transform: scale(.96); }
+
+/* ---- modern segmented login/register tabs ---- */
+body[data-uistyle="modern"] #view-auth .auth-tabs {
+  background: rgba(20,14,32,.70);
+  border: 1px solid rgba(139,92,246,.45);
+  border-radius: 12px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.06);
+}
+body[data-uistyle="modern"] #view-auth .auth-tab { transition: background .2s, color .2s, box-shadow .2s; }
+body[data-uistyle="modern"] #view-auth .auth-tab.active {
+  background: linear-gradient(180deg, #a78bfa, #6d3fd4);
+  color: #fff;
+  box-shadow: 0 0 12px rgba(139,92,246,.55);
+}
+
+/* ---- inputs ---- */
+body[data-uistyle="modern"] #view-auth .auth-card .auth-form input {
+  background: rgba(10,7,18,.85);
+  border: 1px solid rgba(139,92,246,.35);
+  border-radius: 10px;
+  transition: border-color .18s, box-shadow .18s;
+}
+body[data-uistyle="modern"] #view-auth .auth-card .auth-form input:focus {
+  border-color: #ffd23f;
+  box-shadow: 0 0 12px rgba(255,210,63,.35);
+}
+
+/* ---- reduce-motion: kill every new auth animation ---- */
+body.reduce-motion #view-auth::before,
+body.reduce-motion #view-auth::after,
+body.reduce-motion #view-auth .logo,
+body.reduce-motion #view-auth .game-title,
+body.reduce-motion #view-auth .tagline,
+body.reduce-motion #view-auth .auth-card {
+  animation: none !important;
+}
+
+/* ============================================================
+   MODERN THEME — "very smooth" motion pass.
+   transform/opacity only. Killed by the reduce-motion rules.
+   ============================================================ */
+
+/* ---- buttons: buttery hover lift + press ---- */
+body[data-uistyle="modern"] .btn {
+  transition: transform .16s cubic-bezier(.34,1.4,.64,1), box-shadow .22s ease, filter .22s ease;
+}
+body[data-uistyle="modern"] .btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 14px rgba(139,92,246,.35);
+}
+body[data-uistyle="modern"] .btn.gold:hover:not(:disabled) {
+  box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 18px rgba(255,210,63,.55);
+}
+body[data-uistyle="modern"] .btn:active { transform: scale(.96); }
+
+/* ---- cards: gentle hover lift + glow ---- */
+body[data-uistyle="modern"] .card {
+  transition: transform .22s ease, box-shadow .28s ease, border-color .28s ease;
+}
+body[data-uistyle="modern"] .card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 38px rgba(0,0,0,.55), 0 0 20px rgba(139,92,246,.22);
+}
+
+/* ---- mode buttons & inputs ease ---- */
+body[data-uistyle="modern"] .mode-btn { transition: transform .18s cubic-bezier(.34,1.4,.64,1), box-shadow .22s ease, border-color .22s ease, background .22s ease; }
+body[data-uistyle="modern"] .mode-btn:hover { transform: translateY(-2px); }
+body[data-uistyle="modern"] input, body[data-uistyle="modern"] select { transition: border-color .2s ease, box-shadow .2s ease; }
+
+/* ---- meters: silky easing ---- */
+body[data-uistyle="modern"] .meter-fill { transition: width .9s cubic-bezier(.22,.8,.3,1); }
+body[data-uistyle="modern"] .combo-bar > div { transition: width .18s cubic-bezier(.22,.8,.3,1); }
+
+/* ---- toasts: springy entrance ---- */
+body[data-uistyle="modern"] .toast {
+  transition: opacity .28s ease, transform .3s cubic-bezier(.34,1.3,.64,1), border-color .2s ease;
+}
+
+/* ---- sidebar/desktop tab buttons ---- */
+body[data-uistyle="modern"] .tab-btn { transition: color .22s ease, transform .22s ease, background .22s ease, box-shadow .22s ease; }
+body[data-uistyle="modern"] .tab-btn:hover { transform: translateX(3px); background: rgba(139,92,246,.10); }
+
+/* ---- inventory/party cards ---- */
+body[data-uistyle="modern"] .item-card, body[data-uistyle="modern"] .member, body[data-uistyle="modern"] .race-card {
+  transition: transform .2s ease, box-shadow .25s ease, border-color .25s ease;
+}
+body[data-uistyle="modern"] .item-card:hover, body[data-uistyle="modern"] .member:hover, body[data-uistyle="modern"] .race-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 26px rgba(0,0,0,.5), 0 0 16px rgba(139,92,246,.28);
 }

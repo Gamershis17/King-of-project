@@ -1,6 +1,24 @@
 [
   {
     "date": "2026-09-25",
+    "title": "Admin & Mod badges",
+    "changes": [
+      "New 🛡️ Admin and 🔨 Mod badges, grantable from the GM console — shown next to names on the leaderboard and profile",
+      "Moderator role pill now has its own styled badge in the HUD and profile",
+      "Desktop revamp: sidebar navigation, two-column battle layout, richer HUD — plus a smoother motion pass everywhere (Modern theme) and light mobile refinements"
+    ]
+  },
+  {
+    "date": "2026-09-25",
+    "title": "10 new titles & 2 new gear sets",
+    "changes": [
+      "10 new hero titles: prestige titles (the Reborn, the Phoenix, the Immortal), boss titles (the Executioner, the Godslayer), gold titles (the Hoarder, the Magnate — lifetime gold earned is now tracked), and raid titles (the Raider, the Stormcaller, the Tidebreaker)",
+      "New Voidwalker Regalia gear set (dodge/crit themed, purple-black aura) — grantable from the GM console",
+      "New Dragonscale Aegis gear set (HP/regen themed, red-gold aura) — grantable from the GM console"
+    ]
+  },
+  {
+    "date": "2026-09-25",
     "title": "New titles, moderator role & GM commands",
     "changes": [
       "9 new hero titles: playtime titles (the Sleepless, the Tireless, the Eternal), stage titles (the Climber, the Ascendant, the Mythical) and kill titles (the Slayer, the Butcher, the Annihilator)",

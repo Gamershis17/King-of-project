@@ -227,7 +227,7 @@ router.post(
 
     if (kind === 'gear') {
       if (typeof set !== 'string' || !isValidSetId(set)) {
-        return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden.' });
+        return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden, voidwalker, dragonscale.' });
       }
       if (set === 'sovereign' && req.user.role !== 'owner') {
         return res.status(403).json({ error: 'Only the owner may grant the sovereign set.' });
@@ -269,7 +269,7 @@ router.post(
 // ---------- set badge (gm|owner) ----------
 // Grants a creator badge (e.g. 'youtuber') shown next to the name on the
 // leaderboard. Pass badge: '' to clear it.
-const VALID_BADGES = new Set(['youtuber', 'streamer', 'vip']);
+const VALID_BADGES = new Set(['youtuber', 'streamer', 'vip', 'admin', 'mod']);
 router.post(
   '/gm/badge',
   gmOrOwner,
@@ -281,7 +281,7 @@ router.post(
     if (id !== '' && !VALID_BADGES.has(id)) {
       return res
         .status(400)
-        .json({ error: 'Badge must be one of "youtuber", "streamer", "vip" or empty to clear.' });
+        .json({ error: 'Badge must be one of "youtuber", "streamer", "vip", "admin", "mod" or empty to clear.' });
     }
     const blob = await loadBlob(target.id);
     blob.badge = id === '' ? null : id;
@@ -500,7 +500,7 @@ router.post(
   asyncHandler(async (req, res) => {
     const { set, maxUses } = req.body || {};
     if (typeof set !== 'string' || !isValidSetId(set)) {
-      return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden.' });
+      return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden, voidwalker, dragonscale.' });
     }
     if (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1000000) {
       return res.status(400).json({ error: 'maxUses must be an integer between 1 and 1000000.' });

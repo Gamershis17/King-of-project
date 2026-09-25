@@ -53,6 +53,9 @@ export const UI = {
       const raw = localStorage.getItem(SETTINGS_KEY);
       if (raw) this.settings = { ...this.settings, ...JSON.parse(raw) };
     } catch { /* ignore */ }
+    // UI style theme: default to modern before login (no player state yet);
+    // app.js overrides from state.uiStyle once the player is loaded.
+    if (!document.body.dataset.uistyle) document.body.dataset.uistyle = 'modern';
     document.body.classList.toggle('reduce-motion', !!this.settings.reduceMotion);
 
     const ids = [
@@ -164,6 +167,14 @@ export const UI = {
       this.saveSetting('reduceMotion', e.target.checked);
       document.body.classList.toggle('reduce-motion', e.target.checked);
     });
+    // UI style segmented control (More → Settings)
+    const seg = document.getElementById('ui-style-seg');
+    if (seg) {
+      seg.querySelectorAll('button').forEach((b) => {
+        b.addEventListener('click', () => this.handlers.onUiStyle && this.handlers.onUiStyle(b.dataset.uistyle));
+      });
+    }
+    this.setUiStyleSeg(document.body.dataset.uistyle === 'classic' ? 'classic' : 'modern');
 
     // GM back button
     const gmBack = this.els['gm-back'];
@@ -362,6 +373,8 @@ export const UI = {
 
   setEnemy(enemy) {
     const e = this.els;
+    // A fresh enemy never inherits the previous one's hit/death animation.
+    e['enemy-card'].classList.remove('modern-hit', 'modern-death');
     const zone = Engine.zoneFor(enemy.stage);
     e['enemy-sprite'].textContent = enemy.emoji;
     e['enemy-name'].textContent = enemy.name;
@@ -388,6 +401,9 @@ export const UI = {
     const pct = stats.maxHp > 0 ? Math.max(0, (state.hero.hp / stats.maxHp) * 100) : 0;
     e['hero-hpfill'].style.width = pct + '%';
     e['hero-hptext'].textContent = `❤️ ${formatNum(Math.max(0, Math.ceil(state.hero.hp)))} / ${formatNum(stats.maxHp)}`;
+    // Low HP warning: pulse the hero HP bar red under 30%.
+    const hpFrac = stats.maxHp > 0 ? state.hero.hp / stats.maxHp : 1;
+    e['hero-hpfill'].parentElement.classList.toggle('hp-low', hpFrac < 0.3 && hpFrac > 0);
     if (battle && battle.enemy) this.updateEnemy(battle.enemy);
     // skill cooldown
     if (battle && battle.skillReadyAt) {
@@ -434,6 +450,45 @@ export const UI = {
     layer.appendChild(el);
     setTimeout(() => el.remove(), 1100);
     while (layer.children.length > 12) layer.firstChild.remove();
+  },
+
+  // ---------------- modern theme animation hooks ----------------
+  // All modern-theme motion is CSS under body[data-uistyle="modern"].
+  // These hooks no-op unless the modern theme is active and motion is allowed.
+  _canAnimate() {
+    return document.body.dataset.uistyle !== 'classic' && !this.settings.reduceMotion;
+  },
+
+  // Syncs the Settings segmented control to the active theme.
+  setUiStyleSeg(style) {
+    const seg = document.getElementById('ui-style-seg');
+    if (!seg) return;
+    const cur = style === 'classic' ? 'classic' : 'modern';
+    seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.uistyle === cur));
+  },
+
+  // Quick shake + white flash on the enemy card when it takes a hit.
+  enemyHitFlash() {
+    if (!this._canAnimate()) return;
+    const card = this.els['enemy-card'];
+    if (!card) return;
+    card.classList.remove('modern-hit');
+    void card.offsetWidth; // restart the animation
+    card.classList.add('modern-hit');
+    clearTimeout(this._hitT);
+    this._hitT = setTimeout(() => card.classList.remove('modern-hit'), 220);
+  },
+
+  // Fade/scale-out on the enemy card when it dies. Returns true when an
+  // animation will play — the caller should delay spawning the next enemy.
+  enemyDeathFade() {
+    if (!this._canAnimate()) return false;
+    const card = this.els['enemy-card'];
+    if (!card) return false;
+    card.classList.remove('modern-death');
+    void card.offsetWidth;
+    card.classList.add('modern-death');
+    return true;
   },
 
   combatLog(msg, kind = '') {
@@ -579,12 +634,14 @@ export const UI = {
       const equippedId = state.equipped && state.equipped[item.slot];
       const isEquipped = equippedId === item.id;
       const card = document.createElement('div');
-      card.className = `item-card r-${item.rarity}${item.set ? ' set-item' : ''}${item.set === 'sovereign' ? ' set-sovereign' : ''}${isEquipped ? ' equipped' : ''}`;
+      const ps = Engine.PRIVILEGED_SETS && Engine.PRIVILEGED_SETS[item.set];
+      const auraCls = ps && ps.auraClass ? ps.auraClass : (item.set === 'sovereign' ? 'set-sovereign' : '');
+      card.className = `item-card r-${item.rarity}${item.set ? ' set-item' : ''}${auraCls ? ' ' + auraCls : ''}${isEquipped ? ' equipped' : ''}`;
       card.dataset.id = item.id;
       const statLines = Object.entries(item.stats || {})
         .map(([k, v]) => `<li>+${formatStatVal(k, v)} ${Engine.STAT_LABELS[k] || k}</li>`).join('');
       const setBadge = item.set
-        ? `<div class="set-badge${item.set === 'sovereign' ? ' set-badge-sovereign' : ''}">👑 ${esc(item.setName || item.set)} · full set +${Engine.PRIVILEGED_SETS[item.set]?.setBonus ?? ''}%</div>` : '';
+        ? `<div class="set-badge${auraCls ? ' set-badge-' + item.set : ''}">👑 ${esc(item.setName || item.set)} · full set +${ps?.setBonus ?? ''}%</div>` : '';
       card.innerHTML = `
         <div class="item-head">
           <span class="slot-emoji">${Engine.SLOT_INFO[item.slot]?.emoji || '🎒'}</span>
@@ -676,7 +733,7 @@ export const UI = {
   renderMore(state, user) {
     const race = Engine.RACES[state.race] || {};
     const role = (user && user.role) || 'player';
-    const canGM = role === 'owner' || role === 'gm';
+    const canGM = role === 'owner' || role === 'gm' || role === 'admin' || role === 'moderator';
     this.els['gm-entry-card'].classList.toggle('hidden', !canGM);
     const setCount = (state.inventory || []).filter(i => i.set).length;
     const unlocked = new Set(state.titlesUnlocked || ['wanderer']);

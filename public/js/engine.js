@@ -305,9 +305,10 @@ const STAT_GEN = {
 const SLOT_PRIMARY = { weapon: 'attack', armor: 'defense', helmet: 'maxHp', boots: 'dodge', trinket: 'lifesteal' };
 
 // Returns an item or null. Bosses always drop (rare+ guaranteed).
-export function rollLoot(stage, isBoss = false) {
+// minIdx: minimum rarity index override (e.g. raid bosses drop tier-3 loot).
+export function rollLoot(stage, isBoss = false, minIdx = null) {
   if (Math.random() > (isBoss ? 1 : 0.25)) return null;
-  const rarity = rollRarity(isBoss ? 2 : 0);
+  const rarity = rollRarity(minIdx !== null ? minIdx : (isBoss ? 2 : 0));
   const slot = pick(SLOTS);
   const stats = {};
   const primary = SLOT_PRIMARY[slot];
@@ -380,6 +381,28 @@ export const PRIVILEGED_SETS = {
       helmet:  { name: 'Warden Helm',    stats: { critChance: 5, attack: 90 } },
       boots:   { name: 'Warden Treads',  stats: { dodge: 4, attackSpeed: 0.07, defense: 70 } },
       trinket: { name: 'Warden Badge',   stats: { lifesteal: 2, regen: 7, xpBonus: 17 } },
+    },
+  },
+  voidwalker: {
+    name: 'Voidwalker Regalia', minRole: 'admin', setBonus: 75,
+    aura: 'void', auraClass: 'set-voidwalker',
+    pieces: {
+      weapon:  { name: 'Voidfang Blade',   stats: { attack: 375, critDamage: 38 } },
+      armor:   { name: 'Voidweave Shroud', stats: { defense: 375, dodge: 10 } },
+      helmet:  { name: 'Voidgaze Hood',    stats: { critChance: 12, attack: 190 } },
+      boots:   { name: 'Voidstep Boots',   stats: { dodge: 11, attackSpeed: 0.15, defense: 110 } },
+      trinket: { name: 'Void Heart',       stats: { critChance: 7, lifesteal: 7, regen: 15 } },
+    },
+  },
+  dragonscale: {
+    name: 'Dragonscale Aegis', minRole: 'admin', setBonus: 80,
+    aura: 'dragonfire', auraClass: 'set-dragonscale',
+    pieces: {
+      weapon:  { name: 'Dragonscale Fang',  stats: { attack: 400, lifesteal: 6 } },
+      armor:   { name: 'Dragonscale Plate', stats: { defense: 400, maxHp: 1600 } },
+      helmet:  { name: 'Dragonhorn Helm',   stats: { defense: 160, maxHp: 800, regen: 10 } },
+      boots:   { name: 'Dragonclaw Greaves', stats: { defense: 120, maxHp: 500, regen: 8 } },
+      trinket: { name: 'Dragonheart Ember', stats: { regen: 16, maxHp: 600, lifesteal: 4 } },
     },
   },
 };
@@ -598,6 +621,16 @@ export const TITLES = [
   { id: 'slayer',          name: 'the Slayer',          desc: 'Slay 100 enemies.',                         check: (s) => (s.stats.kills || 0) >= 100 },
   { id: 'butcher',         name: 'the Butcher',         desc: 'Slay 1,000 enemies.',                       check: (s) => (s.stats.kills || 0) >= 1000 },
   { id: 'annihilator',     name: 'the Annihilator',     desc: 'Slay 10,000 enemies.',                      check: (s) => (s.stats.kills || 0) >= 10000 },
+  { id: 'reborn',          name: 'the Reborn',          desc: 'Prestige twice.',                           check: (s) => (s.prestigeCount || 0) >= 2 },
+  { id: 'phoenix',         name: 'the Phoenix',         desc: 'Prestige 3 times.',                         check: (s) => (s.prestigeCount || 0) >= 3 },
+  { id: 'immortal',        name: 'the Immortal',        desc: 'Prestige 5 times.',                         check: (s) => (s.prestigeCount || 0) >= 5 },
+  { id: 'executioner',     name: 'the Executioner',     desc: 'Slay 50 bosses.',                           check: (s) => (s.bossesKilled || 0) >= 50 },
+  { id: 'godslayer',       name: 'the Godslayer',       desc: 'Slay 100 bosses.',                          check: (s) => (s.bossesKilled || 0) >= 100 },
+  { id: 'hoarder',         name: 'the Hoarder',         desc: 'Earn 1,000,000 gold in total.',             check: (s) => (s.stats.totalGoldEarned || 0) >= 1000000 },
+  { id: 'magnate',         name: 'the Magnate',         desc: 'Earn 100,000,000 gold in total.',           check: (s) => (s.stats.totalGoldEarned || 0) >= 100000000 },
+  { id: 'raider',          name: 'the Raider',          desc: 'Reach wave 10 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 10 },
+  { id: 'stormcaller',     name: 'the Stormcaller',     desc: 'Reach wave 25 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 25 },
+  { id: 'tidebreaker',     name: 'the Tidebreaker',     desc: 'Reach wave 50 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 50 },
 ];
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
 export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }
@@ -610,6 +643,8 @@ export const BADGES = [
   { id: 'youtuber', emoji: '▶️', name: 'YouTuber' },
   { id: 'streamer', emoji: '🎥', name: 'Streamer' },
   { id: 'vip',      emoji: '💎', name: 'VIP' },
+  { id: 'admin',    emoji: '🛡️', name: 'Admin' },
+  { id: 'mod',      emoji: '🔨', name: 'Mod' },
 ];
 export const BADGE_BY_ID = Object.fromEntries(BADGES.map(b => [b.id, b]));
 export function badgeDef(id) { return BADGE_BY_ID[id] || null; }
@@ -636,6 +671,17 @@ export function countryFlag(code) {
 // Returns newly unlocked title defs (mutates state.titlesUnlocked).
 export function checkTitles(state) {
   if (!Array.isArray(state.titlesUnlocked)) state.titlesUnlocked = ['wanderer'];
+  // Lifetime gold tracking: no dedicated field exists, so accumulate
+  // positive gold deltas between checks into stats.totalGoldEarned.
+  // (Decreases from spending are ignored; the total survives prestige
+  // because stats are lifetime stats.)
+  if (!state.stats || typeof state.stats !== 'object') state.stats = {};
+  const goldNow = state.gold || 0;
+  const goldLast = state.stats._lastGoldSeen || 0;
+  if (goldNow > goldLast) {
+    state.stats.totalGoldEarned = (state.stats.totalGoldEarned || 0) + (goldNow - goldLast);
+  }
+  state.stats._lastGoldSeen = goldNow;
   const fresh = [];
   for (const t of TITLES) {
     if (state.titlesUnlocked.includes(t.id)) continue;

@@ -91,7 +91,7 @@
           <button class="mode-btn" data-mode="raid">🌀<span>Raid</span></button>
         </div>
 
-        <div>
+        <div class="battle-main">
           <div class="enemy-card" id="enemy-card">
             <div class="enemy-top">
               <div class="enemy-sprite" id="enemy-sprite">🐺</div>
@@ -124,7 +124,7 @@
           </div>
         </div>
 
-        <div>
+        <div class="battle-side">
           <button id="tap-btn" class="tap-btn">⚔️<span>TAP</span></button>
           <div id="combo-meter" class="combo-meter hidden"></div>
           <button id="skill-btn" class="skill-btn">✨ Power Strike <span id="skill-cd"></span></button>
@@ -198,6 +198,13 @@
           <h3>⚙️ Settings</h3>
           <label class="setting"><input type="checkbox" id="set-dmgnums"> Damage numbers</label>
           <label class="setting"><input type="checkbox" id="set-motion"> Reduce motion</label>
+          <div class="setting-row">
+            <span class="setting-label">UI style</span>
+            <div class="seg-control" id="ui-style-seg" role="group" aria-label="UI style">
+              <button type="button" data-uistyle="classic">Classic</button>
+              <button type="button" data-uistyle="modern">Modern</button>
+            </div>
+          </div>
         </div>
         <button id="logout-btn" class="btn danger wide">Logout</button>
       </section>

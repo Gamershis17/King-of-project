@@ -103,11 +103,12 @@ export const Raid = {
 
   // Call when the hero dies mid-raid. Ends the run; all loot earned
   // during the run is kept. Returns { wavesCleared, best }.
-  onDeath() {
+  onDeath(state) {
     const wavesCleared = _wave;
     _active = false;
     _wave = 0;
-    return { wavesCleared, best: null }; // best lives on state.raid
+    const best = state && state.raid ? this.best(state) : null;
+    return { wavesCleared, best }; // best lives on state.raid
   },
 
   // Carry the best-wave record across prestige. Call after

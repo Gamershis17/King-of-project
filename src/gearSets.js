@@ -57,6 +57,24 @@ const FATEWEAVER_PIECES = scalePieces(SOVEREIGN_PIECES, 'Fateweaver', 0.6);
 // Admin Warden Arsenal ≈ 35% of sovereign values.
 const WARDEN_PIECES = scalePieces(SOVEREIGN_PIECES, 'Warden', 0.35);
 
+// Voidwalker Regalia ≈ 75% of sovereign power, dodge/crit themed.
+const VOIDWALKER_PIECES = [
+  { slot: 'weapon',  name: 'Voidfang Blade',   stats: { attack: 375, critDamage: 38 } },
+  { slot: 'armor',   name: 'Voidweave Shroud', stats: { defense: 375, dodge: 10 } },
+  { slot: 'helmet',  name: 'Voidgaze Hood',    stats: { critChance: 12, attack: 190 } },
+  { slot: 'boots',   name: 'Voidstep Boots',   stats: { dodge: 11, attackSpeed: 0.15, defense: 110 } },
+  { slot: 'trinket', name: 'Void Heart',       stats: { critChance: 7, lifesteal: 7, regen: 15 } },
+];
+
+// Dragonscale Aegis ≈ 80% of sovereign power, HP/regen themed.
+const DRAGONSCALE_PIECES = [
+  { slot: 'weapon',  name: 'Dragonscale Fang',   stats: { attack: 400, lifesteal: 6 } },
+  { slot: 'armor',   name: 'Dragonscale Plate',  stats: { defense: 400, maxHp: 1600 } },
+  { slot: 'helmet',  name: 'Dragonhorn Helm',    stats: { defense: 160, maxHp: 800, regen: 10 } },
+  { slot: 'boots',   name: 'Dragonclaw Greaves', stats: { defense: 120, maxHp: 500, regen: 8 } },
+  { slot: 'trinket', name: 'Dragonheart Ember',  stats: { regen: 16, maxHp: 600, lifesteal: 4 } },
+];
+
 function attachSetMeta(pieces, setId, displayName) {
   return pieces.map((p) => ({
     slot: p.slot,
@@ -71,11 +89,25 @@ function attachSetMeta(pieces, setId, displayName) {
 const SOVEREIGN = attachSetMeta(SOVEREIGN_PIECES, 'sovereign', "Sovereign Founder's Regalia");
 const FATEWEAVER = attachSetMeta(FATEWEAVER_PIECES, 'fateweaver', 'Fateweaver Regalia');
 const WARDEN = attachSetMeta(WARDEN_PIECES, 'warden', 'Admin Warden Arsenal');
+const VOIDWALKER = attachSetMeta(VOIDWALKER_PIECES, 'voidwalker', 'Voidwalker Regalia');
+const DRAGONSCALE = attachSetMeta(DRAGONSCALE_PIECES, 'dragonscale', 'Dragonscale Aegis');
 
 const GEAR_SETS = {
   sovereign: SOVEREIGN,
   fateweaver: FATEWEAVER,
   warden: WARDEN,
+  voidwalker: VOIDWALKER,
+  dragonscale: DRAGONSCALE,
+};
+
+// Aura metadata for set-item visuals (consumed by the client stylesheet;
+// ui.js/style.css map cssClass -> glow styling).
+const SET_AURAS = {
+  sovereign:   { label: 'Sovereign Rainbow', cssClass: 'set-sovereign',   colors: ['#ff5e62', '#ffb800', '#3ee06f', '#3ea8ff', '#b45eff'] },
+  fateweaver:  { label: 'Fateweave',         cssClass: null,             colors: ['#3ea8ff'] },
+  warden:      { label: 'Warden Steel',      cssClass: null,             colors: ['#9aa7b8'] },
+  voidwalker:  { label: 'Void',              cssClass: 'set-voidwalker',  colors: ['#8b2ff7', '#05050a'] },
+  dragonscale: { label: 'Dragonfire',        cssClass: 'set-dragonscale', colors: ['#ff3b1f', '#ffb800'] },
 };
 
 function isValidSetId(setId) {
@@ -104,7 +136,10 @@ module.exports = {
   SOVEREIGN,
   FATEWEAVER,
   WARDEN,
+  VOIDWALKER,
+  DRAGONSCALE,
   GEAR_SETS,
+  SET_AURAS,
   isValidSetId,
   makeGearItems,
 };
