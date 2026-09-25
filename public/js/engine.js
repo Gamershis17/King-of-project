@@ -980,7 +980,7 @@ export function companionStats(c) {
 }
 
 // ---------------- Prestige ----------------
-// Stage >= 50. Returns a FRESH state blob: level/stage/gold/inventory reset,
+// Level >= 70. Returns a FRESH state blob: level/stage/gold/inventory reset,
 // privileged set items + stars + lifetime stats kept, prestigeBonus += 25%.
 export function prestige(state) {
   if ((state.level || 1) < 70) return null;
