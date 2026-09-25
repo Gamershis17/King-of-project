@@ -15,17 +15,14 @@ services:
         generateValue: true
       - key: OWNER_USERNAME
         value: ""
-        sync: false
         description: "REQUIRED — Login username for the owner account. Type
           gamershis17 (you sign in with this name on the game's login screen)."
       - key: OWNER_PASSWORD
         value: ""
-        sync: false
         description: "REQUIRED — Pick a secret password for the owner account.
           Only you will know it."
       - key: DATABASE_URL
         value: ""
-        sync: false
         description: "REQUIRED — PostgreSQL connection string. This is what keeps
           accounts, saves and the leaderboard alive across restarts. Paste your
           Neon connection string here (it starts with postgres://). SSL is
