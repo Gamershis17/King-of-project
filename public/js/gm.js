@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js';
 import { UI, esc, formatNum } from './ui.js';
-import { PRIVILEGED_SETS, TITLES, BADGES } from './engine.js';
+import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
@@ -183,6 +183,23 @@ export const GM = {
           <button id="gm-role-set" class="btn small gold">Set role</button>
         </div>
         <p class="muted small">gm: full console. admin: Warden gear entitlement + player management. moderator: broadcast + player lookup. player: default.</p>
+      </div>
+
+      <div class="card"><h3>♾️ Infinite gold <span class="muted small">(owner only)</span></h3>
+        <div class="row">
+          <input id="gm-infgold-user" placeholder="username" autocomplete="off">
+          <button id="gm-infgold-on" class="btn small gold">Enable ∞</button>
+          <button id="gm-infgold-off" class="btn small">Disable</button>
+        </div>
+        <p class="muted small">Purchases never deduct gold and the HUD shows ∞. Survives prestige. Only the owner can grant it.</p>
+      </div>
+
+      <div class="card"><h3>⚙️ Server settings <span class="muted small">(owner only)</span></h3>
+        <div class="row">
+          <input id="gm-goldcap" type="number" min="1000" step="100" placeholder="9000" autocomplete="off" inputmode="numeric">
+          <button id="gm-goldcap-save" class="btn small gold">Save</button>
+        </div>
+        <p class="muted small">Player gold cap, in trillions (T). Current: <span id="gm-goldcap-current">…</span>. The infinite-gold perk bypasses it.</p>
       </div>` : ''}`;
   },
 
@@ -469,7 +486,7 @@ export const GM = {
         const { players = [] } = await api.gmPlayers(search, 50);
         if (!players.length) { list.innerHTML = '<p class="muted small">No players found.</p>'; return; }
         list.innerHTML = players.map(p => `
-          <div class="name-row"><span>${esc(p.username)}</span>
+          <div class="name-row"><span>${(CLASSES[p.playerClass] || {}).emoji || ''}${(SPECS[p.spec] || {}).emoji || ''} ${esc(p.username)}</span>
             <span class="muted small">${esc(p.role)} · Lv ${p.level} · stage ${p.stage}</span></div>`).join('');
       } catch (e) {
         list.innerHTML = `<p class="error small">Couldn't load players.</p>`;
@@ -505,6 +522,56 @@ export const GM = {
           UI.toast(`${username} is now ${role}.`, 'success');
         } catch (e) {
           UI.toast(e.message || 'Role change failed.', 'error');
+        }
+      });
+    }
+
+    // ♾️ Infinite gold toggle (owner only). Hot-reloads the operator's own
+    // game state so the ∞ HUD appears immediately on a self-grant.
+    const infGoldToggle = async (enabled) => {
+      const username = $('gm-infgold-user').value.trim();
+      if (!username) return UI.toast('Enter a username.', 'error');
+      const ok = await UI.confirm(
+        enabled ? 'Enable infinite gold' : 'Disable infinite gold',
+        enabled
+          ? `Give <b>${esc(username)}</b> infinite gold? Purchases will never deduct gold.`
+          : `Take infinite gold away from <b>${esc(username)}</b>?`
+      );
+      if (!ok) return;
+      try {
+        const res = await api.gmInfGold(username, enabled);
+        $('gm-infgold-user').value = '';
+        await hotReloadIfSelf(username, res);
+        UI.toast(enabled ? `♾️ ${username} now has infinite gold.` : `Infinite gold removed from ${username}.`, 'success');
+      } catch (e) {
+        UI.toast(e.message || 'Infinite-gold update failed.', 'error');
+      }
+    };
+    on('gm-infgold-on', 'click', () => infGoldToggle(true));
+    on('gm-infgold-off', 'click', () => infGoldToggle(false));
+
+    // ⚙️ Server settings: gold cap (owner only). Card only renders for owner.
+    if ($('gm-goldcap')) {
+      const capText = (cap) => `${formatNum(cap)} (${Math.round(cap / 1e12)}T)`;
+      api.getSettings().then(sj => {
+        if (sj && Number.isFinite(sj.goldCap)) {
+          $('gm-goldcap-current').textContent = capText(sj.goldCap);
+          $('gm-goldcap').placeholder = String(Math.round(sj.goldCap / 1e12));
+        }
+      }).catch(() => { /* leave the "…" placeholder */ });
+      on('gm-goldcap-save', 'click', async () => {
+        const t = Number($('gm-goldcap').value);
+        if (!Number.isFinite(t) || t < 1000) return UI.toast('Enter a cap in trillions (min 1000T).', 'error');
+        try {
+          const res = await api.gmSetSettings(t * 1e12);
+          $('gm-goldcap').value = '';
+          if (res && Number.isFinite(res.goldCap)) {
+            $('gm-goldcap-current').textContent = capText(res.goldCap);
+            $('gm-goldcap').placeholder = String(Math.round(res.goldCap / 1e12));
+          }
+          UI.toast(`⚙️ Gold cap set to ${t}T.`, 'success');
+        } catch (e) {
+          UI.toast(e.message || 'Settings update failed.', 'error');
         }
       });
     }

@@ -20,6 +20,68 @@ export const RACES = {
                lifestealBonus: 5, parryBonus: 5 },
 };
 
+// ---------------- Classes ----------------
+// Permanent per-character choice (state.playerClass). Bonuses apply in
+// computeStats; hunter's pet perks hook into petStrikeDamage / petFeedCost.
+export const CLASSES = {
+  hunter: {
+    name: 'Hunter', emoji: '🏹',
+    desc: 'Master of beasts. Your pets fight harder and eat cheaper.',
+    perks: ['Pets deal +50% damage', 'Feeding costs 30% less', '+5% dodge'],
+    petDmgMult: 1.5, feedCostMult: 0.7, dodgeBonus: 5,
+  },
+  warrior: {
+    name: 'Warrior', emoji: '⚔️',
+    desc: 'An unbreakable wall. Outlasts anything the dark throws at you.',
+    perks: ['+30% max HP', '+15% defense'],
+    hpMult: 1.30, defMult: 1.15,
+  },
+  mage: {
+    name: 'Mage', emoji: '🔮',
+    desc: 'Glass cannon. Overwhelming power in a fragile frame.',
+    perks: ['+25% attack', '+10% crit chance', '−10% max HP'],
+    atkMult: 1.25, critChBonus: 10, hpMult: 0.90,
+  },
+  assassin: {
+    name: 'Assassin', emoji: '🌙',
+    desc: 'Strikes from shadow. Every hit could be the last one.',
+    perks: ['+40% crit damage', '+10% dodge', '+5% attack speed'],
+    critDmgBonus: 40, dodgeBonus: 10, atkSpdBonus: 0.05,
+  },
+};
+export function classDef(id) { return CLASSES[id] || null; }
+
+// ---------------- Specializations ----------------
+// Second permanent choice (state.spec), picked after class. Any spec pairs
+// with any class. Modifiers stack multiplicatively/additively with class
+// bonuses in computeStats. 'classic' = no modifiers (original game feel).
+export const SPECS = {
+  tank: {
+    name: 'Tank', emoji: '🛡️',
+    desc: 'An immovable bulwark. Soak hits that would flatten anyone else.',
+    perks: ['+20% max HP', '+20% defense', '−10% attack'],
+    hpMult: 1.20, defMult: 1.20, atkMult: 0.90,
+  },
+  dps: {
+    name: 'DPS', emoji: '⚔️',
+    desc: 'Pure damage. End fights before they can hurt you.',
+    perks: ['+20% attack', '+10% crit chance', '−10% defense'],
+    atkMult: 1.20, critChBonus: 10, defMult: 0.90,
+  },
+  healer: {
+    name: 'Healer', emoji: '💚',
+    desc: 'Sustains through anything. Outlast the darkness.',
+    perks: ['+3 HP/s regen', '+5% lifesteal', '+10% max HP'],
+    regenBonus: 3, lifestealBonus: 5, hpMult: 1.10,
+  },
+  classic: {
+    name: 'Classic', emoji: '📜',
+    desc: 'The classic way — no specialization bonuses. Exactly the original feel.',
+    perks: ['No bonuses', 'The original game feel'],
+  },
+};
+export function specDef(id) { return SPECS[id] || null; }
+
 // ---------------- Rarity / slots / stats ----------------
 export const RARITIES = [
   { id: 'common',    weight: 50,  color: '#9aa0a6', stats: 1, mult: 1,   prefix: 'Iron' },
@@ -89,7 +151,11 @@ export function defaultState(race) {
     activeTitle: 'wanderer',
     badge: null,      // GM-granted creator badge id (e.g. 'youtuber') — shown on leaderboard
     country: null,    // ISO-3166 country code (e.g. 'US') — flag shown on leaderboard
+    infGold: false,   // owner-only perk: infinite gold (purchases never deduct)
     restedUntil: 0,
+    playerClass: null, // permanent class choice: hunter|warrior|mage|assassin (null = not chosen)
+    spec: null,       // permanent specialization: tank|dps|healer|classic (null = not chosen)
+    pets: { collection: [], activeUid: null, eggs: 0 }, // pet system (all players)
   };
 }
 
@@ -99,6 +165,10 @@ export function ensureState(raw) {
   if (!raw || typeof raw !== 'object') { d.race = null; return d; }
   const s = { ...d, ...raw };
   if (!raw.race) s.race = null; // first run -> race select
+  // Permanent class choice; unknown values reset to "not chosen".
+  s.playerClass = (raw.playerClass && CLASSES[raw.playerClass]) ? raw.playerClass : null;
+  // Permanent specialization; unknown values reset to "not chosen".
+  s.spec = (raw.spec && SPECS[raw.spec]) ? raw.spec : null;
   s.hero = { ...d.hero, ...(raw.hero || {}) };
   s.equipped = { ...d.equipped, ...(raw.equipped || {}) };
   s.upgrades = { ...d.upgrades, ...(raw.upgrades || {}) };
@@ -112,7 +182,14 @@ export function ensureState(raw) {
   if (typeof s.activeTitle !== 'string' || !s.activeTitle) s.activeTitle = s.titlesUnlocked[0];
   if (typeof s.badge !== 'string' || !BADGE_BY_ID[s.badge]) s.badge = null; // unknown badges cleared
   if (typeof s.country !== 'string' || !isValidCountry(s.country)) s.country = null;
+  s.infGold = s.infGold === true; // owner-only perk flag
   s.restedUntil = Number(raw.restedUntil) || 0;
+  // Clamp over-cap gold (e.g. after the owner lowers the cap). The
+  // infinite-gold perk bypasses the cap entirely.
+  if (s.infGold !== true && Number.isFinite(s.gold)) {
+    s.gold = Math.min(Math.max(0, s.gold), GOLD_CAP);
+  }
+  ensurePets(s);
   if (!Array.isArray(s.party)) s.party = [];
   if (!Array.isArray(s.inventory)) s.inventory = [];
   if (!Array.isArray(s.skills) || !s.skills.length) s.skills = ['power-strike'];
@@ -126,6 +203,16 @@ export function ensureState(raw) {
   for (const c of s.party) {
     c.hp = clamp(c.hp, 0, c.maxHp);
     if (!c.role) c.role = 'Companion';
+    // Normalize companions from older saves: default missing level, and
+    // backfill the recruit's base cost (used by the level-up cost curve)
+    // by matching the recruit by id or name.
+    c.level = Math.max(1, Math.floor(c.level || 1));
+    if (!Number.isFinite(Number(c.baseCost)) || Number(c.baseCost) <= 0) {
+      const r = (c.recruitId && RECRUIT_BY_ID[c.recruitId])
+        || RECRUITS.find(x => x.name === c.name);
+      c.baseCost = r ? r.cost : 50;
+      if (r && !c.recruitId) c.recruitId = r.id;
+    }
   }
   return s;
 }
@@ -133,6 +220,35 @@ export function ensureState(raw) {
 // ---------------- XP / levels / gold ----------------
 export const xpForLevel = (level) => Math.max(1, Math.round(80 * Math.pow(1.30, level - 1)));
 export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.15, stage)));
+// Deducts gold for a purchase. Returns false when the player can't afford
+// it. Infinite-gold perk holders never pay.
+export function spendGold(s, cost) {
+  if (s.infGold) return true;
+  if ((s.gold || 0) < cost) return false;
+  s.gold -= cost;
+  return true;
+}
+
+// Server gold cap (owner-adjustable, default 9000T). The client refreshes it
+// from GET /api/settings at boot via setGoldCap().
+let GOLD_CAP = 9e15;
+export function setGoldCap(cap) {
+  if (Number.isFinite(cap) && cap >= 1e12) GOLD_CAP = cap;
+}
+export function goldCap() { return GOLD_CAP; }
+
+// Adds gold, clamped to the server gold cap. The infinite-gold perk bypasses
+// the cap entirely. Returns the amount actually added.
+export function addGold(s, amount) {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  const cur = Math.max(0, Number(s.gold) || 0);
+  if (s.infGold === true) { s.gold = cur + amount; return amount; }
+  const room = Math.max(0, GOLD_CAP - cur);
+  const added = Math.min(amount, room);
+  s.gold = cur + added;
+  return added;
+}
+
 export function goldForKill(stage, goldBonusPct = 0, prestigeBonusPct = 0) {
   return Math.max(1, Math.round(
     6 * Math.pow(1.12, stage) *
@@ -214,6 +330,8 @@ export function enemyFor(stage) {
 // x race traits x upgrade multipliers x prestige x full-set bonus.
 export function computeStats(state) {
   const race = RACES[state.race] || {};
+  const cls = CLASSES[state.playerClass] || {};
+  const spec = SPECS[state.spec] || {};
   const gear = {};
   for (const k of Object.keys(STAT_LABELS)) gear[k] = 0;
   for (const slot of SLOTS) {
@@ -227,6 +345,24 @@ export function computeStats(state) {
   }
   const setInfo = equippedSetInfo(state);
   const setMult = 1 + (setInfo ? setInfo.pct : 0) / 100;
+  // Earnable player sets: 3pc / 5pc bonuses (see PLAYER_SETS).
+  const pSetInfo = playerSetInfo(state);
+  let pAtkMult = 1, pDefMult = 1, pHpMult = 1;
+  let pCritCh = 0, pAtkSpd = 0, pDodge = 0;
+  for (const [setId, count] of Object.entries(equippedPlayerSets(state))) {
+    if (count < 3) continue;
+    const five = count >= 5;
+    if (setId === 'emberheart') {
+      pAtkMult *= five ? 1.30 : 1.15;
+      if (five) pCritCh += 10;
+    } else if (setId === 'frostbound') {
+      pHpMult *= five ? 1.40 : 1.20;
+      if (five) pDefMult *= 1.20;
+    } else if (setId === 'stormcaller') {
+      pAtkSpd += five ? 0.35 : 0.20;
+      if (five) pDodge += 12;
+    }
+  }
   // Mastery talents + professions (original systems, WoW-inspired).
   const tal = (state.mastery && state.mastery.spent) || {};
   const mightMult = 1 + 0.04 * (tal.might || 0);
@@ -239,22 +375,27 @@ export function computeStats(state) {
   const dmgUpMult = Math.pow(1.12, Math.max(0, up.weapon - 1)) *
                     Math.pow(1.12, Math.max(0, up.skill - 1));
   const defUpMult = Math.pow(1.12, Math.max(0, up.armor - 1));
+  // Pet bond: flat bonuses from the ACTIVE pet, added AFTER all multiplicative
+  // bonuses (predictable, no double-dipping). Hunger-gated; benched pets give nothing.
+  const bond = petBond(state);
   const h = state.hero;
   return {
-    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * prestDmgMult * setMult * dmgUpMult * mightMult * smithMult),
-    defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult),
-    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * setMult * vitMult)),
-    critChance: clamp(h.critChance + gear.critChance, 0, 100),
-    critDamage: Math.max(100, h.critDamage + gear.critDamage + (race.critDmgBonus || 0)),
+    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * prestDmgMult * setMult * pAtkMult * dmgUpMult * mightMult * smithMult + bond.atk),
+    defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) + bond.def),
+    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * vitMult) + bond.hp),
+    critChance: clamp(h.critChance + gear.critChance + pCritCh + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
+    critDamage: Math.max(100, h.critDamage + gear.critDamage + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
     parry: clamp(h.parry + gear.parry + (race.parryBonus || 0), 0, 60),
-    dodge: clamp(h.dodge + gear.dodge + (race.dodgeBonus || 0) + (race.dodgeMod || 0), 0, 75),
-    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + (race.lifestealBonus || 0)),
-    attackSpeed: clamp((h.attackSpeed + gear.attackSpeed) * (race.atkSpdMult || 1), 0.2, 5),
-    regen: Math.max(0, h.regen + gear.regen + (race.regenBonus || 0) + herbRegen),
+    dodge: clamp(h.dodge + gear.dodge + pDodge + (race.dodgeBonus || 0) + (race.dodgeMod || 0) + (cls.dodgeBonus || 0), 0, 75),
+    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
+    attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1), 0.2, 5),
+    regen: Math.max(0, h.regen + gear.regen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
     goldBonus: gear.goldBonus,
     xpBonus: gear.xpBonus,
     talentGoldPct: 4 * (tal.fortune || 0),
     setInfo,
+    playerSetInfo: pSetInfo,
+    bond,
   };
 }
 
@@ -355,8 +496,7 @@ export function sellItem(state, itemId) {
   if (state.equipped[item.slot] === itemId) state.equipped[item.slot] = null;
   state.inventory.splice(idx, 1);
   const gold = Math.max(1, Math.round(item.value || 1));
-  state.gold += gold;
-  return gold;
+  return addGold(state, gold);
 }
 
 // ---------------- Privileged gear sets ----------------
@@ -414,6 +554,17 @@ export const PRIVILEGED_SETS = {
       trinket: { name: 'Dragonheart Ember', stats: { regen: 16, maxHp: 600, lifesteal: 4 } },
     },
   },
+  gamemaster: {
+    name: 'Game Master Regalia', minRole: 'gm', setBonus: 70,
+    aura: 'judgment', auraClass: 'set-gamemaster',
+    pieces: {
+      weapon:  { name: 'Judgment Gavel',      stats: { attack: 350, critChance: 8 } },
+      armor:   { name: "Arbiter's Plate",     stats: { defense: 350, maxHp: 1400 } },
+      helmet:  { name: 'Crown of Verdicts',   stats: { defense: 140, critDamage: 35 } },
+      boots:   { name: 'Stride of Justice',   stats: { dodge: 8, attackSpeed: 0.14, defense: 105 } },
+      trinket: { name: 'Scales of the Master', stats: { goldBonus: 25, xpBonus: 25, lifesteal: 5 } },
+    },
+  },
 };
 
 export function makeSetItem(setId, slot) {
@@ -451,6 +602,309 @@ export function equippedSetInfo(state) {
   return null;
 }
 
+// ---------------- Earnable player gear sets ----------------
+// Unlike privileged sets (GM-granted, fixed stats), these drop from gameplay
+// with stage-scaled stats and are the long-term gear chase for regular players.
+// Drop sources (see rollSetDrop):
+//   - any boss kill ............. 6% for a random piece of a random set
+//   - boss kill in dungeon mode . 15%
+//   - raid boss wave ............ 12%
+// Set bonuses: 3 pieces and 5 pieces of the same set (applied in computeStats).
+export const PLAYER_SETS = {
+  emberheart: {
+    name: 'Emberheart Arsenal', emoji: '🔥',
+    desc: 'Attack and crit. 3pc: +15% attack. 5pc: +30% attack, +10% crit chance.',
+    pieces: {
+      weapon: 'Emberheart Blade', armor: 'Emberheart Plate', helmet: 'Emberheart Helm',
+      boots: 'Emberheart Greaves', trinket: 'Emberheart Charm',
+    },
+    secondary: ['critChance', 'critDamage'],
+  },
+  frostbound: {
+    name: 'Frostbound Aegis', emoji: '❄️',
+    desc: 'Health and defense. 3pc: +20% max HP. 5pc: +40% max HP, +20% defense.',
+    pieces: {
+      weapon: 'Frostbound Blade', armor: 'Frostbound Plate', helmet: 'Frostbound Helm',
+      boots: 'Frostbound Greaves', trinket: 'Frostbound Charm',
+    },
+    secondary: ['maxHp', 'defense'],
+  },
+  stormcaller: {
+    name: 'Stormcaller Garb', emoji: '⛈️',
+    desc: 'Speed and evasion. 3pc: +0.20 attack speed. 5pc: +0.35 attack speed, +12% dodge.',
+    pieces: {
+      weapon: 'Stormcaller Blade', armor: 'Stormcaller Plate', helmet: 'Stormcaller Helm',
+      boots: 'Stormcaller Greaves', trinket: 'Stormcaller Charm',
+    },
+    secondary: ['attackSpeed', 'dodge'],
+  },
+};
+
+// Builds one stage-scaled piece of an earnable set (rare-tier stat budget).
+export function makePlayerSetPiece(stage, setId, slot) {
+  const def = PLAYER_SETS[setId];
+  if (!def || !def.pieces[slot]) throw new Error('Unknown player set/slot: ' + setId + '/' + slot);
+  const mult = 2.5;
+  const stats = {};
+  const primary = SLOT_PRIMARY[slot];
+  stats[primary] = STAT_GEN[primary](mult, stage);
+  const sec = def.secondary[Math.floor(Math.random() * def.secondary.length)];
+  if (sec !== primary && STAT_GEN[sec]) stats[sec] = STAT_GEN[sec](mult, stage);
+  return {
+    id: uid(), name: def.pieces[slot], slot, rarity: 'rare',
+    stats, set: setId, setName: def.name,
+    value: Math.max(1, Math.round((4 + stage * 1.5) * mult)),
+    unsellable: false,
+  };
+}
+
+// Counts equipped pieces per earnable player set -> { setId: count }.
+export function equippedPlayerSets(state) {
+  const counts = {};
+  for (const slot of SLOTS) {
+    const id = state.equipped && state.equipped[slot];
+    if (!id) continue;
+    const item = (state.inventory || []).find(i => i.id === id);
+    if (!item || !item.set || item.slot !== slot || !PLAYER_SETS[item.set]) continue;
+    counts[item.set] = (counts[item.set] || 0) + 1;
+  }
+  return counts;
+}
+
+// Best (most pieces) equipped player set for UI display, else null.
+export function playerSetInfo(state) {
+  const counts = equippedPlayerSets(state);
+  let best = null;
+  for (const [setId, count] of Object.entries(counts)) {
+    if (!best || count > best.count) best = { setId, count };
+  }
+  if (!best) return null;
+  const def = PLAYER_SETS[best.setId];
+  return { setId: best.setId, name: def.name, emoji: def.emoji, count: best.count, desc: def.desc };
+}
+
+// Returns a set-piece item or null. Sources documented on PLAYER_SETS above.
+export function rollSetDrop(stage, { boss = false, dungeonBoss = false, raidBoss = false } = {}) {
+  const chance = raidBoss ? 0.12 : dungeonBoss ? 0.15 : boss ? 0.06 : 0;
+  if (chance <= 0 || Math.random() >= chance) return null;
+  const setIds = Object.keys(PLAYER_SETS);
+  return makePlayerSetPiece(stage, setIds[Math.floor(Math.random() * setIds.length)], pick(SLOTS));
+}
+
+// ---------------- Pets ----------------
+// Available to ALL players; the Hunter class boosts them (see CLASSES).
+// Pet eggs drop from bosses (see rollPetEgg); hatching is instant in the
+// Pets UI (Party tab). The active pet strikes every 4s in every combat mode
+// (see App.tick / petStrike in app.js), gains 15% of kill XP, and survives
+// prestige. Hunger 0-100 decays with play time (-1 per 5 min); feeding costs
+// gold scaling with pet level and restores +35 hunger.
+// Hunger gating: >50 full damage, 1-50 → 40% damage, 0 → pet sits out.
+export const PET_SPECIES = {
+  cinderpup:   { name: 'Cinder Pup',   emoji: '🐶', rarity: 'common',    weight: 40, baseDmg: 8,  growth: 1.15,
+                 flavor: 'A loyal pup — always by your side, through every battle.', style: 'Loyal · balanced companion',
+                 baseStats: { atk: 8,  def: 3,  hp: 50  }, bond: { atk: 2, def: 1, hp: 15 } },
+  frostsprite: { name: 'Frost Sprite', emoji: '🧚', rarity: 'magic',     weight: 28, baseDmg: 12, growth: 1.16,
+                 baseStats: { atk: 12, def: 2,  hp: 40  }, bond: { atk: 3, def: 0, hp: 10 } },
+  stormhawk:   { name: 'Storm Hawk',   emoji: '🦅', rarity: 'rare',      weight: 17, baseDmg: 18, growth: 1.17,
+                 baseStats: { atk: 16, def: 4,  hp: 55  }, bond: { atk: 2, def: 1, hp: 15 } },
+  emberfox:    { name: 'Ember Fox',    emoji: '🦊', rarity: 'epic',      weight: 10, baseDmg: 26, growth: 1.18,
+                 baseStats: { atk: 22, def: 5,  hp: 65  }, bond: { atk: 3, def: 1, hp: 12 } },
+  tideturtle:  { name: 'Tide Turtle',  emoji: '🐢', rarity: 'legendary', weight: 5,  baseDmg: 38, growth: 1.19,
+                 baseStats: { atk: 20, def: 12, hp: 120 }, bond: { atk: 1, def: 3, hp: 40 } },
+  // Hunter starter beasts (not hatchable from eggs — starterOnly). Note: 🐺 is
+  // taken by the Gloomfang Wolf enemy, so the wolf-ish slot uses 🦁 Lion.
+  tiger: { name: 'Tiger', emoji: '🐯', rarity: 'common', weight: 0, baseDmg: 14, growth: 1.16,
+           starterOnly: true, flavor: 'A fierce striker — hits hardest from the very first hunt.', style: 'Fierce · high base damage',
+           baseStats: { atk: 14, def: 4, hp: 60 }, bond: { atk: 3, def: 1, hp: 15 } },
+  bear:  { name: 'Bear',  emoji: '🐻', rarity: 'common', weight: 0, baseDmg: 10, growth: 1.19,
+           starterOnly: true, flavor: 'A steady guardian — grows mightier with every level.', style: 'Steady · best late scaling',
+           baseStats: { atk: 10, def: 8, hp: 90 }, bond: { atk: 1, def: 2, hp: 30 } },
+  lion:  { name: 'Lion',  emoji: '🦁', rarity: 'common', weight: 0, baseDmg: 12, growth: 1.16,
+           starterOnly: true, flavor: 'A keen hunter — swift, sharp, and sure.', style: 'Keen · balanced strikes',
+           baseStats: { atk: 12, def: 5, hp: 70 }, bond: { atk: 2, def: 1, hp: 20 } },
+};
+export const HUNTER_STARTERS = ['tiger', 'bear', 'lion', 'cinderpup'];
+export const PET_STRIKE_SEC = 4;
+export const PET_HUNGER_DECAY_SEC = 300; // -1 hunger per 5 min of active play
+
+export function defaultPets() {
+  return { collection: [], activeUid: null, eggs: 0 };
+}
+
+// Normalizes s.pets in place and returns it.
+export function ensurePets(s) {
+  if (!s.pets || typeof s.pets !== 'object') s.pets = defaultPets();
+  const p = s.pets;
+  if (!Array.isArray(p.collection)) p.collection = [];
+  p.collection = p.collection.filter(
+    x => x && PET_SPECIES[x.species] && Number.isFinite(x.level)
+  );
+  for (const x of p.collection) {
+    x.level = Math.max(1, Math.floor(x.level));
+    x.xp = Math.max(0, Number(x.xp) || 0);
+    x.xpNext = petXpForLevel(x.level);
+    x.hunger = Math.max(0, Math.min(100, Number(x.hunger) || 0));
+    if (!x.uid) x.uid = uid();
+  }
+  p.eggs = Math.max(0, Math.floor(Number(p.eggs) || 0));
+  if (p.activeUid && !p.collection.some(x => x.uid === p.activeUid)) p.activeUid = null;
+  return p;
+}
+
+export function activePet(s) {
+  const p = ensurePets(s);
+  return p.collection.find(x => x.uid === p.activeUid) || null;
+}
+
+export function petSpeciesOf(pet) {
+  return (pet && PET_SPECIES[pet.species]) || null;
+}
+
+// Pet eggs drop from bosses: 8% any boss, 12% dungeon boss, 10% raid boss.
+// Hatching picks a species by rarity weight.
+export function rollPetEgg({ boss = false, dungeonBoss = false, raidBoss = false } = {}) {
+  const chance = raidBoss ? 0.10 : dungeonBoss ? 0.12 : boss ? 0.08 : 0;
+  return chance > 0 && Math.random() < chance;
+}
+
+export function rollPetSpeciesId() {
+  // Starter-only species are never hatched from eggs.
+  const pool = Object.keys(PET_SPECIES).filter(id => !PET_SPECIES[id].starterOnly);
+  const ids = pool.length ? pool : Object.keys(PET_SPECIES);
+  const total = ids.reduce((a, id) => a + PET_SPECIES[id].weight, 0);
+  let roll = Math.random() * total;
+  for (const id of ids) {
+    roll -= PET_SPECIES[id].weight;
+    if (roll <= 0) return id;
+  }
+  return ids[0];
+}
+
+// Hunter's chosen starter pet: level 1, full hunger, set active. Returns the pet or null.
+export function addStarterPet(s, speciesId) {
+  const p = ensurePets(s);
+  if (!speciesId || !PET_SPECIES[speciesId] || !HUNTER_STARTERS.includes(speciesId)) return null;
+  const pet = { uid: uid(), species: speciesId, level: 1, xp: 0, xpNext: petXpForLevel(1), hunger: 100 };
+  p.collection.push(pet);
+  p.activeUid = pet.uid;
+  return pet;
+}
+
+// Consumes one egg and adds a new pet (auto-active if none). Returns the pet or null.
+export function hatchPet(s) {
+  const p = ensurePets(s);
+  if (p.eggs < 1) return null;
+  p.eggs -= 1;
+  const species = rollPetSpeciesId();
+  const pet = { uid: uid(), species, level: 1, xp: 0, xpNext: petXpForLevel(1), hunger: 100 };
+  p.collection.push(pet);
+  if (!p.activeUid) p.activeUid = pet.uid;
+  return pet;
+}
+
+export function petFeedCost(pet, state) {
+  const base = Math.floor(100 * Math.pow(Math.max(1, pet.level), 1.5));
+  const mult = (state && CLASSES[state.playerClass] && CLASSES[state.playerClass].feedCostMult) || 1;
+  return Math.max(1, Math.floor(base * mult));
+}
+
+// Feeds a pet (+35 hunger, capped 100) for gold. Returns {ok, reason}.
+export function feedPet(s, petUid) {
+  const p = ensurePets(s);
+  const pet = p.collection.find(x => x.uid === petUid);
+  if (!pet) return { ok: false, reason: 'not-found' };
+  if (pet.hunger >= 100) return { ok: false, reason: 'full' };
+  const cost = petFeedCost(pet, s);
+  if (!spendGold(s, cost)) return { ok: false, reason: 'gold' };
+  pet.hunger = Math.min(100, pet.hunger + 35);
+  return { ok: true, cost };
+}
+
+// A pet's own stats: base × growth^(level-1). Display only — bond is separate.
+export function petStats(pet) {
+  const zero = { atk: 0, def: 0, hp: 0 };
+  if (!pet) return zero;
+  const sp = petSpeciesOf(pet);
+  if (!sp) return zero;
+  const g = Math.pow(sp.growth || 1.15, Math.max(0, pet.level - 1));
+  const bs = sp.baseStats || { atk: sp.baseDmg || 1, def: 1, hp: 10 };
+  return {
+    atk: Math.max(1, Math.round(bs.atk * g)),
+    def: Math.max(0, Math.round(bs.def * g)),
+    hp: Math.max(1, Math.round(bs.hp * g)),
+  };
+}
+
+// Bond: the ACTIVE pet grants the player flat ATK/DEF/maxHP =
+// per-level species values × pet level, hunger-gated like strike damage.
+// Applied AFTER class/spec multiplicative bonuses in computeStats;
+// Hunter's +50% pet-damage bonus does NOT affect bond. Benched pets grant nothing.
+export function petBondFor(pet) {
+  const zero = { atk: 0, def: 0, hp: 0 };
+  if (!pet) return zero;
+  const sp = petSpeciesOf(pet);
+  const b = (sp && sp.bond) || zero;
+  const mult = petHungerMult(pet);
+  if (!mult) return zero;
+  const lv = Math.max(1, pet.level);
+  return {
+    atk: Math.round(b.atk * lv * mult),
+    def: Math.round(b.def * lv * mult),
+    hp: Math.round(b.hp * lv * mult),
+  };
+}
+export function petBond(s) {
+  return petBondFor(activePet(s));
+}
+
+// Hunger damage gating: >50 full, 1-50 → 40%, 0 → sits out.
+export function petHungerMult(pet) {
+  if (!pet) return 0;
+  if (pet.hunger <= 0) return 0;
+  return pet.hunger > 50 ? 1 : 0.4;
+}
+
+// Active pet strike damage: (25% + 4%/level) of hero attack, hunger-gated.
+// Meaningful but never outshines the hero. Hunters get +50% pet damage.
+export function petStrikeDamage(s, stats) {
+  const pet = activePet(s);
+  if (!pet) return 0;
+  const mult = petHungerMult(pet);
+  if (!mult) return 0;
+  const sp = petSpeciesOf(pet);
+  const base = stats.attack * (0.25 + 0.04 * (pet.level - 1));
+  const speciesMult = 1 + (sp.baseDmg / 200); // rarer species hit a touch harder
+  const classMult = (s && CLASSES[s.playerClass] && CLASSES[s.playerClass].petDmgMult) || 1;
+  return Math.max(1, Math.round(base * mult * speciesMult * classMult));
+}
+
+export function petXpForLevel(level) {
+  return Math.max(1, Math.round(40 * Math.pow(1.28, Math.max(1, level) - 1)));
+}
+
+// The active pet gains xp (15% of the kill's XP). Returns {levels} of level-ups.
+export function gainPetXp(s, xp) {
+  const pet = activePet(s);
+  if (!pet || !Number.isFinite(xp) || xp <= 0) return { levels: [] };
+  pet.xp += xp;
+  const levels = [];
+  let guard = 0;
+  while (pet.xp >= pet.xpNext && guard++ < 1000) {
+    pet.xp -= pet.xpNext;
+    pet.level += 1;
+    pet.xpNext = petXpForLevel(pet.level);
+    levels.push(pet.level);
+  }
+  return { levels };
+}
+
+// Decays every pet's hunger by `amount` (clamped at 0).
+export function decayPetHunger(s, amount = 1) {
+  const p = ensurePets(s);
+  for (const pet of p.collection) pet.hunger = Math.max(0, pet.hunger - amount);
+  return p;
+}
+
 // ---------------- Upgrades ----------------
 export const UPGRADE_INFO = {
   weapon: { name: 'Weapon', emoji: '⚔️', desc: '+12% damage / level' },
@@ -462,28 +916,58 @@ export const upgradeCost = (kind, level) => Math.round(30 * Math.pow(1.7, Math.m
 
 // ---------------- Companions / Party ----------------
 export const RECRUITS = [
-  { id: 'gromm',  name: 'Gromm the Axe',    race: 'orc',       emoji: '🪓', role: 'Brute',        cost: 50,   atk: 6,  def: 1, hp: 60,  dodge: 5,  crit: 5 },
-  { id: 'lyra',   name: 'Lyra Swiftbow',    race: 'fae',       emoji: '🧚', role: 'Ranger',       cost: 150,  atk: 10, def: 1, hp: 70,  dodge: 15, crit: 10 },
-  { id: 'anselm', name: 'Brother Anselm',   race: 'celestial', emoji: '✨', role: 'Cleric',       cost: 300,  atk: 12, def: 3, hp: 120, dodge: 5,  crit: 5, regen: 2 },
-  { id: 'vex',    name: 'Vex Nightwhisper', race: 'revenant',  emoji: '💀', role: 'Assassin',     cost: 600,  atk: 18, def: 2, hp: 90,  dodge: 10, crit: 10 },
-  { id: 'ember',  name: 'Ember Scaleborn',  race: 'dragonkin', emoji: '🐉', role: 'Dragon Knight', cost: 1200, atk: 26, def: 3, hp: 110, dodge: 5,  crit: 15 },
-  { id: 'mira',   name: 'Mira Ironhold',    race: 'human',     emoji: '🛡️', role: 'Guardian',     cost: 2500, atk: 34, def: 5, hp: 160, dodge: 5,  crit: 10 },
+  { id: 'gromm',  name: 'Gromm the Axe',    race: 'orc',       emoji: '🪓', role: 'Brute',        tier: 'common',    cost: 50,    atk: 6,  def: 1, hp: 60,  dodge: 5,  crit: 5 },
+  { id: 'lyra',   name: 'Lyra Swiftbow',    race: 'fae',       emoji: '🧚', role: 'Ranger',       tier: 'common',    cost: 150,   atk: 10, def: 1, hp: 70,  dodge: 15, crit: 10 },
+  { id: 'anselm', name: 'Brother Anselm',   race: 'celestial', emoji: '✨', role: 'Cleric',       tier: 'uncommon',  cost: 300,   atk: 12, def: 3, hp: 120, dodge: 5,  crit: 5, regen: 2 },
+  { id: 'vex',    name: 'Vex Nightwhisper', race: 'revenant',  emoji: '💀', role: 'Assassin',     tier: 'uncommon',  cost: 600,   atk: 18, def: 2, hp: 90,  dodge: 10, crit: 10 },
+  { id: 'ember',  name: 'Ember Scaleborn',  race: 'dragonkin', emoji: '🐉', role: 'Dragon Knight', tier: 'rare',     cost: 1200,  atk: 26, def: 3, hp: 110, dodge: 5,  crit: 15 },
+  { id: 'mira',   name: 'Mira Ironhold',    race: 'human',     emoji: '🛡️', role: 'Guardian',     tier: 'epic',      cost: 2500,  atk: 34, def: 5, hp: 160, dodge: 5,  crit: 10 },
+  { id: 'kaelith', name: 'Kaelith Doomwarden', race: 'abyssal', emoji: '🌑', role: 'Doomwarden',  tier: 'legendary', cost: 6000,  atk: 48, def: 7, hp: 220, dodge: 15, crit: 15, regen: 3 },
+  { id: 'nyx',    name: 'Nyx Starreaver',   race: 'voidborn',  emoji: '🌠', role: 'Starreaver',   tier: 'mythic',    cost: 15000, atk: 70, def: 10, hp: 320, dodge: 20, crit: 20, regen: 5 },
 ];
+export const RECRUIT_BY_ID = Object.fromEntries(RECRUITS.map(r => [r.id, r]));
 export const MAX_PARTY = 3;
 
 export function makeCompanion(recruit, playerLevel) {
   const L = Math.max(1, Math.floor(playerLevel || 1));
-  const maxHp = recruit.hp + 15 * (L - 1);
+  const maxHp = recruit.hp + 20 * (L - 1);
   return {
     id: uid(), name: recruit.name, race: recruit.race, emoji: recruit.emoji,
     role: recruit.role || 'Companion',
+    recruitId: recruit.id,
+    baseCost: recruit.cost,
     level: L,
-    attack: recruit.atk + 2 * (L - 1),
-    defense: recruit.def + Math.floor((L - 1) / 2),
+    attack: recruit.atk + 3 * (L - 1),
+    defense: recruit.def + 1 * (L - 1),
     maxHp, hp: maxHp,
     dodge: recruit.dodge || 5, critChance: recruit.crit || 5,
     regen: recruit.regen || 0,
   };
+}
+
+// Gold cost to level a companion from its current level to the next.
+// Steep curve so cost (not a cap) is the limiter; never below 50g.
+export function companionLevelCost(c) {
+  const base = Math.max(50, Number(c && c.baseCost) || 50);
+  const L = Math.max(1, Math.floor((c && c.level) || 1));
+  return Math.max(50, Math.floor(base * 0.4 * Math.pow(L, 1.6)));
+}
+
+// Levels a party member up: +3 attack, +1 defense, +20 max HP, +25 HP heal.
+// Matches makeCompanion's per-level formula exactly, so a companion leveled
+// from L1 is identical to a fresh recruit at the same level.
+// Routes through spendGold (respects the infinite-gold perk). No hard cap.
+export function levelUpCompanion(s, companionId) {
+  const c = (s.party || []).find(x => x && x.id === companionId);
+  if (!c) return { ok: false, reason: 'not-found' };
+  const cost = companionLevelCost(c);
+  if (!spendGold(s, cost)) return { ok: false, reason: 'gold', cost };
+  c.level = Math.max(1, Math.floor(c.level || 1)) + 1;
+  c.attack = (Number(c.attack) || 0) + 3;
+  c.defense = (Number(c.defense) || 0) + 1;
+  c.maxHp = (Number(c.maxHp) || 0) + 20;
+  c.hp = Math.min(c.maxHp, (Number(c.hp) || 0) + 25);
+  return { ok: true, cost, level: c.level };
 }
 
 // Lightweight combat stats view for a companion (dodge/parry/counter support).
@@ -499,7 +983,7 @@ export function companionStats(c) {
 // Stage >= 50. Returns a FRESH state blob: level/stage/gold/inventory reset,
 // privileged set items + stars + lifetime stats kept, prestigeBonus += 25%.
 export function prestige(state) {
-  if ((state.stage || 1) < 50) return null;
+  if ((state.level || 1) < 70) return null;
   const kept = (state.inventory || []).filter(i => i && i.set);
   const keptIds = new Set(kept.map(i => i.id));
   const equipped = {};
@@ -521,6 +1005,17 @@ export function prestige(state) {
   fresh.badge = (typeof state.badge === 'string' && BADGE_BY_ID[state.badge]) ? state.badge : null;
   fresh.country = (typeof state.country === 'string' && isValidCountry(state.country)) ? state.country : null;
   fresh.mode = state.mode || 'clicker';
+  fresh.infGold = state.infGold === true; // owner perk survives prestige
+  // Class is identity (like race) — it survives prestige.
+  fresh.playerClass = (state.playerClass && CLASSES[state.playerClass]) ? state.playerClass : null;
+  // Specialization is identity too — it survives prestige.
+  fresh.spec = (state.spec && SPECS[state.spec]) ? state.spec : null;
+  // Pets survive prestige (collection, active pet, eggs) — deep copy so the
+  // old and new states don't share pet objects.
+  try {
+    const p = ensurePets(state);
+    fresh.pets = JSON.parse(JSON.stringify(p));
+  } catch { /* keep default pets */ }
   return fresh;
 }
 
@@ -633,6 +1128,12 @@ export const TITLES = [
   { id: 'reborn',          name: 'the Reborn',          desc: 'Prestige twice.',                           check: (s) => (s.prestigeCount || 0) >= 2 },
   { id: 'phoenix',         name: 'the Phoenix',         desc: 'Prestige 3 times.',                         check: (s) => (s.prestigeCount || 0) >= 3 },
   { id: 'immortal',        name: 'the Immortal',        desc: 'Prestige 5 times.',                         check: (s) => (s.prestigeCount || 0) >= 5 },
+  { id: 'paragon',         name: 'the Paragon',         desc: 'Prestige 10 times.',                        check: (s) => (s.prestigeCount || 0) >= 10 },
+  { id: 'demigod',         name: 'the Demigod',         desc: 'Prestige 25 times.',                        check: (s) => (s.prestigeCount || 0) >= 25 },
+  { id: 'worldforger',     name: 'the Worldforger',     desc: 'Prestige 50 times.',                        check: (s) => (s.prestigeCount || 0) >= 50 },
+  { id: 'beastfriend',      name: 'the Beastfriend',     desc: 'Hatch your first pet.',                     check: (s) => ((s.pets && s.pets.collection) || []).length >= 1 },
+  { id: 'packleader',       name: 'the Packleader',      desc: 'Hatch 5 pets.',                             check: (s) => ((s.pets && s.pets.collection) || []).length >= 5 },
+  { id: 'apexcompanion',    name: 'the Apex Companion',  desc: 'Raise a pet to level 25.',                  check: (s) => (((s.pets && s.pets.collection) || []).some(p => (p.level || 1) >= 25)) },
   { id: 'executioner',     name: 'the Executioner',     desc: 'Slay 50 bosses.',                           check: (s) => (s.bossesKilled || 0) >= 50 },
   { id: 'godslayer',       name: 'the Godslayer',       desc: 'Slay 100 bosses.',                          check: (s) => (s.bossesKilled || 0) >= 100 },
   { id: 'hoarder',         name: 'the Hoarder',         desc: 'Earn 1,000,000 gold in total.',             check: (s) => (s.stats.totalGoldEarned || 0) >= 1000000 },

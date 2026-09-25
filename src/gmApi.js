@@ -6,6 +6,8 @@
  *   POST /api/gm/grant        (gm|owner)
  *   POST /api/gm/grant-title  (gm|owner)
  *   POST /api/gm/badge       (gm|owner)
+ *   POST /api/gm/inf-gold    (owner) — toggle infinite-gold perk
+ *   POST /api/gm/settings    (owner) — update server tunables (gold_cap)
  *   POST /api/gm/set-stage    (gm|owner)
  *   POST /api/gm/heal         (gm|owner)
  *   POST /api/gm/reset        (gm|owner)
@@ -44,6 +46,9 @@ const {
   listGiftCodes,
   getCodeCount,
   getGiftCode,
+  getGoldCap,
+  setSetting,
+  refreshGoldCap,
 } = require('./db');
 
 const router = express.Router();
@@ -183,7 +188,9 @@ router.post(
           .json({ error: `Amount must be an integer between ${GOLD_GRANT_MIN} and ${GOLD_GRANT_MAX}.` });
       }
       const blob = await loadBlob(target.id);
-      blob.gold = Math.min(1e15, Math.max(0, Number(blob.gold) || 0) + amount);
+      const cur = Math.max(0, Number(blob.gold) || 0);
+      // Infinite-gold perk holders bypass the cap; everyone else clamps to it.
+      blob.gold = blob.infGold === true ? cur + amount : Math.min(await getGoldCap(), cur + amount);
       await persistMergedState(target.id, blob);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
@@ -227,7 +234,7 @@ router.post(
 
     if (kind === 'gear') {
       if (typeof set !== 'string' || !isValidSetId(set)) {
-        return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden, voidwalker, dragonscale.' });
+        return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden, voidwalker, dragonscale, gamemaster.' });
       }
       if (set === 'sovereign' && req.user.role !== 'owner') {
         return res.status(403).json({ error: 'Only the owner may grant the sovereign set.' });
@@ -287,6 +294,42 @@ router.post(
     blob.badge = id === '' ? null : id;
     await persistMergedState(target.id, blob);
     res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- infinite gold (owner only) ----------
+// Toggles the infGold perk on a player's save: purchases never deduct gold
+// and the HUD shows ∞. Survives prestige. Pass enabled: false to revoke.
+router.post(
+  '/gm/inf-gold',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username, enabled } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const blob = await loadBlob(target.id);
+    blob.infGold = enabled === true;
+    await persistMergedState(target.id, blob);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- server settings (owner only) ----------
+// Owner-tunable tunables. Currently: goldCap (max player gold, default 9000T).
+// The client fetches the live value from GET /api/settings at boot.
+router.post(
+  '/gm/settings',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { goldCap } = req.body || {};
+    if (goldCap !== undefined) {
+      if (!Number.isFinite(goldCap) || goldCap < 1e12) {
+        return res.status(400).json({ error: 'goldCap must be a number ≥ 1e12 (1T).' });
+      }
+      await setSetting('gold_cap', String(Math.floor(goldCap)));
+    }
+    await refreshGoldCap();
+    res.json({ ok: true, goldCap: await getGoldCap() });
   })
 );
 
@@ -473,14 +516,35 @@ router.get(
     const limit = Math.max(1, Math.min(200, Math.floor(Number(req.query.limit)) || 50));
     const { rows } = await pool.query(
       `SELECT u.username, u.role,
-              COALESCE(ps.level, 1) AS level, COALESCE(ps.stage, 1) AS stage
+              COALESCE(ps.level, 1) AS level, COALESCE(ps.stage, 1) AS stage,
+              ps.state_json AS state_json
        FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
        WHERE ($1 = '' OR LOWER(u.username) LIKE '%' || LOWER($1) || '%')
        ORDER BY u.created_at ASC
        LIMIT $2`,
       [search, limit]
     );
-    res.json({ players: rows });
+    // Extract the player's class and spec from their save blob
+    // (mirrors Engine.CLASSES / Engine.SPECS).
+    const VALID_SPECS = ['tank', 'dps', 'healer', 'classic'];
+    const players = rows.map((r) => {
+      let playerClass = null;
+      let spec = null;
+      try {
+        const raw = r.state_json;
+        const blob = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (blob && typeof blob.playerClass === 'string' &&
+            ['hunter', 'warrior', 'mage', 'assassin'].includes(blob.playerClass)) {
+          playerClass = blob.playerClass;
+        }
+        if (blob && typeof blob.spec === 'string' && VALID_SPECS.includes(blob.spec)) {
+          spec = blob.spec;
+        }
+      } catch { /* leave null */ }
+      const { state_json, ...rest } = r;
+      return { ...rest, playerClass, spec };
+    });
+    res.json({ players });
   })
 );
 

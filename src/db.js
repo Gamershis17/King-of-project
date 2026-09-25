@@ -270,6 +270,41 @@ async function redeemGiftCode(code, userId, grantFn, defaultBlobFn) {
   }
 }
 
+// ---------- server settings ----------
+// Owner-tunable key/value settings (e.g. gold_cap). The gold cap is cached
+// in-process and invalidated on write; refreshGoldCap() pushes it into the
+// validation module so state saves clamp gold to the live value.
+const DEFAULT_GOLD_CAP = 9e15; // 9000T
+let goldCapCache = null;
+
+async function getSetting(key) {
+  const { rows } = await pool.query('SELECT value FROM server_settings WHERE key = $1', [key]);
+  return rows.length ? rows[0].value : null;
+}
+
+async function setSetting(key, value) {
+  await pool.query(
+    `INSERT INTO server_settings (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [key, String(value)]
+  );
+  if (key === 'gold_cap') goldCapCache = null;
+}
+
+async function getGoldCap() {
+  if (goldCapCache == null) {
+    const raw = Number(await getSetting('gold_cap'));
+    goldCapCache = Number.isFinite(raw) && raw >= 1e12 ? raw : DEFAULT_GOLD_CAP;
+  }
+  return goldCapCache;
+}
+
+/** Push the live gold cap into src/validation.js (called at boot and on change). */
+async function refreshGoldCap() {
+  const { setGoldCap } = require('./validation');
+  setGoldCap(await getGoldCap());
+}
+
 module.exports = {
   pool,
   buildPoolConfig,
@@ -293,6 +328,11 @@ module.exports = {
   getCodeCount,
   hasRedeemed,
   addRedemption,
+  getSetting,
+  setSetting,
+  getGoldCap,
+  refreshGoldCap,
+  DEFAULT_GOLD_CAP,
   redeemGiftCode,
   createGuild,
   getGuildByName,

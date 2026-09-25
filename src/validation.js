@@ -7,6 +7,15 @@
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const MAX_BLOB_BYTES = 1024 * 1024; // 1 MB
 
+// Server gold cap (owner-adjustable via server_settings). sanitizeStateBlob
+// clamps player gold to it on every save. Refreshed from the DB at boot and
+// whenever the owner changes it (see db.refreshGoldCap).
+let goldCap = 9e15; // 9000T default
+function setGoldCap(cap) {
+  if (Number.isFinite(cap) && cap >= 1e12) goldCap = cap;
+}
+function getGoldCapValue() { return goldCap; }
+
 // All roles recognized by the server, highest privilege first.
 const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'player'];
 
@@ -93,6 +102,13 @@ function sanitizeStateBlob(blob) {
   sanitizeNumbers(blob);
   for (const [field, [min, max]] of Object.entries(CLAMPED_FIELDS)) {
     if (typeof blob[field] === 'number') {
+      // Gold clamps to the live owner-set cap; the infinite-gold perk
+      // (owner-granted, server-side) bypasses it entirely.
+      if (field === 'gold') {
+        if (blob.infGold === true) continue;
+        blob.gold = clamp(blob.gold, 0, goldCap);
+        continue;
+      }
       blob[field] = clamp(blob[field], min, max);
     }
   }
@@ -110,6 +126,8 @@ module.exports = {
   validateUsername,
   validatePassword,
   sanitizeStateBlob,
+  setGoldCap,
+  getGoldCapValue,
   MAX_BLOB_BYTES,
   VALID_ROLES,
 };

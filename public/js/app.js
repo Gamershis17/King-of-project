@@ -101,6 +101,10 @@ async function boot() {
     onUpgrade: doUpgrade,
     onRecruit: doRecruit,
     onDismiss: doDismiss,
+    onLevelUpCompanion: doLevelUpCompanion,
+    onHatchPet: doHatchPet,
+    onFeedPet: doFeedPet,
+    onSetActivePet: doSetActivePet,
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
@@ -166,20 +170,67 @@ async function enterApp(user) {
     return;
   }
 
+  // Server gold cap (owner-adjustable); failure keeps the built-in default.
+  try {
+    const sj = await api.getSettings();
+    if (sj && Number.isFinite(sj.goldCap)) Engine.setGoldCap(sj.goldCap);
+  } catch { /* offline-tolerant */ }
+
   let state = Engine.ensureState(raw);
 
-  // First run: no race chosen yet.
+  // First run: no race chosen yet → race picker, then class, then (Hunter) pet, then spec.
   if (!state.race) {
     UI.showView('race');
-    UI.renderRaceSelect(async (race) => {
-      App.state = Engine.defaultState(race);
-      try { await api.saveState(App.state); } catch { /* offline-tolerant */ }
-      startGame();
+    UI.renderRaceSelect((race) => {
+      UI.showView('class');
+      UI.renderClassSelect((cls) => {
+        const afterClass = async (petSpecies) => {
+          UI.showView('spec');
+          UI.renderSpecSelect(async (spec) => {
+            const ns = Engine.defaultState(race);
+            ns.playerClass = cls;
+            ns.spec = spec;
+            if (cls === 'hunter' && petSpecies) Engine.addStarterPet(ns, petSpecies);
+            App.state = ns;
+            try { await api.saveState(App.state); } catch { /* offline-tolerant */ }
+            startGame();
+          });
+        };
+        if (cls === 'hunter') {
+          UI.showView('pet');
+          UI.renderPetSelect((speciesId) => afterClass(speciesId));
+        } else {
+          afterClass(null);
+        }
+      });
     });
     return;
   }
 
+  // Existing player missing class or spec: one-time mandatory choice.
+  // Hunters with no pets yet also pick their starter companion here.
+  if (!state.playerClass || !state.spec) {
+    const needsPet = (state.pets && Array.isArray(state.pets.collection) && state.pets.collection.length === 0);
+    UI.classSpecChoiceModal(async (cls, spec, petSpecies) => {
+      if (!state.playerClass) state.playerClass = cls;
+      if (!state.spec) state.spec = spec;
+      if (cls === 'hunter' && petSpecies && state.pets.collection.length === 0) {
+        Engine.addStarterPet(state, petSpecies);
+      }
+      App.state = state;
+      try { await api.saveState(state); } catch { /* offline-tolerant */ }
+      await continueBoot(state, lastSeenAt);
+    }, { lockedClass: state.playerClass, needsPet });
+    return;
+  }
+
   App.state = state;
+  await continueBoot(state, lastSeenAt);
+}
+
+// Everything after race/class selection: init raid, show the app,
+// apply offline earnings, start the game loop.
+async function continueBoot(state, lastSeenAt) {
   Raid.init(state);
   UI.showView('app');
 
@@ -187,10 +238,10 @@ async function enterApp(user) {
   if (lastSeenAt) {
     const off = Engine.offlineEarnings(state, lastSeenAt, Date.now());
     if (off && (off.gold > 0 || off.xp > 0)) {
-      state.gold += off.gold;
+      const addedGold = Engine.addGold(state, off.gold);
       const xpRes = Engine.gainXp(state, off.xp);
       await saveNow();
-      UI.offlineModal({ ...off, gains_xp: xpRes.gained }, xpRes.levels);
+      UI.offlineModal({ ...off, gold: addedGold, gains_xp: xpRes.gained }, xpRes.levels);
       // Well-rested: +25% XP for 30 minutes after returning.
       state.restedUntil = Date.now() + 30 * 60 * 1000;
       await saveNow();
@@ -356,6 +407,18 @@ function companionStrike(c) {
   damageEnemy(dmg, crit ? 'CRIT ' : '', c.emoji + ' ');
 }
 
+// Active pet strikes (every 4s from the combat tick). Hunger-gated: a
+// starving pet sits out. Damage never outshines the hero.
+function petStrike(stats) {
+  if (App.dead || !App.enemy || App.spawnPending) return;
+  const dmg = Engine.petStrikeDamage(App.state, stats);
+  if (dmg <= 0) return;
+  const pet = Engine.activePet(App.state);
+  const sp = pet && Engine.petSpeciesOf(pet);
+  meterHit('pet', sp ? sp.name : 'Pet', dmg);
+  damageEnemy(dmg, '', (sp ? sp.emoji : '🐾') + ' ');
+}
+
 function damageEnemy(dmg, prefix, sourceLabel) {
   const enemy = App.enemy;
   if (!enemy || App.dead || App.spawnPending) return;
@@ -393,21 +456,48 @@ function onKillEnemy() {
 
   let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0), s.prestigeBonus);
   if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
-  s.gold += gold;
+  const addedGold = Engine.addGold(s, gold);
+  const cappedNote = addedGold < gold ? ' · gold cap' : '';
   s.stats.kills += 1;
+  const isDungeonBoss = enemy.boss && s.mode === 'dungeon';
+  const isRaidBoss = inRaid && raidLoot && raidLoot.boss;
   if (enemy.boss) {
     s.bossesKilled += 1;
     s.stars += 1; // bosses grant a star
-    UI.combatLog(`👹 Boss slain! +${formatNum(gold)} gold, +1 ⭐`, 'boss');
-    UI.toast(`Boss slain! +${formatNum(gold)} gold, +1 ⭐`, 'success');
+    UI.combatLog(`👹 Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'boss');
+    UI.toast(`Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'success');
   }
-  const xpRes = Engine.gainXp(s, Engine.xpForKill(stage));
+  const killXp = Engine.xpForKill(stage);
+  const xpRes = Engine.gainXp(s, killXp);
+  // The active pet earns 15% of the kill's XP.
+  const petXpRes = Engine.gainPetXp(s, Math.floor(killXp * 0.15));
+  for (const lv of petXpRes.levels) {
+    const pet = Engine.activePet(s);
+    const petName = pet ? Engine.petSpeciesOf(pet).name : 'Pet';
+    UI.toast(`🐾 ${petName} reached level ${lv}!`, 'success');
+    UI.combatLog(`🐾 ${petName} leveled up to ${lv}!`, 'level');
+  }
   const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null);
   if (loot) {
     s.inventory.push(loot);
     UI.toast(`🎒 Loot: ${loot.name}`, 'loot');
     UI.combatLog(`🎒 Looted ${loot.name} (${loot.rarity})`, 'loot');
     if (UI.activeTab === 'gear') UI.renderGear(s);
+  }
+  // Earnable set pieces (drop sources documented on Engine.PLAYER_SETS).
+  const setDrop = Engine.rollSetDrop(stage, { boss: enemy.boss, dungeonBoss: isDungeonBoss, raidBoss: isRaidBoss });
+  if (setDrop) {
+    s.inventory.push(setDrop);
+    UI.toast(`🔥 Set piece: ${setDrop.name}!`, 'loot');
+    UI.combatLog(`🔥 Looted ${setDrop.name} (${setDrop.setName})`, 'loot');
+    if (UI.activeTab === 'gear') UI.renderGear(s);
+  }
+  // Pet eggs from bosses (drop sources documented on Engine.rollPetEgg).
+  if (Engine.rollPetEgg({ boss: enemy.boss, dungeonBoss: isDungeonBoss, raidBoss: isRaidBoss })) {
+    Engine.ensurePets(s).eggs += 1;
+    UI.toast('🥚 A pet egg dropped! Hatch it in Party → Pets.', 'loot');
+    UI.combatLog('🥚 A pet egg dropped!', 'loot');
+    if (UI.activeTab === 'party') UI.renderParty(s);
   }
   if (xpRes.levels.length) {
     UI.levelUpModal(xpRes.levels);
@@ -431,7 +521,7 @@ function onKillEnemy() {
   spawnNextEnemy();
   UI.updateHUD(s, App.user);
   // prestige unlock may have appeared
-  if (s.stage >= 50) UI.renderBattle(s);
+  if (s.level >= 70) UI.renderBattle(s);
 }
 
 function enemyStrikeTick(stats) {
@@ -481,7 +571,7 @@ function onDefeat() {
   App.dead = true;
   App.respawnAt = Date.now() + RESPAWN_MS;
   const lost = Math.floor(s.gold * 0.02);
-  s.gold -= lost;
+  if (!s.infGold) s.gold -= lost; // infinite-gold perk: death takes nothing
   // Raid: death ends the run (loot kept); drop back to clicker mode.
   if (Raid.isActive()) {
     const res = Raid.onDeath(s);
@@ -573,6 +663,20 @@ function tick() {
         if (App.dead || !App.enemy) break;
       }
     }
+  }
+
+  // The active pet strikes every 4s in every combat mode (hunger-gated).
+  App.petTimer = (App.petTimer || 0) + dt;
+  if (App.petTimer >= Engine.PET_STRIKE_SEC) {
+    App.petTimer = 0;
+    petStrike(stats);
+  }
+
+  // Pet hunger decays with play time (-1 per 5 min).
+  App.petHungerAcc = (App.petHungerAcc || 0) + dt;
+  if (App.petHungerAcc >= Engine.PET_HUNGER_DECAY_SEC) {
+    App.petHungerAcc = 0;
+    Engine.decayPetHunger(s, 1);
   }
 
   // enemy counter-attacks
@@ -689,8 +793,7 @@ function doUpgrade(kind) {
   const s = App.state;
   const lvl = (s.upgrades && s.upgrades[kind]) || 1;
   const cost = Engine.upgradeCost(kind, lvl);
-  if (s.gold < cost) { UI.toast('Not enough gold.', 'error'); return; }
-  s.gold -= cost;
+  if (!Engine.spendGold(s, cost)) { UI.toast('Not enough gold.', 'error'); return; }
   s.upgrades[kind] = lvl + 1;
   UI.renderGear(s);
   UI.updateHUD(s, App.user);
@@ -716,8 +819,7 @@ function doProfession(id) {
   if (!s) return;
   const cost = Engine.levelProfession(s, id);
   if (cost == null) { UI.toast('Max level reached.', 'error'); return; }
-  if (s.gold < cost) { UI.toast('Not enough gold.', 'error'); return; }
-  s.gold -= cost;
+  if (!Engine.spendGold(s, cost)) { UI.toast('Not enough gold.', 'error'); return; }
   s.professions[id] = ((s.professions && s.professions[id]) || 1) + 1;
   UI.renderMore(s, App.user);
   UI.updateHUD(s, App.user);
@@ -731,13 +833,28 @@ function doRecruit(recruitId) {
   if (!r) return;
   if (s.party.length >= Engine.MAX_PARTY) { UI.toast('Party is full (3).', 'error'); return; }
   if (s.party.some(c => c.name === r.name)) { UI.toast('Already recruited.', 'error'); return; }
-  if (s.gold < r.cost) { UI.toast('Not enough gold.', 'error'); return; }
-  s.gold -= r.cost;
+  if (!Engine.spendGold(s, r.cost)) { UI.toast('Not enough gold.', 'error'); return; }
   const c = Engine.makeCompanion(r, s.level);
   s.party.push(c);
   UI.renderParty(s);
   UI.updateHUD(s, App.user);
   UI.toast(`${r.emoji} ${r.name} joined your party!`, 'success');
+  saveNow();
+}
+
+function doLevelUpCompanion(id) {
+  const s = App.state;
+  const c = (s.party || []).find(x => x && x.id === id);
+  if (!c) return;
+  const res = Engine.levelUpCompanion(s, id);
+  if (!res.ok) {
+    if (res.reason === 'gold') UI.toast(`Not enough gold (need 💰${formatNum(res.cost)}).`, 'error');
+    else UI.toast('Could not level up.', 'error');
+    return;
+  }
+  UI.renderParty(s);
+  UI.updateHUD(s, App.user);
+  UI.toast(`${c.emoji} ${c.name} leveled up to Lv ${res.level}! (+3⚔️ +1🛡️ +20❤️)`, 'success');
   saveNow();
 }
 
@@ -749,6 +866,49 @@ function doDismiss(id) {
   delete App.companionTimers[id];
   UI.renderParty(s);
   UI.toast(`${c.name} left the party.`, 'info');
+  saveNow();
+}
+
+// ---------------- pets ----------------
+function doHatchPet() {
+  const s = App.state;
+  if (!s) return;
+  const pet = Engine.hatchPet(s);
+  if (!pet) {
+    UI.toast('No pet eggs to hatch — bosses sometimes drop them.', 'info');
+    return;
+  }
+  const sp = Engine.petSpeciesOf(pet);
+  UI.toast(`🥚 Hatched a ${sp.name}! ${sp.emoji}`, 'success');
+  UI.combatLog(`🥚 Hatched ${sp.emoji} ${sp.name}!`, 'loot');
+  UI.renderParty(s);
+  checkAch(); // first-hatch / pack titles
+  saveNow();
+}
+
+function doFeedPet(petUid) {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.feedPet(s, petUid);
+  if (!res.ok) {
+    UI.toast(res.reason === 'gold' ? 'Not enough gold to feed.' : res.reason === 'full' ? 'That pet is full.' : 'Pet not found.', 'error');
+    return;
+  }
+  UI.toast(`🍖 Fed for 💰${formatNum(res.cost)} gold.`, 'success');
+  UI.renderParty(s);
+  saveNow();
+}
+
+function doSetActivePet(petUid) {
+  const s = App.state;
+  if (!s) return;
+  const p = Engine.ensurePets(s);
+  const pet = p.collection.find(x => x.uid === petUid);
+  if (!pet) return;
+  p.activeUid = petUid;
+  const sp = Engine.petSpeciesOf(pet);
+  UI.toast(`${sp.emoji} ${sp.name} is now your active pet!`, 'success');
+  UI.renderParty(s);
   saveNow();
 }
 
@@ -772,7 +932,7 @@ function applyExternalState(srv) {
 
 async function doPrestige() {
   const s = App.state;
-  if (s.stage < 50) return;
+  if (s.level < 70) return;
   const nextBonus = (s.prestigeBonus || 0) + 25;
   const ok = await UI.confirm(
     '🔥 Prestige?',

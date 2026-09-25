@@ -23,6 +23,7 @@ const {
   getUserByUsername,
   createUserWithRole,
   ownerExists,
+  refreshGoldCap,
 } = require('./src/db');
 const { authRouter } = require('./src/auth');
 const { gameRouter } = require('./src/gameApi');
@@ -121,6 +122,8 @@ async function main() {
   // Fail fast if Postgres is unreachable or migrations break.
   await migrate();
   console.log('[db] schema ready');
+  await refreshGoldCap();
+  console.log('[db] gold cap loaded');
 
   const ownerResult = await seedOwnerIfNeeded();
 
