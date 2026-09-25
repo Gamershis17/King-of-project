@@ -376,9 +376,42 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .recruit-legendary { border-color: #ffd70055; }
 .recruit-mythic { border-color: #c678dd77; }
 
+/* ---------- pet shop ---------- */
+.pet-shop {
+  background: linear-gradient(180deg, var(--stone2), var(--stone));
+  border: 1px solid var(--stone2);
+  border-radius: 16px;
+  padding: 0.85rem;
+  box-shadow: 0 14px 34px rgba(0,0,0,.48), 0 3px 10px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.07);
+}
+.shop-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.65rem; }
+.shop-title { font-weight: 800; font-size: 1.05rem; text-shadow: 0 2px 6px rgba(0,0,0,.5); }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.65rem; }
+.shop-card {
+  background: rgba(0,0,0,.22);
+  border: 1px solid var(--stone2);
+  border-radius: 14px;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+  justify-items: center;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+  transition: transform .18s ease, box-shadow .25s ease, border-color .25s ease;
+}
+.shop-card:hover { transform: translateY(-2px); border-color: rgba(139,92,246,.45); box-shadow: 0 12px 26px rgba(0,0,0,.45), 0 0 18px rgba(139,92,246,.22), inset 0 1px 0 rgba(255,255,255,.06); }
+.shop-emoji { font-size: 2.4rem; filter: drop-shadow(0 6px 10px rgba(0,0,0,.55)); }
+.shop-name { font-weight: 800; }
+.shop-desc { min-height: 2.2em; }
+.shop-owned { font-size: 0.85rem; color: #ffd23f; }
+.shop-card .btn:active { transform: scale(.95); }
+@media (max-width: 480px) {
+  .shop-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- pets ---------- */
 .pets-panel { display: grid; gap: 0.7rem; }
-.pet-eggs { background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem; }
+.pet-eggs { background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem; display: grid; gap: 0.4rem; }
 .pet-list { display: grid; gap: 0.6rem; }
 .pet-card { background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem; display: grid; gap: 0.45rem; }
 .pet-card.active { border-color: #ffd700; }

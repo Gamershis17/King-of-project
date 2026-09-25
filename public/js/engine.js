@@ -727,8 +727,26 @@ export const HUNTER_STARTERS = ['tiger', 'bear', 'lion', 'cinderpup'];
 export const PET_STRIKE_SEC = 4;
 export const PET_HUNGER_DECAY_SEC = 300; // -1 hunger per 5 min of active play
 
+// ---------------- Pet Shop ----------------
+// The Pet Shop (Party tab → Pets) sells tiered eggs for gold; tier eggs
+// guarantee a minimum rarity, unlike wild eggs dropped by bosses.
+// pool: null = weighted roll over all non-starter species; otherwise a
+// fixed list the egg hatches from (equal chance within the list).
+export const EGG_TIERS = {
+  wild:    { name: 'Wild Egg',    emoji: '🥚', price: 0,
+             desc: 'Dropped by bosses — hatches any companion species.', pool: null },
+  common:  { name: 'Common Egg',  emoji: '🐣', price: 5000,
+             desc: 'Guaranteed Cinder Pup — a loyal, balanced starter.', pool: ['cinderpup'] },
+  glowing: { name: 'Glowing Egg', emoji: '✨', price: 25000,
+             desc: 'Hatches a Frost Sprite or Storm Hawk.', pool: ['frostsprite', 'stormhawk'] },
+  radiant: { name: 'Radiant Egg', emoji: '💎', price: 100000,
+             desc: 'Hatches an Ember Fox or Tide Turtle.', pool: ['emberfox', 'tideturtle'] },
+};
+export const SHOP_EGG_TIERS = ['common', 'glowing', 'radiant'];
+
 export function defaultPets() {
-  return { collection: [], activeUid: null, eggs: 0 };
+  return { collection: [], activeUid: null, eggs: 0,
+           shopEggs: { common: 0, glowing: 0, radiant: 0 } };
 }
 
 // Normalizes s.pets in place and returns it.
@@ -747,6 +765,12 @@ export function ensurePets(s) {
     if (!x.uid) x.uid = uid();
   }
   p.eggs = Math.max(0, Math.floor(Number(p.eggs) || 0));
+  // Shop eggs: tiered purchases from the Pet Shop. Normalize for old saves
+  // that predate the shop (wild boss-drop eggs live in p.eggs).
+  if (!p.shopEggs || typeof p.shopEggs !== 'object') p.shopEggs = {};
+  for (const t of SHOP_EGG_TIERS) {
+    p.shopEggs[t] = Math.max(0, Math.floor(Number(p.shopEggs[t]) || 0));
+  }
   if (p.activeUid && !p.collection.some(x => x.uid === p.activeUid)) p.activeUid = null;
   return p;
 }
@@ -760,15 +784,20 @@ export function petSpeciesOf(pet) {
   return (pet && PET_SPECIES[pet.species]) || null;
 }
 
-// Pet eggs drop from bosses: 8% any boss, 12% dungeon boss, 10% raid boss.
-// Hatching picks a species by rarity weight.
+// Pet eggs drop from bosses: flat 15% on any boss kill (normal bosses,
+// dungeon bosses, raid bosses). Regular enemies never drop eggs.
 export function rollPetEgg({ boss = false, dungeonBoss = false, raidBoss = false } = {}) {
-  const chance = raidBoss ? 0.10 : dungeonBoss ? 0.12 : boss ? 0.08 : 0;
-  return chance > 0 && Math.random() < chance;
+  const isBoss = boss || dungeonBoss || raidBoss;
+  return isBoss && Math.random() < 0.15;
 }
 
-export function rollPetSpeciesId() {
-  // Starter-only species are never hatched from eggs.
+export function rollPetSpeciesId(tier = 'wild') {
+  // Tiered shop eggs hatch from a fixed pool (equal chance within it);
+  // starter-only species are never hatchable.
+  if (tier && tier !== 'wild' && EGG_TIERS[tier] && EGG_TIERS[tier].pool) {
+    const pool = EGG_TIERS[tier].pool.filter(id => PET_SPECIES[id] && !PET_SPECIES[id].starterOnly);
+    if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
+  }
   const pool = Object.keys(PET_SPECIES).filter(id => !PET_SPECIES[id].starterOnly);
   const ids = pool.length ? pool : Object.keys(PET_SPECIES);
   const total = ids.reduce((a, id) => a + PET_SPECIES[id].weight, 0);
@@ -790,16 +819,34 @@ export function addStarterPet(s, speciesId) {
   return pet;
 }
 
-// Consumes one egg and adds a new pet (auto-active if none). Returns the pet or null.
-export function hatchPet(s) {
+// Consumes one egg and adds a new pet (auto-active if none). tier is
+// 'wild' (boss-drop egg) or a shop tier id. Returns the pet or null.
+export function hatchPet(s, tier = 'wild') {
   const p = ensurePets(s);
-  if (p.eggs < 1) return null;
-  p.eggs -= 1;
-  const species = rollPetSpeciesId();
+  if (tier && tier !== 'wild') {
+    if (!SHOP_EGG_TIERS.includes(tier) || (p.shopEggs[tier] || 0) < 1) return null;
+    p.shopEggs[tier] -= 1;
+  } else {
+    if (p.eggs < 1) return null;
+    p.eggs -= 1;
+    tier = 'wild';
+  }
+  const species = rollPetSpeciesId(tier);
   const pet = { uid: uid(), species, level: 1, xp: 0, xpNext: petXpForLevel(1), hunger: 100 };
   p.collection.push(pet);
   if (!p.activeUid) p.activeUid = pet.uid;
   return pet;
+}
+
+// Buys one shop egg for gold. Respects the owner infinite-gold perk
+// (spendGold bypasses deduction). Returns {ok, reason}.
+export function buyEgg(s, tier) {
+  const p = ensurePets(s);
+  if (!SHOP_EGG_TIERS.includes(tier)) return { ok: false, reason: 'bad-tier' };
+  const price = EGG_TIERS[tier].price;
+  if (!spendGold(s, price)) return { ok: false, reason: 'gold' };
+  p.shopEggs[tier] = (p.shopEggs[tier] || 0) + 1;
+  return { ok: true, tier };
 }
 
 export function petFeedCost(pet, state) {

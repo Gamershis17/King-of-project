@@ -136,9 +136,10 @@ export const UI = {
       if (btn.dataset.action === 'recruit' && h.onRecruit) h.onRecruit(btn.dataset.id);
       if (btn.dataset.action === 'dismiss' && h.onDismiss) h.onDismiss(btn.dataset.id);
       if (btn.dataset.action === 'levelup' && h.onLevelUpCompanion) h.onLevelUpCompanion(btn.dataset.id);
-      if (btn.dataset.action === 'hatch-pet' && h.onHatchPet) h.onHatchPet();
+      if (btn.dataset.action === 'hatch-pet' && h.onHatchPet) h.onHatchPet(btn.dataset.tier || 'wild');
       if (btn.dataset.action === 'feed-pet' && h.onFeedPet) h.onFeedPet(btn.dataset.id);
       if (btn.dataset.action === 'set-active-pet' && h.onSetActivePet) h.onSetActivePet(btn.dataset.id);
+      if (btn.dataset.action === 'buy-egg' && h.onBuyEgg) h.onBuyEgg(btn.dataset.tier);
     });
 
     // Ranks refresh
@@ -932,24 +933,63 @@ export const UI = {
   },
 
   // ---------------- pets ----------------
-  // Pets UI lives in the Party tab. Species cards show level, hunger, and
-  // feed/set-active actions; eggs hatch instantly from here.
+  // Pets UI lives in the Party tab. The Pet Shop sells tiered eggs for gold
+  // (guaranteed rarity pools); wild eggs drop from bosses (15%) and hatch
+  // any species. All hatching is instant from here.
   renderPets(state) {
     const panel = this.els['pets-panel'];
     panel.innerHTML = '';
     const p = Engine.ensurePets(state);
+
+    // --- Pet Shop ---
+    const shop = document.createElement('div');
+    shop.className = 'pet-shop';
+    const cards = Engine.SHOP_EGG_TIERS.map(tier => {
+      const t = Engine.EGG_TIERS[tier];
+      const owned = p.shopEggs[tier] || 0;
+      const afford = state.infGold === true || state.gold >= t.price;
+      const priceLabel = state.infGold === true ? '∞ FREE' : `💰 ${formatNum(t.price)}`;
+      return `
+        <div class="shop-card">
+          <div class="shop-emoji">${t.emoji}</div>
+          <div class="shop-name">${esc(t.name)}</div>
+          <div class="muted small shop-desc">${esc(t.desc)}</div>
+          ${owned > 0 ? `<div class="shop-owned">You own: <b>${owned}</b></div>` : ''}
+          <button class="btn small" data-action="buy-egg" data-tier="${tier}" ${afford ? '' : 'disabled'}>
+            ${afford ? `Buy · ${priceLabel}` : `Need ${priceLabel}`}
+          </button>
+        </div>`;
+    }).join('');
+    shop.innerHTML = `
+      <div class="shop-head"><span class="shop-title">🐾 Pet Shop</span>
+        <span class="muted small">guaranteed rarity — bosses can drop wild eggs too</span></div>
+      <div class="shop-grid">${cards}</div>`;
+    panel.appendChild(shop);
+
+    // --- Eggs ---
     const eggRow = document.createElement('div');
     eggRow.className = 'pet-eggs';
+    const wild = p.eggs;
+    const tierRows = Engine.SHOP_EGG_TIERS
+      .filter(tier => (p.shopEggs[tier] || 0) > 0)
+      .map(tier => {
+        const t = Engine.EGG_TIERS[tier];
+        return `
+          <div class="row-between">
+            <span>${t.emoji} ${esc(t.name)}: <b>${p.shopEggs[tier]}</b></span>
+            <button class="btn small" data-action="hatch-pet" data-tier="${tier}">Hatch ${t.emoji}</button>
+          </div>`;
+      }).join('');
     eggRow.innerHTML = `
       <div class="row-between">
-        <span>🥚 Pet eggs: <b>${p.eggs}</b> <span class="muted small">(bosses drop them)</span></span>
-        <button class="btn small" data-action="hatch-pet" ${p.eggs < 1 ? 'disabled' : ''}>Hatch 🥚</button>
-      </div>`;
+        <span>🥚 Wild eggs: <b>${wild}</b> <span class="muted small">(15% drop from bosses)</span></span>
+        <button class="btn small" data-action="hatch-pet" data-tier="wild" ${wild < 1 ? 'disabled' : ''}>Hatch 🥚</button>
+      </div>${tierRows}`;
     panel.appendChild(eggRow);
     if (!p.collection.length) {
       const empty = document.createElement('p');
       empty.className = 'muted small';
-      empty.textContent = 'No pets yet. Slay bosses for a chance at a pet egg!';
+      empty.textContent = 'No pets yet. Buy an egg in the shop above, or slay bosses for a wild egg!';
       panel.appendChild(empty);
       return;
     }

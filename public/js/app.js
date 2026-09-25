@@ -105,6 +105,7 @@ async function boot() {
     onHatchPet: doHatchPet,
     onFeedPet: doFeedPet,
     onSetActivePet: doSetActivePet,
+    onBuyEgg: doBuyEgg,
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
@@ -872,12 +873,13 @@ function doDismiss(id) {
 }
 
 // ---------------- pets ----------------
-function doHatchPet() {
+function doHatchPet(tier) {
   const s = App.state;
   if (!s) return;
-  const pet = Engine.hatchPet(s);
+  const t = (typeof tier === 'string' && (tier === 'wild' || Engine.SHOP_EGG_TIERS.includes(tier))) ? tier : 'wild';
+  const pet = Engine.hatchPet(s, t);
   if (!pet) {
-    UI.toast('No pet eggs to hatch — bosses sometimes drop them.', 'info');
+    UI.toast('No pet eggs to hatch — bosses drop them, or buy one in the Pet Shop.', 'info');
     return;
   }
   const sp = Engine.petSpeciesOf(pet);
@@ -885,6 +887,22 @@ function doHatchPet() {
   UI.combatLog(`🥚 Hatched ${sp.emoji} ${sp.name}!`, 'loot');
   UI.renderParty(s);
   checkAch(); // first-hatch / pack titles
+  saveNow();
+}
+
+function doBuyEgg(tier) {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.buyEgg(s, tier);
+  if (!res.ok) {
+    UI.toast(res.reason === 'gold' ? 'Not enough gold for that egg.' : 'That egg is not for sale.', 'error');
+    return;
+  }
+  const t = Engine.EGG_TIERS[tier];
+  const priceNote = s.infGold ? ' (∞ gold)' : ` for 💰${formatNum(t.price)} gold`;
+  UI.toast(`${t.emoji} Bought a ${t.name}${priceNote}!`, 'success');
+  UI.combatLog(`🛒 Bought ${t.emoji} ${t.name} from the Pet Shop.`, 'loot');
+  UI.renderParty(s);
   saveNow();
 }
 
