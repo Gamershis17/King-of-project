@@ -1,0 +1,44 @@
+# Render Blueprint for King of Project
+# Deploy via Render dashboard: New → Blueprint → point it at this repo.
+services:
+  - type: web
+    name: king-of-project
+    runtime: docker          # builds the Dockerfile in this folder
+    plan: free
+    healthCheckPath: /api/leaderboard
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: OWNER_USERNAME
+        generateValue: true
+        description: "Login username for the owner account. You sign in with this
+          name on the website's login screen. You can change it to your own name."
+      - key: OWNER_PASSWORD
+        generateValue: true
+        description: "Login password for the owner account. Render generates a random
+          one — copy it from the Environment tab and keep it somewhere safe. You
+          can change it to your own password."
+      - key: DATABASE_URL
+        description: "PostgreSQL connection string — this is what keeps accounts,
+          saves and the leaderboard alive across restarts. Get a FREE Postgres
+          database at Neon (neon.tech) or Supabase (supabase.com), create a
+          database, and paste its connection string here
+          (postgres://user:password@host:5432/dbname). SSL is enabled
+          automatically for non-localhost hosts."
+
+    # --- Persistence ---
+    # All accounts, saves, sessions, gift codes and the leaderboard now live in
+    # PostgreSQL via DATABASE_URL (above) — NOT on the local disk. That is what
+    # makes progress survive restarts, redeploys and sleep/wake cycles on the
+    # free plan.
+    #
+    # WARNING: Render's free-tier filesystem is still EPHEMERAL. Do not store
+    # anything you need to keep on the local disk — anything written outside
+    # Postgres is wiped on every restart/redeploy/sleep-wake.
+    #
+    # The old SQLite implementation is preserved as a fallback in
+    # sqlite-legacy/ (see its README), but the live server no longer uses it.

@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# SQLite database (created at runtime; never commit player data)
+data/
+
+# Local secrets
+.env
+
+# Logs
+*.log
+
+# macOS
+.DS_Store

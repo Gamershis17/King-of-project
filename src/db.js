@@ -1,0 +1,288 @@
+'use strict';
+
+/**
+ * PostgreSQL database layer (node-postgres `pg`).
+ *
+ * Connection comes from DATABASE_URL. SSL is enabled with
+ * { rejectUnauthorized: false } for any non-localhost URL (required by
+ * Neon / Supabase on Render); plain TCP is used for localhost.
+ * Local fallback when DATABASE_URL is unset:
+ *   postgres://localhost:5432/king_of_project
+ * (create that database and make sure the OS user can connect, e.g. via
+ * peer/trust auth — see README).
+ *
+ * Schema is applied at boot by migrate() (CREATE TABLE IF NOT EXISTS).
+ * All queries are parameterized ($1, $2, ...). Every function is async.
+ */
+
+const fs = require('fs');
+const path = require('path');
+const { Pool } = require('pg');
+const { sanitizeStateBlob } = require('./validation');
+
+function buildPoolConfig() {
+  const connectionString =
+    process.env.DATABASE_URL || 'postgres://localhost:5432/king_of_project';
+  const isLocal = /(^|[@:/])(localhost|127\.0\.0\.1)([:/]|$)/.test(connectionString);
+  return {
+    connectionString,
+    // Hosted Postgres (Neon, Supabase, ...) requires TLS; their certs are
+    // not in the default trust chain, so we don't reject unauthorized certs.
+    ssl: isLocal ? false : { rejectUnauthorized: false },
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  };
+}
+
+const pool = new Pool(buildPoolConfig());
+
+pool.on('error', (err) => {
+  console.error('[db] unexpected pool error:', err.message);
+});
+
+/** Create tables/indexes if missing. Safe to run on every boot. */
+async function migrate() {
+  const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+  await pool.query(sql);
+}
+
+async function closePool() {
+  await pool.end();
+}
+
+// ---------- users ----------
+async function getUserByUsername(username) {
+  const { rows } = await pool.query(
+    'SELECT * FROM users WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+  return rows[0] || null;
+}
+
+async function getUserById(id) {
+  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  return rows[0] || null;
+}
+
+async function createUser(username, passwordHash) {
+  return createUserWithRole(username, passwordHash, 'player');
+}
+
+async function createUserWithRole(username, passwordHash, role) {
+  const { rows } = await pool.query(
+    'INSERT INTO users (username, password_hash, role, created_at) VALUES ($1, $2, $3, $4) RETURNING *',
+    [username, passwordHash, role, Date.now()]
+  );
+  return rows[0];
+}
+
+async function setUserRole(userId, role) {
+  await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+}
+
+async function ownerExists() {
+  const { rows } = await pool.query("SELECT COUNT(*) AS n FROM users WHERE role = 'owner'");
+  return Number(rows[0].n) > 0;
+}
+
+async function getPlayerCount() {
+  const { rows } = await pool.query('SELECT COUNT(*) AS n FROM users');
+  return Number(rows[0].n);
+}
+
+async function getUsernamesByRole(role) {
+  const { rows } = await pool.query(
+    'SELECT username FROM users WHERE role = $1 ORDER BY username ASC',
+    [role]
+  );
+  return rows.map((r) => r.username);
+}
+
+// ---------- player state ----------
+async function getStateRow(userId) {
+  const { rows } = await pool.query('SELECT * FROM player_state WHERE user_id = $1', [userId]);
+  return rows[0] || null;
+}
+
+/** Works with a Pool or a transaction Client (both expose .query). */
+async function upsertState(q, userId, blob) {
+  const level = Math.max(1, Math.floor(Number(blob.level) || 1));
+  const stage = Math.max(1, Math.floor(Number(blob.stage) || 1));
+  const bossesKilled = Math.max(0, Math.floor(Number(blob.bossesKilled) || 0));
+  const prestigeCount = Math.max(0, Math.floor(Number(blob.prestigeCount) || 0));
+  await q.query(
+    `INSERT INTO player_state (user_id, level, stage, bosses_killed, prestige_count, state_json, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (user_id) DO UPDATE SET
+       level = EXCLUDED.level,
+       stage = EXCLUDED.stage,
+       bosses_killed = EXCLUDED.bosses_killed,
+       prestige_count = EXCLUDED.prestige_count,
+       state_json = EXCLUDED.state_json,
+       updated_at = EXCLUDED.updated_at`,
+    [userId, level, stage, bossesKilled, prestigeCount, JSON.stringify(blob), Date.now()]
+  );
+}
+
+/**
+ * Save a full player state. `blob` is the sanitized state object.
+ * Indexed columns are derived from the blob.
+ */
+async function saveState(userId, blob) {
+  await upsertState(pool, userId, blob);
+}
+
+async function getLeaderboardRows(limit = 100) {
+  const { rows } = await pool.query(
+    `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.prestige_count, ps.state_json
+     FROM player_state ps
+     JOIN users u ON u.id = ps.user_id
+     ORDER BY ps.level DESC, ps.stage DESC, ps.bosses_killed DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return rows;
+}
+
+// ---------- gift codes ----------
+async function getGiftCode(code) {
+  const { rows } = await pool.query('SELECT * FROM gift_codes WHERE code = $1', [code]);
+  return rows[0] || null;
+}
+
+async function createGiftCode(code, gearSet, maxUses, createdBy) {
+  await pool.query(
+    'INSERT INTO gift_codes (code, gear_set, max_uses, uses, created_by, created_at) VALUES ($1, $2, $3, 0, $4, $5)',
+    [code, gearSet, maxUses, createdBy, Date.now()]
+  );
+}
+
+async function incrementCodeUses(code) {
+  await pool.query('UPDATE gift_codes SET uses = uses + 1 WHERE code = $1', [code]);
+}
+
+async function listGiftCodes() {
+  const { rows } = await pool.query(
+    'SELECT code, gear_set, max_uses, uses, created_at FROM gift_codes ORDER BY created_at DESC'
+  );
+  return rows;
+}
+
+async function getCodeCount() {
+  const { rows } = await pool.query('SELECT COUNT(*) AS n FROM gift_codes');
+  return Number(rows[0].n);
+}
+
+async function hasRedeemed(code, userId) {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM code_redemptions WHERE code = $1 AND user_id = $2',
+    [code, userId]
+  );
+  return rows.length > 0;
+}
+
+async function addRedemption(code, userId) {
+  await pool.query(
+    'INSERT INTO code_redemptions (code, user_id, redeemed_at) VALUES ($1, $2, $3)',
+    [code, userId, Date.now()]
+  );
+}
+
+function redeemError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
+
+/**
+ * Redeem a gift code atomically.
+ *
+ * Runs in a single transaction with SELECT ... FOR UPDATE on the gift_codes
+ * row, so concurrent redemptions serialize on the row lock and cannot
+ * double-spend uses. `grantFn(giftCodeRow, blob)` merges the reward into the
+ * player's blob (may throw to abort, e.g. invalid gear set config).
+ * `defaultBlobFn()` supplies a fresh blob when the player has no saved row.
+ *
+ * Returns the gear_set id. Throws errors with .code:
+ *   REDEEM_NOT_FOUND | REDEEM_EXHAUSTED | REDEEM_ALREADY
+ */
+async function redeemGiftCode(code, userId, grantFn, defaultBlobFn) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      'SELECT * FROM gift_codes WHERE code = $1 FOR UPDATE',
+      [code]
+    );
+    const giftCode = rows[0] || null;
+    if (!giftCode) throw redeemError('REDEEM_NOT_FOUND');
+    if (giftCode.uses >= giftCode.max_uses) throw redeemError('REDEEM_EXHAUSTED');
+    const dup = await client.query(
+      'SELECT 1 FROM code_redemptions WHERE code = $1 AND user_id = $2',
+      [code, userId]
+    );
+    if (dup.rows.length > 0) throw redeemError('REDEEM_ALREADY');
+
+    const srow = await client.query(
+      'SELECT state_json FROM player_state WHERE user_id = $1',
+      [userId]
+    );
+    let blob = null;
+    if (srow.rows.length > 0) {
+      try {
+        const parsed = JSON.parse(srow.rows[0].state_json);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) blob = parsed;
+      } catch {
+        // fall through to default blob
+      }
+    }
+    if (!blob) blob = defaultBlobFn();
+    blob = grantFn(giftCode, blob) || blob;
+    const sanitized = sanitizeStateBlob(blob);
+    await upsertState(client, userId, sanitized.ok ? sanitized.state : blob);
+
+    await client.query('UPDATE gift_codes SET uses = uses + 1 WHERE code = $1', [code]);
+    await client.query(
+      'INSERT INTO code_redemptions (code, user_id, redeemed_at) VALUES ($1, $2, $3)',
+      [code, userId, Date.now()]
+    );
+    await client.query('COMMIT');
+    return giftCode.gear_set;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors; the original error is what matters
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = {
+  pool,
+  buildPoolConfig,
+  migrate,
+  closePool,
+  getUserByUsername,
+  getUserById,
+  createUser,
+  createUserWithRole,
+  setUserRole,
+  ownerExists,
+  getPlayerCount,
+  getUsernamesByRole,
+  getStateRow,
+  saveState,
+  getLeaderboardRows,
+  getGiftCode,
+  createGiftCode,
+  incrementCodeUses,
+  listGiftCodes,
+  getCodeCount,
+  hasRedeemed,
+  addRedemption,
+  redeemGiftCode,
+};
