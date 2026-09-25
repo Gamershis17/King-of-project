@@ -840,7 +840,8 @@ function mountGuild() {
 // Polls for staff broadcasts; toasts any announcement newer than the last seen.
 async function pollBroadcast() {
   try {
-    const b = await api.latestBroadcast();
+    const r = await api.latestBroadcast();
+    const b = r && r.broadcast;
     if (!b || !b.id) return;
     let seen = 0;
     try { seen = Number(localStorage.getItem('kop-broadcast-seen') || 0); } catch { /* ignore */ }
