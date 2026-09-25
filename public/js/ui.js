@@ -62,6 +62,25 @@ export const UI = {
   settings: { damageNumbers: true, reduceMotion: false },
   activeTab: 'battle',
 
+  // Player customization presets (Settings → Buttons / Background).
+  // `css` is the swatch preview; the real styling lives in style.css
+  // under body[data-btnstyle="..."] / body[data-bgstyle="..."].
+  BTN_STYLES: [
+    { id: 'default', name: 'Arcane Purple', css: 'linear-gradient(135deg,#9a6ff7,#5b3ba8)' },
+    { id: 'ocean',   name: 'Ocean Blue',    css: 'linear-gradient(135deg,#6cb8f5,#1d4fa3)' },
+    { id: 'crimson', name: 'Crimson',       css: 'linear-gradient(135deg,#f06666,#7f1d1d)' },
+    { id: 'emerald', name: 'Emerald',       css: 'linear-gradient(135deg,#5eeaa8,#065f46)' },
+    { id: 'gold',    name: 'Royal Gold',    css: 'linear-gradient(135deg,#ffd97a,#7a560e)' },
+    { id: 'mono',    name: 'Shadow Mono',   css: 'linear-gradient(135deg,#9aa0b4,#2e313c)' },
+  ],
+  BG_STYLES: [
+    { id: 'default',   name: 'Default Dark',  css: '#12101a' },
+    { id: 'deepspace', name: 'Deep Space',    css: 'radial-gradient(circle at 30% 25%, #3b2a7a, #0d0a18 72%)' },
+    { id: 'crimson',   name: 'Crimson Night', css: 'radial-gradient(circle at 30% 25%, #5e1f2a, #150b0e 72%)' },
+    { id: 'emerald',   name: 'Emerald Depths',css: 'radial-gradient(circle at 30% 25%, #14503c, #08120e 72%)' },
+    { id: 'midnight',  name: 'Midnight Blue', css: 'radial-gradient(circle at 30% 25%, #1d3a6e, #080d18 72%)' },
+  ],
+
   // ---------------- init ----------------
   init() {
     try {
@@ -206,6 +225,9 @@ export const UI = {
       });
     }
     this.setUiStyleSeg(document.body.dataset.uistyle === 'classic' ? 'classic' : 'modern');
+
+    // Custom button / background pickers (Settings)
+    this._renderStylePickers();
 
     // GM back button
     const gmBack = this.els['gm-back'];
@@ -638,6 +660,34 @@ export const UI = {
     if (!seg) return;
     const cur = style === 'classic' ? 'classic' : 'modern';
     seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.uistyle === cur));
+  },
+
+  // Builds the Settings swatch pickers for button/background styles.
+  _renderStylePickers() {
+    const mk = (list, elId, handler) => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.innerHTML = list.map((p) =>
+        `<button type="button" class="swatch" data-style="${p.id}" title="${p.name}" aria-label="${p.name}">` +
+        `<span class="dot" style="background:${p.css}"></span><span class="lbl">${p.name}</span></button>`
+      ).join('');
+      el.querySelectorAll('.swatch').forEach((b) => {
+        b.addEventListener('click', () => { if (this.handlers[handler]) this.handlers[handler](b.dataset.style); });
+      });
+    };
+    mk(this.BTN_STYLES, 'btn-style-picker', 'onBtnStyle');
+    mk(this.BG_STYLES, 'bg-style-picker', 'onBgStyle');
+  },
+
+  // Marks the active swatches after a style change or on load.
+  syncCustomStyles(btnStyle, bgStyle) {
+    const mark = (elId, cur) => {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.querySelectorAll('.swatch').forEach((b) => b.classList.toggle('active', b.dataset.style === cur));
+    };
+    mark('btn-style-picker', btnStyle || 'default');
+    mark('bg-style-picker', bgStyle || 'default');
   },
 
   // Quick shake + white flash on the enemy card when it takes a hit.

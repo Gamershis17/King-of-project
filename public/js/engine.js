@@ -4,6 +4,12 @@
 // Follows ~/workspace/rpg-server/API_CONTRACT.md exactly.
 // ============================================================
 
+// ---------------- Player cosmetic styles ----------------
+// Custom button / background presets (Settings). Cosmetic only —
+// unknown values normalize to 'default' in ensureState() and prestige().
+export const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
+export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight'];
+
 // ---------------- Races ----------------
 export const RACES = {
   human:     { name: 'Human Vanguard', emoji: '🛡️', trait: 'Balanced: +10% XP gain',
@@ -182,6 +188,9 @@ export function ensureState(raw) {
   if (typeof s.activeTitle !== 'string' || !s.activeTitle) s.activeTitle = s.titlesUnlocked[0];
   if (typeof s.badge !== 'string' || !BADGE_BY_ID[s.badge]) s.badge = null; // unknown badges cleared
   if (typeof s.country !== 'string' || !isValidCountry(s.country)) s.country = null;
+  // Custom button/background styles; unknown values reset to default.
+  if (!BTN_STYLE_IDS.includes(s.btnStyle)) s.btnStyle = 'default';
+  if (!BG_STYLE_IDS.includes(s.bgStyle)) s.bgStyle = 'default';
   s.infGold = s.infGold === true; // owner-only perk flag
   s.restedUntil = Number(raw.restedUntil) || 0;
   // Clamp over-cap gold (e.g. after the owner lowers the cap). The
@@ -1087,6 +1096,9 @@ export function prestige(state) {
   fresh.country = (typeof state.country === 'string' && isValidCountry(state.country)) ? state.country : null;
   fresh.mode = state.mode || 'clicker';
   fresh.infGold = state.infGold === true; // owner perk survives prestige
+  // Custom button/background styles are cosmetic prefs — they survive prestige.
+  fresh.btnStyle = BTN_STYLE_IDS.includes(state.btnStyle) ? state.btnStyle : 'default';
+  fresh.bgStyle = BG_STYLE_IDS.includes(state.bgStyle) ? state.bgStyle : 'default';
   // Class is identity (like race) — it survives prestige.
   fresh.playerClass = (state.playerClass && CLASSES[state.playerClass]) ? state.playerClass : null;
   // Specialization is identity too — it survives prestige.

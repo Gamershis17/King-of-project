@@ -8,6 +8,15 @@
   --stone2: #2e2742;
   --arcane: #8b5cf6;
   --arcane-dim: #5b3ba8;
+  /* primary button language — overridden by body[data-btnstyle] presets */
+  --btn-hi: #9a6ff7;
+  --btn-mid: #8b5cf6;
+  --btn-lo: #5b3ba8;
+  --btn-glow: rgba(139,92,246,.35);
+  --tap-hi: #a78bfa;
+  --tap-mid: #5b3ba8;
+  --tap-lo: #2c1d52;
+  --tap-glow: rgba(139,92,246,.55);
   --gold: #ffd23f;
   --gold2: #d4a017;
   --text: #e8e4f0;
@@ -99,7 +108,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .btn {
   position: relative;
   display: inline-flex; align-items: center; justify-content: center; gap: 0.45rem;
-  background: linear-gradient(180deg, #9a6ff7 0%, var(--arcane) 52%, var(--arcane-dim) 100%);
+  background: linear-gradient(180deg, var(--btn-hi) 0%, var(--btn-mid) 52%, var(--btn-lo) 100%);
   color: #fff;
   border: 1px solid rgba(255,255,255,.18);
   border-radius: 14px;
@@ -125,7 +134,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
     box-shadow:
       0 12px 26px rgba(0,0,0,.48),
       0 3px 8px rgba(0,0,0,.35),
-      0 0 16px rgba(139,92,246,.35),
+      0 0 16px var(--btn-glow),
       inset 0 1px 0 rgba(255,255,255,.22),
       inset 0 -3px 6px rgba(0,0,0,.30);
   }
@@ -374,9 +383,9 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .tap-btn {
   width: 168px; height: 168px; border-radius: 50%; display: block; margin: 0.4rem auto 0.8rem;
   font-size: 2.6rem; color: #fff; cursor: pointer;
-  background: radial-gradient(circle at 35% 30%, #a78bfa, #5b3ba8 60%, #2c1d52);
+  background: radial-gradient(circle at 35% 30%, var(--tap-hi), var(--tap-mid) 60%, var(--tap-lo));
   border: 4px solid rgba(255,210,63,.55);
-  box-shadow: 0 0 26px rgba(139,92,246,.55), inset 0 -8px 18px rgba(0,0,0,.4);
+  box-shadow: 0 0 26px var(--tap-glow), inset 0 -8px 18px rgba(0,0,0,.4);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
   user-select: none; touch-action: manipulation;
 }
@@ -1434,7 +1443,7 @@ body[data-uistyle="modern"] .btn {
     box-shadow:
       0 14px 30px rgba(0,0,0,.5),
       0 3px 8px rgba(0,0,0,.35),
-      0 0 20px rgba(139,92,246,.45),
+      0 0 20px var(--btn-glow),
       inset 0 1px 0 rgba(255,255,255,.22),
       inset 0 -3px 6px rgba(0,0,0,.30);
   }
@@ -1753,3 +1762,100 @@ body.reduce-motion #tab-battle.active .battle-main > *,
 body.reduce-motion #tab-battle.active .battle-side > * {
   animation: none;
 }
+
+/* ============================================================
+   PLAYER CUSTOMIZATION — custom button styles + backgrounds.
+   Opt-in layer: no data attributes (or data-*=default) renders
+   exactly like before. Applies on top of Classic or Modern.
+   transform/opacity only; reduce-motion safe.
+   ============================================================ */
+
+/* ---- button style presets: recolor the primary button language.
+        Semantic colors (gold/danger/success/ghost) stay fixed. ---- */
+body[data-btnstyle="ocean"] {
+  --btn-hi: #6cb8f5; --btn-mid: #3b82f6; --btn-lo: #1d4fa3;
+  --btn-glow: rgba(59,130,246,.40);
+  --tap-hi: #7cc4ff; --tap-mid: #2563eb; --tap-lo: #172f5e;
+  --tap-glow: rgba(59,130,246,.55);
+}
+body[data-btnstyle="crimson"] {
+  --btn-hi: #f06666; --btn-mid: #dc2626; --btn-lo: #7f1d1d;
+  --btn-glow: rgba(220,38,38,.40);
+  --tap-hi: #f08a8a; --tap-mid: #b91c1c; --tap-lo: #4c1010;
+  --tap-glow: rgba(220,38,38,.55);
+}
+body[data-btnstyle="emerald"] {
+  --btn-hi: #5eeaa8; --btn-mid: #10b981; --btn-lo: #065f46;
+  --btn-glow: rgba(16,185,129,.40);
+  --tap-hi: #6ff2b8; --tap-mid: #0d9668; --tap-lo: #073b2c;
+  --tap-glow: rgba(16,185,129,.55);
+}
+body[data-btnstyle="gold"] {
+  --btn-hi: #ffd97a; --btn-mid: #c99a2e; --btn-lo: #7a560e;
+  --btn-glow: rgba(217,166,46,.45);
+  --tap-hi: #ffe08a; --tap-mid: #c9932b; --tap-lo: #5e420a;
+  --tap-glow: rgba(217,166,46,.55);
+}
+/* gold preset: dark text on the bright primary buttons (like .btn.gold) */
+body[data-btnstyle="gold"] .btn:not(.gold):not(.danger):not(.success):not(.ghost),
+body[data-btnstyle="gold"] .tap-btn {
+  color: #2a1e05;
+  text-shadow: 0 1px 0 rgba(255,255,255,.35);
+}
+body[data-btnstyle="mono"] {
+  --btn-hi: #9aa0b4; --btn-mid: #5b6070; --btn-lo: #2e313c;
+  --btn-glow: rgba(160,165,185,.30);
+  --tap-hi: #a8aec2; --tap-mid: #4a4f5e; --tap-lo: #22242c;
+  --tap-glow: rgba(160,165,185,.40);
+}
+
+/* ---- background style presets: subtle dark gradients only,
+        so text stays readable everywhere. ---- */
+body[data-bgstyle="deepspace"] {
+  --bg: #0d0a18;
+  background-image:
+    radial-gradient(120% 60% at 15% 0%, rgba(139,92,246,.16), transparent 60%),
+    radial-gradient(100% 55% at 90% 35%, rgba(56,189,248,.10), transparent 60%),
+    radial-gradient(90% 50% at 50% 110%, rgba(139,92,246,.10), transparent 60%);
+}
+body[data-bgstyle="crimson"] {
+  --bg: #150b0e;
+  background-image:
+    radial-gradient(120% 60% at 15% 0%, rgba(220,38,38,.14), transparent 60%),
+    radial-gradient(100% 55% at 90% 35%, rgba(245,120,60,.08), transparent 60%),
+    radial-gradient(90% 50% at 50% 110%, rgba(220,38,38,.10), transparent 60%);
+}
+body[data-bgstyle="emerald"] {
+  --bg: #08120e;
+  background-image:
+    radial-gradient(120% 60% at 15% 0%, rgba(16,185,129,.14), transparent 60%),
+    radial-gradient(100% 55% at 90% 35%, rgba(45,212,191,.08), transparent 60%),
+    radial-gradient(90% 50% at 50% 110%, rgba(16,185,129,.10), transparent 60%);
+}
+body[data-bgstyle="midnight"] {
+  --bg: #080d18;
+  background-image:
+    radial-gradient(120% 60% at 15% 0%, rgba(59,130,246,.15), transparent 60%),
+    radial-gradient(100% 55% at 90% 35%, rgba(99,102,241,.10), transparent 60%),
+    radial-gradient(90% 50% at 50% 110%, rgba(59,130,246,.10), transparent 60%);
+}
+
+/* ---- Settings swatch pickers ---- */
+.swatch-grid { display: flex; flex-wrap: wrap; gap: 0.55rem; }
+.swatch {
+  display: flex; flex-direction: column; align-items: center; gap: 0.28rem;
+  background: none; border: 0; cursor: pointer; padding: 0.15rem; min-width: 56px;
+}
+.swatch .dot {
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,.15);
+  box-shadow: 0 4px 12px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.25);
+  transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+}
+.swatch .lbl { font-size: 0.68rem; color: var(--muted); text-align: center; line-height: 1.2; }
+.swatch.active .dot {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(255,210,63,.35), 0 4px 14px rgba(0,0,0,.45);
+  transform: scale(1.08);
+}
+.swatch.active .lbl { color: var(--text); }

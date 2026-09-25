@@ -117,6 +117,8 @@ async function boot() {
     onExternalState: applyExternalState,
     onTab: onTabSwitch,
     onUiStyle: setUiStyle,
+    onBtnStyle: setBtnStyle,
+    onBgStyle: setBgStyle,
     onShare: () => UI.shareGame(App.state, App.user),
     onChangelog: () => UI.openChangelog(),
     onTitle: (id) => {
@@ -273,10 +275,43 @@ function setUiStyle(style) {
   saveNow();
 }
 
+// ---------------- custom button/background styles ----------------
+// Cosmetic player preferences stored on the save (like uiStyle).
+// Unknown values normalize to 'default', which renders pixel-identical
+// to the uncustomized game.
+const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
+const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight'];
+function btnStyleOf(s) {
+  return (s && BTN_STYLE_IDS.includes(s.btnStyle)) ? s.btnStyle : 'default';
+}
+function bgStyleOf(s) {
+  return (s && BG_STYLE_IDS.includes(s.bgStyle)) ? s.bgStyle : 'default';
+}
+function applyCustomStyles() {
+  document.body.dataset.btnstyle = btnStyleOf(App.state);
+  document.body.dataset.bgstyle = bgStyleOf(App.state);
+  UI.syncCustomStyles(btnStyleOf(App.state), bgStyleOf(App.state));
+}
+function setBtnStyle(id) {
+  const s = App.state;
+  if (!s) return;
+  s.btnStyle = BTN_STYLE_IDS.includes(id) ? id : 'default';
+  applyCustomStyles();
+  saveNow();
+}
+function setBgStyle(id) {
+  const s = App.state;
+  if (!s) return;
+  s.bgStyle = BG_STYLE_IDS.includes(id) ? id : 'default';
+  applyCustomStyles();
+  saveNow();
+}
+
 function startGame() {
   if (App.started) return;
   App.started = true;
   applyUiStyle();
+  applyCustomStyles();
   UI.showView('app');
   spawnEnemy();
   UI.renderBattle(App.state);
@@ -966,6 +1001,7 @@ function applyExternalState(srv) {
   App.state = Engine.ensureState(srv);
   Raid.init(App.state);
   applyUiStyle();
+  applyCustomStyles();
   const s = App.state;
   UI.updateHUD(s, App.user);
   UI.renderBattle(s);
@@ -995,6 +1031,7 @@ async function doPrestige() {
   App.state = fresh;
   App.dead = false;
   UI.setDead(false);
+  applyCustomStyles(); // cosmetic prefs survive prestige
   spawnEnemy();
   UI.renderBattle(fresh);
   UI.renderGear(fresh);
