@@ -21,8 +21,17 @@ const { Pool } = require('pg');
 const { sanitizeStateBlob } = require('./validation');
 
 function buildPoolConfig() {
-  const connectionString =
+  let connectionString =
     process.env.DATABASE_URL || 'postgres://localhost:5432/king_of_project';
+  // Strip libpq-only params (e.g. Neon's channel_binding=require) that
+  // node-postgres does not understand.
+  try {
+    const u = new URL(connectionString);
+    if (u.searchParams.has('channel_binding')) {
+      u.searchParams.delete('channel_binding');
+      connectionString = u.toString();
+    }
+  } catch { /* leave the string untouched if it doesn't parse */ }
   const isLocal = /(^|[@:/])(localhost|127\.0\.0\.1)([:/]|$)/.test(connectionString);
   return {
     connectionString,
