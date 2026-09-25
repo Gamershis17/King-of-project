@@ -5,6 +5,7 @@
  *   GET  /api/gm/overview     (gm|owner)
  *   POST /api/gm/grant        (gm|owner)
  *   POST /api/gm/grant-title  (gm|owner)
+ *   POST /api/gm/badge       (gm|owner)
  *   POST /api/gm/set-stage    (gm|owner)
  *   POST /api/gm/heal         (gm|owner)
  *   POST /api/gm/reset        (gm|owner)
@@ -245,6 +246,30 @@ router.post(
     if (!Array.isArray(blob.titlesUnlocked)) blob.titlesUnlocked = [];
     const id = titleId.trim();
     if (!blob.titlesUnlocked.includes(id)) blob.titlesUnlocked.push(id);
+    await persistMergedState(target.id, blob);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- set badge (gm|owner) ----------
+// Grants a creator badge (e.g. 'youtuber') shown next to the name on the
+// leaderboard. Pass badge: '' to clear it.
+const VALID_BADGES = new Set(['youtuber', 'streamer', 'vip']);
+router.post(
+  '/gm/badge',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, badge } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const id = typeof badge === 'string' ? badge.trim().toLowerCase() : '';
+    if (id !== '' && !VALID_BADGES.has(id)) {
+      return res
+        .status(400)
+        .json({ error: 'Badge must be one of "youtuber", "streamer", "vip" or empty to clear.' });
+    }
+    const blob = await loadBlob(target.id);
+    blob.badge = id === '' ? null : id;
     await persistMergedState(target.id, blob);
     res.json({ ok: true, state: selfState(req, target, blob) });
   })

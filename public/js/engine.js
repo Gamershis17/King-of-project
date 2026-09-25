@@ -87,6 +87,8 @@ export function defaultState(race) {
     achievements: [],
     titlesUnlocked: ['wanderer'],
     activeTitle: 'wanderer',
+    badge: null,      // GM-granted creator badge id (e.g. 'youtuber') — shown on leaderboard
+    country: null,    // ISO-3166 country code (e.g. 'US') — flag shown on leaderboard
     restedUntil: 0,
   };
 }
@@ -108,6 +110,8 @@ export function ensureState(raw) {
   if (!Array.isArray(s.achievements)) s.achievements = [];
   if (!Array.isArray(s.titlesUnlocked) || !s.titlesUnlocked.length) s.titlesUnlocked = ['wanderer'];
   if (typeof s.activeTitle !== 'string' || !s.activeTitle) s.activeTitle = s.titlesUnlocked[0];
+  if (typeof s.badge !== 'string' || !BADGE_BY_ID[s.badge]) s.badge = null; // unknown badges cleared
+  if (typeof s.country !== 'string' || !isValidCountry(s.country)) s.country = null;
   s.restedUntil = Number(raw.restedUntil) || 0;
   if (!Array.isArray(s.party)) s.party = [];
   if (!Array.isArray(s.inventory)) s.inventory = [];
@@ -482,6 +486,8 @@ export function prestige(state) {
   fresh.titlesUnlocked = Array.isArray(state.titlesUnlocked) && state.titlesUnlocked.length
     ? [...state.titlesUnlocked] : ['wanderer'];
   fresh.activeTitle = state.activeTitle || fresh.titlesUnlocked[0];
+  fresh.badge = (typeof state.badge === 'string' && BADGE_BY_ID[state.badge]) ? state.badge : null;
+  fresh.country = (typeof state.country === 'string' && isValidCountry(state.country)) ? state.country : null;
   fresh.mode = state.mode || 'clicker';
   return fresh;
 }
@@ -585,6 +591,37 @@ export const TITLES = [
 ];
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
 export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }
+
+// ---------------- Creator badges & country flags ----------------
+// Badges are granted by the owner/GM (GM console), shown next to the name
+// on the leaderboard and profile. Country is picked by the player in
+// Profile; its flag shows on the leaderboard.
+export const BADGES = [
+  { id: 'youtuber', emoji: '▶️', name: 'YouTuber' },
+  { id: 'streamer', emoji: '🎥', name: 'Streamer' },
+  { id: 'vip',      emoji: '💎', name: 'VIP' },
+];
+export const BADGE_BY_ID = Object.fromEntries(BADGES.map(b => [b.id, b]));
+export function badgeDef(id) { return BADGE_BY_ID[id] || null; }
+
+export const COUNTRIES = [
+  ['US','United States'],['CA','Canada'],['MX','Mexico'],['BR','Brazil'],['AR','Argentina'],
+  ['CL','Chile'],['CO','Colombia'],['PE','Peru'],['GB','United Kingdom'],['IE','Ireland'],
+  ['FR','France'],['DE','Germany'],['ES','Spain'],['IT','Italy'],['PT','Portugal'],
+  ['NL','Netherlands'],['BE','Belgium'],['SE','Sweden'],['NO','Norway'],['DK','Denmark'],
+  ['FI','Finland'],['PL','Poland'],['GR','Greece'],['TR','Türkiye'],['UA','Ukraine'],
+  ['RU','Russia'],['IN','India'],['PK','Pakistan'],['BD','Bangladesh'],['JP','Japan'],
+  ['KR','South Korea'],['CN','China'],['TW','Taiwan'],['HK','Hong Kong'],['SG','Singapore'],
+  ['MY','Malaysia'],['ID','Indonesia'],['PH','Philippines'],['TH','Thailand'],['VN','Vietnam'],
+  ['AU','Australia'],['NZ','New Zealand'],['ZA','South Africa'],['NG','Nigeria'],['EG','Egypt'],
+  ['AE','UAE'],['SA','Saudi Arabia'],['IL','Israel'],
+].map(([code, name]) => ({ code, name }));
+export function isValidCountry(code) { return COUNTRIES.some(c => c.code === code); }
+// Flag emoji from a 2-letter ISO code (regional indicator symbols).
+export function countryFlag(code) {
+  if (!/^[A-Z]{2}$/.test(code || '')) return '';
+  return [...code].map(ch => String.fromCodePoint(0x1F1E6 + ch.charCodeAt(0) - 65)).join('');
+}
 
 // Returns newly unlocked title defs (mutates state.titlesUnlocked).
 export function checkTitles(state) {

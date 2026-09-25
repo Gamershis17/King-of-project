@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js';
 import { UI, esc, formatNum } from './ui.js';
-import { PRIVILEGED_SETS, TITLES } from './engine.js';
+import { PRIVILEGED_SETS, TITLES, BADGES } from './engine.js';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
@@ -74,9 +74,12 @@ export const GM = {
             <select id="gm-cmd-title">${TITLES.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></label>
           <label class="fld"><span>Set stage (1–10000)</span>
             <input id="gm-cmd-stage" type="number" min="1" max="10000" value="1"></label>
+          <label class="fld"><span>Creator badge</span>
+            <select id="gm-cmd-badge"><option value="">— none —</option>${BADGES.map(b => `<option value="${b.id}">${b.emoji} ${esc(b.name)}</option>`).join('')}</select></label>
         </div>
         <div class="row" style="margin-top:0.6rem">
           <button id="gm-cmd-title-btn" class="btn small">👑 Grant title</button>
+          <button id="gm-cmd-badge-btn" class="btn small">▶️ Set badge</button>
           <button id="gm-cmd-stage-btn" class="btn small">🗺️ Set stage</button>
           <button id="gm-cmd-heal-btn" class="btn small">💚 Heal</button>
           <button id="gm-cmd-reset-btn" class="btn small danger">♻️ Reset player</button>
@@ -234,6 +237,20 @@ export const GM = {
         await hotReloadIfSelf(username, res);
       } catch (e) {
         UI.toast(e.message || 'Grant title failed.', 'error');
+      }
+    });
+
+    $('gm-cmd-badge-btn').addEventListener('click', async () => {
+      const username = cmdUser();
+      if (!username) return;
+      const badge = $('gm-cmd-badge').value;
+      try {
+        const res = await api.gmSetBadge(username, badge);
+        const b = BADGES.find(x => x.id === badge);
+        UI.toast(badge ? `${b.emoji} Set badge "${b.name}" on ${username}.` : `Badge cleared for ${username}.`, 'success');
+        await hotReloadIfSelf(username, res);
+      } catch (e) {
+        UI.toast(e.message || 'Set badge failed.', 'error');
       }
     });
 

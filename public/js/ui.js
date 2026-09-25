@@ -123,11 +123,17 @@ export const UI = {
     // More tab: delegated talent / profession / title buttons
     document.getElementById('tab-more').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-action]');
-      if (!btn || btn.disabled) return;
-      const h = this.handlers;
+      if (!btn || btn.disabled) return;      const h = this.handlers;
       if (btn.dataset.action === 'talent' && h.onTalent) h.onTalent(btn.dataset.id);
       if (btn.dataset.action === 'prof' && h.onProfession) h.onProfession(btn.dataset.id);
       if (btn.dataset.action === 'title' && h.onTitle) h.onTitle(btn.dataset.id);
+    });
+
+    // Country picker (profile) — delegated change
+    document.getElementById('tab-more').addEventListener('change', (e) => {
+      if (e.target && e.target.id === 'country-select' && this.handlers.onCountry) {
+        this.handlers.onCountry(e.target.value);
+      }
     });
 
     // Share + update log (More tab)
@@ -648,9 +654,12 @@ export const UI = {
       if (en.username === meUsername) tr.className = 'me-row';
       const race = Engine.RACES[en.race] || {};
       const title = en.title ? `<div class="lb-title">${esc(Engine.titleName(en.title))}</div>` : '';
+      const flag = en.country ? Engine.countryFlag(en.country) : '';
+      const badge = en.badge ? Engine.badgeDef(en.badge) : null;
+      const badgeHtml = badge ? `<span class="lb-badge" title="${esc(badge.name)}">${badge.emoji}</span> ` : '';
       tr.innerHTML = `
         <td>${medals[i] || (i + 1)}</td>
-        <td><div class="lb-name">${race.emoji || ''} ${esc(en.username)}</div>${title}</td>
+        <td><div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${race.emoji || ''} ${esc(en.username)}</div>${title}</td>
         <td>${en.level}</td>
         <td>${en.stage}</td>
         <td>${formatNum(en.power || 0)}</td>
@@ -675,11 +684,14 @@ export const UI = {
         ? `<button class="title-chip${active ? ' active' : ''}" data-action="title" data-id="${t.id}" title="${esc(t.desc)}">${esc(t.name)}</button>`
         : `<span class="title-chip locked" title="${esc(t.desc)}">🔒 ${esc(t.name)}</span>`;
     }).join('');
+    const badge = state.badge ? Engine.badgeDef(state.badge) : null;
+    const countryOpts = `<option value="">— no flag —</option>` + Engine.COUNTRIES.map(c =>
+      `<option value="${c.code}"${state.country === c.code ? ' selected' : ''}>${Engine.countryFlag(c.code)} ${esc(c.name)}</option>`).join('');
     this.els['profile-card'].innerHTML = `
       <div class="profile-head">
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
-          <div class="profile-name">${esc(user ? user.username : '—')}</div>
+          <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${esc(user ? user.username : '—')}</div>
           <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${esc(race.name || '')}</span></div>
@@ -688,6 +700,10 @@ export const UI = {
       <div class="titles-block">
         <div class="muted small titles-label">👑 Hero title</div>
         <div class="title-chips">${titleChips}</div>
+      </div>
+      <div class="titles-block">
+        <div class="muted small titles-label">🌍 Country flag <span class="muted">(shows on leaderboard)</span></div>
+        <select id="country-select" class="country-select">${countryOpts}</select>
       </div>
       <div class="profile-grid">
         <div><span class="muted">Level</span><b>${state.level}</b></div>

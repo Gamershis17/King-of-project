@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-09-25",
+    "title": "Leaderboard badges & flags, number fixes",
+    "changes": [
+      "Fixed companion damage numbers showing \"false60\" — crits now display properly",
+      "Floating damage numbers now pop, rise and fade smoothly",
+      "Creator badges: owner/GM can grant YouTuber, Streamer or VIP badges shown next to names on the leaderboard",
+      "Country flags: pick your country in Profile and its flag appears on the leaderboard"
+    ]
+  },
+  {
     "changes": [
       "New live damage meter: per-fighter DPS bars that update every second",
       "Party overhaul: member cards with portraits, roles and live HP bars",

@@ -117,6 +117,15 @@ async function boot() {
       UI.toast(`👑 Title set: ${Engine.titleName(id)}`, 'success');
       saveNow();
     },
+    onCountry: (code) => {
+      const s = App.state;
+      if (!s) return;
+      const c = String(code || '').toUpperCase();
+      s.country = c && Engine.isValidCountry(c) ? c : null;
+      UI.renderMore(s, App.user);
+      UI.toast(c && s.country ? `🌍 Flag set: ${Engine.countryFlag(c)}` : '🌍 Flag removed.', 'success');
+      saveNow();
+    },
   };
   UI.init();
 
@@ -312,7 +321,7 @@ function companionStrike(c) {
   const cs = Engine.companionStats(c);
   const { dmg, crit } = Engine.playerAttack(cs, App.enemy);
   meterHit(c.id, c.name, dmg);
-  damageEnemy(dmg, crit, c.emoji + ' ');
+  damageEnemy(dmg, crit ? 'CRIT ' : '', c.emoji + ' ');
 }
 
 function damageEnemy(dmg, prefix, sourceLabel) {

@@ -116,17 +116,23 @@ router.get(
     const entries = rows.map((r) => {
       let race = null;
       let title = null;
+      let badge = null;
+      let country = null;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
         if (blob && typeof blob.activeTitle === 'string') title = blob.activeTitle;
+        if (blob && typeof blob.badge === 'string') badge = blob.badge;
+        if (blob && typeof blob.country === 'string') country = blob.country;
       } catch {
-        // leave race/title null
+        // leave race/title/badge/country null
       }
       return {
         username: r.username,
         race,
         title,
+        badge,
+        country,
         level: r.level,
         stage: r.stage,
         bossesKilled: r.bosses_killed,

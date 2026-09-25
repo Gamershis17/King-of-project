@@ -59,6 +59,7 @@ export const api = {
   gmOverview: () => request('/api/gm/overview'),
   gmGrant: (username, kind, extra) => post('/api/gm/grant', { username, kind, ...(extra || {}) }),
   gmGrantTitle: (username, titleId) => post('/api/gm/grant-title', { username, titleId }),
+  gmSetBadge: (username, badge) => post('/api/gm/badge', { username, badge }),
   gmSetStage: (username, stage) => post('/api/gm/set-stage', { username, stage }),
   gmHeal: (username) => post('/api/gm/heal', { username }),
   gmReset: (username) => post('/api/gm/reset', { username }),
