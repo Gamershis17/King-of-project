@@ -70,3 +70,10 @@ CREATE TABLE IF NOT EXISTS guild_members (
   joined_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_guild_members_guild ON guild_members (guild_id);
+
+-- Server-wide tunable settings (key/value). The GM console's owner-only
+-- "Server settings" card writes here; e.g. gold_cap (max player gold).
+CREATE TABLE IF NOT EXISTS server_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);

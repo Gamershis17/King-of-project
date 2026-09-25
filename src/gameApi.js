@@ -7,6 +7,7 @@
  *   GET  /api/leaderboard  (public)
  *   GET  /api/status       (public — maintenance flag + message)
  *   GET  /api/changelog    (public — staff-only items stripped for players)
+ *   GET  /api/settings     (public — tunables: goldCap)
  *   POST /api/redeem       (auth)
  *
  * Gift-code redemption runs inside a single Postgres transaction with
@@ -32,6 +33,7 @@ const {
   getGuildRoster,
   joinGuild,
   leaveGuild,
+  getGoldCap,
 } = require('./db');
 
 const router = express.Router();
@@ -149,12 +151,37 @@ router.post(
     const { state } = req.body || {};
     const result = sanitizeStateBlob(state);
     if (!result.ok) return res.status(400).json({ error: result.error });
+    // infGold is an owner-granted perk: never trust the client's assertion.
+    // Carry the server-side value forward so players can't grant it to
+    // themselves by editing their save blob.
+    const row = await getStateRow(req.user.id);
+    let serverInfGold = false;
+    if (row) {
+      try {
+        const prev = JSON.parse(row.state_json);
+        serverInfGold = prev && prev.infGold === true;
+      } catch { /* keep false */ }
+    }
+    result.state.infGold = serverInfGold;
     await saveState(req.user.id, result.state);
     res.json({ ok: true });
   })
 );
 
+// ---------- public settings ----------
+// Tunables the client needs at boot (currently just the gold cap).
+router.get(
+  '/settings',
+  asyncHandler(async (req, res) => {
+    res.json({ ok: true, goldCap: await getGoldCap() });
+  })
+);
+
 // ---------- leaderboard (public) ----------
+// Valid class/spec ids for leaderboard parsing (mirrors Engine.CLASSES and
+// Engine.SPECS; engine.js is ESM so the lists are duplicated here for the CJS server).
+const VALID_CLASSES = new Set(['hunter', 'warrior', 'mage', 'assassin']);
+const VALID_SPECS = new Set(['tank', 'dps', 'healer', 'classic']);
 router.get(
   '/leaderboard',
   asyncHandler(async (req, res) => {
@@ -164,14 +191,22 @@ router.get(
       let title = null;
       let badge = null;
       let country = null;
+      let playerClass = null;
+      let spec = null;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
         if (blob && typeof blob.activeTitle === 'string') title = blob.activeTitle;
         if (blob && typeof blob.badge === 'string') badge = blob.badge;
         if (blob && typeof blob.country === 'string') country = blob.country;
+        if (blob && typeof blob.playerClass === 'string' && VALID_CLASSES.has(blob.playerClass)) {
+          playerClass = blob.playerClass;
+        }
+        if (blob && typeof blob.spec === 'string' && VALID_SPECS.has(blob.spec)) {
+          spec = blob.spec;
+        }
       } catch {
-        // leave race/title/badge/country null
+        // leave race/title/badge/country/playerClass/spec null
       }
       return {
         username: r.username,
@@ -179,6 +214,8 @@ router.get(
         title,
         badge,
         country,
+        playerClass,
+        spec,
         level: r.level,
         stage: r.stage,
         bossesKilled: r.bosses_killed,

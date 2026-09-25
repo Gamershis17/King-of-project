@@ -36,6 +36,9 @@ export const api = {
   // Server status (public — maintenance flag + message)
   status: () => request('/api/status'),
 
+  // Public server settings (tunables like goldCap)
+  getSettings: () => request('/api/settings'),
+
   // Player state
   getState: () => request('/api/state'),
   saveState: (state) => post('/api/state', { state }),
@@ -61,6 +64,7 @@ export const api = {
   gmGrantTitle: (username, titleId) => post('/api/gm/grant-title', { username, titleId }),
   gmSetBadge: (username, badge) => post('/api/gm/badge', { username, badge }),
   gmInfGold: (username, enabled) => post('/api/gm/inf-gold', { username, enabled }),
+  gmSetSettings: (goldCap) => post('/api/gm/settings', { goldCap }),
   gmSetStage: (username, stage) => post('/api/gm/set-stage', { username, stage }),
   gmHeal: (username) => post('/api/gm/heal', { username }),
   gmReset: (username) => post('/api/gm/reset', { username }),

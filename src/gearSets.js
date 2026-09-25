@@ -66,6 +66,16 @@ const VOIDWALKER_PIECES = [
   { slot: 'trinket', name: 'Void Heart',       stats: { critChance: 7, lifesteal: 7, regen: 15 } },
 ];
 
+// Game Master Regalia ≈ 70% of sovereign power, judgment/balance themed.
+// Entitlement: gm + owner (granted through the GM console like Fateweaver).
+const GAMEMASTER_PIECES = [
+  { slot: 'weapon',  name: 'Judgment Gavel',      stats: { attack: 350, critChance: 8 } },
+  { slot: 'armor',   name: "Arbiter's Plate",     stats: { defense: 350, maxHp: 1400 } },
+  { slot: 'helmet',  name: 'Crown of Verdicts',   stats: { defense: 140, critDamage: 35 } },
+  { slot: 'boots',   name: 'Stride of Justice',   stats: { dodge: 8, attackSpeed: 0.14, defense: 105 } },
+  { slot: 'trinket', name: 'Scales of the Master', stats: { goldBonus: 25, xpBonus: 25, lifesteal: 5 } },
+];
+
 // Dragonscale Aegis ≈ 80% of sovereign power, HP/regen themed.
 const DRAGONSCALE_PIECES = [
   { slot: 'weapon',  name: 'Dragonscale Fang',   stats: { attack: 400, lifesteal: 6 } },
@@ -91,6 +101,7 @@ const FATEWEAVER = attachSetMeta(FATEWEAVER_PIECES, 'fateweaver', 'Fateweaver Re
 const WARDEN = attachSetMeta(WARDEN_PIECES, 'warden', 'Admin Warden Arsenal');
 const VOIDWALKER = attachSetMeta(VOIDWALKER_PIECES, 'voidwalker', 'Voidwalker Regalia');
 const DRAGONSCALE = attachSetMeta(DRAGONSCALE_PIECES, 'dragonscale', 'Dragonscale Aegis');
+const GAMEMASTER = attachSetMeta(GAMEMASTER_PIECES, 'gamemaster', 'Game Master Regalia');
 
 const GEAR_SETS = {
   sovereign: SOVEREIGN,
@@ -98,6 +109,7 @@ const GEAR_SETS = {
   warden: WARDEN,
   voidwalker: VOIDWALKER,
   dragonscale: DRAGONSCALE,
+  gamemaster: GAMEMASTER,
 };
 
 // Aura metadata for set-item visuals (consumed by the client stylesheet;
@@ -108,6 +120,7 @@ const SET_AURAS = {
   warden:      { label: 'Warden Steel',      cssClass: null,             colors: ['#9aa7b8'] },
   voidwalker:  { label: 'Void',              cssClass: 'set-voidwalker',  colors: ['#8b2ff7', '#05050a'] },
   dragonscale: { label: 'Dragonfire',        cssClass: 'set-dragonscale', colors: ['#ff3b1f', '#ffb800'] },
+  gamemaster:  { label: 'Judgment',          cssClass: 'set-gamemaster',  colors: ['#ffd700', '#fffbe6'] },
 };
 
 function isValidSetId(setId) {
@@ -138,6 +151,7 @@ module.exports = {
   WARDEN,
   VOIDWALKER,
   DRAGONSCALE,
+  GAMEMASTER,
   GEAR_SETS,
   SET_AURAS,
   isValidSetId,

@@ -8,6 +8,15 @@ import * as Engine from './engine.js';
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
+// Emoji per gear stat key, used for the compact stat chips on item cards.
+const STAT_EMOJI = {
+  attack: '⚔️', defense: '🛡️', maxHp: '❤️',
+  critChance: '💥', critDamage: '🔥',
+  parry: '🤺', dodge: '💨', lifesteal: '🩸',
+  attackSpeed: '⚡', regen: '💚',
+  goldBonus: '💰', xpBonus: '✨',
+};
+
 export function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -65,11 +74,11 @@ export const UI = {
       'boss-badge', 'enemy-hpfill', 'enemy-hptext', 'enemy-atk', 'float-layer',
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
       'tap-btn', 'skill-btn', 'skill-cd', 'combo-meter', 'prestige-box', 'prestige-btn',
-      'prestige-note', 'combat-log', 'upgrade-list', 'inventory-grid', 'inv-count',
-      'party-slots', 'recruit-list', 'lb-body', 'lb-refresh', 'profile-card',
+      'prestige-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'inventory-grid', 'inv-count', 'set-progress',
+      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'logout-btn', 'modal-root', 'toast-root',
-      'race-grid', 'gm-back', 'meter-rows', 'total-dps',
+      'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
@@ -113,13 +122,17 @@ export const UI = {
       this.handlers.onUpgrade && this.handlers.onUpgrade(btn.dataset.upgrade);
     });
 
-    // Party: delegated recruit/dismiss
+    // Party: delegated recruit/dismiss/pet actions
     document.getElementById('tab-party').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
       const h = this.handlers;
       if (btn.dataset.action === 'recruit' && h.onRecruit) h.onRecruit(btn.dataset.id);
       if (btn.dataset.action === 'dismiss' && h.onDismiss) h.onDismiss(btn.dataset.id);
+      if (btn.dataset.action === 'levelup' && h.onLevelUpCompanion) h.onLevelUpCompanion(btn.dataset.id);
+      if (btn.dataset.action === 'hatch-pet' && h.onHatchPet) h.onHatchPet();
+      if (btn.dataset.action === 'feed-pet' && h.onFeedPet) h.onFeedPet(btn.dataset.id);
+      if (btn.dataset.action === 'set-active-pet' && h.onSetActivePet) h.onSetActivePet(btn.dataset.id);
     });
 
     // Ranks refresh
@@ -192,7 +205,7 @@ export const UI = {
 
   // ---------------- views & tabs ----------------
   showView(name) {
-    for (const v of ['auth', 'race', 'app', 'gm', 'maintenance']) {
+    for (const v of ['auth', 'race', 'class', 'pet', 'spec', 'app', 'gm', 'maintenance']) {
       document.getElementById('view-' + v).classList.toggle('hidden', v !== name);
     }
     window.scrollTo(0, 0);
@@ -318,12 +331,14 @@ export const UI = {
   updateHUD(state, user) {
     const e = this.els;
     const race = Engine.RACES[state.race] || {};
+    const cls = Engine.CLASSES[state.playerClass] || {};
+    const spec = Engine.SPECS[state.spec] || {};
     e['hud-emoji'].textContent = race.emoji || '❓';
     e['hud-username'].textContent = (user && user.username) || '—';
     const role = (user && user.role) || 'player';
     e['hud-role'].textContent = role;
     e['hud-role'].className = 'role-badge role-' + role;
-    e['hud-race'].textContent = race.name || '';
+    e['hud-race'].textContent = (cls.emoji ? cls.emoji : '') + (spec.emoji ? spec.emoji : '') + ' ' + (race.name || '');
     e['hud-gold'].textContent = state.infGold ? '∞' : formatNum(state.gold);
     e['hud-stars'].textContent = formatNum(state.stars);
     e['hud-stage'].textContent = state.stage;
@@ -353,6 +368,131 @@ export const UI = {
       card.addEventListener('click', () => onPick(id));
       grid.appendChild(card);
     }
+  },
+
+  // Class picker cards (character creation). Permanent choice.
+  classCardHtml(id, c) {
+    return `
+      <div class="race-emoji">${c.emoji}</div>
+      <div class="race-name">${esc(c.name)}</div>
+      <div class="race-trait">${esc(c.desc)}</div>
+      <div class="class-perks">${c.perks.map(p => `<div>✦ ${esc(p)}</div>`).join('')}</div>`;
+  },
+  renderClassSelect(onPick) {
+    const grid = this.els['class-grid'];
+    grid.innerHTML = '';
+    for (const [id, c] of Object.entries(Engine.CLASSES)) {
+      const card = document.createElement('button');
+      card.className = 'race-card class-card';
+      card.innerHTML = this.classCardHtml(id, c);
+      card.addEventListener('click', () => onPick(id));
+      grid.appendChild(card);
+    }
+  },
+
+  // Specialization picker (character creation, after class). Permanent choice.
+  renderSpecSelect(onPick) {
+    const grid = this.els['spec-grid'];
+    grid.innerHTML = '';
+    for (const [id, s] of Object.entries(Engine.SPECS)) {
+      const card = document.createElement('button');
+      card.className = 'race-card class-card';
+      card.innerHTML = this.classCardHtml(id, s);
+      card.addEventListener('click', () => onPick(id));
+      grid.appendChild(card);
+    }
+  },
+
+  // Hunter starter-pet picker (character creation, after Hunter class). Permanent choice.
+  renderPetSelect(onPick) {
+    const grid = this.els['pet-grid'];
+    grid.innerHTML = '';
+    for (const id of Engine.HUNTER_STARTERS) {
+      const sp = Engine.PET_SPECIES[id];
+      if (!sp) continue;
+      const card = document.createElement('button');
+      card.className = 'race-card class-card';
+      card.innerHTML = `
+      <div class="race-emoji">${sp.emoji}</div>
+      <div class="race-name">${esc(sp.name)}</div>
+      <div class="race-trait">${esc(sp.flavor || sp.rarity)}</div>
+      <div class="class-perks"><div>✦ ${esc(sp.style || 'A loyal beast')}</div></div>`;
+      card.addEventListener('click', () => onPick(id));
+      grid.appendChild(card);
+    }
+  },
+
+  // One-time class + spec choice for existing players missing either.
+  // Not dismissable — one tap per section, then the game continues.
+  // opts.lockedClass: when the player already has a class, only spec is asked.
+  // opts.needsPet: when true and the picked class is Hunter, a companion pick
+  //   is added (for players with no pets yet).
+  classSpecChoiceModal(onPick, opts = {}) {
+    const lockedClass = opts.lockedClass && Engine.CLASSES[opts.lockedClass] ? opts.lockedClass : null;
+    const needsPet = !!opts.needsPet;
+    const mkCards = (defs) => Object.entries(defs).map(([id, c]) => `
+      <button class="race-card class-card" data-pick="${id}">${this.classCardHtml(id, c)}</button>`).join('');
+    const mkPetCards = () => Engine.HUNTER_STARTERS.map((id) => {
+      const sp = Engine.PET_SPECIES[id];
+      return `<button class="race-card class-card" data-pick="${id}">
+        <div class="race-emoji">${sp.emoji}</div>
+        <div class="race-name">${esc(sp.name)}</div>
+        <div class="race-trait">${esc(sp.flavor || sp.rarity)}</div>
+        <div class="class-perks"><div>✦ ${esc(sp.style || 'A loyal beast')}</div></div></button>`;
+    }).join('');
+    const classSection = lockedClass
+      ? `<p class="muted">You are ${Engine.CLASSES[lockedClass].emoji} <b>${esc(Engine.CLASSES[lockedClass].name)}</b> — now choose your specialization.</p>`
+      : `<h3 class="pick-label">⚔️ Choose your class</h3>
+         <div class="race-grid class-modal-grid" data-group="class">${mkCards(Engine.CLASSES)}</div>`;
+    const close = this.modal({
+      title: lockedClass ? '🛡️ Choose your specialization' : '⚔️ Choose your class & specialization',
+      html: `<p class="muted">Your class, specialization${needsPet ? ', and companion' : ''} are <b>permanent</b> choices.</p>${classSection}
+             <h3 class="pick-label">🛡️ Choose your specialization</h3>
+             <div class="race-grid class-modal-grid" data-group="spec">${mkCards(Engine.SPECS)}</div>
+             <div data-pet-section class="hidden">
+               <h3 class="pick-label">🐾 Choose your companion</h3>
+               <div class="race-grid class-modal-grid" data-group="pet">${mkPetCards()}</div>
+             </div>`,
+      buttons: [],
+      dismissable: false,
+    });
+    const overlay = this.els['modal-root'].lastElementChild;
+    if (!overlay) return;
+    let pickedClass = lockedClass;
+    let pickedSpec = null;
+    let pickedPet = null;
+    const petNeeded = () => needsPet && pickedClass === 'hunter';
+    const paint = () => {
+      for (const grid of overlay.querySelectorAll('.class-modal-grid')) {
+        const group = grid.dataset.group;
+        for (const btn of grid.querySelectorAll('[data-pick]')) {
+          const active = (group === 'class' && btn.dataset.pick === pickedClass) ||
+                         (group === 'spec' && btn.dataset.pick === pickedSpec) ||
+                         (group === 'pet' && btn.dataset.pick === pickedPet);
+          btn.classList.toggle('picked', active);
+        }
+      }
+      const petSection = overlay.querySelector('[data-pet-section]');
+      if (petSection) {
+        const show = petNeeded();
+        petSection.classList.toggle('hidden', !show);
+        if (!show) pickedPet = null;
+      }
+    };
+    overlay.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pick]');
+      if (!btn) return;
+      const group = btn.closest('.class-modal-grid').dataset.group;
+      if (group === 'class') pickedClass = btn.dataset.pick;
+      else if (group === 'spec') pickedSpec = btn.dataset.pick;
+      else pickedPet = btn.dataset.pick;
+      paint();
+      if (pickedClass && pickedSpec && (!petNeeded() || pickedPet)) {
+        close();
+        onPick(pickedClass, pickedSpec, pickedPet || null);
+      }
+    });
+    paint();
   },
 
   // ---------------- battle ----------------
@@ -422,15 +562,30 @@ export const UI = {
   updateHeroPanel(state, stats, battle) {
     const setLine = stats.setInfo
       ? `<div class="set-active">👑 ${esc(stats.setInfo.name)} <b>+${stats.setInfo.pct}% all stats</b></div>` : '';
+    const pSet = stats.playerSetInfo;
+    const pSetLine = pSet && pSet.count >= 3
+      ? `<div class="set-active" title="${esc(pSet.desc)}">${pSet.emoji} ${esc(pSet.name)} <b>(${pSet.count}pc)</b></div>` : '';
     const rested = state.restedUntil && Date.now() < state.restedUntil
       ? `<span class="buff-chip" title="Well-rested: +25% XP">😴 rested</span>` : '';
+    // Active pet fights beside the hero — show its face next to the stats.
+    const pet = Engine.activePet(state);
+    const sp = pet && Engine.petSpeciesOf(pet);
+    const petChip = sp
+      ? `<span class="buff-chip" title="${esc(sp.name)} Lv ${pet.level} — strikes every 4s">${sp.emoji} Lv ${pet.level}</span>` : '';
+    // Pet bond contribution (flat, added after multipliers) — small chip when nonzero.
+    const bond = stats.bond || { atk: 0, def: 0, hp: 0 };
+    const bondChip = (bond.atk + bond.def + bond.hp) > 0
+      ? `<span class="buff-chip" title="Pet bond: +${bond.atk} ATK, +${bond.def} DEF, +${bond.hp} max HP">🔗 +${bond.atk}⚔️ +${bond.def}🛡️ +${bond.hp}❤️</span>` : '';
     this.els['hero-stats'].innerHTML = `
       <span>⚔️ ${formatNum(stats.attack)}</span>
       <span>🛡️ ${formatNum(stats.defense)}</span>
       <span>💥 ${Engine.round1(stats.critChance)}%</span>
       <span>🥾 ${Engine.round1(stats.dodge)}%</span>
       ${rested}
-      ${setLine}`;
+      ${petChip}
+      ${bondChip}
+      ${setLine}
+      ${pSetLine}`;
     // dungeon party mini-cards
     const chips = this.els['dungeon-chips'];
     if (state.mode === 'dungeon' && state.party.length) {
@@ -582,13 +737,27 @@ export const UI = {
     const hue = this.portraitHue(c.name);
     const initial = (c.name || '?').trim().charAt(0).toUpperCase();
     const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
-    return `
+    if (mini) {
+      return `
       <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
       <div class="member-name">${esc(c.name)}</div>
       <div class="member-role">${esc(c.role || 'Companion')}</div>
       <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
+      <div class="member-hptext" data-comp-hptext="${esc(c.id)}">${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}</div>`;
+    }
+    const tier = ((Engine.RECRUIT_BY_ID || {})[c.recruitId] || {}).tier || 'common';
+    const tierCls = `tier-${String(tier).toLowerCase()}`;
+    return `
+      <div class="member-top">
+        <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
+        <div class="member-id">
+          <div class="member-name">${esc(c.name)} <span class="lvl-badge">Lv ${c.level}</span></div>
+          <div class="member-role">${esc(c.role || 'Companion')} · <span class="tier-badge ${tierCls}">${esc(tier)}</span></div>
+        </div>
+      </div>
+      <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
       <div class="member-hptext" data-comp-hptext="${esc(c.id)}">${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}</div>
-      ${mini ? '' : `<div class="member-stats">Lv ${c.level} · ⚔️ ${formatNum(c.attack)} · 🛡️ ${formatNum(c.defense)}${c.regen ? ` · 💚 ${c.regen}/s` : ''}</div>`}`;
+      <div class="member-stats">⚔️ ${formatNum(c.attack)} · 🛡️ ${formatNum(c.defense)} · ❤️ ${formatNum(c.maxHp)}${c.regen ? ` · 💚 ${c.regen}/s` : ''}</div>`;
   },
 
   // Refreshes party HP bars in place (called on a low-frequency tick) so
@@ -605,6 +774,24 @@ export const UI = {
 
   // ---------------- gear ----------------
   renderGear(state) {
+    // loadout strip: one card per slot showing the equipped item
+    const strip = this.els['loadout-strip'];
+    if (strip && Engine.SLOTS) {
+      strip.innerHTML = Engine.SLOTS.map(slot => {
+        const id = state.equipped && state.equipped[slot];
+        const item = id && (state.inventory || []).find(i => i.id === id);
+        const info = (Engine.SLOT_INFO || {})[slot] || {};
+        if (!item) {
+          return `<div class="loadout-slot empty"><span class="loadout-emoji">${info.emoji || '▫️'}</span><span class="loadout-name muted">${info.name || slot}</span><span class="muted tiny">empty</span></div>`;
+        }
+        return `<div class="loadout-slot r-${item.rarity}${item.set ? ' set-item' : ''}">
+          <span class="loadout-emoji">${info.emoji || '🎒'}</span>
+          <span class="loadout-name" title="${esc(item.name)}">${esc(item.name)}</span>
+          <span class="loadout-rarity">${esc(item.rarity)}</span>
+        </div>`;
+      }).join('');
+    }
+
     // upgrades
     const ul = this.els['upgrade-list'];
     ul.innerHTML = '';
@@ -624,6 +811,21 @@ export const UI = {
       ul.appendChild(row);
     }
 
+    // Earnable-set chase progress: pieces equipped of each player set.
+    const prog = this.els['set-progress'];
+    if (prog && Engine.PLAYER_SETS) {
+      const counts = Engine.equippedPlayerSets(state);
+      const rows = Object.entries(Engine.PLAYER_SETS).map(([setId, def]) => {
+        const n = counts[setId] || 0;
+        const bonus = n >= 5 ? ' <b class="set-bonus-on">3pc + 5pc active</b>'
+          : n >= 3 ? ' <b class="set-bonus-on">3pc active</b>' : '';
+        const need = n < 3 ? ` <span class="muted">(${3 - n} more for 3pc)</span>`
+          : n < 5 ? ` <span class="muted">(${5 - n} more for 5pc)</span>` : '';
+        return `<div class="set-prog-row${n >= 3 ? ' on' : ''}">${def.emoji} ${esc(def.name)} <b>${n}/5</b>${bonus}${need}</div>`;
+      }).join('');
+      prog.innerHTML = rows;
+    }
+
     // inventory
     const grid = this.els['inventory-grid'];
     const inv = [...(state.inventory || [])].sort((a, b) =>
@@ -639,13 +841,23 @@ export const UI = {
       const isEquipped = equippedId === item.id;
       const card = document.createElement('div');
       const ps = Engine.PRIVILEGED_SETS && Engine.PRIVILEGED_SETS[item.set];
+      const pSetDef = Engine.PLAYER_SETS && Engine.PLAYER_SETS[item.set];
       const auraCls = ps && ps.auraClass ? ps.auraClass : (item.set === 'sovereign' ? 'set-sovereign' : '');
       card.className = `item-card r-${item.rarity}${item.set ? ' set-item' : ''}${auraCls ? ' ' + auraCls : ''}${isEquipped ? ' equipped' : ''}`;
       card.dataset.id = item.id;
-      const statLines = Object.entries(item.stats || {})
-        .map(([k, v]) => `<li>+${formatStatVal(k, v)} ${Engine.STAT_LABELS[k] || k}</li>`).join('');
+      const statChips = Object.entries(item.stats || {})
+        .map(([k, v]) => {
+          const e = STAT_EMOJI[k] || '✨';
+          const label = Engine.STAT_LABELS[k] || k;
+          return `<span class="stat-chip" title="${esc(label)}">${e} +${formatStatVal(k, v)}</span>`;
+        }).join('');
       const setBadge = item.set
-        ? `<div class="set-badge${auraCls ? ' set-badge-' + item.set : ''}">👑 ${esc(item.setName || item.set)} · full set +${ps?.setBonus ?? ''}%</div>` : '';
+        ? ps
+          ? `<div class="set-badge${auraCls ? ' set-badge-' + item.set : ''}">👑 ${esc(item.setName || item.set)} · full set +${ps.setBonus}%</div>`
+          : pSetDef
+            ? `<div class="set-badge set-badge-player" title="${esc(pSetDef.desc)}">${pSetDef.emoji} ${esc(pSetDef.name)} · earnable set</div>`
+            : `<div class="set-badge">${esc(item.setName || item.set)}</div>`
+        : '';
       card.innerHTML = `
         <div class="item-head">
           <span class="slot-emoji">${Engine.SLOT_INFO[item.slot]?.emoji || '🎒'}</span>
@@ -654,7 +866,7 @@ export const UI = {
         </div>
         <div class="item-sub">${esc(item.rarity)} · ${esc(Engine.SLOT_INFO[item.slot]?.name || item.slot)}</div>
         ${setBadge}
-        <ul class="item-stats">${statLines}</ul>
+        <div class="stat-chips">${statChips}</div>
         <div class="item-actions">
           ${isEquipped ? '' : `<button class="btn small" data-action="equip">Equip</button>`}
           ${item.unsellable ? '' : `<button class="btn small ghost" data-action="sell">Sell +${formatNum(item.value || 1)}</button>`}
@@ -672,11 +884,17 @@ export const UI = {
       const div = document.createElement('div');
       div.className = 'member' + (c ? '' : ' empty');
       if (c) {
+        const lvlCost = Engine.companionLevelCost(c);
         div.innerHTML = `
           ${this.memberCardHTML(c)}
-          <button class="btn small ghost member-dismiss" data-action="dismiss" data-id="${esc(c.id)}">Dismiss</button>`;
+          <div class="member-actions">
+            <button class="btn small lvl-btn" data-action="levelup" data-id="${esc(c.id)}" ${state.gold >= lvlCost ? '' : 'disabled'}>
+              ⬆️ Lv ${c.level + 1} · 💰${formatNum(lvlCost)}
+            </button>
+            <button class="btn small ghost icon-btn" data-action="dismiss" data-id="${esc(c.id)}" title="Dismiss ${esc(c.name)}">✕</button>
+          </div>`;
       } else {
-        div.innerHTML = '<div class="muted">Empty slot</div>';
+        div.innerHTML = '<div class="empty-slot-inner"><span class="empty-plus">＋</span><span>Empty slot</span><span class="muted small">recruit below</span></div>';
       }
       slots.appendChild(div);
     }
@@ -690,11 +908,13 @@ export const UI = {
       const afford = state.gold >= r.cost;
       const disabled = owned || full || !afford;
       const reason = owned ? 'Recruited' : full ? 'Party full' : !afford ? 'Need 💰' : '';
+      const tier = (r.tier || 'common').toLowerCase();
+      const tierBadge = `<span class="tier-badge tier-${tier}">${tier}</span>`;
       const row = document.createElement('div');
-      row.className = 'recruit-row';
+      row.className = 'recruit-row recruit-' + tier;
       row.innerHTML = `
         <div class="recruit-info"><span class="comp-emoji">${r.emoji}</span>
-          <div><div class="comp-name">${esc(r.name)}</div>
+          <div><div class="comp-name">${esc(r.name)} ${tierBadge}</div>
           <div class="muted small">⚔️${r.atk} 🛡️${r.def} ❤️${r.hp} · scales with your level</div></div></div>
         <button class="btn small" data-action="recruit" data-id="${r.id}" ${disabled ? 'disabled' : ''}>
           ${owned ? '✔' : `💰 ${formatNum(r.cost)}`} ${reason && !owned ? `<span class="muted small">${reason}</span>` : ''}
@@ -702,6 +922,64 @@ export const UI = {
       list.appendChild(row);
     }
     void ownedIds;
+    this.renderPets(state);
+  },
+
+  // ---------------- pets ----------------
+  // Pets UI lives in the Party tab. Species cards show level, hunger, and
+  // feed/set-active actions; eggs hatch instantly from here.
+  renderPets(state) {
+    const panel = this.els['pets-panel'];
+    panel.innerHTML = '';
+    const p = Engine.ensurePets(state);
+    const eggRow = document.createElement('div');
+    eggRow.className = 'pet-eggs';
+    eggRow.innerHTML = `
+      <div class="row-between">
+        <span>🥚 Pet eggs: <b>${p.eggs}</b> <span class="muted small">(bosses drop them)</span></span>
+        <button class="btn small" data-action="hatch-pet" ${p.eggs < 1 ? 'disabled' : ''}>Hatch 🥚</button>
+      </div>`;
+    panel.appendChild(eggRow);
+    if (!p.collection.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted small';
+      empty.textContent = 'No pets yet. Slay bosses for a chance at a pet egg!';
+      panel.appendChild(empty);
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'pet-list';
+    for (const pet of p.collection) {
+      const sp = Engine.petSpeciesOf(pet);
+      const active = pet.uid === p.activeUid;
+      const cost = Engine.petFeedCost(pet, state);
+      const hungerPct = Math.round(pet.hunger);
+      const hungerLabel = pet.hunger <= 0 ? 'hungry — sits out!' : pet.hunger <= 50 ? 'peckish (40% dmg)' : 'full power';
+      const ps = Engine.petStats(pet);
+      const pb = Engine.petBondFor(pet);
+      const bondNote = pet.hunger <= 0 ? ' — starving, no bond' : pet.hunger <= 50 ? ' (40% — hungry)' : '';
+      const bondText = active
+        ? `🔗 Bond active: +${pb.atk} ATK / +${pb.def} DEF / +${pb.hp} HP${bondNote}`
+        : `🔗 Bond: +${pb.atk} ATK / +${pb.def} DEF / +${pb.hp} HP (applies when active)`;
+      const row = document.createElement('div');
+      row.className = 'pet-card' + (active ? ' active' : '');
+      row.innerHTML = `
+        <div class="pet-head"><span class="pet-emoji">${sp.emoji}</span>
+          <div><div class="comp-name">${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></div>
+          <div class="muted small">${esc(sp.rarity)} · strikes every 4s</div></div>
+          ${active ? '<span class="pet-active">ACTIVE</span>' : ''}
+        </div>
+        <div class="muted small">📊 ${ps.atk} ATK · ${ps.def} DEF · ${ps.hp} HP</div>
+        <div class="muted small">${bondText}</div>
+        <div class="pet-hunger"><div class="bar hunger"><div class="fill" style="width:${hungerPct}%"></div></div>
+          <span class="muted small">🍖 ${hungerPct}% ${hungerLabel}</span></div>
+        <div class="row">
+          <button class="btn small" data-action="feed-pet" data-id="${esc(pet.uid)}" ${pet.hunger >= 100 ? 'disabled' : ''}>🍖 Feed (💰${formatNum(cost)})</button>
+          ${active ? '' : `<button class="btn small ghost" data-action="set-active-pet" data-id="${esc(pet.uid)}">Set active</button>`}
+        </div>`;
+      list.appendChild(row);
+    }
+    panel.appendChild(list);
   },
 
   // ---------------- ranks ----------------
@@ -717,13 +995,15 @@ export const UI = {
       const tr = document.createElement('tr');
       if (en.username === meUsername) tr.className = 'me-row';
       const race = Engine.RACES[en.race] || {};
+      const cls = Engine.CLASSES[en.playerClass] || {};
+      const spec = Engine.SPECS[en.spec] || {};
       const title = en.title ? `<div class="lb-title">${esc(Engine.titleName(en.title))}</div>` : '';
       const flag = en.country ? Engine.countryFlag(en.country) : '';
       const badge = en.badge ? Engine.badgeDef(en.badge) : null;
       const badgeHtml = badge ? `<span class="lb-badge" title="${esc(badge.name)}">${badge.emoji}</span> ` : '';
       tr.innerHTML = `
         <td>${medals[i] || (i + 1)}</td>
-        <td><div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${race.emoji || ''} ${esc(en.username)}</div>${title}</td>
+        <td><div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${cls.emoji ? cls.emoji + ' ' : ''}${spec.emoji ? spec.emoji + ' ' : ''}${race.emoji || ''} ${esc(en.username)}</div>${title}</td>
         <td>${en.level}</td>
         <td>${en.stage}</td>
         <td>${formatNum(en.power || 0)}</td>
@@ -736,6 +1016,8 @@ export const UI = {
   // ---------------- more ----------------
   renderMore(state, user) {
     const race = Engine.RACES[state.race] || {};
+    const cls = Engine.CLASSES[state.playerClass] || {};
+    const spec = Engine.SPECS[state.spec] || {};
     const role = (user && user.role) || 'player';
     this.role = role; // remembered for role-aware changelog filtering
     const canGM = role === 'owner' || role === 'gm' || role === 'admin' || role === 'moderator';
@@ -762,7 +1044,7 @@ export const UI = {
           <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${esc(user ? user.username : '—')}</div>
           <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
-          <span class="muted small">${esc(race.name || '')}</span></div>
+          <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
         </div>
       </div>
       <div class="titles-block">

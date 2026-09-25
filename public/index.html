@@ -56,6 +56,30 @@
     </div>
   </section>
 
+  <section id="view-class" class="view hidden">
+    <div class="race-wrap">
+      <h1>Choose your class</h1>
+      <p class="muted">A <b>permanent</b> choice — pick the hero you want to be.</p>
+      <div id="class-grid" class="race-grid"></div>
+    </div>
+  </section>
+
+  <section id="view-spec" class="view hidden">
+    <div class="race-wrap">
+      <h1>Choose your specialization</h1>
+      <p class="muted">Pairs with any class. A <b>permanent</b> choice.</p>
+      <div id="spec-grid" class="race-grid"></div>
+    </div>
+  </section>
+
+  <section id="view-pet" class="view hidden">
+    <div class="race-wrap">
+      <h1>Choose your companion</h1>
+      <p class="muted">A hunter is never alone — pick the beast that fights beside you. A <b>permanent</b> choice.</p>
+      <div id="pet-grid" class="race-grid"></div>
+    </div>
+  </section>
+
   <!-- ============ MAIN APP ============ -->
   <section id="view-app" class="view hidden">
     <div id="maintenance-banner" class="maint-banner hidden"></div>
@@ -140,9 +164,12 @@
 
       <!-- GEAR -->
       <section id="tab-gear" class="tab">
+        <h2>Loadout</h2>
+        <div id="loadout-strip" class="loadout-strip"></div>
         <h2>Upgrades</h2>
         <div id="upgrade-list" class="upgrade-list"></div>
         <h2>Inventory <span id="inv-count" class="muted"></span></h2>
+        <div id="set-progress" class="set-progress"></div>
         <div id="inventory-grid" class="inv-grid"></div>
       </section>
 
@@ -152,6 +179,8 @@
         <div id="party-slots" class="party-slots"></div>
         <h2>Recruit</h2>
         <div id="recruit-list" class="recruit-list"></div>
+        <h2>Pets</h2>
+        <div id="pets-panel" class="pets-panel"></div>
       </section>
 
       <!-- RANKS -->

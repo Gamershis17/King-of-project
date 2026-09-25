@@ -308,6 +308,18 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 
 .inv-grid { display: grid; grid-template-columns: 1fr; gap: 0.7rem; }
 
+/* earnable-set chase progress (gear tab) */
+.set-progress { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.7rem; }
+.set-prog-row {
+  background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius);
+  padding: 0.5rem 0.8rem; font-size: 0.9rem;
+}
+.set-prog-row.on { border-color: var(--gold); box-shadow: 0 0 10px rgba(255,210,63,.18); }
+.set-bonus-on { color: var(--gold); }
+.set-badge-player {
+  background: linear-gradient(180deg, #7dd3fc, #0369a1); color: #04121d;
+}
+
 /* ---------- upgrades ---------- */
 .upgrade-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .upgrade-row {
@@ -332,6 +344,37 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
   background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem;
 }
 .recruit-info { display: flex; gap: 0.6rem; align-items: center; }
+
+/* recruit tier badges */
+.tier-badge {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px solid var(--stone2); border-radius: 999px; padding: 0.08rem 0.45rem;
+  color: var(--muted); vertical-align: 0.1em; margin-left: 0.3rem; white-space: nowrap;
+}
+.tier-uncommon { color: #7ee787; border-color: #2ea04366; }
+.tier-rare { color: #79c0ff; border-color: #1f6feb66; }
+.tier-epic { color: #d2a8ff; border-color: #8957e566; }
+.tier-legendary { color: #ffd700; border-color: #ffd70088; background: #ffd70014; }
+.tier-mythic {
+  color: #fff; border-color: #c678dd;
+  background: linear-gradient(135deg, #7b2ff7, #f107a3);
+}
+.recruit-legendary { border-color: #ffd70055; }
+.recruit-mythic { border-color: #c678dd77; }
+
+/* ---------- pets ---------- */
+.pets-panel { display: grid; gap: 0.7rem; }
+.pet-eggs { background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem; }
+.pet-list { display: grid; gap: 0.6rem; }
+.pet-card { background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem; display: grid; gap: 0.45rem; }
+.pet-card.active { border-color: #ffd700; }
+.pet-head { display: flex; gap: 0.6rem; align-items: center; }
+.pet-emoji { font-size: 1.8rem; }
+.pet-active { margin-left: auto; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; color: #ffd700; border: 1px solid #ffd700; border-radius: 999px; padding: 0.1rem 0.5rem; }
+.pet-hunger { display: flex; align-items: center; gap: 0.6rem; }
+.pet-hunger .bar { flex: 1; }
+.bar.hunger .fill { background: linear-gradient(90deg, #ff9f43, #ffd23f); }
+.pet-card .row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
 /* ---------- ranks ---------- */
 .lb-table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
@@ -364,6 +407,16 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .race-emoji { font-size: 2.6rem; }
 .race-name { font-weight: 800; margin: 0.4rem 0 0.25rem; font-family: Georgia, serif; }
 .race-trait { font-size: 0.8rem; color: var(--muted); }
+.class-perks { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; line-height: 1.55; text-align: left; }
+.class-perks div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.class-modal-grid { grid-template-columns: 1fr 1fr; }
+.pick-label { margin: 0.8rem 0 0.2rem; font-size: 1rem; }
+.race-card.picked { border-color: var(--gold, #d4a017); box-shadow: 0 0 0 2px var(--gold, #d4a017) inset; }
+@media (max-width: 480px) {
+  .class-modal-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .class-modal-grid .race-card { min-height: 0; padding: 0.7rem 0.4rem; }
+  .class-modal-grid .race-emoji { font-size: 2rem; }
+}
 
 /* ---------- modal ---------- */
 .modal-overlay {
@@ -508,6 +561,7 @@ body.reduce-motion .live-dot,
 body.reduce-motion .set-sovereign,
 body.reduce-motion .set-voidwalker,
 body.reduce-motion .set-dragonscale,
+body.reduce-motion .set-gamemaster,
 body.reduce-motion .bar.hp.hp-low .fill,
 body.reduce-motion .new-badge { animation: none !important; }
 body.reduce-motion * { transition-duration: 0.01ms !important; }
@@ -694,6 +748,23 @@ body.reduce-motion .combo-frenzy { animation: none; }
 .set-badge-dragonscale {
   background: linear-gradient(90deg, #ff3b1f, #ffb21f);
   color: #1a0d00;
+}
+/* ---------- Game Master Regalia (judgment gold-white) gear ---------- */
+.set-gamemaster {
+  border: 2px solid transparent;
+  background:
+    linear-gradient(var(--stone), var(--stone)) padding-box,
+    linear-gradient(135deg, #ffd700, #fffbe6, #c9a227, #ffd700) border-box;
+  animation: judgment-pulse 2.8s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(255,215,0,.45);
+}
+@keyframes judgment-pulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(255,215,0,.35); }
+  50% { box-shadow: 0 0 26px rgba(255,215,0,.75); }
+}
+.set-badge-gamemaster {
+  background: linear-gradient(90deg, #ffd700, #fffbe6);
+  color: #3a2c00;
 }
 
 /* ---------- leaderboard titles ---------- */
@@ -1161,4 +1232,85 @@ body[data-uistyle="modern"] .item-card, body[data-uistyle="modern"] .member, bod
 body[data-uistyle="modern"] .item-card:hover, body[data-uistyle="modern"] .member:hover, body[data-uistyle="modern"] .race-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 26px rgba(0,0,0,.5), 0 0 16px rgba(139,92,246,.28);
+}
+
+/* ============================================================
+   Gear & Party UI rework
+   ============================================================ */
+
+/* ---- gear: loadout strip ---- */
+.loadout-strip {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.5rem; margin-bottom: 0.3rem;
+}
+.loadout-slot {
+  background: var(--stone); border: 1px solid var(--stone2);
+  border-left: 4px solid var(--rc, var(--stone2));
+  border-radius: var(--radius); padding: 0.55rem 0.35rem;
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  text-align: center; min-width: 0;
+}
+.loadout-slot.empty { border-style: dashed; opacity: 0.65; }
+.loadout-emoji { font-size: 1.5rem; line-height: 1.2; }
+.loadout-name {
+  font-size: 0.7rem; font-weight: 600; max-width: 100%;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.loadout-rarity { font-size: 0.6rem; color: var(--rc, var(--muted)); text-transform: uppercase; letter-spacing: 0.06em; }
+.tiny { font-size: 0.66rem; }
+
+/* ---- gear: item cards ---- */
+.stat-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.stat-chip {
+  font-size: 0.75rem; background: var(--stone2);
+  border: 1px solid var(--stone2); border-radius: 999px;
+  padding: 0.12rem 0.55rem; color: #cfc8e6; white-space: nowrap;
+}
+.item-card.equipped { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,210,63,.16); }
+.item-actions .btn { flex: 1; }
+
+/* ---- party: member cards ---- */
+.member { align-items: stretch; text-align: left; }
+.member-top { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.4rem; width: 100%; }
+.member-top .portrait { width: 46px; height: 46px; font-size: 1.25rem; margin: 0; }
+.member-id { min-width: 0; flex: 1; }
+.member .member-name {
+  font-size: 0.95rem; white-space: normal; overflow: visible;
+  display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+}
+.lvl-badge {
+  font-size: 0.62rem; font-weight: 800; background: var(--arcane-dim); color: #fff;
+  border-radius: 999px; padding: 0.12rem 0.5rem; letter-spacing: 0.04em; white-space: nowrap;
+}
+.member .member-role { margin: 0.15rem 0 0; }
+.member > .hpbar.mini-hp { max-width: none; }
+.member .member-hptext { margin: 0.2rem 0 0.1rem; }
+.member .member-stats { font-size: 0.8rem; color: #cfc8e6; margin: 0.2rem 0 0.5rem; }
+.member-actions { display: flex; gap: 0.5rem; align-items: stretch; width: 100%; }
+.lvl-btn { flex: 1; }
+.icon-btn { flex: none; width: 2.2rem; padding: 0.3rem 0; text-align: center; }
+.empty-slot-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+  padding: 0.7rem; color: var(--muted); text-align: center;
+}
+.empty-plus { font-size: 1.5rem; line-height: 1; }
+/* keep the battle-tab mini cards centered */
+.member.mini { align-items: center; text-align: center; }
+
+/* ---- party: recruit rows get tier accent bars ---- */
+.recruit-row { border-left: 4px solid var(--stone2); }
+.recruit-common { border-left-color: #9aa0a6; }
+.recruit-uncommon { border-left-color: #2ea043; }
+.recruit-rare { border-left-color: #1f6feb; }
+.recruit-epic { border-left-color: #8957e5; }
+.recruit-legendary { border-left-color: #ffd700; }
+.recruit-mythic { border-left-color: #f107a3; }
+
+@media (min-width: 700px) {
+  .inv-grid { grid-template-columns: 1fr 1fr; }
+  .recruit-list { display: grid; grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) {
+  .loadout-strip { grid-template-columns: repeat(5, 1fr); gap: 0.3rem; }
+  .loadout-emoji { font-size: 1.2rem; }
+  .loadout-name { font-size: 0.58rem; }
 }
