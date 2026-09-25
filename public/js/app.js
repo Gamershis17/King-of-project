@@ -239,6 +239,9 @@ function startGame() {
   App.broadcastTimer = setInterval(() => pollBroadcast(), 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
+    // FPS/battery: pause ambient CSS animations while the tab is hidden.
+    // Purely a resource saver — nothing is visible while hidden.
+    document.body.classList.toggle('tab-hidden', document.visibilityState === 'hidden');
   });
   window.addEventListener('beforeunload', () => {
     if (App.state) api.saveStateBeacon(App.state);

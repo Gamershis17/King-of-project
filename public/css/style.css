@@ -279,6 +279,19 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .r-legendary { --rc: #ff8c1a; }
 .r-mythic { --rc: #ff3b3b; }
 
+/* ---------- render skipping for long lists (FPS) ----------
+   content-visibility:auto tells the browser to skip layout/paint/raster for
+   off-screen rows entirely. Visually identical by design; only helps scroll
+   smoothness in card-heavy tabs (Gear, Party, Ranks, More). */
+.item-card,
+.member,
+.recruit-row,
+.title-chip,
+.talent-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
 .item-card {
   background: var(--stone); border: 1px solid var(--stone2); border-left: 5px solid var(--rc, #555);
   border-radius: var(--radius); padding: 0.7rem; display: flex; flex-direction: column; gap: 0.35rem;
@@ -790,19 +803,32 @@ body.reduce-motion .combo-frenzy { animation: none; }
 }
 .seg-control button.active { background: var(--arcane); color: #fff; font-weight: 700; }
 
+/* ---------- hidden-tab animation pause (FPS/battery) ----------
+   Pauses ambient CSS animations while the document is hidden. Toggled from
+   app.js on visibilitychange. Zero visual change — nothing is on screen. */
+body.tab-hidden *,
+body.tab-hidden *::before,
+body.tab-hidden *::after {
+  animation-play-state: paused !important;
+}
+
 /* ============================================================
    MODERN THEME — everything below is scoped under
    body[data-uistyle="modern"]. Classic styles above are untouched.
    ============================================================ */
 
-/* ---- glassmorphic cards ---- */
+/* ---- glassmorphic cards ----
+   NOTE (FPS): no backdrop-filter here on purpose. The backdrop behind cards is
+   the flat --bg color, so blurring it was visually a no-op (verified
+   pixel-identical in battle + scrolled gear screenshots) while costing heavy
+   GPU fill-rate on every frame. The glass look comes from the translucent
+   gradient backgrounds below, which are untouched. The auth card keeps its
+   blur because animated embers drift behind it there. */
 body[data-uistyle="modern"] .card {
   border: 1px solid transparent;
   background:
     linear-gradient(160deg, rgba(48,34,82,.80), rgba(22,14,38,.88)) padding-box,
     linear-gradient(160deg, rgba(255,210,63,.50), rgba(139,92,246,.38) 45%, rgba(255,210,63,.16)) border-box;
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
   border-radius: 18px;
   box-shadow: 0 10px 34px rgba(0,0,0,.50), inset 0 1px 0 rgba(255,255,255,.09);
 }
