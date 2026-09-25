@@ -14,21 +14,22 @@ services:
       - key: SESSION_SECRET
         generateValue: true
       - key: OWNER_USERNAME
-        generateValue: true
-        description: "Login username for the owner account. You sign in with this
-          name on the website's login screen. You can change it to your own name."
+        value: ""
+        sync: false
+        description: "REQUIRED — Login username for the owner account. Type
+          gamershis17 (you sign in with this name on the game's login screen)."
       - key: OWNER_PASSWORD
-        generateValue: true
-        description: "Login password for the owner account. Render generates a random
-          one — copy it from the Environment tab and keep it somewhere safe. You
-          can change it to your own password."
+        value: ""
+        sync: false
+        description: "REQUIRED — Pick a secret password for the owner account.
+          Only you will know it."
       - key: DATABASE_URL
-        description: "PostgreSQL connection string — this is what keeps accounts,
-          saves and the leaderboard alive across restarts. Get a FREE Postgres
-          database at Neon (neon.tech) or Supabase (supabase.com), create a
-          database, and paste its connection string here
-          (postgres://user:password@host:5432/dbname). SSL is enabled
-          automatically for non-localhost hosts."
+        value: ""
+        sync: false
+        description: "REQUIRED — PostgreSQL connection string. This is what keeps
+          accounts, saves and the leaderboard alive across restarts. Paste your
+          Neon connection string here (it starts with postgres://). SSL is
+          enabled automatically for non-localhost hosts."
 
     # --- Persistence ---
     # All accounts, saves, sessions, gift codes and the leaderboard now live in
