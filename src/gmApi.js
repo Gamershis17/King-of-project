@@ -6,6 +6,7 @@
  *   POST /api/gm/grant        (gm|owner)
  *   POST /api/gm/grant-title  (gm|owner)
  *   POST /api/gm/badge       (gm|owner)
+ *   POST /api/gm/inf-gold    (owner) — toggle infinite-gold perk
  *   POST /api/gm/set-stage    (gm|owner)
  *   POST /api/gm/heal         (gm|owner)
  *   POST /api/gm/reset        (gm|owner)
@@ -285,6 +286,23 @@ router.post(
     }
     const blob = await loadBlob(target.id);
     blob.badge = id === '' ? null : id;
+    await persistMergedState(target.id, blob);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- infinite gold (owner only) ----------
+// Toggles the infGold perk on a player's save: purchases never deduct gold
+// and the HUD shows ∞. Survives prestige. Pass enabled: false to revoke.
+router.post(
+  '/gm/inf-gold',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username, enabled } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const blob = await loadBlob(target.id);
+    blob.infGold = enabled === true;
     await persistMergedState(target.id, blob);
     res.json({ ok: true, state: selfState(req, target, blob) });
   })

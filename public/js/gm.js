@@ -183,6 +183,15 @@ export const GM = {
           <button id="gm-role-set" class="btn small gold">Set role</button>
         </div>
         <p class="muted small">gm: full console. admin: Warden gear entitlement + player management. moderator: broadcast + player lookup. player: default.</p>
+      </div>
+
+      <div class="card"><h3>♾️ Infinite gold <span class="muted small">(owner only)</span></h3>
+        <div class="row">
+          <input id="gm-infgold-user" placeholder="username" autocomplete="off">
+          <button id="gm-infgold-on" class="btn small gold">Enable ∞</button>
+          <button id="gm-infgold-off" class="btn small">Disable</button>
+        </div>
+        <p class="muted small">Purchases never deduct gold and the HUD shows ∞. Survives prestige. Only the owner can grant it.</p>
       </div>` : ''}`;
   },
 
@@ -508,6 +517,30 @@ export const GM = {
         }
       });
     }
+
+    // ♾️ Infinite gold toggle (owner only). Hot-reloads the operator's own
+    // game state so the ∞ HUD appears immediately on a self-grant.
+    const infGoldToggle = async (enabled) => {
+      const username = $('gm-infgold-user').value.trim();
+      if (!username) return UI.toast('Enter a username.', 'error');
+      const ok = await UI.confirm(
+        enabled ? 'Enable infinite gold' : 'Disable infinite gold',
+        enabled
+          ? `Give <b>${esc(username)}</b> infinite gold? Purchases will never deduct gold.`
+          : `Take infinite gold away from <b>${esc(username)}</b>?`
+      );
+      if (!ok) return;
+      try {
+        const res = await api.gmInfGold(username, enabled);
+        $('gm-infgold-user').value = '';
+        await hotReloadIfSelf(username, res);
+        UI.toast(enabled ? `♾️ ${username} now has infinite gold.` : `Infinite gold removed from ${username}.`, 'success');
+      } catch (e) {
+        UI.toast(e.message || 'Infinite-gold update failed.', 'error');
+      }
+    };
+    on('gm-infgold-on', 'click', () => infGoldToggle(true));
+    on('gm-infgold-off', 'click', () => infGoldToggle(false));
   },
 
   async refreshCodes(root) {

@@ -1,9 +1,32 @@
 [
   {
     "date": "2026-09-25",
-    "title": "Staff tab & enemy icons",
+    "title": "Prestige at 70 & new titles",
     "changes": [
-      "New 🛠️ Staff tab in the main navigation for owner, admins, and moderators — opens the GM console (give stats, ban, broadcasts) in one tap; invisible to regular players",
+      "Prestige now requires level 70 (was stage 50) — more runway before each rebirth",
+      "3 new prestige titles: the Paragon (10 prestiges), the Demigod (25), the Worldforger (50)"
+    ]
+  },
+  {
+    "date": "2026-09-25",
+    "title": "♾️ Infinite gold perk",
+    "staff": true,
+    "changes": [
+      "♾️ Infinite gold perk (owner-only): purchases never deduct gold, the HUD shows ∞, and it survives prestige — toggled from the GM console"
+    ]
+  },
+  {
+    "date": "2026-09-25",
+    "title": "🛠️ Staff tab",
+    "staff": true,
+    "changes": [
+      "New 🛠️ Staff tab in the main navigation for owner, admins, and moderators — opens the GM console (give stats, ban, broadcasts) in one tap; invisible to regular players"
+    ]
+  },
+  {
+    "date": "2026-09-25",
+    "title": "Enemy icons fixed",
+    "changes": [
       "Every enemy now has its own matching icon (Frost Wisp 👻, Stone Sentinel 🗿, dragons 🐉…) instead of a random one"
     ]
   },
@@ -11,27 +34,32 @@
     "date": "2026-09-25",
     "title": "Admin & Mod badges",
     "changes": [
-      "New 🛡️ Admin and 🔨 Mod badges, grantable from the GM console — shown next to names on the leaderboard and profile",
+      "New 🛡️ Admin and 🔨 Mod badges — shown next to names on the leaderboard and profile",
       "Moderator role pill now has its own styled badge in the HUD and profile",
       "Desktop revamp: sidebar navigation, two-column battle layout, richer HUD — plus a smoother motion pass everywhere (Modern theme) and light mobile refinements"
     ]
   },
   {
     "date": "2026-09-25",
-    "title": "10 new titles & 2 new gear sets",
+    "title": "10 new titles",
     "changes": [
-      "10 new hero titles: prestige titles (the Reborn, the Phoenix, the Immortal), boss titles (the Executioner, the Godslayer), gold titles (the Hoarder, the Magnate — lifetime gold earned is now tracked), and raid titles (the Raider, the Stormcaller, the Tidebreaker)",
+      "10 new hero titles: prestige titles (the Reborn, the Phoenix, the Immortal), boss titles (the Executioner, the Godslayer), gold titles (the Hoarder, the Magnate — lifetime gold earned is now tracked), and raid titles (the Raider, the Stormcaller, the Tidebreaker)"
+    ]
+  },
+  {
+    "date": "2026-09-25",
+    "title": "Voidwalker & Dragonscale gear sets",
+    "staff": true,
+    "changes": [
       "New Voidwalker Regalia gear set (dodge/crit themed, purple-black aura) — grantable from the GM console",
       "New Dragonscale Aegis gear set (HP/regen themed, red-gold aura) — grantable from the GM console"
     ]
   },
   {
     "date": "2026-09-25",
-    "title": "New titles, moderator role & GM commands",
+    "title": "New titles, raid mode & guilds",
     "changes": [
       "9 new hero titles: playtime titles (the Sleepless, the Tireless, the Eternal), stage titles (the Climber, the Ascendant, the Mythical) and kill titles (the Slayer, the Butcher, the Annihilator)",
-      "New moderator staff role with broadcast and player-lookup tools",
-      "New GM commands: unlock titles, set stage, ban/unban with login enforcement, server-wide broadcasts, player list search, and full save reset",
       "The latest server broadcast is now publicly readable so the client can show announcements",
       "Raid mode: endless PvE waves with boss waves every 5, best-wave record survives prestige",
       "Guilds: create, join, leave, and view your guild roster from the More tab",
@@ -40,11 +68,20 @@
   },
   {
     "date": "2026-09-25",
+    "title": "Moderator role & GM commands",
+    "staff": true,
+    "changes": [
+      "New moderator staff role with broadcast and player-lookup tools",
+      "New GM commands: unlock titles, set stage, ban/unban with login enforcement, server-wide broadcasts, player list search, and full save reset"
+    ]
+  },
+  {
+    "date": "2026-09-25",
     "title": "Leaderboard badges & flags, number fixes",
     "changes": [
       "Fixed companion damage numbers showing \"false60\" — crits now display properly",
       "Floating damage numbers now pop, rise and fade smoothly",
-      "Creator badges: owner/GM can grant YouTuber, Streamer or VIP badges shown next to names on the leaderboard",
+      "Creator badges: YouTuber, Streamer and VIP badges shown next to names on the leaderboard",
       "Country flags: pick your country in Profile and its flag appears on the leaderboard"
     ]
   },
@@ -56,7 +93,10 @@
       "Owner gear: the Sovereign Founder's Regalia now shimmers with a rainbow aura",
       "New share button — brag your stats or grab the link for your videos",
       "New \"What's New\" update log (this panel!) with dates for every patch",
-      "GM console: more commands — grant titles, set stage, heal, reset player, grant XP",
+      {
+        "text": "GM console: more commands — grant titles, set stage, heal, reset player, grant XP",
+        "staff": true
+      },
       "Maintenance notices: players now see a proper maintenance screen and banner when the server is down for updates"
     ],
     "date": "2026-09-25",
@@ -83,7 +123,8 @@
     ],
     "date": "2026-09-25",
     "title": "GM console & privileged gear",
-    "version": "1.3"
+    "version": "1.3",
+    "staff": true
   },
   {
     "changes": [
@@ -102,7 +143,7 @@
       "Durable cloud saves (PostgreSQL) — progress never resets",
       "True global leaderboard with power, stage and boss rankings",
       "Three modes: idle clicker, classic auto-battle, 3-hero party dungeon",
-      "Prestige at stage 50 for +25% damage & gold per rebirth"
+      "Prestige at level 70 for +25% damage & gold per rebirth"
     ],
     "date": "2026-09-25",
     "title": "Server launch",

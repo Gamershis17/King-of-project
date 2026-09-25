@@ -428,7 +428,7 @@ function onKillEnemy() {
   spawnNextEnemy();
   UI.updateHUD(s, App.user);
   // prestige unlock may have appeared
-  if (s.stage >= 50) UI.renderBattle(s);
+  if (s.level >= 70) UI.renderBattle(s);
 }
 
 function enemyStrikeTick(stats) {
@@ -478,7 +478,7 @@ function onDefeat() {
   App.dead = true;
   App.respawnAt = Date.now() + RESPAWN_MS;
   const lost = Math.floor(s.gold * 0.02);
-  s.gold -= lost;
+  if (!s.infGold) s.gold -= lost; // infinite-gold perk: death takes nothing
   // Raid: death ends the run (loot kept); drop back to clicker mode.
   if (Raid.isActive()) {
     const res = Raid.onDeath(s);
@@ -686,8 +686,7 @@ function doUpgrade(kind) {
   const s = App.state;
   const lvl = (s.upgrades && s.upgrades[kind]) || 1;
   const cost = Engine.upgradeCost(kind, lvl);
-  if (s.gold < cost) { UI.toast('Not enough gold.', 'error'); return; }
-  s.gold -= cost;
+  if (!Engine.spendGold(s, cost)) { UI.toast('Not enough gold.', 'error'); return; }
   s.upgrades[kind] = lvl + 1;
   UI.renderGear(s);
   UI.updateHUD(s, App.user);
@@ -713,8 +712,7 @@ function doProfession(id) {
   if (!s) return;
   const cost = Engine.levelProfession(s, id);
   if (cost == null) { UI.toast('Max level reached.', 'error'); return; }
-  if (s.gold < cost) { UI.toast('Not enough gold.', 'error'); return; }
-  s.gold -= cost;
+  if (!Engine.spendGold(s, cost)) { UI.toast('Not enough gold.', 'error'); return; }
   s.professions[id] = ((s.professions && s.professions[id]) || 1) + 1;
   UI.renderMore(s, App.user);
   UI.updateHUD(s, App.user);
@@ -728,8 +726,7 @@ function doRecruit(recruitId) {
   if (!r) return;
   if (s.party.length >= Engine.MAX_PARTY) { UI.toast('Party is full (3).', 'error'); return; }
   if (s.party.some(c => c.name === r.name)) { UI.toast('Already recruited.', 'error'); return; }
-  if (s.gold < r.cost) { UI.toast('Not enough gold.', 'error'); return; }
-  s.gold -= r.cost;
+  if (!Engine.spendGold(s, r.cost)) { UI.toast('Not enough gold.', 'error'); return; }
   const c = Engine.makeCompanion(r, s.level);
   s.party.push(c);
   UI.renderParty(s);
@@ -769,7 +766,7 @@ function applyExternalState(srv) {
 
 async function doPrestige() {
   const s = App.state;
-  if (s.stage < 50) return;
+  if (s.level < 70) return;
   const nextBonus = (s.prestigeBonus || 0) + 25;
   const ok = await UI.confirm(
     '🔥 Prestige?',

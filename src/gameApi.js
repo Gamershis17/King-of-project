@@ -6,6 +6,7 @@
  *   POST /api/state        (auth)
  *   GET  /api/leaderboard  (public)
  *   GET  /api/status       (public — maintenance flag + message)
+ *   GET  /api/changelog    (public — staff-only items stripped for players)
  *   POST /api/redeem       (auth)
  *
  * Gift-code redemption runs inside a single Postgres transaction with
@@ -14,11 +15,14 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const { requireAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const {
   getStateRow,
+  getUserById,
   saveState,
   getLeaderboardRows,
   redeemGiftCode,
@@ -42,6 +46,42 @@ router.get('/status', (req, res) => {
   const message = process.env.MAINTENANCE_MESSAGE || null;
   res.json({ ok: true, maintenance, message });
 });
+
+// ---------- changelog ----------
+// Public, but role-aware: entries/items flagged "staff" in changelog.json are
+// stripped for regular players so the What's New panel never leaks GM/staff
+// additions. Staff (owner/admin/gm/moderator) see the full log.
+const CHANGELOG_PATH = path.join(__dirname, '..', 'public', 'changelog.json');
+const STAFF_CHANGELOG_ROLES = new Set(['owner', 'admin', 'gm', 'moderator']);
+function filterChangelog(log, isStaff) {
+  if (!Array.isArray(log)) return [];
+  const out = [];
+  for (const e of log) {
+    if (!e || typeof e !== 'object') continue;
+    if (e.staff && !isStaff) continue;
+    const changes = (e.changes || [])
+      .filter(c => (typeof c === 'string') || (c && typeof c === 'object' && (isStaff || !c.staff)))
+      .map(c => (typeof c === 'string' ? c : c.text));
+    if (!changes.length) continue;
+    out.push({ ...e, changes });
+  }
+  return out;
+}
+router.get('/changelog', asyncHandler(async (req, res) => {
+  let role = null;
+  try {
+    const userId = req.session && req.session.userId;
+    if (userId) {
+      const user = await getUserById(userId);
+      role = user && user.role;
+    }
+  } catch { /* treat as anonymous player */ }
+  let log = [];
+  try {
+    log = JSON.parse(fs.readFileSync(CHANGELOG_PATH, 'utf8'));
+  } catch { /* serve empty on read/parse failure */ }
+  res.json({ ok: true, log: filterChangelog(log, STAFF_CHANGELOG_ROLES.has(role)) });
+}));
 
 /** Fresh default blob per the API contract's state schema. */
 function defaultStateBlob() {

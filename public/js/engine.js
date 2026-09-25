@@ -89,6 +89,7 @@ export function defaultState(race) {
     activeTitle: 'wanderer',
     badge: null,      // GM-granted creator badge id (e.g. 'youtuber') — shown on leaderboard
     country: null,    // ISO-3166 country code (e.g. 'US') — flag shown on leaderboard
+    infGold: false,   // owner-only perk: infinite gold (purchases never deduct)
     restedUntil: 0,
   };
 }
@@ -112,6 +113,7 @@ export function ensureState(raw) {
   if (typeof s.activeTitle !== 'string' || !s.activeTitle) s.activeTitle = s.titlesUnlocked[0];
   if (typeof s.badge !== 'string' || !BADGE_BY_ID[s.badge]) s.badge = null; // unknown badges cleared
   if (typeof s.country !== 'string' || !isValidCountry(s.country)) s.country = null;
+  s.infGold = s.infGold === true; // owner-only perk flag
   s.restedUntil = Number(raw.restedUntil) || 0;
   if (!Array.isArray(s.party)) s.party = [];
   if (!Array.isArray(s.inventory)) s.inventory = [];
@@ -133,6 +135,15 @@ export function ensureState(raw) {
 // ---------------- XP / levels / gold ----------------
 export const xpForLevel = (level) => Math.max(1, Math.round(80 * Math.pow(1.30, level - 1)));
 export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.15, stage)));
+// Deducts gold for a purchase. Returns false when the player can't afford
+// it. Infinite-gold perk holders never pay.
+export function spendGold(s, cost) {
+  if (s.infGold) return true;
+  if ((s.gold || 0) < cost) return false;
+  s.gold -= cost;
+  return true;
+}
+
 export function goldForKill(stage, goldBonusPct = 0, prestigeBonusPct = 0) {
   return Math.max(1, Math.round(
     6 * Math.pow(1.12, stage) *
@@ -499,7 +510,7 @@ export function companionStats(c) {
 // Stage >= 50. Returns a FRESH state blob: level/stage/gold/inventory reset,
 // privileged set items + stars + lifetime stats kept, prestigeBonus += 25%.
 export function prestige(state) {
-  if ((state.stage || 1) < 50) return null;
+  if ((state.level || 1) < 70) return null;
   const kept = (state.inventory || []).filter(i => i && i.set);
   const keptIds = new Set(kept.map(i => i.id));
   const equipped = {};
@@ -521,6 +532,7 @@ export function prestige(state) {
   fresh.badge = (typeof state.badge === 'string' && BADGE_BY_ID[state.badge]) ? state.badge : null;
   fresh.country = (typeof state.country === 'string' && isValidCountry(state.country)) ? state.country : null;
   fresh.mode = state.mode || 'clicker';
+  fresh.infGold = state.infGold === true; // owner perk survives prestige
   return fresh;
 }
 
@@ -633,6 +645,9 @@ export const TITLES = [
   { id: 'reborn',          name: 'the Reborn',          desc: 'Prestige twice.',                           check: (s) => (s.prestigeCount || 0) >= 2 },
   { id: 'phoenix',         name: 'the Phoenix',         desc: 'Prestige 3 times.',                         check: (s) => (s.prestigeCount || 0) >= 3 },
   { id: 'immortal',        name: 'the Immortal',        desc: 'Prestige 5 times.',                         check: (s) => (s.prestigeCount || 0) >= 5 },
+  { id: 'paragon',         name: 'the Paragon',         desc: 'Prestige 10 times.',                        check: (s) => (s.prestigeCount || 0) >= 10 },
+  { id: 'demigod',         name: 'the Demigod',         desc: 'Prestige 25 times.',                        check: (s) => (s.prestigeCount || 0) >= 25 },
+  { id: 'worldforger',     name: 'the Worldforger',     desc: 'Prestige 50 times.',                        check: (s) => (s.prestigeCount || 0) >= 50 },
   { id: 'executioner',     name: 'the Executioner',     desc: 'Slay 50 bosses.',                           check: (s) => (s.bossesKilled || 0) >= 50 },
   { id: 'godslayer',       name: 'the Godslayer',       desc: 'Slay 100 bosses.',                          check: (s) => (s.bossesKilled || 0) >= 100 },
   { id: 'hoarder',         name: 'the Hoarder',         desc: 'Earn 1,000,000 gold in total.',             check: (s) => (s.stats.totalGoldEarned || 0) >= 1000000 },

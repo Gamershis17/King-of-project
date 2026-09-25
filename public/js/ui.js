@@ -324,7 +324,7 @@ export const UI = {
     e['hud-role'].textContent = role;
     e['hud-role'].className = 'role-badge role-' + role;
     e['hud-race'].textContent = race.name || '';
-    e['hud-gold'].textContent = formatNum(state.gold);
+    e['hud-gold'].textContent = state.infGold ? '∞' : formatNum(state.gold);
     e['hud-stars'].textContent = formatNum(state.stars);
     e['hud-stage'].textContent = state.stage;
     e['hud-level'].textContent = state.level;
@@ -358,7 +358,7 @@ export const UI = {
   // ---------------- battle ----------------
   renderBattle(state) {
     this.setMode(state.mode);
-    const showPrestige = state.stage >= 50;
+    const showPrestige = state.level >= 70;
     this.els['prestige-box'].classList.toggle('hidden', !showPrestige);
     if (showPrestige) {
       this.els['prestige-note'].innerHTML =
@@ -737,6 +737,7 @@ export const UI = {
   renderMore(state, user) {
     const race = Engine.RACES[state.race] || {};
     const role = (user && user.role) || 'player';
+    this.role = role; // remembered for role-aware changelog filtering
     const canGM = role === 'owner' || role === 'gm' || role === 'admin' || role === 'moderator';
     this.els['gm-entry-card'].classList.toggle('hidden', !canGM);
     // Staff tab in the main nav: visible to staff only, opens the GM console.
@@ -789,13 +790,52 @@ export const UI = {
     this.checkChangelogBadge();
   },
 
+  // Staff viewers see every changelog item; players never see items flagged
+  // "staff" (GM commands, privileged gear, staff tools).
+  isStaffChangelogViewer() {
+    return ['owner', 'admin', 'gm', 'moderator'].includes(this.role || 'player');
+  },
+
+  // Client-side mirror of the server's changelog filter, used only when the
+  // /api/changelog endpoint is unreachable and we fall back to changelog.json.
+  filterChangelog(log) {
+    const isStaff = this.isStaffChangelogViewer();
+    if (!Array.isArray(log)) return [];
+    return log
+      .filter(e => e && (isStaff || !e.staff))
+      .map(e => ({
+        ...e,
+        changes: (e.changes || [])
+          .filter(c => (typeof c === 'string') || (c && typeof c === 'object' && (isStaff || !c.staff)))
+          .map(c => (typeof c === 'string' ? c : c.text)),
+      }))
+      .filter(e => e.changes.length);
+  },
+
+  // Role-aware changelog fetch: the server strips staff-only items for
+  // players. Falls back to the static file (filtered client-side) if the
+  // endpoint is unreachable.
+  async fetchChangelog() {
+    try {
+      const r = await fetch('/api/changelog', { cache: 'no-store' });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && Array.isArray(j.log)) return j.log;
+      }
+    } catch { /* fall through to static file */ }
+    try {
+      const r = await fetch('changelog.json', { cache: 'no-store' });
+      if (r.ok) return this.filterChangelog(await r.json());
+    } catch { /* ignore */ }
+    return null;
+  },
+
   // Shows the NEW badge on "What's New" when the changelog has an entry
   // newer than the player's last-seen one.
   checkChangelogBadge() {
     const badge = this.els['changelog-badge'];
     if (!badge) return;
-    fetch('changelog.json', { cache: 'no-store' })
-      .then(r => (r.ok ? r.json() : null))
+    this.fetchChangelog()
       .then(log => {
         if (!Array.isArray(log) || !log.length) return;
         const latest = String(log[0].date || '');
@@ -807,11 +847,7 @@ export const UI = {
   },
 
   async openChangelog() {
-    let log = null;
-    try {
-      const r = await fetch('changelog.json', { cache: 'no-store' });
-      if (r.ok) log = await r.json();
-    } catch { /* ignore */ }
+    const log = await this.fetchChangelog();
     if (!Array.isArray(log) || !log.length) {
       this.toast('No updates logged yet.', 'info');
       return;
