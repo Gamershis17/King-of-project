@@ -33,6 +33,19 @@
           <button type="submit" class="btn gold">✨ Create hero</button>
         </form>
         <div id="auth-error" class="auth-error hidden"></div>
+        <div class="guest-block">
+          <div class="guest-divider"><span>or</span></div>
+          <div id="guest-continue" class="hidden">
+            <p class="muted small">Guest adventure found: <b id="guest-continue-name" class="gold-text"></b></p>
+            <button id="guest-continue-btn" class="btn wide" type="button">🎮 Continue as guest</button>
+            <button id="guest-fresh-btn" class="btn ghost small" type="button">start over instead</button>
+          </div>
+          <div id="guest-start">
+            <input id="guest-name" placeholder="Guest name (optional)" maxlength="16" autocomplete="off">
+            <button id="guest-play-btn" class="btn wide" type="button">🎮 Play as Guest</button>
+            <p class="muted small">No account needed. Progress saves on this device only.</p>
+          </div>
+        </div>
       </div>
     </div>
   </section>
@@ -197,6 +210,11 @@
       <!-- MORE -->
       <section id="tab-more" class="tab">
         <div id="profile-card" class="card"></div>
+        <div class="card hidden" id="guest-upgrade-card">
+          <h3>💾 Keep your progress</h3>
+          <p class="muted small">You're playing as a guest — your hero only exists on this device. Create a free account to save online, join guilds, and appear on the leaderboard.</p>
+          <button id="guest-upgrade-btn" class="btn gold wide">✨ Create account</button>
+        </div>
         <div class="card">
           <h3>📣 Share the game</h3>
           <p class="muted small">Brag your stats, invite friends, or grab the link for your videos.</p>

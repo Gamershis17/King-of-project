@@ -1,13 +1,16 @@
 // ============================================================
-// auth.js — login / register view wiring.
+// auth.js — login / register / guest view wiring.
 // ============================================================
 import { api } from './api.js';
+import { sanitizeGuestName, loadGuest, clearGuest } from './guest.js';
 
 export const Auth = {
   onAuthed: null,
+  onGuest: null,
 
-  init({ onAuthed }) {
+  init({ onAuthed, onGuest }) {
     this.onAuthed = onAuthed;
+    this.onGuest = onGuest;
 
     const tabLogin = document.getElementById('auth-tab-login');
     const tabRegister = document.getElementById('auth-tab-register');
@@ -74,6 +77,35 @@ export const Auth = {
       } finally {
         setBusy(false);
       }
+    });
+
+    // ---------------- guest mode ----------------
+    // Guests play locally with no account: zero server calls.
+    const guestNameInput = document.getElementById('guest-name');
+    const guestStart = document.getElementById('guest-start');
+    const guestContinue = document.getElementById('guest-continue');
+    const startGuest = (name) => {
+      this.onGuest && this.onGuest(sanitizeGuestName(name));
+    };
+    const existing = loadGuest();
+    if (existing) {
+      document.getElementById('guest-continue-name').textContent = existing.name;
+      guestContinue.classList.remove('hidden');
+      guestStart.classList.add('hidden');
+      document.getElementById('guest-continue-btn').addEventListener('click', () => {
+        startGuest(existing.name);
+      });
+      document.getElementById('guest-fresh-btn').addEventListener('click', () => {
+        clearGuest();
+        guestContinue.classList.add('hidden');
+        guestStart.classList.remove('hidden');
+      });
+    }
+    document.getElementById('guest-play-btn').addEventListener('click', () => {
+      startGuest(guestNameInput.value);
+    });
+    guestNameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') startGuest(guestNameInput.value);
     });
   },
 };

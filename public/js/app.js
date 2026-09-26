@@ -8,6 +8,7 @@ import { Auth } from './auth.js';
 import { GM } from './gm.js';
 import { Raid } from './raid.js';
 import { renderGuildSection } from './guild.js';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -155,25 +156,110 @@ async function boot() {
   }
 
   if (!user) {
-    UI.showView('auth');
-    Auth.init({ onAuthed: (u) => enterApp(u) });
+    showAuthView();
   } else {
     enterApp(user);
   }
 }
 
+// The auth screen: login/register tabs plus the guest entry point.
+function showAuthView() {
+  UI.showView('auth');
+  Auth.init({ onAuthed: (u) => enterApp(u), onGuest: (n) => enterGuest(n) });
+}
+
+const isGuest = () => App.user && App.user.role === GUEST_ROLE;
+
+// One-off persist used outside the autosave loop (character creation,
+// settings that save immediately, migration points). Guests write to
+// localStorage; authed players hit /api/state.
+async function persistNow() {
+  if (!App.state) return;
+  if (isGuest()) { saveGuest(App.user.username, App.state); return; }
+  await api.saveState(App.state);
+}
+
+// "This needs an account" prompt for server-gated features in guest mode.
+function promptUpgrade(feature) {
+  UI.modal({
+    title: '🔐 ' + feature,
+    html: `<p>Guests can't use ${esc(feature)} — it's tied to an account.</p>
+           <p class="muted">Create a free account and your current guest progress comes with you.</p>`,
+    buttons: [
+      { label: 'Not now' },
+      { label: '✨ Create account', cls: 'gold', onClick: (close) => { close(); openUpgradeModal(); } },
+    ],
+  });
+}
+
+// Guest → account migration: register, upload the local guest save to the
+// new account, clear the guest blob, and reboot into the authed session.
+async function openUpgradeModal() {
+  if (!isGuest()) return;
+  const errId = 'upgrade-err';
+  UI.modal({
+    title: '✨ Create account',
+    html: `
+      <p class="muted small">Your guest hero (<b>${esc(App.user.username)}</b>, Lv ${App.state ? App.state.level : 1}) moves to the new account.</p>
+      <div class="auth-form">
+        <input id="upgrade-username" placeholder="Username (3–20, letters/numbers/_)" maxlength="20" autocomplete="username">
+        <input id="upgrade-password" type="password" placeholder="Password (min 8 chars)" autocomplete="new-password">
+        <input id="upgrade-password2" type="password" placeholder="Confirm password" autocomplete="new-password">
+      </div>
+      <div id="${errId}" class="auth-error hidden"></div>`,
+    buttons: [
+      { label: 'Cancel' },
+      {
+        label: 'Create & keep progress', cls: 'gold',
+        onClick: async (close) => {
+          const errBox = document.getElementById(errId);
+          const showErr = (m) => { errBox.textContent = m; errBox.classList.remove('hidden'); };
+          const username = document.getElementById('upgrade-username').value.trim();
+          const password = document.getElementById('upgrade-password').value;
+          const confirm = document.getElementById('upgrade-password2').value;
+          if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) return showErr('Username: 3–20 chars, letters/numbers/underscore.');
+          if (password.length < 8) return showErr('Password must be at least 8 characters.');
+          if (password !== confirm) return showErr('Passwords do not match.');
+          try {
+            await api.register(username, password); // sets the session cookie
+            await api.saveState(App.state);         // upload guest progress
+            clearGuest();
+            close();
+            UI.toast('✨ Account created — progress kept!', 'success');
+            setTimeout(() => location.reload(), 800); // reboot into the authed session
+          } catch (e) {
+            showErr(e.message || 'Registration failed.');
+          }
+        },
+      },
+    ],
+  });
+}
+
 async function enterApp(user) {
-  App.user = user;
   let raw, lastSeenAt;
   try {
     const res = await api.getState();
     raw = res.state; lastSeenAt = res.lastSeenAt;
   } catch (e) {
-    UI.showView('auth');
-    Auth.init({ onAuthed: (u) => enterApp(u) });
+    showAuthView();
     UI.toast('Session expired — please log in again.', 'error');
     return;
   }
+  await enterAppWithState(user, raw, lastSeenAt);
+}
+
+// Guest entry: no server calls at all. State comes from localStorage
+// (or starts fresh); the character-creation flow is shared with authed
+// players via enterAppWithState.
+async function enterGuest(name) {
+  const g = loadGuest();
+  const user = { username: name, role: GUEST_ROLE };
+  await enterAppWithState(user, g ? g.state : null, g ? g.lastSeen : null);
+}
+
+async function enterAppWithState(user, raw, lastSeenAt) {
+  App.user = user;
 
   // Server gold cap (owner-adjustable); failure keeps the built-in default.
   try {
@@ -197,7 +283,7 @@ async function enterApp(user) {
             ns.spec = spec;
             if (cls === 'hunter' && petSpecies) Engine.addStarterPet(ns, petSpecies);
             App.state = ns;
-            try { await api.saveState(App.state); } catch { /* offline-tolerant */ }
+            try { await persistNow(); } catch { /* offline-tolerant */ }
             startGame();
           });
         };
@@ -223,7 +309,7 @@ async function enterApp(user) {
         Engine.addStarterPet(state, petSpecies);
       }
       App.state = state;
-      try { await api.saveState(state); } catch { /* offline-tolerant */ }
+      try { await persistNow(); } catch { /* offline-tolerant */ }
       await continueBoot(state, lastSeenAt);
     }, { lockedClass: state.playerClass, needsPet });
     return;
@@ -312,6 +398,11 @@ function startGame() {
   App.started = true;
   applyUiStyle();
   applyCustomStyles();
+  // Guest chrome: upgrade card + exit label instead of logout.
+  document.getElementById('guest-upgrade-card').classList.toggle('hidden', !isGuest());
+  document.getElementById('logout-btn').textContent = isGuest() ? '🚪 Exit guest session' : 'Logout';
+  const upBtn = document.getElementById('guest-upgrade-btn');
+  if (upBtn) upBtn.addEventListener('click', openUpgradeModal);
   UI.showView('app');
   spawnEnemy();
   UI.renderBattle(App.state);
@@ -333,10 +424,10 @@ function startGame() {
     document.body.classList.toggle('tab-hidden', document.visibilityState === 'hidden');
   });
   window.addEventListener('beforeunload', () => {
-    if (App.state) api.saveStateBeacon(App.state);
+    if (App.state) saveNow(true); // guest-aware: local save for guests
   });
   window.addEventListener('pagehide', () => {
-    if (App.state) api.saveStateBeacon(App.state);
+    if (App.state) saveNow(true); // guest-aware: local save for guests
   });
 }
 
@@ -346,6 +437,12 @@ async function saveNow(beaconOnly = false) {
   if (!App.state || _saving) return;
   // Stamp leaderboard "power" (hero attack) so /api/leaderboard can show it.
   try { App.state.power = Math.round(Engine.computeStats(App.state).attack); } catch { /* leave unset */ }
+  if (isGuest()) {
+    // Guests never touch the server: persist locally only.
+    const ok = saveGuest(App.user.username, App.state);
+    if (!beaconOnly) UI.setSaveIndicator(ok ? '● saved locally' : '● local save failed', ok);
+    return;
+  }
   if (beaconOnly) { api.saveStateBeacon(App.state); return; }
   if (App.maintenanceMode) { UI.setSaveIndicator('● paused'); return; } // maintenance: hold saves
   _saving = true;
@@ -1044,6 +1141,7 @@ async function doPrestige() {
 }
 
 async function doRedeem() {
+  if (isGuest()) { promptUpgrade('gift codes'); return; }
   const input = document.getElementById('redeem-input');
   const code = (input.value || '').trim().toUpperCase();
   if (!code) { UI.toast('Enter a gift code.', 'error'); return; }
@@ -1067,6 +1165,16 @@ async function doRedeem() {
 }
 
 async function doLogout() {
+  if (isGuest()) {
+    const ok = await UI.confirm(
+      'Exit guest session?',
+      '<p>Your guest hero stays saved on <b>this device</b> — you can continue from the login screen later.</p>',
+      'Exit'
+    );
+    if (!ok) return;
+    location.reload();
+    return;
+  }
   const ok = await UI.confirm('Logout?', '<p>Your progress is saved. See you soon, hero.</p>', 'Logout');
   if (!ok) return;
   try { await saveNow(); } catch { /* ignore */ }
@@ -1081,6 +1189,13 @@ function mountGuild() {
   const el = document.getElementById('guild-section');
   if (!el || guildMounted) return;
   guildMounted = true;
+  if (isGuest()) {
+    // Guilds are server-side: guests get the upgrade prompt instead of a 401.
+    el.innerHTML = `<p class="muted small">🏰 Guilds need an account — create one and your guest progress comes with you.</p>
+      <button class="btn gold wide" id="guild-upgrade-btn" type="button">✨ Create account</button>`;
+    el.querySelector('#guild-upgrade-btn').addEventListener('click', openUpgradeModal);
+    return;
+  }
   try { renderGuildSection(el, api); } catch (e) { console.warn('guild mount failed', e); }
 }
 
