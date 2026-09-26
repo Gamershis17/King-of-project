@@ -92,6 +92,14 @@ async function pollMaintenance() {
 
 // ---------------- boot ----------------
 async function boot() {
+  // PWA: register the service worker if supported; a failure must never break the game.
+  try {
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
+  } catch (e) {}
   UI.handlers = {
     onTap: doTap,
     onSkill: usePowerStrike,
