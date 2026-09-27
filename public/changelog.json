@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-09-27",
+    "title": "Level cap raised to 120",
+    "changes": [
+      "Level cap raised from 70 to 120 — XP, GM grants, and loaded saves can never push past 120",
+      "Prestige now unlocks at level 120 (still +25% damage & gold per prestige, still resets to level 1)"
+    ]
+  },
+  {
     "date": "2026-09-25",
     "title": "Prestige at 70 & new titles",
     "changes": [

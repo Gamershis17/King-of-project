@@ -534,7 +534,7 @@ export const UI = {
   // ---------------- battle ----------------
   renderBattle(state) {
     this.setMode(state.mode);
-    const showPrestige = state.level >= 70;
+    const showPrestige = state.level >= Engine.MAX_LEVEL;
     this.els['prestige-box'].classList.toggle('hidden', !showPrestige);
     if (showPrestige) {
       this.els['prestige-note'].innerHTML =
