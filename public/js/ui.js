@@ -657,6 +657,7 @@ export const UI = {
     el.className = 'float-txt float-' + kind;
     el.textContent = text;
     el.style.left = (20 + Math.random() * 60) + '%';
+    el.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
     layer.appendChild(el);
     setTimeout(() => el.remove(), 1100);
     while (layer.children.length > 12) layer.firstChild.remove();

@@ -1232,7 +1232,10 @@ async function doLogout() {
 }
 
 // ---------------- tab switching ----------------
-// Mounts the guild panel into the More tab once per session.
+// Mounts the guild panel into the Guild tab once per session.
+// (Failures render an inline error + Retry inside the panel; the fetch
+// itself has a timeout so a sleeping backend can't hang on "Loading…"
+// forever — see guild.js.)
 let guildMounted = false;
 function mountGuild() {
   const el = document.getElementById('guild-section');
@@ -1268,7 +1271,8 @@ async function onTabSwitch(tab, force = false) {
   if (!s) return;
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'party') UI.renderParty(s);
-  else if (tab === 'more') { UI.renderMore(s, App.user); mountGuild(); }
+  else if (tab === 'more') { UI.renderMore(s, App.user); }
+  else if (tab === 'guild') { mountGuild(); }
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);
