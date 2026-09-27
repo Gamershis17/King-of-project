@@ -213,6 +213,14 @@
         <div class="lb-list" id="lb-body"></div>
       </section>
 
+      <!-- GUILD -->
+      <section id="tab-guild" class="tab">
+        <div class="card" id="guild-card">
+          <h3>🏰 Guild</h3>
+          <div id="guild-section"><p class="muted small">Loading…</p></div>
+        </div>
+      </section>
+
       <!-- MORE -->
       <section id="tab-more" class="tab">
         <div id="profile-card" class="card"></div>
@@ -238,10 +246,6 @@
             <button id="redeem-btn" class="btn">Redeem</button>
           </div>
         </div>
-        <div class="card" id="guild-card">
-          <h3>🏰 Guild</h3>
-          <div id="guild-section"><p class="muted small">Loading…</p></div>
-        </div>
         <div class="card hidden" id="gm-entry-card">
           <h3>🛠️ Staff</h3>
           <button id="gm-open-btn" class="btn wide">Open GM Console</button>
@@ -250,6 +254,8 @@
           <h3>⚙️ Settings</h3>
           <label class="setting"><input type="checkbox" id="set-dmgnums"> Damage numbers</label>
           <label class="setting"><input type="checkbox" id="set-motion"> Reduce motion</label>
+          <label class="setting"><input type="checkbox" id="set-sfx"> Sound FX</label>
+          <label class="setting"><input type="checkbox" id="set-music"> Music <span class="muted small">(ambient)</span></label>
           <div class="setting-row">
             <span class="setting-label">UI style</span>
             <div class="seg-control" id="ui-style-seg" role="group" aria-label="UI style">
@@ -275,6 +281,7 @@
       <button class="tab-btn" data-tab="gear"><span class="ticon">🎒</span><span>Gear</span></button>
       <button class="tab-btn" data-tab="party"><span class="ticon">👥</span><span>Party</span></button>
       <button class="tab-btn" data-tab="ranks"><span class="ticon">🏆</span><span>Ranks</span></button>
+      <button class="tab-btn" data-tab="guild"><span class="ticon">🏰</span><span>Guild</span></button>
       <button class="tab-btn" data-tab="more"><span class="ticon">⋯</span><span>More</span></button>
       <button class="tab-btn hidden" data-tab="staff" id="tabbtn-staff"><span class="ticon">🛠️</span><span>Staff</span></button>
     </nav>

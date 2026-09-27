@@ -10,6 +10,11 @@
 export const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
 export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight'];
 
+// ---------------- Level cap ----------------
+// Hard level cap: no XP gains, GM grants, or loaded saves may push a
+// character past this. Prestige unlocks at MAX_LEVEL.
+export const MAX_LEVEL = 120;
+
 // ---------------- Races ----------------
 export const RACES = {
   human:     { name: 'Human Vanguard', emoji: '🛡️', trait: 'Balanced: +10% XP gain',
@@ -191,6 +196,9 @@ export function ensureState(raw) {
   // Custom button/background styles; unknown values reset to default.
   if (!BTN_STYLE_IDS.includes(s.btnStyle)) s.btnStyle = 'default';
   if (!BG_STYLE_IDS.includes(s.bgStyle)) s.bgStyle = 'default';
+  // Audio prefs are cosmetic; unknown values reset to defaults
+  // (SFX on, music off / opt-in).
+  s.audio = { sfx: !s.audio || s.audio.sfx !== false, music: !!(s.audio && s.audio.music) };
   s.infGold = s.infGold === true; // owner-only perk flag
   s.restedUntil = Number(raw.restedUntil) || 0;
   // Clamp over-cap gold (e.g. after the owner lowers the cap). The
@@ -205,7 +213,7 @@ export function ensureState(raw) {
   if (!Array.isArray(s.codesRedeemed)) s.codesRedeemed = [];
   if (!Array.isArray(s.companions)) s.companions = [];
   if (!['clicker', 'auto', 'dungeon'].includes(s.mode)) s.mode = 'clicker';
-  s.level = Math.max(1, Math.floor(s.level || 1));
+  s.level = Math.min(MAX_LEVEL, Math.max(1, Math.floor(s.level || 1)));
   s.stage = Math.max(1, Math.floor(s.stage || 1));
   s.xpNext = xpForLevel(s.level);
   s.hero.hp = clamp(s.hero.hp, 0, s.hero.maxHp);
@@ -278,7 +286,7 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
   state.xp += amount;
   const levels = [];
   let guard = 0;
-  while (state.xp >= state.xpNext && guard++ < 10000) {
+  while (state.xp >= state.xpNext && guard++ < 10000 && state.level < MAX_LEVEL) {
     state.xp -= state.xpNext;
     state.level += 1;
     state.hero.attack += 3;
@@ -288,6 +296,7 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
     levels.push(state.level);
     if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
   }
+  if (state.level >= MAX_LEVEL) state.xp = 0; // cap reached: bank no XP past it
   if (levels.length) {
     const s2 = computeStats(state);
     state.hero.hp = Math.min(s2.maxHp, state.hero.hp + s2.maxHp * 0.25);
@@ -1070,10 +1079,10 @@ export function companionStats(c) {
 }
 
 // ---------------- Prestige ----------------
-// Level >= 70. Returns a FRESH state blob: level/stage/gold/inventory reset,
+// Level >= MAX_LEVEL. Returns a FRESH state blob: level/stage/gold/inventory reset,
 // privileged set items + stars + lifetime stats kept, prestigeBonus += 25%.
 export function prestige(state) {
-  if ((state.level || 1) < 70) return null;
+  if ((state.level || 1) < MAX_LEVEL) return null;
   const kept = (state.inventory || []).filter(i => i && i.set);
   const keptIds = new Set(kept.map(i => i.id));
   const equipped = {};
@@ -1099,6 +1108,8 @@ export function prestige(state) {
   // Custom button/background styles are cosmetic prefs — they survive prestige.
   fresh.btnStyle = BTN_STYLE_IDS.includes(state.btnStyle) ? state.btnStyle : 'default';
   fresh.bgStyle = BG_STYLE_IDS.includes(state.bgStyle) ? state.bgStyle : 'default';
+  // Audio prefs are cosmetic too — they survive prestige.
+  fresh.audio = { sfx: !state.audio || state.audio.sfx !== false, music: !!(state.audio && state.audio.music) };
   // Class is identity (like race) — it survives prestige.
   fresh.playerClass = (state.playerClass && CLASSES[state.playerClass]) ? state.playerClass : null;
   // Specialization is identity too — it survives prestige.
@@ -1334,18 +1345,20 @@ export function tapDamageMult(state, combo, frenzyActive) {
 export function grantLevels(state, n) {
   n = Math.max(1, Math.min(100, Math.floor(n) || 0));
   if (!n) return 0;
-  for (let i = 0; i < n; i++) {
+  let granted = 0;
+  for (let i = 0; i < n && state.level < MAX_LEVEL; i++) {
     state.level += 1;
     state.hero.attack += 3;
     state.hero.maxHp += 25;
     state.hero.defense += 2;
     if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
+    granted += 1;
   }
   state.xp = 0;
   state.xpNext = xpForLevel(state.level);
   const s2 = computeStats(state);
   state.hero.hp = s2.maxHp;
-  return n;
+  return granted;
 }
 
 // RAID MODE (PvE endless waves) — appended 2026-09-25

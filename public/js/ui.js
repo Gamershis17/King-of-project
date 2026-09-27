@@ -4,6 +4,7 @@
 // app.js wires behavior via UI.handlers.
 // ============================================================
 import * as Engine from './engine.js';
+import { Audio } from './audio.js';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -102,7 +103,7 @@ export const UI = {
       'prestige-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
-      'set-dmgnums', 'set-motion', 'logout-btn', 'modal-root', 'toast-root',
+      'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
     ];
@@ -217,6 +218,10 @@ export const UI = {
       this.saveSetting('reduceMotion', e.target.checked);
       document.body.classList.toggle('reduce-motion', e.target.checked);
     });
+    // Audio prefs live on the game state (per player / guest save), not in
+    // localStorage — app.js syncs the checkboxes via applyAudioPrefs().
+    this.els['set-sfx'].addEventListener('change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
+    this.els['set-music'].addEventListener('change', (e) => this.handlers.onMusic && this.handlers.onMusic(e.target.checked));
     // UI style segmented control (More → Settings)
     const seg = document.getElementById('ui-style-seg');
     if (seg) {
@@ -266,6 +271,7 @@ export const UI = {
 
   showTab(name) {
     this.activeTab = name;
+    try { Audio.play('tab'); } catch { /* ignore */ }
     $$('#tabbar .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     $$('#tab-content .tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
     this.handlers.onTab && this.handlers.onTab(name);
@@ -330,6 +336,7 @@ export const UI = {
 
   levelUpModal(levels) {
     const last = levels[levels.length - 1];
+    try { Audio.play('levelup'); } catch { /* ignore */ }
     this.modal({
       title: '⬆️ Level up!',
       html: `<p class="big">You reached <b>level ${last}</b>${levels.length > 1 ? ` <span class="muted">(+${levels.length - 1} more)</span>` : ''}!</p>
@@ -534,7 +541,7 @@ export const UI = {
   // ---------------- battle ----------------
   renderBattle(state) {
     this.setMode(state.mode);
-    const showPrestige = state.level >= 70;
+    const showPrestige = state.level >= Engine.MAX_LEVEL;
     this.els['prestige-box'].classList.toggle('hidden', !showPrestige);
     if (showPrestige) {
       this.els['prestige-note'].innerHTML =
@@ -590,6 +597,7 @@ export const UI = {
       const remain = Math.max(0, battle.skillReadyAt - Date.now());
       const btn = e['skill-btn'];
       btn.disabled = remain > 0;
+      btn.classList.toggle('skill-ready', remain <= 0); // soft pulse when usable
       e['skill-cd'].textContent = remain > 0 ? `(${(remain / 1000).toFixed(0)}s)` : '';
     }
     this.updateHUD(state, battle ? battle.user : null);
@@ -636,12 +644,20 @@ export const UI = {
   },
 
   floatText(text, kind = 'dmg') {
+    // Battle SFX ride on the same dispatch as the damage numbers, so every
+    // hit/crit/hurt/dodge/parry/skill tick gets its sound from one place.
+    // (Plays even when damage numbers are hidden — the setting is visual.)
+    try {
+      const snd = { dmg: 'hit', crit: 'crit', hurt: 'hurt', dodge: 'dodge', parry: 'parry', skill: 'skill' }[kind];
+      if (snd) Audio.play(snd);
+    } catch { /* audio must never break rendering */ }
     if (!this.settings.damageNumbers && (kind === 'dmg' || kind === 'crit')) return;
     const layer = this.els['float-layer'];
     const el = document.createElement('div');
     el.className = 'float-txt float-' + kind;
     el.textContent = text;
     el.style.left = (20 + Math.random() * 60) + '%';
+    el.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
     layer.appendChild(el);
     setTimeout(() => el.remove(), 1100);
     while (layer.children.length > 12) layer.firstChild.remove();

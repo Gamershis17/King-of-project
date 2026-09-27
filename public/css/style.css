@@ -355,19 +355,32 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .float-txt {
   position: absolute; top: 30%; font-weight: 800; font-size: 1.25rem;
   text-shadow: 0 2px 4px #000; animation: floatup 1.05s ease-out forwards;
+  will-change: transform, opacity;
 }
 .float-dmg { color: #fff; }
-.float-crit { color: var(--gold); font-size: 1.6rem; }
+.float-crit {
+  color: var(--gold); font-size: 1.6rem;
+  text-shadow: 0 0 14px rgba(255, 210, 63, .6), 0 2px 4px #000;
+  animation: crit-float 1.05s ease-out forwards;
+}
 .float-hurt { color: var(--danger); }
 .float-dodge { color: #9adcff; }
 .float-parry { color: #9dffc9; }
 .float-skill { color: var(--arcane); font-size: 1.4rem; }
 @keyframes floatup {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  12% { transform: translateY(-10px) scale(1.2); opacity: 1; }
-  25% { transform: translateY(-22px) scale(1); opacity: 1; }
-  65% { transform: translateY(-52px) scale(1); opacity: 1; }
-  100% { transform: translateY(-72px) scale(0.9); opacity: 0; }
+  0% { transform: translateY(0) scale(0.6) rotate(var(--tilt, 0deg)); opacity: 0; }
+  12% { transform: translateY(-10px) scale(1.2) rotate(var(--tilt, 0deg)); opacity: 1; }
+  25% { transform: translateY(-22px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
+  65% { transform: translateY(-52px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
+  100% { transform: translateY(-72px) scale(0.9) rotate(var(--tilt, 0deg)); opacity: 0; }
+}
+/* Crits get a bigger pop + gold glow in every theme (not just modern). */
+@keyframes crit-float {
+  0% { transform: translateY(0) scale(0.4) rotate(var(--tilt, 0deg)); opacity: 0; }
+  12% { transform: translateY(-12px) scale(1.55) rotate(var(--tilt, 0deg)); opacity: 1; }
+  30% { transform: translateY(-26px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
+  65% { transform: translateY(-56px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
+  100% { transform: translateY(-78px) scale(0.9) rotate(var(--tilt, 0deg)); opacity: 0; }
 }
 /* ---- low hero HP: pulsing red warning ---- */
 .bar.hp.hp-low .fill {
@@ -810,6 +823,9 @@ body.reduce-motion .shop-card:hover { transform: none; }
 }
 
 /* ---------- reduced motion ---------- */
+body.reduce-motion::before,
+body.reduce-motion::after,
+body.reduce-motion .skill-btn.skill-ready,
 body.reduce-motion .float-txt,
 body.reduce-motion .boss-badge,
 body.reduce-motion .r-mythic .item-name,
@@ -821,6 +837,11 @@ body.reduce-motion .set-gamemaster,
 body.reduce-motion .bar.hp.hp-low .fill,
 body.reduce-motion .new-badge { animation: none !important; }
 body.reduce-motion * { transition-duration: 0.01ms !important; }
+
+/* OS-level reduced-motion preference: also still the atmosphere layers. */
+@media (prefers-reduced-motion: reduce) {
+  body::before, body::after { animation: none !important; }
+}
 
 /* ---------- tap combo ---------- */
 .combo-meter { margin: 0.4rem 0; text-align: center; }
@@ -1612,6 +1633,10 @@ body[data-uistyle="modern"] .item-card:hover, body[data-uistyle="modern"] .membe
   .loadout-strip { grid-template-columns: repeat(5, 1fr); gap: 0.3rem; }
   .loadout-emoji { font-size: 1.2rem; }
   .loadout-name { font-size: 0.58rem; }
+
+  /* six tab buttons now — keep labels/icons from crowding on narrow phones */
+  .tab-btn { font-size: 0.6rem; }
+  .tab-btn .ticon { font-size: 1.25rem; }
 }
 
 /* ============================================================
@@ -1855,6 +1880,113 @@ body[data-bgstyle="midnight"] {
     radial-gradient(120% 60% at 15% 0%, rgba(59,130,246,.15), transparent 60%),
     radial-gradient(100% 55% at 90% 35%, rgba(99,102,241,.10), transparent 60%),
     radial-gradient(90% 50% at 50% 110%, rgba(59,130,246,.10), transparent 60%);
+}
+
+/* ---- animated background atmosphere (per bg preset) ----
+   Two fixed full-viewport layers (body::before / ::after) carrying a
+   seamless dot tile each. The tile translates by exactly one tile per
+   loop, so the animation loops without a visible jump. Transform-only,
+   pointer-events none, painted behind all content. */
+body::before, body::after {
+  content: ""; position: fixed; inset: -200px; z-index: -1;
+  pointer-events: none; opacity: .55; will-change: transform;
+  background-repeat: repeat;
+}
+body[data-bgstyle="default"]::before {
+  background-image: radial-gradient(circle, rgba(255,170,90,.5) 1.2px, transparent 1.8px);
+  background-size: 160px 160px;
+  animation: bg-rise 60s linear infinite;
+}
+body[data-bgstyle="default"]::after {
+  background-image: radial-gradient(circle, rgba(255,130,60,.32) 1px, transparent 1.6px);
+  background-size: 100px 100px;
+  animation: bg-rise 42s linear infinite;
+}
+body[data-bgstyle="deepspace"]::before {
+  background-image: radial-gradient(circle, rgba(150,120,255,.42) 1.3px, transparent 1.9px);
+  background-size: 180px 180px;
+  animation: bg-drift-x 70s linear infinite;
+}
+body[data-bgstyle="deepspace"]::after {
+  background-image: radial-gradient(circle, rgba(90,200,255,.3) 1px, transparent 1.6px);
+  background-size: 120px 120px;
+  animation: bg-drift-x 50s linear infinite reverse;
+}
+body[data-bgstyle="crimson"]::before {
+  background-image: radial-gradient(circle, rgba(255,90,70,.5) 1.3px, transparent 1.9px);
+  background-size: 160px 160px;
+  animation: bg-rise 48s linear infinite;
+}
+body[data-bgstyle="crimson"]::after {
+  background-image: radial-gradient(circle, rgba(255,160,60,.32) 1px, transparent 1.6px);
+  background-size: 100px 100px;
+  animation: bg-rise 34s linear infinite;
+}
+body[data-bgstyle="emerald"]::before {
+  background-image: radial-gradient(circle, rgba(110,255,180,.4) 1.3px, transparent 1.9px);
+  background-size: 150px 150px;
+  animation: bg-drift-x 65s linear infinite;
+}
+body[data-bgstyle="emerald"]::after {
+  background-image: radial-gradient(circle, rgba(160,255,210,.28) 1px, transparent 1.6px);
+  background-size: 120px 120px;
+  animation: bg-drift-x 44s linear infinite reverse;
+}
+body[data-bgstyle="midnight"]::before {
+  background-image: radial-gradient(circle, rgba(200,220,255,.4) 1.2px, transparent 1.8px);
+  background-size: 130px 130px;
+  animation: bg-fall 55s linear infinite;
+}
+body[data-bgstyle="midnight"]::after {
+  background-image: radial-gradient(circle, rgba(170,190,240,.28) 1px, transparent 1.6px);
+  background-size: 85px 85px;
+  animation: bg-fall 40s linear infinite;
+}
+/* Each keyframe travels exactly one tile: seamless loops. */
+@keyframes bg-rise   { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -160px, 0); } }
+@keyframes bg-fall   { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, 130px, 0); } }
+@keyframes bg-drift-x{ from { transform: translate3d(0, 0, 0); } to { transform: translate3d(180px, 0, 0); } }
+/* Each layer's keyframes travel exactly one of its own tiles, so every
+   loop is seamless. The ::after/::before overrides below pair each
+   layer with the keyframe matching its tile size. */
+
+/* Stacking context on body: keeps the z-index:-1 atmosphere layers above
+   the body background but behind all content. (isolation alone is enough;
+   no position change, so absolutely-positioned descendants are unaffected.) */
+body { isolation: isolate; }
+body[data-bgstyle="default"]::after { animation-name: bg-rise-s; }
+body[data-bgstyle="crimson"]::after { animation-name: bg-rise-s; }
+body[data-bgstyle="emerald"]::after { animation-name: bg-drift-x-s; }
+body[data-bgstyle="midnight"]::after { animation-name: bg-fall-s; }
+body[data-bgstyle="deepspace"]::after { animation-name: bg-drift-x-s; }
+body[data-bgstyle="deepspace"]::before { animation-name: bg-drift-x-l; }
+body[data-bgstyle="emerald"]::before { animation-name: bg-drift-x-m; }
+body[data-bgstyle="midnight"]::before { animation-name: bg-fall-l; }
+@keyframes bg-rise-s  { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -100px, 0); } }
+@keyframes bg-fall-s  { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, 85px, 0); } }
+@keyframes bg-fall-l  { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, 130px, 0); } }
+@keyframes bg-drift-x-s { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(-120px, 0, 0); } }
+@keyframes bg-drift-x-m { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(150px, 0, 0); } }
+@keyframes bg-drift-x-l { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(180px, 0, 0); } }
+
+/* ---- crit juice: bigger pop, works in Classic AND Modern ---- */
+.float-txt.float-crit {
+  animation: crit-pop 1.05s ease-out forwards;
+  text-shadow: 0 0 14px rgba(255, 210, 63, .65), 0 2px 4px #000;
+}
+@keyframes crit-pop {
+  0%   { transform: translateY(0) scale(.5); opacity: 0; }
+  12%  { transform: translateY(-12px) scale(1.6); opacity: 1; }
+  30%  { transform: translateY(-26px) scale(1.05); opacity: 1; }
+  65%  { transform: translateY(-56px) scale(1); opacity: 1; }
+  100% { transform: translateY(-78px) scale(.9); opacity: 0; }
+}
+
+/* ---- soft pulse on the skill button while it is ready ---- */
+.skill-btn.skill-ready { animation: skill-ready-pulse 2.2s ease-in-out infinite; }
+@keyframes skill-ready-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(255,210,63,0); }
+  50%      { box-shadow: 0 0 16px rgba(255,210,63,.5); }
 }
 
 /* ---- Settings swatch pickers ---- */

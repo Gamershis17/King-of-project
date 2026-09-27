@@ -8,6 +8,7 @@
 // `api` may expose get(path)/post(path, body) helpers (like api.js), or
 // be omitted entirely — this module falls back to same-origin fetch.
 // ============================================================
+import { Audio } from './audio.js';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -16,7 +17,7 @@ const esc = (s) =>
 
 async function gget(api, path) {
   if (api && typeof api.get === 'function') return api.get(path);
-  const res = await fetch(path, { credentials: 'same-origin' });
+  const res = await fetchWithTimeout(path, { credentials: 'same-origin' });
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;
   if (!res.ok) throw new Error((data && data.error) || `Request failed (${res.status})`);
@@ -25,7 +26,7 @@ async function gget(api, path) {
 
 async function gpost(api, path, body) {
   if (api && typeof api.post === 'function') return api.post(path, body);
-  const res = await fetch(path, {
+  const res = await fetchWithTimeout(path, {
     method: 'POST',
     credentials: 'same-origin',
     headers: { 'Content-Type': 'application/json' },
@@ -37,6 +38,22 @@ async function gpost(api, path, body) {
   return data;
 }
 
+/**
+ * fetch() with a timeout. The game is hosted on a free tier that cold-starts,
+ * so without this a sleeping backend leaves the guild panel stuck on
+ * "Loading guild…" indefinitely. On timeout the caller gets an AbortError,
+ * which refresh() turns into a friendly message + Retry button.
+ */
+async function fetchWithTimeout(path, options = {}, ms = 15000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(path, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Reserved for future guild wiring (e.g. chat polling). Currently a no-op. */
 export async function initGuild(api) {
   void api;
@@ -44,14 +61,6 @@ export async function initGuild(api) {
 
 const STYLE = `
 .guild-wrap { font-family: inherit; color: #e8e2f5; }
-.guild-card {
-  background: linear-gradient(180deg, #1b1430 0%, #120d22 100%);
-  border: 1px solid #4a3573;
-  border-radius: 12px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 12px rgba(0,0,0,.45);
-}
 .guild-title { color: #e8b33c; font-weight: 700; font-size: 17px; margin: 0 0 8px; }
 .guild-sub { color: #9d8cc7; font-size: 13px; margin: 0 0 10px; }
 .guild-row { display: flex; gap: 8px; margin-bottom: 8px; }
@@ -63,52 +72,7 @@ const STYLE = `
 }
 .guild-input:focus { outline: none; border-color: #e8b33c; }
 .guild-input.short { flex: 0 0 84px; }
-.gbtn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
-  background: linear-gradient(180deg, #9a6ff7 0%, #7b5bc0 55%, #5a3f96 100%);
-  color: #fff; border: 1px solid rgba(255,255,255,.18); border-radius: 12px;
-  padding: 0.6rem 0.95rem; font-size: 0.92rem; font-weight: 700; cursor: pointer;
-  white-space: nowrap; min-height: 44px;
-  text-shadow: 0 1px 2px rgba(0,0,0,.4);
-  box-shadow:
-    0 8px 20px rgba(0,0,0,.42),
-    0 2px 6px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.20),
-    inset 0 -3px 6px rgba(0,0,0,.30);
-  transition: transform .12s ease, box-shadow .2s ease, filter .2s ease;
-  -webkit-tap-highlight-color: transparent;
-  user-select: none;
-  touch-action: manipulation;
-}
-.gbtn:active { transform: translateY(1px) scale(.98); box-shadow: 0 3px 8px rgba(0,0,0,.4), inset 0 2px 6px rgba(0,0,0,.35); }
-.gbtn:disabled {
-  background: linear-gradient(180deg, #3b354e, #2b2639);
-  color: #9690a8; text-shadow: none; border-color: rgba(255,255,255,.07);
-  box-shadow: inset 0 2px 8px rgba(0,0,0,.45);
-  cursor: not-allowed; filter: grayscale(.55);
-}
-.gbtn.gold {
-  background: linear-gradient(180deg, #ffe08a 0%, #f5c542 55%, #c9932b 100%);
-  border-color: rgba(255,240,190,.5); color: #2a1e05;
-  text-shadow: 0 1px 0 rgba(255,255,255,.35);
-  box-shadow:
-    0 8px 20px rgba(0,0,0,.42),
-    0 0 16px rgba(255,210,63,.30),
-    inset 0 1px 0 rgba(255,255,255,.55),
-    inset 0 -3px 6px rgba(120,70,0,.35);
-}
-.gbtn.danger {
-  background: linear-gradient(180deg, #e0584d 0%, #b03227 55%, #7a1f16 100%);
-  border-color: rgba(255,180,170,.3);
-  box-shadow:
-    0 8px 20px rgba(0,0,0,.42),
-    0 0 14px rgba(255,91,91,.22),
-    inset 0 1px 0 rgba(255,255,255,.22),
-    inset 0 -3px 6px rgba(0,0,0,.35);
-}
-@media (hover: hover) {
-  .gbtn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.09); }
-}
+/* Buttons now use the shared .btn / .btn.small classes from style.css. */
 .guild-error {
   background: rgba(160, 40, 40, .18); border: 1px solid #a03a3a;
   color: #ffb3b3; border-radius: 8px; padding: 8px 10px;
@@ -156,6 +120,9 @@ function rankPill(rank) {
 
 export function renderGuildSection(container, api) {
   if (!container) return;
+  // Clear the static "Loading…" placeholder from index.html so it can't
+  // linger above the panel.
+  container.innerHTML = '';
   ensureStyle(container);
   const wrap = document.createElement('div');
   wrap.className = 'guild-wrap';
@@ -177,9 +144,12 @@ export function renderGuildSection(container, api) {
     try {
       data = await gget(api, '/api/guilds/mine');
     } catch (err) {
+      const msg = err && err.name === 'AbortError'
+        ? 'The server is taking too long to respond (it may be waking up). Please try again.'
+        : esc(err.message);
       wrap.innerHTML =
-        `<div class="guild-error">${esc(err.message)}</div>` +
-        '<button class="gbtn" data-act="retry">Retry</button>';
+        `<div class="guild-error">${msg}</div>` +
+        '<button class="btn small" data-act="retry">Retry</button>';
       wrap.querySelector('[data-act="retry"]').addEventListener('click', refresh);
       return;
     }
@@ -189,21 +159,21 @@ export function renderGuildSection(container, api) {
 
   function renderGuest() {
     wrap.innerHTML = `
-      <div class="guild-card">
+      <div class="card">
         <h3 class="guild-title">⚔️ Create a guild</h3>
         <p class="guild-sub">Found your own guild. You become its leader.</p>
         <div class="guild-row">
           <input class="guild-input" id="g-create-name" maxlength="20" placeholder="Guild name (3-20 chars)" autocomplete="off">
           <input class="guild-input short" id="g-create-tag" maxlength="4" placeholder="TAG" autocomplete="off">
-          <button class="gbtn gold" data-act="create">Create</button>
+          <button class="btn small gold" data-act="create">Create</button>
         </div>
       </div>
-      <div class="guild-card">
+      <div class="card">
         <h3 class="guild-title">🛡️ Join a guild</h3>
         <p class="guild-sub">Enter the exact guild name to join.</p>
         <div class="guild-row">
           <input class="guild-input" id="g-join-name" maxlength="20" placeholder="Guild name" autocomplete="off">
-          <button class="gbtn" data-act="join">Join</button>
+          <button class="btn small" data-act="join">Join</button>
         </div>
       </div>`;
 
@@ -214,6 +184,7 @@ export function renderGuildSection(container, api) {
       try {
         const res = await gpost(api, '/api/guilds', { name, tag });
         note(`Guild <b>${esc(res.guild.name)}</b> created!`, 'guild-ok');
+        try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
       } catch (err) {
         note(esc(err.message), 'guild-error');
@@ -226,6 +197,7 @@ export function renderGuildSection(container, api) {
       try {
         const res = await gpost(api, '/api/guilds/join', { name });
         note(`Joined <b>${esc(res.guild.name)}</b>!`, 'guild-ok');
+        try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
       } catch (err) {
         note(esc(err.message), 'guild-error');
@@ -242,14 +214,14 @@ export function renderGuildSection(container, api) {
       .map((m) => `<li><span>${esc(m.username)}</span>${rankPill(m.rank)}</li>`)
       .join('');
     wrap.innerHTML = `
-      <div class="guild-card">
+      <div class="card">
         <div class="guild-head">
           <h3 class="guild-name">${esc(guild.name)}</h3>
           <span class="guild-tag">[${esc(guild.tag)}]</span>
         </div>
         <div class="guild-meta">${members.length} member${members.length === 1 ? '' : 's'} · you are ${esc(guild.myRank || 'member')}</div>
         <ul class="guild-roster">${rows}</ul>
-        <button class="gbtn danger" data-act="leave">Leave guild</button>
+        <button class="btn small danger" data-act="leave">Leave guild</button>
       </div>`;
 
     wrap.querySelector('[data-act="leave"]').addEventListener('click', async () => {
@@ -266,6 +238,7 @@ export function renderGuildSection(container, api) {
             : `You left <b>${esc(res.guildName)}</b>.`,
           'guild-ok'
         );
+        try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
       } catch (err) {
         note(esc(err.message), 'guild-error');
