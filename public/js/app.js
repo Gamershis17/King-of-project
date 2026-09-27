@@ -704,7 +704,7 @@ function onKillEnemy() {
   spawnNextEnemy();
   UI.updateHUD(s, App.user);
   // prestige unlock may have appeared
-  if (s.level >= 70) UI.renderBattle(s);
+  if (s.level >= Engine.MAX_LEVEL) UI.renderBattle(s);
 }
 
 function enemyStrikeTick(stats) {
@@ -1160,7 +1160,7 @@ function applyExternalState(srv) {
 
 async function doPrestige() {
   const s = App.state;
-  if (s.level < 70) return;
+  if (s.level < Engine.MAX_LEVEL) return;
   const nextBonus = (s.prestigeBonus || 0) + 25;
   const ok = await UI.confirm(
     '🔥 Prestige?',
