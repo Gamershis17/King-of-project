@@ -8,6 +8,7 @@
 // `api` may expose get(path)/post(path, body) helpers (like api.js), or
 // be omitted entirely — this module falls back to same-origin fetch.
 // ============================================================
+import { Audio } from './audio.js';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -214,6 +215,7 @@ export function renderGuildSection(container, api) {
       try {
         const res = await gpost(api, '/api/guilds', { name, tag });
         note(`Guild <b>${esc(res.guild.name)}</b> created!`, 'guild-ok');
+        try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
       } catch (err) {
         note(esc(err.message), 'guild-error');
@@ -226,6 +228,7 @@ export function renderGuildSection(container, api) {
       try {
         const res = await gpost(api, '/api/guilds/join', { name });
         note(`Joined <b>${esc(res.guild.name)}</b>!`, 'guild-ok');
+        try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
       } catch (err) {
         note(esc(err.message), 'guild-error');
@@ -266,6 +269,7 @@ export function renderGuildSection(container, api) {
             : `You left <b>${esc(res.guildName)}</b>.`,
           'guild-ok'
         );
+        try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
       } catch (err) {
         note(esc(err.message), 'guild-error');

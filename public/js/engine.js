@@ -191,6 +191,9 @@ export function ensureState(raw) {
   // Custom button/background styles; unknown values reset to default.
   if (!BTN_STYLE_IDS.includes(s.btnStyle)) s.btnStyle = 'default';
   if (!BG_STYLE_IDS.includes(s.bgStyle)) s.bgStyle = 'default';
+  // Audio prefs are cosmetic; unknown values reset to defaults
+  // (SFX on, music off / opt-in).
+  s.audio = { sfx: !s.audio || s.audio.sfx !== false, music: !!(s.audio && s.audio.music) };
   s.infGold = s.infGold === true; // owner-only perk flag
   s.restedUntil = Number(raw.restedUntil) || 0;
   // Clamp over-cap gold (e.g. after the owner lowers the cap). The
@@ -1099,6 +1102,8 @@ export function prestige(state) {
   // Custom button/background styles are cosmetic prefs — they survive prestige.
   fresh.btnStyle = BTN_STYLE_IDS.includes(state.btnStyle) ? state.btnStyle : 'default';
   fresh.bgStyle = BG_STYLE_IDS.includes(state.bgStyle) ? state.bgStyle : 'default';
+  // Audio prefs are cosmetic too — they survive prestige.
+  fresh.audio = { sfx: !state.audio || state.audio.sfx !== false, music: !!(state.audio && state.audio.music) };
   // Class is identity (like race) — it survives prestige.
   fresh.playerClass = (state.playerClass && CLASSES[state.playerClass]) ? state.playerClass : null;
   // Specialization is identity too — it survives prestige.

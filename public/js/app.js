@@ -9,6 +9,7 @@ import { GM } from './gm.js';
 import { Raid } from './raid.js';
 import { renderGuildSection } from './guild.js';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js';
+import { Audio } from './audio.js';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -128,6 +129,8 @@ async function boot() {
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
+    onSfx: setSfx,
+    onMusic: setMusic,
     onShare: () => UI.shareGame(App.state, App.user),
     onChangelog: () => UI.openChangelog(),
     onTitle: (id) => {
@@ -149,6 +152,7 @@ async function boot() {
     },
   };
   UI.init();
+  Audio.init(); // registers first-gesture unlock + button click ticks
 
   // Maintenance / reachability gate: check the server before anything else.
   // Retries briefly so a deploy/restart window shows as "updating", not dead.
@@ -401,11 +405,43 @@ function setBgStyle(id) {
   saveNow();
 }
 
+// ---------------- audio prefs ----------------
+// Cosmetic player preferences stored on the save (like btnStyle), so they
+// persist to the server for authed players and to localStorage for guests.
+// SFX defaults ON; music defaults OFF (opt-in).
+function audioOf(s) {
+  const a = s && s.audio;
+  return { sfx: !a || a.sfx !== false, music: !!(a && a.music) };
+}
+function applyAudioPrefs() {
+  const p = audioOf(App.state);
+  Audio.sync(p);
+  const sfxEl = document.getElementById('set-sfx');
+  const musEl = document.getElementById('set-music');
+  if (sfxEl) sfxEl.checked = p.sfx;
+  if (musEl) musEl.checked = p.music;
+}
+function setSfx(on) {
+  const s = App.state;
+  if (!s) return;
+  s.audio = { ...audioOf(s), sfx: !!on };
+  applyAudioPrefs();
+  saveNow();
+}
+function setMusic(on) {
+  const s = App.state;
+  if (!s) return;
+  s.audio = { ...audioOf(s), music: !!on };
+  applyAudioPrefs();
+  saveNow();
+}
+
 function startGame() {
   if (App.started) return;
   App.started = true;
   applyUiStyle();
   applyCustomStyles();
+  applyAudioPrefs();
   // Guest chrome: upgrade card + exit label instead of logout.
   document.getElementById('guest-upgrade-card').classList.toggle('hidden', !isGuest());
   document.getElementById('logout-btn').textContent = isGuest() ? '🚪 Exit guest session' : 'Logout';
@@ -489,6 +525,7 @@ function spawnEnemy() {
   UI.updateHeroPanel(s, Engine.computeStats(s), App);
   if (App.enemy.boss && App.lastBossModalStage !== s.stage) {
     App.lastBossModalStage = s.stage;
+    Audio.play('raidboss');
     UI.bossModal(App.enemy);
   }
 }
@@ -602,6 +639,7 @@ function onKillEnemy() {
   let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0), s.prestigeBonus);
   if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
   const addedGold = Engine.addGold(s, gold);
+  Audio.play('coin');
   const cappedNote = addedGold < gold ? ' · gold cap' : '';
   s.stats.kills += 1;
   const isDungeonBoss = enemy.boss && s.mode === 'dungeon';
@@ -878,6 +916,7 @@ function checkAch() {
     UI.combatLog(`👑 Title unlocked: ${t.name}`, 'level');
   }
   if (fresh.length || freshTitles.length) {
+    Audio.play('claim');
     if (UI.activeTab === 'more') UI.renderMore(s, App.user);
     UI.updateHUD(s, App.user);
     saveNow();
@@ -1107,6 +1146,7 @@ function applyExternalState(srv) {
   Raid.init(App.state);
   applyUiStyle();
   applyCustomStyles();
+  applyAudioPrefs();
   const s = App.state;
   UI.updateHUD(s, App.user);
   UI.renderBattle(s);
@@ -1137,6 +1177,7 @@ async function doPrestige() {
   App.dead = false;
   UI.setDead(false);
   applyCustomStyles(); // cosmetic prefs survive prestige
+  applyAudioPrefs();
   spawnEnemy();
   UI.renderBattle(fresh);
   UI.renderGear(fresh);
