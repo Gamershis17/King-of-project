@@ -1,8 +1,8 @@
-# Render Blueprint for King of Project
+# Render Blueprint for Throne of Shadows
 # Deploy via Render dashboard: New → Blueprint → point it at this repo.
 services:
   - type: web
-    name: king-of-project
+    name: throne-of-shadows
     runtime: docker          # builds the Dockerfile in this folder
     plan: free
     healthCheckPath: /api/leaderboard
