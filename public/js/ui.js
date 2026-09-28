@@ -126,6 +126,7 @@ export const UI = {
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
+      'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
@@ -166,6 +167,21 @@ export const UI = {
     });
     listen('rebirth-btn', 'click', () => {
       this.handlers.onRebirth && this.handlers.onRebirth();
+    });
+
+    // Inn (AFK safe zone)
+    listen('inn-btn', 'click', () => {
+      this.handlers.onEnterInn && this.handlers.onEnterInn();
+    });
+    listen('leave-inn-btn', 'click', () => {
+      this.handlers.onLeaveInn && this.handlers.onLeaveInn();
+    });
+    // Pause the inn glow when the tab is hidden; resume when visible.
+    document.addEventListener('visibilitychange', () => {
+      try {
+        if (document.hidden) this._pauseInnGlow();
+        else if (this.activeTab === 'inn') this._resumeInnGlow();
+      } catch { /* ignore */ }
     });
 
     // Gear: delegated equip/sell/upgrade/shop
@@ -322,10 +338,97 @@ export const UI = {
   showTab(name) {
     this.activeTab = name;
     if (name !== 'quests') this._stopQuestCountdowns();
+    // Leaving the inn by any route (e.g. tab bar) stops its glow loop;
+    // enterInn() restarts it after switching to the inn tab.
+    if (name !== 'inn') this.stopInnGlow();
     try { Audio.play('tab'); } catch { /* ignore */ }
     $$('#tabbar .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     $$('#tab-content .tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
     this.handlers.onTab && this.handlers.onTab(name);
+  },
+
+  // ---------------- Inn (AFK safe zone) ----------------
+
+  // Refresh the inn HP bar + status while resting.
+  renderInn(s, stats) {
+    try {
+      const hp = Math.max(0, Math.round(s.hero.hp));
+      const max = Math.max(1, Math.round(stats.maxHp));
+      const fill = this.els['inn-hpfill'];
+      const text = this.els['inn-hptext'];
+      if (fill) fill.style.width = Math.min(100, (hp / max) * 100) + '%';
+      if (text) text.textContent = `${hp} / ${max} HP`;
+      const st = this.els['inn-status'];
+      if (st) st.textContent = hp >= max ? '✨ Fully rested!' : '💤 Resting… (+2% HP/s)';
+    } catch { /* ignore */ }
+  },
+
+  // Fireplace/lantern flicker overlay on the inn scene.
+  // Cheap (~8fps canvas, few radial gradients), paused when the tab is
+  // hidden, and a single static frame under reduced motion.
+  startInnGlow() {
+    try {
+      const cv = this.els['inn-glow'] || document.getElementById('inn-glow');
+      if (!cv) return;
+      this.stopInnGlow();
+      const reduced = document.body.classList.contains('reduce-motion');
+      const draw = () => {
+        try {
+          const r = cv.getBoundingClientRect();
+          if (r.width < 2 || document.hidden) return;
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          cv.width = Math.round(r.width * dpr);
+          cv.height = Math.round(r.height * dpr);
+          const ctx = cv.getContext('2d');
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          ctx.clearRect(0, 0, r.width, r.height);
+          const t = performance.now() / 1000;
+          const flick = reduced ? 1
+            : 0.80 + 0.14 * Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1.7) + 0.06 * Math.sin(t * 13.7);
+          // Fireplace glow, lower-left; lantern glows, upper-middle.
+          const spots = [
+            { x: 0.16, y: 0.82, rad: 0.42, c: '255,150,60', a: 0.34 },
+            { x: 0.50, y: 0.22, rad: 0.22, c: '255,190,110', a: 0.22 },
+            { x: 0.66, y: 0.30, rad: 0.18, c: '255,190,110', a: 0.18 },
+          ];
+          for (const sp of spots) {
+            const rad = sp.rad * Math.max(r.width, r.height);
+            const g = ctx.createRadialGradient(
+              r.width * sp.x, r.height * sp.y, 0,
+              r.width * sp.x, r.height * sp.y, rad);
+            g.addColorStop(0, `rgba(${sp.c},${(sp.a * flick).toFixed(3)})`);
+            g.addColorStop(1, `rgba(${sp.c},0)`);
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, r.width, r.height);
+          }
+        } catch { /* ignore */ }
+      };
+      draw();
+      if (!reduced) this._innGlowTimer = setInterval(draw, 120);
+      this._innGlowPaused = false;
+    } catch { /* ignore */ }
+  },
+
+  stopInnGlow() {
+    try {
+      if (this._innGlowTimer) { clearInterval(this._innGlowTimer); this._innGlowTimer = null; }
+      this._innGlowPaused = false;
+    } catch { /* ignore */ }
+  },
+
+  _pauseInnGlow() {
+    try {
+      if (this._innGlowTimer) { clearInterval(this._innGlowTimer); this._innGlowTimer = null; this._innGlowPaused = true; }
+    } catch { /* ignore */ }
+  },
+
+  _resumeInnGlow() {
+    try {
+      if (this._innGlowPaused && !document.body.classList.contains('reduce-motion')) {
+        this._innGlowPaused = false;
+        this.startInnGlow();
+      }
+    } catch { /* ignore */ }
   },
 
   // ---------------- toasts ----------------

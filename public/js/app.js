@@ -38,6 +38,7 @@ const App = {
   statusTimer: null,
   maintenanceMode: false,
   started: false,
+  inInn: false, // AFK safe zone: session-only, resets to battle on load
   meter: null, // live damage meter: { startAt, fighters: {key: {label, total, samples:[{t,total}]}} }
 };
 
@@ -111,6 +112,8 @@ async function boot() {
     onEnchant: doEnchant,
     onMode: setMode,
     onRebirth: doRebirth,
+    onEnterInn: enterInn,
+    onLeaveInn: () => leaveInn(true),
     onEquip: doEquip,
     onSell: doSell,
     onUpgrade: doUpgrade,
@@ -869,6 +872,16 @@ function tick() {
     return;
   }
 
+  // Inn (AFK safe zone): combat is fully suspended — no damage in or out,
+  // no enemy progression — and the hero regenerates 2% max HP per second.
+  if (App.inInn) {
+    const stats = Engine.computeStats(s);
+    s.hero.hp = Engine.innRegen(s.hero.hp, stats.maxHp, dt);
+    UI.renderInn(s, stats);
+    UI.updateHUD(s, App.user);
+    return;
+  }
+
   const stats = Engine.computeStats(s);
 
   // regen
@@ -1076,6 +1089,32 @@ function setMode(mode) {
   // Entering or leaving raid needs a fresh enemy (waves vs stage enemies).
   if (mode === 'raid' || wasRaid) spawnEnemy();
   saveNow();
+}
+
+// ---------------- Inn (AFK safe zone) ----------------
+// Session-only: entering suspends all combat (no damage in or out, no
+// enemy progression) and regenerates HP; leaving resumes the fight.
+// On game load the player always starts back at battle (safe default).
+function enterInn() {
+  const s = App.state;
+  if (!s || App.inInn) return;
+  App.inInn = true;
+  UI.showTab('inn');
+  UI.startInnGlow();
+  try { Audio.startInnAmbience(); } catch { /* audio is optional */ }
+  UI.renderInn(s, Engine.computeStats(s));
+  UI.toast('🏠 You rest at the inn — safe from harm.', 'success');
+}
+
+function leaveInn(toBattle) {
+  if (!App.inInn) return;
+  App.inInn = false;
+  try { Audio.stopInnAmbience(); } catch { /* ignore */ }
+  UI.stopInnGlow();
+  if (toBattle) {
+    UI.showTab('battle');
+    UI.toast('⚔️ Back to the fight!', 'info');
+  }
 }
 
 function doEquip(id) {
@@ -1426,6 +1465,9 @@ async function pollBroadcast() {
 async function onTabSwitch(tab, force = false) {
   const s = App.state;
   if (!s) return;
+  // Navigating anywhere else ends the inn rest (leaveInn(true) would fight
+  // the tab switch in progress, so exit silently here).
+  if (tab !== 'inn' && App.inInn) leaveInn(false);
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'party') UI.renderParty(s);
   else if (tab === 'more') { UI.renderMore(s, App.user); UI.syncNotifSettings(s.settings && s.settings.notif); }
