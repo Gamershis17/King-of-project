@@ -38,6 +38,14 @@ check('strips malformed nameColor', () => {
   sanitizeStateBlob(b);
   assert.strictEqual('nameColor' in b, false);
 });
+check('keeps each new effect id', () => {
+  for (const fx of ['galaxy', 'ice', 'lightning', 'shadow', 'glitch']) {
+    const b = blob({ nameFx: fx });
+    const r = sanitizeStateBlob(b);
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(b.nameFx, fx, `expected ${fx} to survive`);
+  }
+});
 check('strips malformed nameFx', () => {
   const b = blob({ nameFx: 'sparkle' });
   sanitizeStateBlob(b);
@@ -66,8 +74,8 @@ check('nameColor regex matches client validation', () => {
   assert.ok(!re.test('red') && !re.test('#fff') && !re.test('#gggggg'));
 });
 check('nameFx id list matches client list', () => {
-  const ids = ['none', 'fire', 'neon', 'rainbow', 'shine'];
-  assert.deepStrictEqual(ids, ['none', 'fire', 'neon', 'rainbow', 'shine']);
+  const ids = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch'];
+  assert.deepStrictEqual(ids, ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch']);
 });
 
 if (failures) {

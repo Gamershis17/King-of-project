@@ -549,7 +549,7 @@ function setBgStyle(id) {
   saveNow();
 }
 // ---- player name styles (cosmetic; top-level on state like bgStyle) ----
-const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine'];
+const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch'];
 const NAME_COLOR_DEFAULT = '#ffd76a';
 function nameColorOf(s) {
   const c = s && s.nameColor;

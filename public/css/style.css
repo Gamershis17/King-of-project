@@ -3349,6 +3349,84 @@ body:is(.perf, .os-reduced) .float-txt {
   0% { background-position: 120% 0; }
   55%, 100% { background-position: -20% 0; }
 }
+/* Galaxy: starfield inside the text — twinkling white/blue star dots over a
+   deep purple/blue nebula. Star layers drift (tile-exact loops) while the
+   nebula breathes with a brightness pulse. */
+.pname.fx-galaxy {
+  background-image:
+    radial-gradient(circle, #ffffff 0 1.2px, transparent 2px),
+    radial-gradient(circle, #cfe6ff 0 1.2px, transparent 2px),
+    radial-gradient(circle, #ffffff 0 1px, transparent 1.8px),
+    linear-gradient(135deg, #140b30 0%, #33206e 35%, #0e4480 65%, #140b30 100%);
+  background-size: 16px 16px, 26px 26px, 40px 40px, 100% 100%;
+  background-position: 0 0, 8px 13px, 20px 6px, 0 0;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: pname-galaxy 7s ease-in-out infinite;
+}
+@keyframes pname-galaxy {
+  0%, 100% { background-position: 0 0, 8px 13px, 20px 6px, 0 0; filter: brightness(1); }
+  50% { background-position: 16px 8px, 21px 26px, 0 26px, 0 0; filter: brightness(1.3); }
+}
+/* Ice: frosty pale-blue gradient with an icy glow and a slow shimmer sweep. */
+.pname.fx-ice {
+  background-image: linear-gradient(100deg, #a8d8ff 25%, #ffffff 42%, #d6f0ff 50%, #ffffff 58%, #a8d8ff 75%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 10px rgba(150, 220, 255, .6), 0 0 28px rgba(120, 200, 255, .32);
+  animation: pname-ice 3.6s ease-in-out infinite;
+}
+@keyframes pname-ice {
+  0% { background-position: 120% 0; }
+  55%, 100% { background-position: -20% 0; }
+}
+/* Lightning: electric yellow-white charge with a jagged crackle flicker
+   (irregular opacity steps) and a faint electric-blue halo. */
+.pname.fx-lightning {
+  background-image: linear-gradient(180deg, #ffffff 0%, #fff7ae 35%, #ffd23f 60%, #fff7ae 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 8px rgba(255, 240, 150, .8), 0 0 26px rgba(120, 180, 255, .45);
+  animation: pname-lightning 1.1s steps(1) infinite;
+}
+@keyframes pname-lightning {
+  0%, 100% { opacity: 1; }
+  8% { opacity: .35; }
+  12% { opacity: 1; }
+  37% { opacity: 1; }
+  40% { opacity: .5; }
+  44% { opacity: 1; }
+  71% { opacity: 1; }
+  73% { opacity: .25; }
+  77% { opacity: 1; }
+}
+/* Shadow: near-black plum text wreathed in a pulsing dark-violet aura.
+   A faint violet text-stroke keeps the glyphs legible on the dark UI. */
+.pname.fx-shadow {
+  color: #171225;
+  -webkit-text-stroke: 1px rgba(150, 100, 220, .35);
+  text-shadow: 0 0 10px rgba(122, 63, 180, .8), 0 0 32px rgba(90, 40, 160, .5), 0 0 64px rgba(70, 30, 140, .35);
+  animation: pname-shadow 2.8s ease-in-out infinite;
+}
+@keyframes pname-shadow {
+  0%, 100% { text-shadow: 0 0 8px rgba(122, 63, 180, .55), 0 0 24px rgba(90, 40, 160, .35), 0 0 48px rgba(70, 30, 140, .22); }
+  50% { text-shadow: 0 0 15px rgba(150, 90, 220, .95), 0 0 42px rgba(110, 55, 190, .65), 0 0 84px rgba(90, 40, 160, .45); }
+}
+/* Glitch: RGB-split — red/cyan ghost copies jitter horizontally in
+   irregular steps. Frozen state keeps a static split (no strobe). */
+.pname.fx-glitch {
+  color: var(--namec, #ffd76a);
+  text-shadow: -2px 0 rgba(255, 45, 90, .85), 2px 0 rgba(45, 220, 255, .85);
+  animation: pname-glitch 0.9s steps(1) infinite;
+}
+@keyframes pname-glitch {
+  0%, 100% { text-shadow: -2px 0 rgba(255, 45, 90, .85), 2px 0 rgba(45, 220, 255, .85); }
+  20% { text-shadow: -5px 0 rgba(255, 45, 90, .9), 5px 0 rgba(45, 220, 255, .9); }
+  40% { text-shadow: 3px 0 rgba(255, 45, 90, .8), -3px 0 rgba(45, 220, 255, .8); }
+  60% { text-shadow: -1px 0 rgba(255, 45, 90, .9), 1px 0 rgba(45, 220, 255, .9); }
+  80% { text-shadow: 5px 0 rgba(255, 45, 90, .7), -5px 0 rgba(45, 220, 255, .7); }
+}
 /* Active-row gold must not override the rainbow gradient on rarest titles. */
 .title-row.active .title-row-name.title-rainbow {
   color: transparent;

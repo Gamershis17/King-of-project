@@ -1205,6 +1205,11 @@ export const UI = {
     { id: 'neon', name: '💡 Neon' },
     { id: 'rainbow', name: '🌈 Rainbow' },
     { id: 'shine', name: '✨ Shine' },
+    { id: 'galaxy', name: '🌌 Galaxy' },
+    { id: 'ice', name: '🧊 Ice' },
+    { id: 'lightning', name: '⚡ Lightning' },
+    { id: 'shadow', name: '🌑 Shadow' },
+    { id: 'glitch', name: '👾 Glitch' },
   ],
   // Rarest titles: these cycle rainbow in the Titles tab / profile.
   RAINBOW_TITLES: ['ever-reborn', 'true-capped', 'worldforger'],
