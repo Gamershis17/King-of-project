@@ -514,7 +514,7 @@ function spawnEnemy() {
   // Raid mode spawns scaled waves instead of stage enemies.
   App.enemy = s.mode === 'raid'
     ? (Raid.isActive() ? Raid.spawnEnemy(s) : Raid.enter(s))
-    : Engine.enemyFor(s.stage);
+    : Engine.enemyFor(s.stage, Engine.computeStats(s));
   App.enemyTimer = 0;
   App.heroTimer = 0;
   App.companionTimers = {};
