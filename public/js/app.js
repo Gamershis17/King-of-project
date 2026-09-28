@@ -206,6 +206,8 @@ async function boot() {
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
+    onNameColor: setNameColor,
+    onNameFx: setNameFx,
     onEyeColor: setEyeColor,
     onOrbColors: setOrbColors,
     onOrbPalette: setOrbPalette,
@@ -503,6 +505,7 @@ function applyCustomStyles() {
   const bg = bgStyleOf(App.state);
   document.body.dataset.bgstyle = bg;
   UI.syncCustomStyles(btnStyleOf(App.state), bg);
+  UI.syncNameStyle(nameColorOf(App.state), nameFxOf(App.state));
   UI.setBgScene(bg, bgSceneOpts(App.state));
   UI.renderBgAnimOpts(bg, App.state && App.state.settings);
 }
@@ -543,6 +546,31 @@ function setBgStyle(id) {
   if (!s) return;
   s.bgStyle = BG_STYLE_IDS.includes(id) ? id : 'default';
   applyCustomStyles();
+  saveNow();
+}
+// ---- player name styles (cosmetic; top-level on state like bgStyle) ----
+const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine'];
+const NAME_COLOR_DEFAULT = '#ffd76a';
+function nameColorOf(s) {
+  const c = s && s.nameColor;
+  return /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : NAME_COLOR_DEFAULT;
+}
+function nameFxOf(s) {
+  const f = s && s.nameFx;
+  return NAME_FX_IDS.includes(f) ? f : 'none';
+}
+function setNameColor(c) {
+  const s = App.state;
+  if (!s) return;
+  s.nameColor = /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : NAME_COLOR_DEFAULT;
+  UI.syncNameStyle(nameColorOf(s), nameFxOf(s));
+  saveNow();
+}
+function setNameFx(fx) {
+  const s = App.state;
+  if (!s) return;
+  s.nameFx = NAME_FX_IDS.includes(fx) ? fx : 'none';
+  UI.syncNameStyle(nameColorOf(s), nameFxOf(s));
   saveNow();
 }
 
@@ -1206,7 +1234,7 @@ function checkAch() {
   }
   const freshTitles = Engine.checkTitles(s);
   for (const t of freshTitles) {
-    UI.toast(`👑 New title unlocked: ${t.name}!`, 'success');
+    UI.titleToast(t.name);
     UI.combatLog(`👑 Title unlocked: ${t.name}`, 'level');
   }
   if (fresh.length || freshTitles.length) {
@@ -1889,7 +1917,7 @@ function mountGuild() {
     el.querySelector('#guild-upgrade-btn').addEventListener('click', openUpgradeModal);
     return;
   }
-  try { renderGuildSection(el, api); } catch (e) { console.warn('guild mount failed', e); }
+  try { renderGuildSection(el, api, App.state); } catch (e) { console.warn('guild mount failed', e); }
 }
 
 // Polls for staff broadcasts; toasts any announcement newer than the last seen.
@@ -1959,7 +1987,7 @@ async function loadRanks() {
   const by = UI.lbCategory || 'level';
   try {
     const { entries } = await api.leaderboard(by);
-    UI.renderRanks(entries || [], App.user ? App.user.username : null, by);
+    UI.renderRanks(entries || [], App.user ? App.user.username : null, by, App.state);
   } catch (e) {
     UI.toast('Could not load leaderboard.', 'error');
   }

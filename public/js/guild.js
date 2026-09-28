@@ -15,6 +15,7 @@
 // ============================================================
 import { Audio } from './audio.js';
 import { setGuildPerks } from './engine.js';
+import { UI } from './ui.js';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -318,7 +319,7 @@ const NEWS_EMOJI = {
 
 const ONLINE_WINDOW_MS = 5 * 60 * 1000;
 
-export function renderGuildSection(container, api) {
+export function renderGuildSection(container, api, myState) {
   if (!container) return;
   // Clear the static "Loading…" placeholder from index.html so it can't
   // linger above the panel.
@@ -532,7 +533,7 @@ export function renderGuildSection(container, api) {
       if (!p) return;
       if (name === 'chat') renderChatTab(p, guild);
       else if (name === 'news') renderNewsTab(p);
-      else if (name === 'roster') renderRosterTab(p, guild, members);
+      else if (name === 'roster') renderRosterTab(p, guild, members, myState);
       else if (name === 'perks') renderPerksTab(p, guild);
       else if (name === 'rewards') renderRewardsTab(p, guild);
       else if (name === 'info') renderInfoTab(p, guild, members, challenges);
@@ -661,7 +662,7 @@ export function renderGuildSection(container, api) {
   }
 
   // ---------------- roster tab ----------------
-  function renderRosterTab(panel, guild, members) {
+  function renderRosterTab(panel, guild, members, myState) {
     const myRank = guild.myRank || 'member';
     const me = String(guild.myName || '').toLowerCase();
     const myLvl = GUILD_LEVEL[myRank] || 0;
@@ -696,7 +697,7 @@ export function renderGuildSection(container, api) {
         <div class="guild-member">
           <div class="avatar">🛡️</div>
           <div class="minfo">
-            <div class="mname"><span class="online-dot ${online ? 'on' : 'off'}" title="${online ? 'Online' : 'Offline'}"></span>${esc(m.username)}${m.title ? ` <span class="mtitle">${esc(m.title)}</span>` : ''}</div>
+            <div class="mname"><span class="online-dot ${online ? 'on' : 'off'}" title="${online ? 'Online' : 'Offline'}"></span>${isMe ? UI.nameHtml(m.username, myState) : esc(m.username)}${m.title ? ` <span class="mtitle">${esc(m.title)}</span>` : ''}</div>
             <div class="msub">Lv ${m.level == null ? '—' : m.level} · ${esc(classLabel(m.playerClass, m.spec))} · Stage ${m.stage == null ? '—' : m.stage}${m.lastActive ? ` · ${online ? 'online now' : 'last seen ' + esc(timeAgo(m.lastActive))}` : ''}</div>
           </div>
           ${rankPill(mRank)}

@@ -3301,3 +3301,98 @@ body:is(.perf, .os-reduced) .float-txt {
   text-shadow: none !important;
   animation: none !important;
 }
+
+/* ============================================================
+   NAME & TITLE TEXT EFFECTS
+   .pname wraps the local player's styled display name.
+   --namec carries the chosen color. All animations use cheap
+   gradient-position / opacity / filter only.
+   ============================================================ */
+.pname { color: var(--namec, #ffd76a); font-weight: inherit; }
+/* Fire: flaming gradient, animated position + flicker. */
+.pname.fx-fire {
+  background-image: linear-gradient(180deg, #ff2e12 0%, #ff7a1a 30%, #ffd23f 52%, #ff7a1a 72%, #ff2e12 100%);
+  background-size: 100% 220%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: pname-fire 1.5s ease-in-out infinite;
+}
+@keyframes pname-fire {
+  0%, 100% { background-position: 50% 0%; filter: brightness(1); }
+  50% { background-position: 50% 100%; filter: brightness(1.3); }
+}
+/* Neon: pulsing glow in the chosen color. */
+.pname.fx-neon {
+  color: var(--namec, #ffd76a);
+  text-shadow: 0 0 6px var(--namec, #ffd76a), 0 0 16px var(--namec, #ffd76a), 0 0 34px var(--namec, #ffd76a);
+  animation: pname-neon 2.2s ease-in-out infinite;
+}
+@keyframes pname-neon { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
+/* Rainbow: cycling gradient. */
+.pname.fx-rainbow {
+  background-image: linear-gradient(90deg, #ff5b5b, #ff9f43, #ffd23f, #5bff8f, #5bd7ff, #b78bff, #ff8bd1, #ff5b5b);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: pname-rainbow 3s linear infinite;
+}
+@keyframes pname-rainbow { to { background-position: 300% 0; } }
+/* Shine: white band sweeping across the chosen color. */
+.pname.fx-shine {
+  background-image: linear-gradient(100deg, var(--namec, #ffd76a) 38%, #ffffff 50%, var(--namec, #ffd76a) 62%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: pname-shine 2.8s ease-in-out infinite;
+}
+@keyframes pname-shine {
+  0% { background-position: 120% 0; }
+  55%, 100% { background-position: -20% 0; }
+}
+/* Active-row gold must not override the rainbow gradient on rarest titles. */
+.title-row.active .title-row-name.title-rainbow {
+  color: transparent;
+}
+/* Perf / reduced-motion: freeze the motion, keep the color. */
+body:is(.perf, .os-reduced) .pname,
+body:is(.perf, .os-reduced) .title-glow,
+body:is(.perf, .os-reduced) .title-rainbow { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .pname, .title-glow, .title-rainbow { animation: none !important; }
+}
+
+/* ---- animated titles ---- */
+.title-glow {
+  color: #ffd76a;
+  text-shadow: 0 0 8px rgba(255, 215, 106, .55), 0 0 20px rgba(255, 170, 60, .28);
+  animation: title-glow-pulse 2.6s ease-in-out infinite;
+}
+@keyframes title-glow-pulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(255, 215, 106, .45), 0 0 18px rgba(255, 170, 60, .22); }
+  50% { text-shadow: 0 0 12px rgba(255, 215, 106, .75), 0 0 28px rgba(255, 170, 60, .4); }
+}
+.title-rainbow {
+  background-image: linear-gradient(90deg, #ff5b5b, #ff9f43, #ffd23f, #5bff8f, #5bd7ff, #b78bff, #ff8bd1, #ff5b5b);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: pname-rainbow 4s linear infinite;
+}
+/* Title-unlock toast: subtle glow only, stays readable. */
+.toast-title .toast-msg {
+  color: #ffd76a;
+  text-shadow: 0 0 10px rgba(255, 215, 106, .5);
+}
+
+/* ---- Settings: name style controls ---- */
+.fx-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: flex-end; }
+.fx-btn { min-height: 44px; }
+.fx-btn.active {
+  border-color: #ffd76a;
+  box-shadow: 0 3px 0 #000, 0 0 12px rgba(255, 215, 106, .45);
+}
+.color-input {
+  width: 72px; height: 44px; padding: 4px;
+  background: #1a1426; border: 2px solid #000; border-radius: 10px;
+  box-shadow: 0 3px 0 #000; cursor: pointer;
+}

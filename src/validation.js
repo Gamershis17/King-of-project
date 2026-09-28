@@ -138,6 +138,10 @@ function sanitizeStateBlob(blob) {
   // Indexed columns must exist as numbers for db.saveState.
   if (typeof blob.level !== 'number') blob.level = 1;
   if (typeof blob.stage !== 'number') blob.stage = 1;
+  // Name styles are cosmetic: keep them only when well-formed so tampered
+  // blobs can't smuggle junk (rendering escapes everything anyway).
+  if (blob.nameColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(blob.nameColor))) delete blob.nameColor;
+  if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine'].includes(blob.nameFx)) delete blob.nameFx;
   if (typeof blob.bossesKilled !== 'number') blob.bossesKilled = 0;
   if (typeof blob.rebirthCount !== 'number') blob.rebirthCount = 0;
   if (!Array.isArray(blob.inventory)) blob.inventory = [];

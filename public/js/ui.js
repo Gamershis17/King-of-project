@@ -453,6 +453,7 @@ export const UI = {
 
     // Custom button / background pickers (Settings)
     this._renderStylePickers();
+    this._renderNameStylePickers();
 
     // Ambient animated background canvas (null-safe: hidden if absent)
     this.initBgCanvas();
@@ -607,7 +608,7 @@ export const UI = {
   },
 
   // ---------------- toasts ----------------
-  toast(msg, kind = 'info', ms = 2600) {
+  toast(msg, kind = 'info', ms = 2600, cls = '') {
     const root = this.els['toast-root'];
     if (!root) return;
     const now = Date.now();
@@ -623,7 +624,7 @@ export const UI = {
       return;
     }
     const el = document.createElement('div');
-    el.className = 'toast toast-' + kind;
+    el.className = 'toast toast-' + kind + (cls ? ' ' + cls : '');
     el.innerHTML = '<span class="toast-msg"></span>';
     el.querySelector('.toast-msg').textContent = msg;
     root.appendChild(el);
@@ -631,6 +632,11 @@ export const UI = {
     const timer = this._toastTimer(el, ms);
     this._lastToast = { text: msg, el, count: 1, time: now, timer };
     while (root.children.length > 4) root.firstChild.remove();
+  },
+
+  // Title-unlock toast: subtle gold glow only (kept readable, no rainbow).
+  titleToast(name) {
+    this.toast(`👑 New title unlocked: ${name}!`, 'success', 2600, 'toast-title');
   },
 
   _toastTimer(el, ms) {
@@ -1175,6 +1181,81 @@ export const UI = {
     };
     mark('btn-style-picker', btnStyle || 'default');
     mark('bg-style-picker', bgStyle || 'default');
+  },
+
+  // ---------------- player name styles ----------------
+  // Cosmetic name colors + animated text effects. Stored top-level on
+  // state as nameColor (hex) / nameFx (id); other players' styles are
+  // NOT served by the leaderboard API, so only the local player's own
+  // name ever renders with these.
+  NAME_COLOR_DEFAULT: '#ffd76a',
+  NAME_COLORS: [
+    { id: '#ffd76a', name: 'Gold' },
+    { id: '#ffffff', name: 'White' },
+    { id: '#ff5b5b', name: 'Red' },
+    { id: '#ff9f43', name: 'Orange' },
+    { id: '#5bff8f', name: 'Green' },
+    { id: '#5bd7ff', name: 'Cyan' },
+    { id: '#b78bff', name: 'Violet' },
+    { id: '#ff8bd1', name: 'Pink' },
+  ],
+  NAME_FX: [
+    { id: 'none', name: 'None' },
+    { id: 'fire', name: '🔥 Fire' },
+    { id: 'neon', name: '💡 Neon' },
+    { id: 'rainbow', name: '🌈 Rainbow' },
+    { id: 'shine', name: '✨ Shine' },
+  ],
+  // Rarest titles: these cycle rainbow in the Titles tab / profile.
+  RAINBOW_TITLES: ['ever-reborn', 'true-capped', 'worldforger'],
+
+  // Returns the local player's display name, HTML-escaped and wrapped
+  // in a styled span when a custom color/effect is set. `state` is the
+  // LOCAL player's state; pass null/{} for the default plain name.
+  nameHtml(name, state) {
+    const safe = esc(name);
+    const color = /^#[0-9a-fA-F]{6}$/.test(state && state.nameColor) ? state.nameColor : this.NAME_COLOR_DEFAULT;
+    const fx = this.NAME_FX.some((f) => f.id === (state && state.nameFx)) && state.nameFx !== 'none' ? state.nameFx : 'none';
+    if (fx === 'none' && color.toLowerCase() === this.NAME_COLOR_DEFAULT) return safe;
+    return `<span class="pname${fx === 'none' ? '' : ' fx-' + fx}" style="--namec:${color}">${safe}</span>`;
+  },
+
+  // Builds the Settings name-color swatches + custom color input + effect buttons.
+  _renderNameStylePickers() {
+    const cel = document.getElementById('name-color-picker');
+    if (cel) {
+      cel.innerHTML = this.NAME_COLORS.map((c) =>
+        `<button type="button" class="swatch" data-color="${c.id}" title="${c.name}" aria-label="${c.name} name color">` +
+        `<span class="dot" style="background:${c.id}"></span><span class="lbl">${c.name}</span></button>`
+      ).join('');
+      cel.querySelectorAll('.swatch').forEach((b) => {
+        b.addEventListener('click', () => { if (this.handlers.onNameColor) this.handlers.onNameColor(b.dataset.color); });
+      });
+    }
+    const custom = document.getElementById('name-color-custom');
+    if (custom) {
+      custom.addEventListener('input', () => { if (this.handlers.onNameColor) this.handlers.onNameColor(custom.value); });
+    }
+    const fel = document.getElementById('name-fx-picker');
+    if (fel) {
+      fel.innerHTML = this.NAME_FX.map((f) =>
+        `<button type="button" class="btn fx-btn" data-fx="${f.id}">${f.name}</button>`
+      ).join('');
+      fel.querySelectorAll('.fx-btn').forEach((b) => {
+        b.addEventListener('click', () => { if (this.handlers.onNameFx) this.handlers.onNameFx(b.dataset.fx); });
+      });
+    }
+  },
+
+  // Marks the active name color swatch / effect button after a change or on load.
+  syncNameStyle(color, fx) {
+    const cel = document.getElementById('name-color-picker');
+    if (cel) cel.querySelectorAll('.swatch').forEach((b) =>
+      b.classList.toggle('active', (b.dataset.color || '').toLowerCase() === String(color || '').toLowerCase()));
+    const custom = document.getElementById('name-color-custom');
+    if (custom && /^#[0-9a-fA-F]{6}$/.test(color || '')) custom.value = color;
+    const fel = document.getElementById('name-fx-picker');
+    if (fel) fel.querySelectorAll('.fx-btn').forEach((b) => b.classList.toggle('active', b.dataset.fx === fx));
   },
 
   // ---------------- animated background scenes ----------------
@@ -2319,7 +2400,7 @@ export const UI = {
         <div class="mp-member">
           <div class="mp-avatar">${race.emoji || '🛡️'}</div>
           <div class="mp-info">
-            <div class="mp-name">${dot} ${esc(m.username)}${flag ? ' ' + flag : ''}${crown}</div>
+            <div class="mp-name">${dot} ${String(m.username) === me ? this.nameHtml(m.username, state) : esc(m.username)}${flag ? ' ' + flag : ''}${crown}</div>
             ${title}
             <div class="muted small">Lv ${m.level} · Stage ${m.stage}${cls.name ? ' · ' + esc(cls.name) : ''}${m.online ? '' : ' · offline'}</div>
           </div>
@@ -2572,7 +2653,7 @@ export const UI = {
     if (this.handlers.onLbCategory) this.handlers.onLbCategory(by);
   },
 
-  renderRanks(entries, meUsername, by) {
+  renderRanks(entries, meUsername, by, meState) {
     this.setRanksCategory('heroes');
     const cat = this.LB_CATS[by] || this.LB_CATS[this.lbCategory] || this.LB_CATS.level;
     const note = this.els['lb-note'];
@@ -2612,7 +2693,7 @@ export const UI = {
         ${rankHtml}
         <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
         <div class="lb-identity">
-          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${isMe ? this.nameHtml(en.username, meState) : esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
           ${title}
         </div>
         <div class="lb-chips">
@@ -2846,7 +2927,7 @@ export const UI = {
         <div class="inspect-head">
           <div class="inspect-avatar">${raceEmoji}</div>
           <div class="inspect-id">
-            <div class="inspect-name">${esc(d.username)}</div>
+            <div class="inspect-name">${d.relation === 'self' ? this.nameHtml(d.username, meState) : esc(d.username)}</div>
             <div class="inspect-lv">⚔️ Lv ${d.level}</div>
             <div class="inspect-class">${esc(clsLine || '—')}</div>
             ${d.title ? `<div class="inspect-title">👑 ${esc(d.title)}</div>` : ''}
@@ -2980,9 +3061,9 @@ export const UI = {
       <div class="profile-head">
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
-          <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${esc(user ? user.username : '—')}</div>
+          <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${this.nameHtml(user ? user.username : '—', state)}</div>
           <div class="profile-title-row">
-            <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
+            <div class="profile-title ${this.RAINBOW_TITLES.includes(state.activeTitle) ? 'title-rainbow' : 'title-glow'}">${esc(Engine.titleName(state.activeTitle))}</div>
           </div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
@@ -3018,10 +3099,12 @@ export const UI = {
       const has = unlocked.has(t.id);
       const active = s.activeTitle === t.id;
       const rowCls = 'title-row' + (has ? ' unlocked' : ' locked') + (active ? ' active' : '');
+      // Unlocked titles get a subtle gold glow; the 3 rarest cycle rainbow.
+      const glowCls = has ? (this.RAINBOW_TITLES.includes(t.id) ? 'title-rainbow' : 'title-glow') : '';
       const nameHtml = (has && active ? '👑 ' : has ? '' : '🔒 ') + esc(t.name);
       return has
-        ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
-        : `<div class="${rowCls}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></div>`;
+        ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name ${glowCls}">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
+        : `<div class="${rowCls}"><span class="title-row-name ${glowCls}">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></div>`;
     }).join('');
   },
 
