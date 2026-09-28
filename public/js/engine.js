@@ -44,6 +44,21 @@ export const ORE_TIERS = [
 export const ORE_BY_ID = Object.fromEntries(ORE_TIERS.map(o => [o.id, o]));
 export const MAX_MINE_DEPTH = 60;
 
+// Pickaxe tiers: each tier multiplies tap damage in mineDamage().
+// Tier 0 is the starting stick (free). Upgrades cost the named ore +
+// gold and are bought from the Mine tab via buyPickaxeUpgrade().
+export const PICKAXE_TIERS = [
+  { name: 'Cracked Stick',    emoji: '🪵', mult: 1,    cost: null },
+  { name: 'Copper Pick',      emoji: '⛏️', mult: 1.6,  cost: { copper: 20, gold: 500 } },
+  { name: 'Iron Pick',        emoji: '⛏️', mult: 2.5,  cost: { iron: 30, gold: 5000 } },
+  { name: 'Steel Pick',       emoji: '⛏️', mult: 4,    cost: { iron: 40, silver: 20, gold: 50000 } },
+  { name: 'Mithril Pick',     emoji: '⛏️', mult: 6.5,  cost: { mithril: 30, gold: 500000 } },
+  { name: 'Adamant Pick',     emoji: '⛏️', mult: 10,   cost: { adamant: 25, gold: 5000000 } },
+  { name: 'Galaxy Pick',      emoji: '🌌', mult: 16,   cost: { galaxy: 20, gold: 50000000 } },
+  { name: 'Super Galaxy Pick',emoji: '💜', mult: 25,   cost: { supergalaxy: 10, gold: 500000000 } },
+];
+export const MAX_PICKAXE_TIER = PICKAXE_TIERS.length - 1;
+
 // Forge tiers: pick a tier when crafting; higher tiers cost rarer ores
 // and multiply the custom stat values. Super Galaxy is deliberately OP.
 export const FORGE_TIERS = [
@@ -72,7 +87,51 @@ export function mineRockMaxHp(depth) {
 }
 export function mineDamage(state) {
   const tapLvl = (state.upgrades && state.upgrades.tap) || 1;
-  return Math.max(1, Math.round(4 + (state.level || 1) * 1.5 + (tapLvl - 1) * 4));
+  const base = Math.max(1, Math.round(4 + (state.level || 1) * 1.5 + (tapLvl - 1) * 4));
+  // Equipped pickaxe multiplies tap damage (rounded).
+  return Math.max(1, Math.round(base * pickaxeTier(state).mult));
+}
+// Defensive pickaxe tier lookup: clamps a tampered/missing value to 0..7.
+export function pickaxeTier(state) {
+  const raw = state && state.mine && state.mine.pickaxe;
+  const idx = Number.isFinite(Number(raw))
+    ? Math.max(0, Math.min(MAX_PICKAXE_TIER, Math.floor(Number(raw))))
+    : 0;
+  return PICKAXE_TIERS[idx];
+}
+// Cost object ({oreId: n, gold}) of the NEXT pickaxe tier, or null when
+// already at MAX tier.
+export function pickaxeUpgradeCost(state) {
+  ensureMine(state);
+  const next = PICKAXE_TIERS[state.mine.pickaxe + 1];
+  return next && next.cost ? { ...next.cost } : null;
+}
+// Buy the next pickaxe tier. Returns true on success, or an error string
+// (maxed / missing ore / missing gold). Deducts ores + gold (spendGold
+// so the infinite-gold perk bypasses the gold cost).
+export function buyPickaxeUpgrade(state) {
+  ensureMine(state);
+  const cur = state.mine.pickaxe;
+  const next = PICKAXE_TIERS[cur + 1];
+  if (!next || !next.cost) return 'Pickaxe is already at MAX tier.';
+  const cost = next.cost;
+  for (const [k, n] of Object.entries(cost)) {
+    if (k === 'gold') continue;
+    const have = state.mine.ores[k] || 0;
+    if (have < n) {
+      const od = ORE_BY_ID[k];
+      return `Need ${n - have} more ${(od && od.name) || k}.`;
+    }
+  }
+  const goldCost = cost.gold || 0;
+  const goldHave = state.gold || 0;
+  if (!spendGold(state, goldCost)) return `Need ${goldCost - goldHave} more gold.`;
+  for (const [k, n] of Object.entries(cost)) {
+    if (k === 'gold') continue;
+    state.mine.ores[k] = Math.max(0, (state.mine.ores[k] || 0) - n);
+  }
+  state.mine.pickaxe = cur + 1;
+  return true;
 }
 export function unlockedOres(depth) {
   return ORE_TIERS.filter(o => depth >= o.unlockDepth);
@@ -104,7 +163,21 @@ export function ensureMine(s) {
     const v = m.ores[o.id];
     m.ores[o.id] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
   }
+  // Pickaxe tier (0..7) + lifetime mining counters. All default 0 and stay
+  // finite/non-negative so tampered saves can't smuggle weird values in.
+  const pk = Math.floor(Number(m.pickaxe));
+  m.pickaxe = Number.isFinite(pk) ? Math.max(0, Math.min(MAX_PICKAXE_TIER, pk)) : 0;
+  for (const k of ['totalTaps', 'totalMined', 'maxDepth']) {
+    const v = m[k];
+    m[k] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+  }
   if (!s.forge || typeof s.forge !== 'object') s.forge = {};
+  // Forge lifetime counters (read by title unlocks): total crafts ever
+  // plus whether a Super Galaxy item has ever been crafted.
+  const f = s.forge;
+  const cr = Math.floor(Number(f.crafts));
+  f.crafts = Number.isFinite(cr) ? Math.max(0, cr) : 0;
+  f.superCrafted = f.superCrafted === true;
   for (const slot of ['weapon', 'armor']) {
     const it = s.forge[slot];
     if (!it || typeof it !== 'object' || it.slot !== slot || !it.galaxy) {
@@ -131,6 +204,8 @@ export function mineTap(state) {
   m.rockHp -= dmg;
   const ore = rollOre(m.depth);
   m.ores[ore] = (m.ores[ore] || 0) + 1;
+  m.totalTaps++;
+  m.totalMined++;
   let broke = false;
   const bonus = [];
   if (m.rockHp <= 0) {
@@ -139,12 +214,14 @@ export function mineTap(state) {
     for (let i = 0; i < n; i++) {
       const b = rollOre(m.depth);
       m.ores[b] = (m.ores[b] || 0) + 1;
+      m.totalMined++;
       bonus.push(b);
     }
     m.depth = Math.min(MAX_MINE_DEPTH, m.depth + 1);
     m.rockMaxHp = mineRockMaxHp(m.depth);
     m.rockHp = m.rockMaxHp;
   }
+  m.maxDepth = Math.max(m.maxDepth, m.depth);
   return { ore, broke, bonus };
 }
 // Slow passive trickle while the game runs (called ~every 30s by the tick).
@@ -152,6 +229,7 @@ export function trickleOre(state) {
   ensureMine(state);
   const ore = rollOre(state.mine.depth);
   state.mine.ores[ore] = (state.mine.ores[ore] || 0) + 1;
+  state.mine.totalMined++;
   return ore;
 }
 export function forgeCost(tierId) {
@@ -195,6 +273,9 @@ export function craftGalaxyItem(state, slot, tierId, statIds) {
     slot, rarity: 'galaxy', forgeTier: tier.id, stats, value: 0,
   };
   state.forge[slot] = item;
+  // Lifetime forge counters (read by title unlocks).
+  state.forge.crafts = (state.forge.crafts || 0) + 1;
+  if (tierId === 'super') state.forge.superCrafted = true;
   // If a galaxy item was equipped here it is replaced by the new one.
   if (state.equipped && state.equipped[slot] === GALAXY_EQUIP_ID) {
     // stays equipped — the new item takes effect immediately

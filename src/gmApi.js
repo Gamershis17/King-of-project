@@ -296,7 +296,19 @@ router.post(
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
-    return res.status(400).json({ error: 'Kind must be one of "gold", "levels", "xp", "stars", "gear", "ore".' });
+    if (kind === 'pickaxe') {
+      const { tier } = req.body || {};
+      if (!Number.isInteger(tier) || tier < 0 || tier > 7) {
+        return res.status(400).json({ error: 'Tier must be an integer between 0 and 7.' });
+      }
+      const blob = await loadBlob(target.id);
+      if (!blob.mine || typeof blob.mine !== 'object') blob.mine = { depth: 1, ores: {} };
+      blob.mine.pickaxe = Math.max(0, Math.min(7, tier));
+      await persistMergedState(target.id, blob);
+      return res.json({ ok: true, state: selfState(req, target, blob) });
+    }
+
+    return res.status(400).json({ error: 'Kind must be one of "gold", "levels", "xp", "stars", "gear", "ore", "pickaxe".' });
   })
 );
 

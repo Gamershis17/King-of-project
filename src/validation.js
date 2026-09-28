@@ -142,6 +142,15 @@ function sanitizeStateBlob(blob) {
     if (typeof blob.mine.depth === 'number') {
       blob.mine.depth = clamp(Math.floor(blob.mine.depth), 1, 100);
     }
+    // Pickaxe tier must be an int 0..7; lifetime mining counters must be
+    // finite non-negative ints.
+    blob.mine.pickaxe = typeof blob.mine.pickaxe === 'number'
+      ? clamp(Math.floor(blob.mine.pickaxe), 0, 7)
+      : 0;
+    for (const k of ['totalTaps', 'totalMined', 'maxDepth']) {
+      const v = blob.mine[k];
+      blob.mine[k] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+    }
     const ores = blob.mine.ores;
     if (ores && typeof ores === 'object' && !Array.isArray(ores)) {
       for (const k of Object.keys(ores)) {
@@ -150,6 +159,11 @@ function sanitizeStateBlob(blob) {
     }
   }
   if (blob.forge && typeof blob.forge === 'object' && !Array.isArray(blob.forge)) {
+    // Forge lifetime counters: crafts is a non-negative int, superCrafted
+    // is strictly boolean.
+    const cr = blob.forge.crafts;
+    blob.forge.crafts = Number.isFinite(cr) ? Math.max(0, Math.floor(cr)) : 0;
+    blob.forge.superCrafted = blob.forge.superCrafted === true;
     for (const slot of ['weapon', 'armor']) {
       const it = blob.forge[slot];
       if (it && typeof it === 'object' && it.stats && typeof it.stats === 'object') {
