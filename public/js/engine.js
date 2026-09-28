@@ -1184,6 +1184,7 @@ export function computeStats(state) {
   const pSetInfo = playerSetInfo(state);
   let pAtkMult = 1, pDefMult = 1, pHpMult = 1;
   let pCritCh = 0, pAtkSpd = 0, pDodge = 0;
+  let pLifesteal = 0, pRegen = 0, pGoldPct = 0, pXpPct = 0, pCritDmg = 0;
   for (const [setId, count] of Object.entries(equippedPlayerSets(state))) {
     if (count < 3) continue;
     const five = count >= 5;
@@ -1196,6 +1197,15 @@ export function computeStats(state) {
     } else if (setId === 'stormcaller') {
       pAtkSpd += five ? 0.35 : 0.20;
       if (five) pDodge += 12;
+    } else if (setId === 'bloodmoon') {
+      pLifesteal += five ? 20 : 10;
+      if (five) pRegen += 15;
+    } else if (setId === 'gilded') {
+      pGoldPct += five ? 80 : 40;
+      if (five) pXpPct += 40;
+    } else if (setId === 'nightfall') {
+      pCritDmg += five ? 70 : 35;
+      if (five) pDodge += 8;
     }
   }
   // Mastery talents + professions (original systems, WoW-inspired).
@@ -1221,14 +1231,14 @@ export function computeStats(state) {
     defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) + bond.def),
     maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * vitMult) + bond.hp),
     critChance: clamp(h.critChance + gear.critChance + pCritCh + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
-    critDamage: Math.max(100, h.critDamage + gear.critDamage + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
+    critDamage: Math.max(100, h.critDamage + gear.critDamage + pCritDmg + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
     parry: clamp(h.parry + gear.parry + (race.parryBonus || 0), 0, 60),
     dodge: clamp(h.dodge + gear.dodge + pDodge + (race.dodgeBonus || 0) + (race.dodgeMod || 0) + (cls.dodgeBonus || 0), 0, 75),
-    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
+    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + pLifesteal + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
     attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1), 0.2, 5),
-    regen: Math.max(0, h.regen + gear.regen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
-    goldBonus: gear.goldBonus + (gp.goldPct || 0),
-    xpBonus: gear.xpBonus,
+    regen: Math.max(0, h.regen + gear.regen + pRegen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
+    goldBonus: gear.goldBonus + (gp.goldPct || 0) + pGoldPct,
+    xpBonus: gear.xpBonus + pXpPct,
     talentGoldPct: 4 * (tal.fortune || 0),
     setInfo,
     playerSetInfo: pSetInfo,
@@ -1483,6 +1493,33 @@ export const PLAYER_SETS = {
       boots: 'Stormcaller Greaves', trinket: 'Stormcaller Charm',
     },
     secondary: ['attackSpeed', 'dodge'],
+  },
+  bloodmoon: {
+    name: 'Bloodmoon Regalia', emoji: '🩸',
+    desc: 'Sustain and hunger. 3pc: +10 lifesteal. 5pc: +20 lifesteal, +15 regen.',
+    pieces: {
+      weapon: 'Bloodmoon Fang', armor: 'Bloodmoon Carapace', helmet: 'Bloodmoon Crown',
+      boots: 'Bloodmoon Treads', trinket: 'Bloodmoon Heart',
+    },
+    secondary: ['lifesteal', 'regen'],
+  },
+  gilded: {
+    name: 'Gilded Fortune', emoji: '💰',
+    desc: 'Wealth and wisdom. 3pc: +40% gold from kills. 5pc: +80% gold, +40% XP.',
+    pieces: {
+      weapon: 'Gilded Fortune Blade', armor: 'Gilded Fortune Plate', helmet: 'Gilded Fortune Helm',
+      boots: 'Gilded Fortune Greaves', trinket: 'Gilded Fortune Charm',
+    },
+    secondary: ['goldBonus', 'xpBonus'],
+  },
+  nightfall: {
+    name: 'Nightfall Shroud', emoji: '🌑',
+    desc: 'Silent and lethal. 3pc: +35% crit damage. 5pc: +70% crit damage, +8% dodge.',
+    pieces: {
+      weapon: 'Nightfall Edge', armor: 'Nightfall Weave', helmet: 'Nightfall Hood',
+      boots: 'Nightfall Striders', trinket: 'Nightfall Sigil',
+    },
+    secondary: ['critDamage', 'dodge'],
   },
 };
 

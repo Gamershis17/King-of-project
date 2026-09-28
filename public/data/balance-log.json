@@ -1,5 +1,30 @@
 [
   {
+    "version": "v20",
+    "date": "2026-09-28",
+    "title": "New loot sets + battle backgrounds",
+    "changes": [
+      {
+        "system": "New earnable gear sets",
+        "before": "3 earnable sets: Emberheart, Frostbound, Stormcaller (1% drop from any boss kill).",
+        "after": "6 earnable sets. Added 🩸 Bloodmoon Regalia (lifesteal/regen — 3pc: +10 lifesteal; 5pc: +20 lifesteal, +15 regen), 💰 Gilded Fortune (gold/XP — 3pc: +40% gold from kills; 5pc: +80% gold, +40% XP), 🌑 Nightfall Shroud (crit/dodge — 3pc: +35% crit damage; 5pc: +70% crit damage, +8% dodge).",
+        "note": "Same 1% drop chance from any boss kill; regular enemies never drop set pieces. Existing sets untouched."
+      },
+      {
+        "system": "New animated backgrounds",
+        "before": "8 animated scenes (13 backgrounds in the Settings picker).",
+        "after": "11 animated scenes. Added ❄️ Frostfall (drifting snow, glinting ice shards), ☄️ Starfall (meteor streaks over a twinkling starfield), 🌕 Blood Moon (giant red moon, drifting fog, rising ash). Pickable in Settings → Background and usable in battle through the 🖼️ My background card.",
+        "note": "Balance-neutral: visuals only."
+      },
+      {
+        "system": "Throne Storm lightning bolt",
+        "before": "The sky flash drew, but the bolt line hit an undefined variable and never rendered (console error each strike).",
+        "after": "The bolt draws correctly on every lightning strike.",
+        "note": "Visual fix only."
+      }
+    ]
+  },
+  {
     "version": "v19",
     "date": "2026-09-28",
     "title": "Level cap 120 + endgame tuning",

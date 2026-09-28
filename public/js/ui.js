@@ -88,6 +88,9 @@ export const UI = {
     { id: 'inferno-flare', name: 'Inferno Flare', css: 'radial-gradient(circle at 50% 50%, #5e1f0d, #0d0503 72%)', animated: true },
     { id: 'cinder-storm',  name: 'Cinder Storm',  css: 'radial-gradient(circle at 50% 50%, #4a1508, #0c0603 72%)', animated: true },
     { id: 'phoenix-ash',   name: 'Phoenix Ash',   css: 'radial-gradient(circle at 50% 60%, #4a3208, #0d0a04 72%)', animated: true },
+    { id: 'frostfall', name: 'Frostfall', css: 'radial-gradient(circle at 50% 30%, #1d3a5e, #060a12 72%)', animated: true },
+    { id: 'starfall',  name: 'Starfall',  css: 'radial-gradient(circle at 50% 20%, #1a1440, #050310 72%)', animated: true },
+    { id: 'bloodmoon', name: 'Blood Moon', css: 'radial-gradient(circle at 70% 25%, #5e1420, #0d0408 72%)', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -104,7 +107,7 @@ export const UI = {
   ],
   DEFAULT_ORB_COLORS: ['#a855f7', '#7c3aed', '#22d3ee'],
   BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm',
-    'inferno-flare', 'cinder-storm', 'phoenix-ash'],
+    'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon'],
 
   // ---------------- init ----------------
   init() {
@@ -1482,12 +1485,71 @@ export const UI = {
         });
       }
       B.grad = this._vGrad(['#100b04', '#2b2008', '#100b04']);
+    } else if (id === 'frostfall') {
+      // Frostfall: soft snow drifting down on a cold breeze, with a few
+      // glinting ice shards suspended in the air.
+      B.sprites.snow = ['#e0f2fe', '#bae6fd', '#7dd3fc'].map((c) => this._glowSprite(c));
+      for (let i = 0; i < 70; i++) {
+        B.parts.push({
+          kind: 'flake',
+          x: R(0, W), y: R(0, H), r: R(1.5, 4.5) * dpr,
+          vy: R(14, 46) * dpr, sway: R(10, 30) * dpr, ph: R(0, 6.28), fs: R(0.6, 1.6),
+          si: (Math.random() * 3) | 0, a: R(0.35, 0.8),
+        });
+      }
+      for (let i = 0; i < 8; i++) {
+        B.parts.push({
+          kind: 'shard',
+          x: R(0.05, 0.95) * W, y: R(0.05, 0.95) * H, r: R(10, 26) * dpr,
+          rot: R(0, 6.28), vr: R(-0.25, 0.25), ph: R(0, 6.28), ps: R(0.5, 1.2),
+          si: (Math.random() * 3) | 0, a: R(0.25, 0.5),
+        });
+      }
+      B.grad = this._vGrad(['#0a1420', '#16283e', '#0a1420']);
+    } else if (id === 'starfall') {
+      // Starfall: a deep twinkling starfield; every few seconds meteors
+      // streak diagonally with glowing trails.
+      B.sprites.meteor = ['#e9e4ff', '#c4b5fd', '#93c5fd'].map((c) => this._glowSprite(c));
+      B.stars = [];
+      for (let i = 0; i < 90; i++) {
+        B.stars.push({ x: R(0, W), y: R(0, H), r: R(0.6, 2) * dpr, ph: R(0, 6.28), ps: R(0.4, 1.2) });
+      }
+      B.meteors = [];
+      for (let i = 0; i < 3; i++) {
+        B.meteors.push({
+          t0: R(0, 6000), period: R(3500, 8000), dur: R(700, 1100),
+          x0: R(0.3, 1) * W, y0: R(0, 0.4) * H, len: R(120, 260) * dpr,
+          si: (Math.random() * 3) | 0,
+        });
+      }
+      B.grad = this._vGrad(['#080514', '#141033', '#080514']);
+    } else if (id === 'bloodmoon') {
+      // Blood Moon: a huge red moon hangs over drifting fog banks and slow
+      // red ash motes rising through the gloom.
+      B.sprites.moon = this._glowSprite('#ef4444');
+      B.sprites.fog = ['#7f1d1d', '#991b1b', '#450a0a'].map((c) => this._glowSprite(c));
+      B.moonR = Math.min(W, H) * 0.16;
+      B.moonX = W * 0.72; B.moonY = H * 0.24;
+      for (let i = 0; i < 10; i++) {
+        B.parts.push({
+          kind: 'fog',
+          x: R(0, W), y: R(0.35, 1) * H, r: R(90, 200) * dpr,
+          vx: R(-10, 10) * dpr, si: (Math.random() * 3) | 0,
+          ph: R(0, 6.28), ps: R(0.2, 0.5), a: R(0.10, 0.20),
+        });
+      }
+      for (let i = 0; i < 30; i++) {
+        const e = this._newEmber(W, H, true);
+        e.kind = 'ash'; e.si = 0; e.vy = e.vy * 0.4; e.a = Math.min(1, e.a * 0.6);
+        B.parts.push(e);
+      }
+      B.grad = this._vGrad(['#12060a', '#2b0d14', '#12060a']);
     }
   },
   _drawBgFrame(t, isStatic) {
     const B = this._bg;
     if (!B || !B.scene) return;
-    const { ctx, cv } = B, W = cv.width, H = cv.height;
+    const { ctx, cv } = B, W = cv.width, H = cv.height, dpr = B.dpr || 1;
     if (B.grad) ctx.drawImage(B.grad, 0, 0, W, H);
     else { ctx.fillStyle = B.scene === 'shadow-eyes' ? '#050308' : '#0a0812'; ctx.fillRect(0, 0, W, H); }
     if (B.scene === 'shadow-eyes') {
@@ -1666,6 +1728,97 @@ export const UI = {
         const rr = b.r0 + (b.r1 - b.r0) * phase;
         ctx.globalAlpha = 0.5 * (1 - phase);
         ctx.drawImage(B.sprites.ash[b.si], b.x - rr / 2, b.y - rr / 2, rr, rr);
+      }
+    } else if (B.scene === 'frostfall') {
+      // Soft snow drifting down on a breeze; ice shards glint as they turn.
+      for (const p of B.parts) {
+        if (p.kind === 'flake') {
+          if (!isStatic) {
+            p.y += p.vy * B.dt;
+            p.x += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * B.dt;
+            if (p.y > H + 8) { p.y = -8; p.x = Math.random() * W; }
+          }
+          ctx.globalAlpha = p.a;
+          const fd = p.r * 5;
+          ctx.drawImage(B.sprites.snow[p.si], p.x - fd / 2, p.y - fd / 2, fd, fd);
+        } else {
+          if (!isStatic) p.rot += p.vr * B.dt;
+          const tw = 0.6 + 0.4 * Math.sin(t / 1000 * p.ps + p.ph);
+          const sd = p.r * 2 * tw;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.globalAlpha = p.a * tw;
+          ctx.drawImage(B.sprites.snow[p.si], -sd / 2, -sd / 2, sd, sd);
+          ctx.restore();
+        }
+      }
+    } else if (B.scene === 'starfall') {
+      // Twinkling starfield with periodic diagonal meteors.
+      for (const s of (B.stars || [])) {
+        const tw = 0.3 + 0.7 * Math.abs(Math.sin(t / 1000 * s.ps + s.ph));
+        ctx.globalAlpha = 0.6 * tw;
+        ctx.fillStyle = '#e9e4ff';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, 6.2832);
+        ctx.fill();
+      }
+      for (const m of (B.meteors || [])) {
+        let phase = ((t - m.t0) % m.period) / m.dur;
+        if (phase < 0) phase += m.period / m.dur;
+        if (phase >= 1) continue;
+        const mx = m.x0 - phase * m.len * 2.2;
+        const my = m.y0 + phase * m.len * 1.1;
+        const tx = mx + m.len, ty = my - m.len * 0.5;
+        const trail = ctx.createLinearGradient(mx, my, tx, ty);
+        trail.addColorStop(0, 'rgba(233,228,255,0.9)');
+        trail.addColorStop(1, 'rgba(233,228,255,0)');
+        ctx.globalAlpha = 0.8 * (1 - phase);
+        ctx.strokeStyle = trail;
+        ctx.lineWidth = 2.5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(mx, my);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+        ctx.globalAlpha = 0.9 * (1 - phase);
+        const hd = 26 * dpr;
+        ctx.drawImage(B.sprites.meteor[m.si], mx - hd / 2, my - hd / 2, hd, hd);
+      }
+    } else if (B.scene === 'bloodmoon') {
+      // The moon hangs huge and red; fog banks drift below, ash rises.
+      const mr = B.moonR, mx = B.moonX, my = B.moonY;
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(B.sprites.moon, mx - mr * 3, my - mr * 3, mr * 6, mr * 6);
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath(); ctx.arc(mx, my, mr, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = 0.28;
+      ctx.fillStyle = '#7f1d1d';
+      ctx.beginPath(); ctx.arc(mx - mr * 0.3, my - mr * 0.2, mr * 0.35, 0, 6.2832); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx + mr * 0.25, my + mr * 0.3, mr * 0.22, 0, 6.2832); ctx.fill();
+      for (const p of B.parts) {
+        if (p.kind === 'fog') {
+          if (!isStatic) {
+            p.x += p.vx * B.dt;
+            const m = p.r * 2;
+            if (p.x < -m) p.x = W + m; else if (p.x > W + m) p.x = -m;
+          }
+          const breathe = 0.7 + 0.3 * Math.sin(t / 1000 * p.ps + p.ph);
+          const fd = p.r * 2 * breathe;
+          ctx.globalAlpha = p.a * breathe;
+          ctx.drawImage(B.sprites.fog[p.si], p.x - fd / 2, p.y - fd / 2, fd, fd);
+        } else {
+          if (!isStatic) {
+            p.y -= p.vy * B.dt;
+            p.x += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * B.dt;
+            if (p.y < -12) Object.assign(p, this._newEmber(W, H, false), { kind: 'ash', si: 0, a: 0.5 });
+          }
+          const fade = Math.min(1, Math.max(0, (H - p.y) / (H * 0.3)));
+          if (fade <= 0.02) continue;
+          ctx.globalAlpha = p.a * fade;
+          const ad = p.s * 5;
+          ctx.drawImage(B.sprites.moon, p.x - ad / 2, p.y - ad / 2, ad, ad);
+        }
       }
     }
     ctx.globalAlpha = 1;
