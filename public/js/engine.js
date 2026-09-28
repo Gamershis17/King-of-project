@@ -13,7 +13,7 @@ export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midn
 // ---------------- Level cap ----------------
 // Hard level cap: no XP gains, GM grants, or loaded saves may push a
 // character past this. Prestige unlocks at MAX_LEVEL.
-export const MAX_LEVEL = 120;
+export const MAX_LEVEL = 70;
 
 // ---------------- Races ----------------
 export const RACES = {

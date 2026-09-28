@@ -142,7 +142,7 @@ function applyLevelGrant(blob, n) {
   blob.level = Math.max(1, Math.floor(Number(blob.level) || 1));
   const hero = ensureHero(blob);
   let granted = 0;
-  for (let i = 0; i < n && blob.level < 120; i++) {
+  for (let i = 0; i < n && blob.level < 70; i++) {
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
     hero.maxHp = (Number(hero.maxHp) || 0) + 25;
@@ -167,7 +167,7 @@ function applyXpGrant(blob, amount) {
   }
   const hero = ensureHero(blob);
   let guard = 0;
-  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < 120) {
+  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < 70) {
     blob.xp -= blob.xpNext;
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
@@ -178,7 +178,7 @@ function applyXpGrant(blob, amount) {
       blob.mastery.points = Math.max(0, Math.floor(Number(blob.mastery.points) || 0)) + 1;
     }
   }
-  if (blob.level >= 120) blob.xp = 0; // cap reached: bank no XP past it
+  if (blob.level >= 70) blob.xp = 0; // cap reached: bank no XP past it
 }
 
 const GOLD_GRANT_MIN = 1;

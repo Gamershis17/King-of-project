@@ -38,7 +38,7 @@ function validatePassword(password) {
 // Named root fields and their clamp ranges [min, max]. Only applied when the
 // field exists and holds a finite number; non-finite numbers become the min.
 const CLAMPED_FIELDS = {
-  level: [1, 120],
+  level: [1, 70],
   stage: [1, 100000],
   gold: [0, 1e15],
   stars: [0, 1e15],
