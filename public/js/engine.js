@@ -8,7 +8,7 @@
 // Custom button / background presets (Settings). Cosmetic only —
 // unknown values normalize to 'default' in ensureState().
 export const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
-export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight'];
+export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift'];
 
 // ---------------- Level cap ----------------
 // Hard level cap: no XP gains, GM grants, or loaded saves may push a
@@ -209,7 +209,29 @@ export function ensureState(raw) {
   ensurePets(s);
   if (!Array.isArray(s.party)) s.party = [];
   if (!Array.isArray(s.inventory)) s.inventory = [];
+  // Notification prefs live on the save (per player / guest) so they sync with
+  // the account. Backfill defaults: every category ON.
+  if (!s.settings || typeof s.settings !== 'object') s.settings = {};
+  if (!s.settings.notif || typeof s.settings.notif !== 'object') s.settings.notif = {};
+  for (const cat of ['level', 'death', 'loot', 'quest']) {
+    if (s.settings.notif[cat] === undefined) s.settings.notif[cat] = true;
+  }
+  // Animated background scene options (Settings → Background).
+  if (!['violet', 'ember', 'gold'].includes(s.settings.eyeColor)) s.settings.eyeColor = 'violet';
+  if (!Array.isArray(s.settings.orbColors) || s.settings.orbColors.length !== 3 ||
+      !s.settings.orbColors.every((c) => typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c))) {
+    s.settings.orbColors = ['#a855f7', '#7c3aed', '#22d3ee'];
+  }
   if (!Array.isArray(s.skills) || !s.skills.length) s.skills = ['power-strike'];
+  // Old saves: grant every skill the player's current level has unlocked.
+  for (const id of SKILL_ORDER) {
+    if (s.level >= SKILLS[id].unlockLevel && !s.skills.includes(id)) s.skills.push(id);
+  }
+  // Old saves: normalize enchant levels on inventory items (0–10 ints).
+  for (const it of s.inventory) {
+    it.enchant = Math.max(0, Math.min(ENCHANT_MAX, Math.floor(Number(it.enchant) || 0)));
+  }
+  ensureQuests(s); // backfill the quest board on old saves
   if (!Array.isArray(s.codesRedeemed)) s.codesRedeemed = [];
   if (!Array.isArray(s.companions)) s.companions = [];
   if (!['clicker', 'auto', 'dungeon'].includes(s.mode)) s.mode = 'clicker';
@@ -285,6 +307,21 @@ export function goldForKill(stage, goldBonusPct = 0) {
 // Adds XP (applying race + gear + rested multipliers), handles level-ups.
 // Level-up: +3 attack, +25 maxHp, +2 defense; heals 25% max HP.
 // Every 10th level also grants a Mastery point.
+// ---------------- Active skills ----------------
+// Cooldown-only combat skills (no mana). power-strike is the default;
+// the rest unlock automatically on level-up via gainXp().
+export const SKILLS = {
+  'power-strike': { name: 'Power Strike', emoji: '✨', unlockLevel: 1, cdMs: 12000, mult: 2.5,
+    desc: 'A mighty blow dealing 2.5× attack damage.' },
+  'fireball': { name: 'Fireball', emoji: '🔥', unlockLevel: 10, cdMs: 20000, mult: 3,
+    desc: 'Hurl a fireball dealing 3× attack damage.' },
+  'heal': { name: 'Heal', emoji: '💚', unlockLevel: 25, cdMs: 45000, healPct: 35,
+    desc: 'Restore 35% of max HP.' },
+  'execute': { name: 'Execute', emoji: '⚔️', unlockLevel: 40, cdMs: 30000, mult: 6, executeMult: 1.5, threshold: 0.3,
+    desc: '6× damage if the enemy is below 30% HP, else 1.5×.' },
+};
+export const SKILL_ORDER = ['power-strike', 'fireball', 'heal', 'execute'];
+
 export function gainXp(state, baseAmount, nowMs = Date.now()) {
   const race = RACES[state.race] || {};
   const stats = computeStats(state);
@@ -310,7 +347,146 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
     const s2 = computeStats(state);
     state.hero.hp = Math.min(s2.maxHp, state.hero.hp + s2.maxHp * 0.25);
   }
-  return { gained: amount, levels };
+  // Auto-unlock active skills whose level requirement was just met.
+  if (!Array.isArray(state.skills)) state.skills = ['power-strike'];
+  const newSkills = [];
+  for (const id of SKILL_ORDER) {
+    const def = SKILLS[id];
+    if (def.unlockLevel <= state.level && !state.skills.includes(id)) {
+      state.skills.push(id);
+      newSkills.push(id);
+    }
+  }
+  return { gained: amount, levels, skills: newSkills };
+}
+
+// ---------------- Quests ----------------
+// Daily + weekly quest board. Progress uses snapshot baselines taken when
+// quests roll, so leaving and returning never double-counts. All client-side
+// in the save blob (gameplay is already client-simulated).
+export const QUEST_DEFS = [
+  { id: 'q-slay-d', period: 'daily', emoji: '⚔️', name: 'Monster Slayer', metric: 'kills', kind: 'gain',
+    target: () => 150, desc: (t) => `Slay ${t} enemies` },
+  { id: 'q-tap-d', period: 'daily', emoji: '👆', name: 'Relentless', metric: 'taps', kind: 'gain',
+    target: () => 300, desc: (t) => `Tap ${t} times` },
+  { id: 'q-stage-d', period: 'daily', emoji: '🗺️', name: 'Climber', metric: 'stage', kind: 'reach',
+    target: (s) => (s.stage || 1) + 20, desc: (t) => `Reach stage ${t}` },
+  { id: 'q-boss-d', period: 'daily', emoji: '👹', name: 'Boss Hunter', metric: 'bosses', kind: 'gain',
+    target: () => 3, desc: (t) => `Defeat ${t} bosses` },
+  { id: 'q-slay-w', period: 'weekly', emoji: '⚔️', name: 'Exterminator', metric: 'kills', kind: 'gain',
+    target: () => 1200, desc: (t) => `Slay ${t} enemies` },
+  { id: 'q-boss-w', period: 'weekly', emoji: '👹', name: 'Giantslayer', metric: 'bosses', kind: 'gain',
+    target: () => 15, desc: (t) => `Defeat ${t} bosses` },
+  { id: 'q-level-w', period: 'weekly', emoji: '⬆️', name: 'Ascendant', metric: 'level', kind: 'reach',
+    target: (s) => Math.min(MAX_LEVEL, (s.level || 1) + 5), desc: (t) => `Reach level ${t}` },
+  { id: 'q-raid-w', period: 'weekly', emoji: '🌀', name: 'Wave Rider', metric: 'raid', kind: 'reach',
+    target: (s) => Math.max(10, ((s.raid && s.raid.best) || 0) + 5), desc: (t) => `Reach raid wave ${t}` },
+];
+
+function questMetric(state, metric) {
+  switch (metric) {
+    case 'taps': return (state.stats && state.stats.taps) || 0;
+    case 'kills': return (state.stats && state.stats.kills) || 0;
+    case 'bosses': return state.bossesKilled || 0;
+    case 'stage': return state.stage || 1;
+    case 'level': return state.level || 1;
+    case 'raid': return (state.raid && state.raid.best) || 0;
+    default: return 0;
+  }
+}
+
+export function questDailyKey(nowMs = Date.now()) {
+  return new Date(nowMs).toISOString().slice(0, 10); // UTC YYYY-MM-DD
+}
+
+export function questWeeklyKey(nowMs = Date.now()) {
+  // ISO week id YYYY-Www (UTC).
+  const d = new Date(nowMs);
+  const thu = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  thu.setUTCDate(thu.getUTCDate() - ((thu.getUTCDay() + 6) % 7) + 3);
+  const firstThu = new Date(Date.UTC(thu.getUTCFullYear(), 0, 4));
+  firstThu.setUTCDate(firstThu.getUTCDate() - ((firstThu.getUTCDay() + 6) % 7) + 3);
+  const week = 1 + Math.round((thu - firstThu) / (7 * 864e5));
+  return `${thu.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
+function hashStr(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function rollQuestSet(state, period, key, count) {
+  const pool = QUEST_DEFS.filter((q) => q.period === period);
+  const rnd = mulberry32(hashStr(key + ':' + period));
+  const order = pool.slice();
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order.slice(0, count).map((def) => ({
+    id: def.id,
+    target: def.target(state),
+    base: questMetric(state, def.metric),
+    claimed: false,
+  }));
+}
+
+// Rolls fresh quest sets when the day/week key changes. Safe to call often.
+export function ensureQuests(state, nowMs = Date.now()) {
+  if (!state.quests || typeof state.quests !== 'object') state.quests = {};
+  const q = state.quests;
+  const dk = questDailyKey(nowMs);
+  if (q.dailyKey !== dk || !Array.isArray(q.daily)) {
+    q.dailyKey = dk;
+    q.daily = rollQuestSet(state, 'daily', dk, 3);
+  }
+  const wk = questWeeklyKey(nowMs);
+  if (q.weeklyKey !== wk || !Array.isArray(q.weekly)) {
+    q.weeklyKey = wk;
+    q.weekly = rollQuestSet(state, 'weekly', wk, 2);
+  }
+  return q;
+}
+
+export function questProgress(state, entry) {
+  const def = QUEST_DEFS.find((d) => d.id === entry.id);
+  if (!def) return { progress: 0, target: 1, complete: false, def: null };
+  const cur = questMetric(state, def.metric);
+  const progress = def.kind === 'reach' ? cur : Math.max(0, cur - (entry.base || 0));
+  return { progress, target: entry.target, complete: progress >= entry.target, def };
+}
+
+// Reward preview (also used by claimQuest). Scales with level at claim time.
+export function questRewardPreview(state, period) {
+  const L = Math.max(1, state.level || 1);
+  if (period === 'weekly') {
+    return { gold: 10000 * L, stars: 40, xp: Math.round(xpForLevel(L) * 1.5) };
+  }
+  return { gold: 2000 * L, stars: 8, xp: Math.round(xpForLevel(L) * 0.3) };
+}
+
+export function claimQuest(state, period, id, nowMs = Date.now()) {
+  ensureQuests(state, nowMs);
+  const list = period === 'weekly' ? state.quests.weekly : state.quests.daily;
+  const entry = (list || []).find((e) => e.id === id);
+  if (!entry || entry.claimed) return { ok: false };
+  if (!questProgress(state, entry).complete) return { ok: false };
+  entry.claimed = true;
+  const rw = questRewardPreview(state, period);
+  addGold(state, rw.gold);
+  state.stars = Math.min(1e15, Math.max(0, Number(state.stars) || 0) + rw.stars);
+  const xpRes = gainXp(state, rw.xp, nowMs);
+  return { ok: true, rewards: rw, levels: xpRes.levels, skills: xpRes.skills };
 }
 
 // ---------------- Enemies ----------------
@@ -364,6 +540,27 @@ export function enemyFor(stage, playerStats = null) {
   };
 }
 
+// ---------------- Enchanting ----------------
+// Items carry `enchant` 0–10 (backfilled as 0 on old saves). Every numeric
+// gear stat is multiplied by (1 + 0.08 × level). Enchants live on the item,
+// so they survive rebirth.
+export const ENCHANT_MAX = 10;
+export const ENCHANT_PCT = 0.08;
+const ENCHANT_BASE_COST = {
+  common: 100, magic: 500, rare: 2500, epic: 15000, legendary: 100000, mythic: 500000,
+};
+export function enchantLevel(item) {
+  return Math.min(ENCHANT_MAX, Math.max(0, (item && item.enchant) | 0));
+}
+export function enchantMult(item) {
+  return 1 + ENCHANT_PCT * enchantLevel(item);
+}
+export function enchantCost(item) {
+  const lvl = enchantLevel(item);
+  const base = ENCHANT_BASE_COST[item && item.rarity] || 100;
+  return Math.round(base * Math.pow(lvl + 1, 2));
+}
+
 // ---------------- Combat ----------------
 // Effective hero stats = base + level gains + equipped gear,
 // x race traits x upgrade multipliers x full-set bonus.
@@ -378,8 +575,9 @@ export function computeStats(state) {
     if (!id) continue;
     const item = (state.inventory || []).find(i => i.id === id);
     if (!item || item.slot !== slot || !item.stats) continue;
+    const em = enchantMult(item);
     for (const [k, v] of Object.entries(item.stats)) {
-      if (k in gear && Number.isFinite(v)) gear[k] += v;
+      if (k in gear && Number.isFinite(v)) gear[k] += v * em;
     }
   }
   const setInfo = equippedSetInfo(state);

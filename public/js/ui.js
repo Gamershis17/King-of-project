@@ -1,5 +1,5 @@
 // ============================================================
-// ui.js — all DOM rendering for King of Project.
+// ui.js — all DOM rendering for Throne of Shadows.
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
@@ -80,7 +80,25 @@ export const UI = {
     { id: 'crimson',   name: 'Crimson Night', css: 'radial-gradient(circle at 30% 25%, #5e1f2a, #150b0e 72%)' },
     { id: 'emerald',   name: 'Emerald Depths',css: 'radial-gradient(circle at 30% 25%, #14503c, #08120e 72%)' },
     { id: 'midnight',  name: 'Midnight Blue', css: 'radial-gradient(circle at 30% 25%, #1d3a6e, #080d18 72%)' },
+    { id: 'shadow-eyes', name: 'Shadow Eyes', css: 'radial-gradient(circle at 50% 45%, #2a1540, #050308 70%)', animated: true },
+    { id: 'orbs',        name: 'Orbs',        css: 'radial-gradient(circle at 30% 30%, #3b2a7a, #0a0812 75%)', animated: true },
+    { id: 'ember-drift', name: 'Ember Drift', css: 'radial-gradient(circle at 50% 100%, #5e1f1a, #0d0505 75%)', animated: true },
   ],
+  // Animated-scene options (persisted in state.settings).
+  EYE_COLORS: [
+    { id: 'violet', name: 'Violet',    color: '#a855f7' },
+    { id: 'ember',  name: 'Ember Red', color: '#ef4444' },
+    { id: 'gold',   name: 'Gold',      color: '#ffd63f' },
+  ],
+  ORB_PALETTES: [
+    { id: 'violet-haze', name: 'Violet Haze', colors: ['#a855f7', '#7c3aed', '#22d3ee'] },
+    { id: 'ember',       name: 'Ember',       colors: ['#ef4444', '#f97316', '#fbbf24'] },
+    { id: 'frost',       name: 'Frost',       colors: ['#7dd3fc', '#38bdf8', '#e0f2fe'] },
+    { id: 'toxic',       name: 'Toxic',       colors: ['#4ade80', '#a3e635', '#bef264'] },
+    { id: 'royal-gold',  name: 'Royal Gold',  colors: ['#ffd63f', '#f59e0b', '#fff7cc'] },
+  ],
+  DEFAULT_ORB_COLORS: ['#a855f7', '#7c3aed', '#22d3ee'],
+  BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift'],
 
   // ---------------- init ----------------
   init() {
@@ -99,11 +117,13 @@ export const UI = {
       'mode-switch', 'enemy-card', 'enemy-sprite', 'enemy-name', 'enemy-stage',
       'boss-badge', 'enemy-hpfill', 'enemy-hptext', 'enemy-atk', 'float-layer',
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
-      'tap-btn', 'skill-btn', 'skill-cd', 'combo-meter', 'rebirth-box', 'rebirth-btn',
+      'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
+      'quest-daily', 'quest-weekly',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
-      'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'logout-btn', 'modal-root', 'toast-root',
+      'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-notif-level', 'set-notif-death',
+      'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
     ];
@@ -133,8 +153,16 @@ export const UI = {
       e.preventDefault();
       this.handlers.onTap && this.handlers.onTap();
     });
-    listen('skill-btn', 'click', () => {
-      this.handlers.onSkill && this.handlers.onSkill();
+    listen('skill-row', 'click', (e) => {
+      const btn = e.target.closest('button[data-skill]');
+      if (!btn || btn.disabled) return;
+      this.handlers.onSkill && this.handlers.onSkill(btn.dataset.skill);
+    });
+    listen('tab-quests', 'click', (e) => {
+      const btn = e.target.closest('button[data-claim]');
+      if (!btn || btn.disabled) return;
+      const [period, id] = btn.dataset.claim.split(':');
+      this.handlers.onClaimQuest && this.handlers.onClaimQuest(period, id);
     });
     listen('rebirth-btn', 'click', () => {
       this.handlers.onRebirth && this.handlers.onRebirth();
@@ -148,6 +176,7 @@ export const UI = {
       const h = this.handlers;
       if (btn.dataset.action === 'equip' && h.onEquip) h.onEquip(id);
       if (btn.dataset.action === 'sell' && h.onSell) h.onSell(id);
+      if (btn.dataset.action === 'enchant' && h.onEnchant) h.onEnchant(id);
     });
     listen('tab-gear', 'click', (e) => {
       const btn = e.target.closest('button[data-action]');
@@ -226,11 +255,20 @@ export const UI = {
     listen('set-motion', 'change', (e) => {
       this.saveSetting('reduceMotion', e.target.checked);
       document.body.classList.toggle('reduce-motion', e.target.checked);
+      // Re-render the ambient scene (animated vs. static frame).
+      if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
     });
     // Audio prefs live on the game state (per player / guest save), not in
     // localStorage — app.js syncs the checkboxes via applyAudioPrefs().
     listen('set-sfx', 'change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
     listen('set-music', 'change', (e) => this.handlers.onMusic && this.handlers.onMusic(e.target.checked));
+    // Notification toggles (Settings → Notifications): delegate to the app,
+    // which persists them on the game state save.
+    for (const cat of ['level', 'death', 'loot', 'quest']) {
+      listen('set-notif-' + cat, 'change', (e) => {
+        this.handlers.onNotifPref && this.handlers.onNotifPref(cat, e.target.checked);
+      });
+    }
     // UI style segmented control (More → Settings)
     const seg = document.getElementById('ui-style-seg');
     if (seg) {
@@ -242,6 +280,9 @@ export const UI = {
 
     // Custom button / background pickers (Settings)
     this._renderStylePickers();
+
+    // Ambient animated background canvas (null-safe: hidden if absent)
+    this.initBgCanvas();
 
     // GM back button
     const gmBack = this.els['gm-back'];
@@ -280,6 +321,7 @@ export const UI = {
 
   showTab(name) {
     this.activeTab = name;
+    if (name !== 'quests') this._stopQuestCountdowns();
     try { Audio.play('tab'); } catch { /* ignore */ }
     $$('#tabbar .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     $$('#tab-content .tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
@@ -289,16 +331,57 @@ export const UI = {
   // ---------------- toasts ----------------
   toast(msg, kind = 'info', ms = 2600) {
     const root = this.els['toast-root'];
+    if (!root) return;
+    const now = Date.now();
+    // Anti-spam: an identical toast within ~4s bumps a counter on the
+    // existing toast instead of stacking a duplicate.
+    const last = this._lastToast;
+    if (last && last.text === msg && now - last.time < 4000 && last.el.isConnected) {
+      last.count += 1;
+      last.time = now;
+      last.el.querySelector('.toast-msg').textContent = `${msg} (×${last.count})`;
+      clearTimeout(last.timer);
+      last.timer = this._toastTimer(last.el, ms);
+      return;
+    }
     const el = document.createElement('div');
     el.className = 'toast toast-' + kind;
-    el.textContent = msg;
+    el.innerHTML = '<span class="toast-msg"></span>';
+    el.querySelector('.toast-msg').textContent = msg;
     root.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
-    setTimeout(() => {
+    const timer = this._toastTimer(el, ms);
+    this._lastToast = { text: msg, el, count: 1, time: now, timer };
+    while (root.children.length > 4) root.firstChild.remove();
+  },
+
+  _toastTimer(el, ms) {
+    return setTimeout(() => {
       el.classList.remove('show');
       setTimeout(() => el.remove(), 350);
     }, ms);
-    while (root.children.length > 4) root.firstChild.remove();
+  },
+
+  // Notification preferences (Settings → Notifications). The app registers a
+  // provider that reads the current save's prefs; categories: level, death,
+  // loot, quest. When a category is off, its toasts are suppressed entirely.
+  setNotifPrefsProvider(fn) { this._notifPrefsProvider = fn; },
+  _notifPrefs() {
+    try { return (this._notifPrefsProvider && this._notifPrefsProvider()) || {}; }
+    catch { return {}; }
+  },
+  notify(cat, msg, kind = 'info', ms = 2600) {
+    if (this._notifPrefs()[cat] === false) return;
+    this.toast(msg, kind, ms);
+  },
+
+  // Syncs the Settings → Notifications checkboxes to the save's prefs.
+  syncNotifSettings(prefs) {
+    const p = prefs || {};
+    for (const cat of ['level', 'death', 'loot', 'quest']) {
+      const el = this.els['set-notif-' + cat];
+      if (el) el.checked = p[cat] !== false;
+    }
   },
 
   // ---------------- modals ----------------
@@ -548,8 +631,33 @@ export const UI = {
   },
 
   // ---------------- battle ----------------
+  // Row of active skill buttons (unlocked + next locked). Re-render on
+  // unlock; per-tick cooldown state is handled by updateBattle().
+  renderSkillRow(state) {
+    const row = this.els['skill-row'];
+    if (!row) return;
+    row.innerHTML = '';
+    for (const id of Engine.SKILL_ORDER) {
+      const def = Engine.SKILLS[id];
+      if (!def) continue;
+      const unlocked = (state.skills || []).includes(id);
+      const b = document.createElement('button');
+      b.className = 'skill-btn' + (unlocked ? '' : ' locked');
+      if (unlocked) b.dataset.skill = id;
+      else b.dataset.locked = '1';
+      b.disabled = !unlocked;
+      b.title = unlocked ? def.desc : `Unlocks at level ${def.unlockLevel}`;
+      b.innerHTML = `<span class="sk-emoji">${def.emoji}</span>` +
+        `<span class="sk-name">${esc(def.name)}</span>` +
+        (unlocked ? '' : `<span class="lv-tag">🔒 Lv ${def.unlockLevel}</span>`) +
+        `<span class="skill-cd"></span>`;
+      row.appendChild(b);
+    }
+  },
+
   renderBattle(state) {
     this.setMode(state.mode);
+    this.renderSkillRow(state);
     const showRebirth = state.level >= Engine.MAX_LEVEL;
     this.els['rebirth-box'].classList.toggle('hidden', !showRebirth);
     if (showRebirth) {
@@ -564,7 +672,6 @@ export const UI = {
     $$('#mode-switch .mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     const tapBtn = this.els['tap-btn'];
     tapBtn.classList.toggle('hidden', mode !== 'clicker');
-    this.els['skill-btn'].classList.toggle('hidden', false);
   },
 
   setEnemy(enemy) {
@@ -601,13 +708,16 @@ export const UI = {
     const hpFrac = stats.maxHp > 0 ? state.hero.hp / stats.maxHp : 1;
     e['hero-hpfill'].parentElement.classList.toggle('hp-low', hpFrac < 0.3 && hpFrac > 0);
     if (battle && battle.enemy) this.updateEnemy(battle.enemy);
-    // skill cooldown
-    if (battle && battle.skillReadyAt) {
-      const remain = Math.max(0, battle.skillReadyAt - Date.now());
-      const btn = e['skill-btn'];
-      btn.disabled = remain > 0;
-      btn.classList.toggle('skill-ready', remain <= 0); // soft pulse when usable
-      e['skill-cd'].textContent = remain > 0 ? `(${(remain / 1000).toFixed(0)}s)` : '';
+    // per-skill cooldowns
+    if (battle && battle.skillCDs && e['skill-row']) {
+      const now = Date.now();
+      e['skill-row'].querySelectorAll('button[data-skill]').forEach(btn => {
+        const remain = Math.max(0, (battle.skillCDs[btn.dataset.skill] || 0) - now);
+        btn.disabled = remain > 0;
+        btn.classList.toggle('cooling', remain > 0);
+        const cd = btn.querySelector('.skill-cd');
+        if (cd) cd.textContent = remain > 0 ? `(${(remain / 1000).toFixed(0)}s)` : '';
+      });
     }
     this.updateHUD(state, battle ? battle.user : null);
   },
@@ -712,6 +822,227 @@ export const UI = {
     };
     mark('btn-style-picker', btnStyle || 'default');
     mark('bg-style-picker', bgStyle || 'default');
+  },
+
+  // ---------------- animated background scenes ----------------
+  // Single fixed canvas behind all content; one scene at a time.
+  // Cheap particle counts, pre-rendered glow sprites, dt-clamped motion,
+  // paused when the tab is hidden, static frame under reduced motion.
+  initBgCanvas() {
+    const cv = document.getElementById('bg-canvas');
+    if (!cv) return;
+    this._bg = { cv, ctx: cv.getContext('2d'), scene: null, parts: [], sprites: {}, raf: 0, last: 0, dt: 0, grad: null, opts: {} };
+    const fit = () => {
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.max(2, Math.floor(innerWidth * dpr));
+      cv.height = Math.max(2, Math.floor(innerHeight * dpr));
+      this._bg.dpr = dpr;
+      this._bg.grad = null;
+      if (this._bg.scene) this._buildBgScene(this._bg.scene, this._bg.opts);
+    };
+    addEventListener('resize', fit);
+    fit();
+    document.addEventListener('visibilitychange', () => {
+      if (!this._bg || !this._bg.scene || this._bgReduced()) return;
+      if (document.hidden) this._stopBgLoop();
+      else this._startBgLoop();
+    });
+  },
+  _bgReduced() {
+    return !!this.settings.reduceMotion ||
+      (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  },
+  _glowSprite(color) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const x = c.getContext('2d');
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(0.28, color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 64, 64);
+    return c;
+  },
+  _vGrad(stops) {
+    const B = this._bg;
+    const c = document.createElement('canvas');
+    c.width = 2; c.height = Math.max(2, B.cv.height);
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 0, c.height);
+    stops.forEach((s, i) => g.addColorStop(i / (stops.length - 1), s));
+    x.fillStyle = g;
+    x.fillRect(0, 0, 2, c.height);
+    return c;
+  },
+  _newEmber(W, H, anywhere) {
+    const R = (a, b) => a + Math.random() * (b - a);
+    const dpr = (this._bg && this._bg.dpr) || 1;
+    return {
+      x: R(0, W), y: anywhere ? R(0, H) : H + R(0, 40),
+      s: R(2, 5) * dpr, vy: R(14, 34) * dpr,
+      sway: R(8, 26) * dpr, ph: R(0, 6.28), fs: R(0.6, 1.6),
+      si: (Math.random() * 3) | 0, a: R(0.5, 1),
+    };
+  },
+  _buildBgScene(id, opts) {
+    const B = this._bg;
+    const W = B.cv.width, H = B.cv.height, dpr = B.dpr || 1;
+    const R = (a, b) => a + Math.random() * (b - a);
+    B.scene = id; B.parts = []; B.sprites = {}; B.grad = null;
+    if (id === 'shadow-eyes') {
+      const col = (this.EYE_COLORS.find((c) => c.id === (opts.eyeColor || 'violet')) || this.EYE_COLORS[0]).color;
+      B.sprites.eye = this._glowSprite(col);
+      const n = W > H ? 15 : 10;
+      for (let i = 0; i < n; i++) {
+        B.parts.push({
+          x: R(0.07, 0.93) * W, y: R(0.09, 0.91) * H,
+          s: R(9, 20) * dpr, cyc: R(6000, 11000), off: R(0, 11000),
+        });
+      }
+    } else if (id === 'orbs') {
+      const cols = (opts.orbColors && opts.orbColors.length === 3) ? opts.orbColors : this.DEFAULT_ORB_COLORS;
+      B.sprites.orb = cols.map((c) => this._glowSprite(c));
+      for (let i = 0; i < 16; i++) {
+        B.parts.push({
+          x: R(0, W), y: R(0, H), r: R(16, 52) * dpr,
+          vx: R(-9, 9) * dpr, vy: R(-7, 7) * dpr,
+          si: i % 3, col: cols[i % 3], ph: R(0, 6.28), ps: R(0.4, 1.1),
+        });
+      }
+      B.grad = this._vGrad(['#0a0812', '#151126', '#0a0812']);
+    } else if (id === 'ember-drift') {
+      B.sprites.emb = ['#ff6b35', '#f7c548', '#ef4444'].map((c) => this._glowSprite(c));
+      for (let i = 0; i < 55; i++) B.parts.push(this._newEmber(W, H, true));
+      B.grad = this._vGrad(['#0d0505', '#200b08', '#0d0505']);
+    }
+  },
+  _drawBgFrame(t, isStatic) {
+    const B = this._bg;
+    if (!B || !B.scene) return;
+    const { ctx, cv } = B, W = cv.width, H = cv.height;
+    if (B.grad) ctx.drawImage(B.grad, 0, 0, W, H);
+    else { ctx.fillStyle = B.scene === 'shadow-eyes' ? '#050308' : '#0a0812'; ctx.fillRect(0, 0, W, H); }
+    if (B.scene === 'shadow-eyes') {
+      for (const p of B.parts) {
+        const ph = (((t + p.off) % p.cyc) + p.cyc) % p.cyc / p.cyc;
+        let a = ph < 0.22 ? ph / 0.22 : ph < 0.62 ? 1 : Math.max(0, 1 - (ph - 0.62) / 0.38);
+        a = a * a * (3 - 2 * a); // smoothstep fade
+        if (a <= 0.02) continue;
+        const d = p.s * 2.8, gap = p.s * 1.1;
+        ctx.globalAlpha = a * 0.9;
+        ctx.drawImage(B.sprites.eye, p.x - gap - d / 2, p.y - d / 2, d, d);
+        ctx.drawImage(B.sprites.eye, p.x + gap - d / 2, p.y - d / 2, d, d);
+      }
+    } else if (B.scene === 'orbs') {
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.x += p.vx * B.dt; p.y += p.vy * B.dt;
+          const m = p.r * 3;
+          if (p.x < -m) p.x = W + m; else if (p.x > W + m) p.x = -m;
+          if (p.y < -m) p.y = H + m; else if (p.y > H + m) p.y = -m;
+        }
+        const pulse = Math.sin(t / 1000 * p.ps + p.ph);
+        const d = p.r * 4;
+        ctx.globalAlpha = 0.30 + 0.14 * pulse;
+        ctx.drawImage(B.sprites.orb[p.si], p.x - d / 2, p.y - d / 2, d, d);
+        ctx.globalAlpha = 0.50 + 0.18 * pulse;
+        ctx.fillStyle = p.col;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * 0.42, 0, 6.2832);
+        ctx.fill();
+      }
+    } else if (B.scene === 'ember-drift') {
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.y -= p.vy * B.dt;
+          p.x += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * B.dt;
+          if (p.y < -12) Object.assign(p, this._newEmber(W, H, false));
+        }
+        const fade = Math.min(1, Math.max(0, (H - p.y) / (H * 0.3))) * Math.min(1, Math.max(0, (p.y + 12) / 60));
+        if (fade <= 0.02) continue;
+        const d = p.s * 5;
+        ctx.globalAlpha = p.a * fade;
+        ctx.drawImage(B.sprites.emb[p.si], p.x - d / 2, p.y - d / 2, d, d);
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+  _startBgLoop() {
+    this._stopBgLoop();
+    const B = this._bg;
+    if (!B || !B.scene) return;
+    B.last = performance.now();
+    const step = (now) => {
+      B.raf = requestAnimationFrame(step);
+      B.dt = Math.min(0.05, Math.max(0, (now - B.last) / 1000));
+      B.last = now;
+      this._drawBgFrame(now, false);
+    };
+    B.raf = requestAnimationFrame(step);
+  },
+  _stopBgLoop() {
+    if (this._bg && this._bg.raf) { cancelAnimationFrame(this._bg.raf); this._bg.raf = 0; }
+  },
+  // Switches the ambient scene. Non-animated ids hide the canvas.
+  setBgScene(id, opts) {
+    if (!this._bg) this.initBgCanvas();
+    if (!this._bg) return;
+    opts = opts || {};
+    if (!this.BG_ANIMATED.includes(id)) {
+      this._bg.scene = null;
+      this._stopBgLoop();
+      this._bg.ctx.clearRect(0, 0, this._bg.cv.width, this._bg.cv.height);
+      return;
+    }
+    this._bg.opts = { eyeColor: opts.eyeColor, orbColors: opts.orbColors };
+    this._buildBgScene(id, this._bg.opts);
+    if (this._bgReduced()) { this._stopBgLoop(); this._drawBgFrame(1200, true); }
+    else this._startBgLoop();
+  },
+
+  // Conditional scene options in Settings (visible only for the matching scene).
+  renderBgAnimOpts(bgStyle, settings) {
+    const row = document.getElementById('bg-anim-row');
+    const box = document.getElementById('bg-anim-opts');
+    const label = document.getElementById('bg-anim-label');
+    if (!row || !box) return;
+    const st = settings || {};
+    if (bgStyle === 'shadow-eyes') {
+      row.classList.remove('hidden');
+      if (label) label.textContent = '👁️ Eye color';
+      const cur = st.eyeColor || 'violet';
+      box.innerHTML = this.EYE_COLORS.map((c) =>
+        `<button type="button" class="swatch${c.id === cur ? ' active' : ''}" data-eye="${c.id}" title="${c.name}" aria-label="${c.name}">` +
+        `<span class="dot" style="background:${c.color};box-shadow:0 0 10px ${c.color}"></span><span class="lbl">${c.name}</span></button>`
+      ).join('');
+      box.querySelectorAll('[data-eye]').forEach((b) => {
+        b.addEventListener('click', () => { this.handlers.onEyeColor && this.handlers.onEyeColor(b.dataset.eye); });
+      });
+    } else if (bgStyle === 'orbs') {
+      row.classList.remove('hidden');
+      if (label) label.textContent = '🔮 Orb colors';
+      const cols = (st.orbColors && st.orbColors.length === 3) ? st.orbColors : this.DEFAULT_ORB_COLORS;
+      box.innerHTML =
+        `<div class="orb-pickers">` + cols.map((c, i) =>
+          `<label class="orb-pick"><input type="color" value="${c}" data-orb="${i}" aria-label="Orb ${i + 1} color"><span>Orb ${i + 1}</span></label>`
+        ).join('') + `</div>` +
+        `<div class="palette-row">` + this.ORB_PALETTES.map((p) =>
+          `<button type="button" class="palette-btn" data-palette="${p.id}" title="${p.name}">` +
+          p.colors.map((c) => `<span class="pdot" style="background:${c}"></span>`).join('') +
+          `<span class="plbl">${p.name}</span></button>`
+        ).join('') + `</div>`;
+      const read = () => [0, 1, 2].map((i) => box.querySelector(`[data-orb="${i}"]`).value);
+      box.querySelectorAll('[data-orb]').forEach((inp) => {
+        inp.addEventListener('change', () => { this.handlers.onOrbColors && this.handlers.onOrbColors(read()); });
+      });
+      box.querySelectorAll('[data-palette]').forEach((b) => {
+        b.addEventListener('click', () => { this.handlers.onOrbPalette && this.handlers.onOrbPalette(b.dataset.palette); });
+      });
+    } else {
+      row.classList.add('hidden');
+      box.innerHTML = '';
+    }
   },
 
   // Quick shake + white flash on the enemy card when it takes a hit.
@@ -975,21 +1306,102 @@ export const UI = {
             ? `<div class="set-badge set-badge-player" title="${esc(pSetDef.desc)}">${pSetDef.emoji} ${esc(pSetDef.name)} · earnable set</div>`
             : `<div class="set-badge">${esc(item.setName || item.set)}</div>`
         : '';
+      const enchLvl = Engine.enchantLevel(item);
+      const enchCost = Engine.enchantCost(item);
+      const enchMaxed = enchLvl >= Engine.ENCHANT_MAX;
+      const enchAfford = (state.gold || 0) >= enchCost;
       card.innerHTML = `
         <div class="item-head">
           <span class="slot-emoji">${Engine.SLOT_INFO[item.slot]?.emoji || '🎒'}</span>
           <span class="item-name">${esc(item.name)}</span>
           ${isEquipped ? '<span class="equipped-tag">EQUIPPED</span>' : ''}
+          ${enchLvl ? `<span class="enchant-tag" title="Enchanted +${enchLvl}: stats ×${(1 + Engine.ENCHANT_PCT * enchLvl).toFixed(2)}">+${enchLvl}</span>` : ''}
         </div>
         <div class="item-sub">${esc(item.rarity)} · ${esc(Engine.SLOT_INFO[item.slot]?.name || item.slot)}</div>
         ${setBadge}
         <div class="stat-chips">${statChips}</div>
         <div class="item-actions">
           ${isEquipped ? '' : `<button class="btn small" data-action="equip">Equip</button>`}
+          <button class="btn small gold" data-action="enchant" ${enchMaxed || !enchAfford ? 'disabled' : ''}
+            title="${enchMaxed ? 'Max enchant reached' : `Enchant to +${enchLvl + 1}: stats ×${(1 + Engine.ENCHANT_PCT * (enchLvl + 1)).toFixed(2)}`}">
+            ⬆️ ${enchMaxed ? 'MAX' : `Enchant +${enchLvl + 1} · 💰${formatNum(enchCost)}`}</button>
           ${item.unsellable ? '' : `<button class="btn small ghost" data-action="sell">Sell +${formatNum(item.value || 1)}</button>`}
         </div>`;
       grid.appendChild(card);
     }
+  },
+
+  // ---------------- quests ----------------
+  // ms until the next quest reset boundary (UTC).
+  _msToNextDaily(nowMs) {
+    const d = new Date(nowMs);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1) - nowMs;
+  },
+  _msToNextWeekly(nowMs) {
+    const d = new Date(nowMs);
+    // Next Monday 00:00 UTC. getUTCDay(): 0=Sun..6=Sat; (8-day)%7 = days to add.
+    const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + ((8 - d.getUTCDay()) % 7), 0, 0, 0, 0));
+    if (next.getTime() <= nowMs) next.setUTCDate(next.getUTCDate() + 7);
+    return next.getTime() - nowMs;
+  },
+  _fmtCountdown(ms, showDays) {
+    const m = Math.max(0, ms);
+    const dd = Math.floor(m / 864e5);
+    const hh = Math.floor((m % 864e5) / 36e5);
+    const mm = Math.floor((m % 36e5) / 6e4);
+    return showDays ? `Resets in ${dd}d ${hh}h` : `Resets in ${hh}h ${mm}m`;
+  },
+  // Refreshes the quest countdown labels in place (called on a timer while
+  // the quests tab is open so the countdowns stay live).
+  _tickQuestCountdowns() {
+    const now = Date.now();
+    const daily = document.getElementById('quest-daily-cd');
+    const weekly = document.getElementById('quest-weekly-cd');
+    if (daily) daily.textContent = this._fmtCountdown(this._msToNextDaily(now), false);
+    if (weekly) weekly.textContent = this._fmtCountdown(this._msToNextWeekly(now), true);
+  },
+  _startQuestCountdowns() {
+    this._stopQuestCountdowns();
+    this._tickQuestCountdowns();
+    this._questTimer = setInterval(() => this._tickQuestCountdowns(), 30000);
+  },
+  _stopQuestCountdowns() {
+    if (this._questTimer) { clearInterval(this._questTimer); this._questTimer = null; }
+  },
+
+  renderQuests(state) {
+    Engine.ensureQuests(state);
+    const renderList = (period, elId, title, cdId) => {
+      const el = this.els[elId];
+      if (!el) return;
+      const list = period === 'weekly' ? state.quests.weekly : state.quests.daily;
+      el.innerHTML = `<div class="quest-head-row"><h3 class="quest-head">${title}</h3><span class="muted small" id="${cdId}"></span></div>` + (list || []).map((entry) => {
+        const { progress, target, complete, def } = Engine.questProgress(state, entry);
+        if (!def) return '';
+        const pct = target > 0 ? Math.min(100, Math.round((progress / target) * 100)) : 0;
+        const rw = Engine.questRewardPreview(state, period);
+        const status = entry.claimed
+          ? '<span class="quest-tag claimed">✓ Claimed</span>'
+          : complete ? '<span class="quest-tag ready">Ready!</span>' : '';
+        return `<div class="card quest-card">
+          <div class="quest-top"><span>${def.emoji} <b>${esc(def.name)}</b></span>${status}</div>
+          <div class="muted small">${esc(def.desc(target))}</div>
+          <div class="quest-bar"><div class="quest-fill" style="width:${pct}%"></div></div>
+          <div class="quest-meta">
+            <span class="muted small">${formatNum(Math.min(progress, target))} / ${formatNum(target)}</span>
+            <span class="muted small">💰${formatNum(rw.gold)} ⭐${rw.stars}</span>
+          </div>
+          ${entry.claimed ? '' : complete
+            ? `<button class="btn small gold wide" data-claim="${period}:${entry.id}">🎁 Claim reward</button>`
+            : ''}
+        </div>`;
+      }).join('');
+    };
+    renderList('daily', 'quest-daily', '☀️ Daily quests', 'quest-daily-cd');
+    renderList('weekly', 'quest-weekly', '📅 Weekly quests', 'quest-weekly-cd');
+    // Start (and immediately populate) the live reset countdowns now that
+    // the header spans exist.
+    this._startQuestCountdowns();
   },
 
   // ---------------- party ----------------
@@ -1339,9 +1751,9 @@ export const UI = {
     if (!state) return;
     const name = (user && user.username) || 'a hero';
     const url = 'https://king-of-project.onrender.com';
-    const shareText = `⚔️ I'm ${name} — Lv ${state.level}, Stage ${state.stage} in King of Project! Can you beat me? #KingOfProject`;
+    const shareText = `⚔️ I'm ${name} — Lv ${state.level}, Stage ${state.stage} in Throne of Shadows! Can you beat me? #ThroneOfShadows`;
     if (navigator.share) {
-      navigator.share({ title: 'King of Project', text: shareText, url }).catch(() => { /* dismissed */ });
+      navigator.share({ title: 'Throne of Shadows', text: shareText, url }).catch(() => { /* dismissed */ });
       return;
     }
     const full = `${shareText}\n${url}`;
