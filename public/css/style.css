@@ -2746,3 +2746,82 @@ body[data-uistyle="modern"] #view-auth .auth-fantasy .auth-tab.active{
   body[data-uistyle="modern"] #view-auth .auth-fantasy .btn.gold,
   #view-auth .auth-fantasy .btn.gold{font-size:1.12rem;min-height:60px}
 }
+
+/* ============================================================
+   Mining & Galaxy Forge (appended 2026-09-28)
+   Ornate gold-filigree theme; dark; reduced-motion respected.
+   ============================================================ */
+.mine-rock {
+  background: linear-gradient(180deg, var(--stone), var(--bg2));
+  border: 2px solid var(--gold-deep, #8a6a1c);
+  border-radius: var(--radius);
+  box-shadow: 0 0 18px rgba(212, 160, 23, 0.18), 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 1rem;
+  text-align: center;
+  margin-bottom: 0.8rem;
+}
+.mine-depth { font-size: 1.05rem; color: var(--gold); margin-bottom: 0.3rem; }
+.mine-rock-emoji { font-size: 3.2rem; line-height: 1.2; }
+.mine-rock .bar { margin: 0.5rem 0 0.3rem; }
+.mine-hptext { margin-bottom: 0.2rem; }
+.mine-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 150px; height: 150px; border-radius: 50%;
+  margin: 0 auto 0.5rem; font-size: 1rem;
+}
+.mine-btn .mine-emoji { font-size: 3rem; }
+.mine-find { text-align: center; min-height: 1.4em; margin-bottom: 0.4rem; }
+.ore-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;
+}
+.ore-card {
+  background: var(--stone); border: 1px solid var(--gold-line-soft, #8a6a1c);
+  border-radius: var(--radius); padding: 0.5rem 0.25rem; text-align: center;
+}
+.ore-card.locked { opacity: 0.45; }
+.ore-emoji { font-size: 1.6rem; }
+.ore-name { font-size: 0.7rem; color: var(--muted); }
+.ore-count { font-size: 0.95rem; color: var(--gold); }
+/* forge */
+.forge-section { display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 0.8rem; }
+.forge-panel {
+  background: linear-gradient(180deg, var(--stone), var(--bg2));
+  border: 2px solid var(--gold-deep, #8a6a1c);
+  border-radius: var(--radius);
+  box-shadow: 0 0 18px rgba(212, 160, 23, 0.15), 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 0.9rem;
+}
+.forge-panel h3 { margin: 0 0 0.5rem; color: var(--gold); }
+.galaxy-card {
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.7rem; margin-bottom: 0.6rem;
+}
+.r-galaxy {
+  background:
+    linear-gradient(var(--stone), var(--stone)) padding-box,
+    linear-gradient(135deg, #b366ff, #2a0a4a, #ffd23f, #b366ff) border-box;
+  box-shadow: 0 0 18px rgba(179, 102, 255, 0.4);
+}
+.galaxy-name { font-weight: 800; color: var(--gold-hi, #ffd97a); margin-bottom: 0.4rem; }
+.forge-tier-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.45rem; margin: 0.6rem 0; }
+.forge-tier {
+  background: var(--bg2); border: 1px solid var(--stone2); color: var(--text);
+  border-radius: 8px; padding: 0.5rem 0.3rem; cursor: pointer; font-size: 0.75rem;
+}
+.forge-tier.picked { border-color: var(--gold); box-shadow: 0 0 0 2px var(--gold) inset, 0 0 12px rgba(212,160,23,.35); }
+.forge-tier-name { font-weight: 700; }
+.forge-cost { margin-top: 0.25rem; line-height: 1.5; }
+.cost-ok { color: #8ce99a; }
+.cost-lack { color: var(--danger); }
+.stat-pick-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.4rem 0 0.7rem; }
+.stat-pick {
+  background: var(--bg2); border: 1px solid var(--stone2); color: var(--text);
+  border-radius: 20px; padding: 0.35rem 0.7rem; cursor: pointer; font-size: 0.8rem;
+}
+.stat-pick b { color: var(--gold); }
+.stat-pick.picked { border-color: var(--gold); background: rgba(212, 160, 23, 0.15); box-shadow: 0 0 10px rgba(212,160,23,.3); }
+@media (max-width: 560px) {
+  .forge-tier-row { grid-template-columns: repeat(2, 1fr); }
+  .ore-grid { grid-template-columns: repeat(4, 1fr); }
+}

@@ -98,11 +98,23 @@ export const GM = {
               <option value="levels">⬆️ Levels</option>
               <option value="xp">✨ XP</option>
               <option value="gear">👑 Gear set</option>
+              <option value="ore">⛏️ Ore</option>
             </select></label>
           <label class="fld" id="gm-grant-amount-wrap"><span id="gm-grant-amount-label">Amount (1–100000)</span>
             <input id="gm-grant-amount" type="number" min="1" max="1000000" value="100"></label>
           <label class="fld hidden" id="gm-grant-set-wrap"><span>Gear set</span>
             <select id="gm-grant-set">${setOptions}</select></label>
+          <label class="fld hidden" id="gm-grant-ore-wrap"><span>Ore type</span>
+            <select id="gm-grant-ore">
+              <option value="copper">🟤 Copper</option>
+              <option value="iron">⚙️ Iron</option>
+              <option value="silver">⚪ Silver</option>
+              <option value="gold">🟡 Gold Ore</option>
+              <option value="mithril">🔷 Mithril</option>
+              <option value="adamant">🟣 Adamant</option>
+              <option value="galaxy">🌌 Galaxy Shard</option>
+              <option value="supergalaxy">💜 Super Galaxy Core</option>
+            </select></label>
         </div>
         <button id="gm-grant-btn" class="btn gold wide">Grant</button>
         <p class="muted small">Gear grants add the full 5-piece set to the player's inventory. Sovereign set is owner-only.</p>
@@ -267,11 +279,14 @@ export const GM = {
       const syncKindUI = () => {
         const kind = kindSel.value;
         const isGear = kind === 'gear';
+        const isOre = kind === 'ore';
         $('gm-grant-amount-wrap').classList.toggle('hidden', isGear);
         $('gm-grant-set-wrap').classList.toggle('hidden', !isGear);
+        $('gm-grant-ore-wrap').classList.toggle('hidden', !isOre);
         if (kind === 'gold') { amountLabel.textContent = 'Amount (1–1000000)'; amountInput.max = '1000000'; }
         else if (kind === 'levels') { amountLabel.textContent = 'Levels (1–100)'; amountInput.max = '100'; }
         else if (kind === 'xp') { amountLabel.textContent = 'XP (1–1000000)'; amountInput.max = '1000000'; }
+        else if (kind === 'ore') { amountLabel.textContent = 'Ore (1–1000000000)'; amountInput.max = '1000000000'; }
         else { amountLabel.textContent = 'Amount (1–100000)'; amountInput.max = '100000'; }
       };
       kindSel.addEventListener('change', syncKindUI);
@@ -316,6 +331,14 @@ export const GM = {
           }
           res = await api.gmGrant(username, 'xp', { amount });
           UI.toast(`Granted ✨${formatNum(amount)} XP to ${username}.`, 'success');
+        } else if (kind === 'ore') {
+          const amount = Math.floor(Number($('gm-grant-amount').value));
+          if (!Number.isFinite(amount) || amount < 1 || amount > 1000000000) {
+            return UI.toast('Ore amount must be 1–1000000000.', 'error');
+          }
+          const ore = $('gm-grant-ore').value;
+          res = await api.gmGrant(username, 'ore', { ore, amount });
+          UI.toast(`Granted ⛏️${formatNum(amount)} ${ore} to ${username}.`, 'success');
         } else {
           const set = $('gm-grant-set').value;
           res = await api.gmGrant(username, 'gear', { set });
