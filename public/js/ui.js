@@ -128,6 +128,7 @@ export const UI = {
       'share-btn', 'changelog-btn', 'changelog-badge',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
+      'mine-pickaxe', 'mine-stats',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
@@ -210,6 +211,13 @@ export const UI = {
     // Mine: tap the rock
     listen('mine-btn', 'click', () => {
       if (this.handlers.onMine) this.handlers.onMine();
+    });
+    // Mine: pickaxe upgrade (button is re-rendered inside the card, so the
+    // listener lives on the card container and delegates).
+    listen('mine-pickaxe', 'click', (e) => {
+      const btn = e.target.closest('#mine-pickaxe-btn');
+      if (!btn || btn.disabled) return;
+      if (this.handlers.onPickaxeUpgrade) this.handlers.onPickaxeUpgrade();
     });
     listen('upgrade-list', 'click', (e) => {
       const btn = e.target.closest('button[data-upgrade]');
@@ -1538,6 +1546,52 @@ export const UI = {
     const E = Engine;
     E.ensureMine(state);
     const m = state.mine;
+    const pkCard = this.els['mine-pickaxe'];
+    if (pkCard) {
+      const cur = E.pickaxeTier(state);
+      const cost = E.pickaxeUpgradeCost(state);
+      let cardHtml;
+      if (!cost) {
+        // MAX tier — show a badge, no button.
+        cardHtml = `
+          <div class="pk-row">
+            <div class="pk-cur"><span class="pk-emoji">${cur.emoji}</span>
+              <div><b>${esc(cur.name)}</b><div class="muted small">×${cur.mult} tap damage</div></div>
+            </div>
+            <div class="pk-next"><span class="btn small gold" style="pointer-events:none">MAX</span>
+              <div class="muted tiny">Strongest pickaxe forged.</div></div>
+          </div>`;
+      } else {
+        const next = E.PICKAXE_TIERS[m.pickaxe + 1];
+        const costParts = [];
+        let reason = null;
+        for (const [k, n] of Object.entries(cost)) {
+          if (k === 'gold') continue;
+          const od = E.ORE_BY_ID[k];
+          const have = (m.ores && m.ores[k]) || 0;
+          if (!reason && have < n) reason = `Need ${n - have} more ${(od && od.name) || k}`;
+          costParts.push(`<span class="${have >= n ? 'cost-ok' : 'cost-lack'}">${(od && od.emoji) || ''} ${formatNum(n)} ${(od && od.name) || k}</span>`);
+        }
+        const goldCost = cost.gold || 0;
+        const goldOk = state.infGold === true || (state.gold || 0) >= goldCost;
+        if (!reason && !goldOk) reason = `Need ${formatNum(goldCost - (state.gold || 0))} more gold`;
+        costParts.push(`<span class="${goldOk ? 'cost-ok' : 'cost-lack'}">💰 ${formatNum(goldCost)} gold</span>`);
+        cardHtml = `
+          <div class="pk-row">
+            <div class="pk-cur"><span class="pk-emoji">${cur.emoji}</span>
+              <div><b>${esc(cur.name)}</b><div class="muted small">×${cur.mult} tap damage</div></div>
+            </div>
+            <div class="pk-next">
+              <div class="muted tiny">Next: ${next.emoji} ${esc(next.name)} ×${next.mult}</div>
+              <div class="pk-cost">${costParts.join(' + ')}</div>
+              ${reason
+                ? `<button class="btn small" id="mine-pickaxe-btn" disabled>${esc(reason)}</button>`
+                : `<button class="btn small gold" id="mine-pickaxe-btn">Upgrade ⛏️</button>`}
+            </div>
+          </div>`;
+      }
+      pkCard.innerHTML = cardHtml;
+    }
     const rock = this.els['mine-rock'];
     if (rock) {
       const pct = Math.max(0, Math.min(100, (m.rockHp / m.rockMaxHp) * 100));
@@ -1551,6 +1605,11 @@ export const UI = {
     }
     const find = this.els['mine-find'];
     if (find && findText) find.textContent = findText;
+    const stats = this.els['mine-stats'];
+    if (stats) {
+      const fmt = (n) => Math.max(0, Math.floor(n || 0)).toLocaleString('en-US');
+      stats.textContent = `Deepest: ${m.maxDepth || m.depth} · Total taps: ${fmt(m.totalTaps)} · Total ore mined: ${fmt(m.totalMined)}`;
+    }
     const grid = this.els['ore-grid'];
     if (grid) {
       grid.innerHTML = E.ORE_TIERS.map(o => {

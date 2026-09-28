@@ -117,6 +117,7 @@ async function boot() {
     onEquip: doEquip,
     onSell: doSell,
     onMine: doMine,
+    onPickaxeUpgrade: doPickaxeUpgrade,
     onForgeTier: doForgeTier,
     onForgeStat: doForgeStat,
     onForgeCraft: doForgeCraft,
@@ -1169,6 +1170,21 @@ function doMine() {
   UI.renderMine(s, msg);
   if (App.mineTaps === undefined) App.mineTaps = 0;
   if (++App.mineTaps % 25 === 0) saveNow(); // don't hammer the save endpoint
+}
+
+// ---------------- Pickaxe upgrades ----------------
+function doPickaxeUpgrade() {
+  const s = App.state;
+  if (!s || App.dead) return;
+  const res = Engine.buyPickaxeUpgrade(s);
+  if (res === true) {
+    const t = Engine.pickaxeTier(s);
+    UI.toast(`${t.emoji} Upgraded to ${t.name}! (×${t.mult} tap damage)`, 'success');
+    saveNow();
+  } else {
+    UI.toast(res, 'error');
+  }
+  UI.renderMine(s);
 }
 
 function doForgeTier(slot, tier) {

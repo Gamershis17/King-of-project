@@ -2771,6 +2771,26 @@ body[data-uistyle="modern"] #view-auth .auth-fantasy .auth-tab.active{
 }
 .mine-btn .mine-emoji { font-size: 3rem; }
 .mine-find { text-align: center; min-height: 1.4em; margin-bottom: 0.4rem; }
+.mine-stats { text-align: center; margin-bottom: 0.6rem; }
+/* pickaxe upgrade card */
+.mine-pickaxe {
+  background: linear-gradient(180deg, var(--stone), var(--bg2));
+  border: 2px solid var(--gold-deep, #8a6a1c);
+  border-radius: var(--radius);
+  box-shadow: 0 0 18px rgba(212, 160, 23, 0.18), 0 8px 24px rgba(0, 0, 0, 0.5);
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.8rem;
+}
+.pk-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
+.pk-cur { display: flex; align-items: center; gap: 0.6rem; }
+.pk-emoji { font-size: 2.2rem; line-height: 1; }
+.pk-next { text-align: right; }
+.pk-cost { margin: 0.3rem 0 0.45rem; font-size: 0.85rem; }
+.pk-next .btn[disabled] { opacity: 0.75; cursor: not-allowed; }
+@media (max-width: 560px) {
+  .pk-row { flex-direction: column; align-items: stretch; }
+  .pk-next { text-align: left; }
+}
 .ore-grid {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;
 }
