@@ -126,7 +126,7 @@ export const UI = {
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
-      'balance-log-btn', 'balance-log-badge',
+      'balance-log-btn', 'balance-log-badge', 'balance-log-hud', 'balance-log-badge-hud',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
       'mine-pickaxe', 'mine-stats',
@@ -272,6 +272,9 @@ export const UI = {
       this.handlers.onChangelog && this.handlers.onChangelog();
     });
     listen('balance-log-btn', 'click', () => {
+      this.openBalanceLog();
+    });
+    listen('balance-log-hud', 'click', () => {
       this.openBalanceLog();
     });
 
@@ -2115,15 +2118,15 @@ export const UI = {
 
   // Shows the NEW badge on "Balance Log" until the player opens the latest entry.
   checkBalanceBadge() {
-    const badge = this.els['balance-log-badge'];
-    if (!badge) return;
+    const badges = [this.els['balance-log-badge'], this.els['balance-log-badge-hud']].filter(Boolean);
+    if (!badges.length) return;
     this.fetchBalanceLog()
       .then(log => {
         if (!Array.isArray(log) || !log.length) return;
         const latest = String(log[0].version || '');
         let seen = null;
         try { seen = localStorage.getItem('kop-balance-seen'); } catch { /* ignore */ }
-        badge.classList.toggle('hidden', !latest || seen === latest);
+        badges.forEach(b => b.classList.toggle('hidden', !latest || seen === latest));
       })
       .catch(() => { /* offline-tolerant */ });
   },
@@ -2152,7 +2155,9 @@ export const UI = {
       buttons: [{ label: 'Close', cls: 'gold' }],
     });
     try { localStorage.setItem('kop-balance-seen', String(log[0].version || '')); } catch { /* ignore */ }
-    if (this.els['balance-log-badge']) this.els['balance-log-badge'].classList.add('hidden');
+    ['balance-log-badge', 'balance-log-badge-hud'].forEach(id => {
+      if (this.els[id]) this.els[id].classList.add('hidden');
+    });
   },
 
   shareGame(state, user) {
