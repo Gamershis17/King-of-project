@@ -74,10 +74,65 @@ CREATE UNIQUE INDEX IF NOT EXISTS guilds_name_nocase_uidx ON guilds (LOWER(name)
 CREATE TABLE IF NOT EXISTS guild_members (
   guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
   username TEXT UNIQUE NOT NULL,
-  rank TEXT NOT NULL DEFAULT 'member',   -- 'leader' | 'member'
+  rank TEXT NOT NULL DEFAULT 'member',   -- 'master' | 'officer' | 'member' | 'initiate'
   joined_at TIMESTAMPTZ DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_guild_members_guild ON guild_members (guild_id);
+-- Guild rework migrations (2026-09-28):
+-- Rank ladder: 'leader' -> 'master'; newcomers join as 'initiate'.
+UPDATE guild_members SET rank = 'master' WHERE rank = 'leader';
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS level INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS xp BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS motd TEXT NOT NULL DEFAULT '';
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS banner_style TEXT NOT NULL DEFAULT 'shadow';
+ALTER TABLE guilds ADD COLUMN IF NOT EXISTS unlocked_banners TEXT NOT NULL DEFAULT '["shadow"]';
+ALTER TABLE guild_members ADD COLUMN IF NOT EXISTS credits INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE guild_members ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+
+-- Guild chat: server-stored history, pruned to the newest 100 per guild.
+CREATE TABLE IF NOT EXISTS guild_chat (
+  id SERIAL PRIMARY KEY,
+  guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_guild_chat_guild ON guild_chat (guild_id, id DESC);
+
+-- Guild news / activity feed: server-generated entries, pruned to newest 100.
+CREATE TABLE IF NOT EXISTS guild_news (
+  id SERIAL PRIMARY KEY,
+  guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL,   -- join|leave|kick|promote|demote|levelup|challenge|motd|banner|boss
+  text TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_guild_news_guild ON guild_news (guild_id, id DESC);
+
+-- Weekly guild challenges (week starts Monday 00:00 UTC).
+CREATE TABLE IF NOT EXISTS guild_challenges (
+  id SERIAL PRIMARY KEY,
+  guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  week_start BIGINT NOT NULL,
+  kind TEXT NOT NULL,   -- bosses|kills|quests
+  target INTEGER NOT NULL,
+  progress INTEGER NOT NULL DEFAULT 0,
+  completed BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS guild_challenges_week_uidx ON guild_challenges (guild_id, week_start, kind);
+
+-- Guild invites: officer+ can invite a player by username; the invitee
+-- accepts or declines from the guild screen.
+CREATE TABLE IF NOT EXISTS guild_invites (
+  id SERIAL PRIMARY KEY,
+  guild_id INTEGER NOT NULL REFERENCES guilds(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  invited_by TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS guild_invites_guild_user_uidx ON guild_invites (guild_id, LOWER(username));
+CREATE INDEX IF NOT EXISTS idx_guild_invites_user ON guild_invites (LOWER(username));
 
 -- Server-wide tunable settings (key/value). The GM console's owner-only
 -- "Server settings" card writes here; e.g. gold_cap (max player gold).
