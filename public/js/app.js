@@ -15,8 +15,6 @@ const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
 const ENEMY_ATTACK_S = 2.0;
 const RESPAWN_MS = 3000;
-const SKILL_CD_MS = 12000;
-const SKILL_MULT = 2.5;
 
 const App = {
   user: null,
@@ -27,7 +25,7 @@ const App = {
   heroTimer: 0,
   enemyTimer: 0,
   companionTimers: {}, // companion id -> seconds accumulated
-  skillReadyAt: 0,
+  skillCDs: {}, // per-skill cooldowns, keyed by skill id
   tapCombo: 0,
   lastTapAt: 0,
   frenzyUntil: 0,
@@ -108,7 +106,9 @@ async function boot() {
   } catch (e) {}
   UI.handlers = {
     onTap: doTap,
-    onSkill: usePowerStrike,
+    onSkill: (id) => useSkill(id),
+    onClaimQuest: doClaimQuest,
+    onEnchant: doEnchant,
     onMode: setMode,
     onRebirth: doRebirth,
     onEquip: doEquip,
@@ -136,8 +136,19 @@ async function boot() {
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
+    onEyeColor: setEyeColor,
+    onOrbColors: setOrbColors,
+    onOrbPalette: setOrbPalette,
     onSfx: setSfx,
     onMusic: setMusic,
+    onNotifPref: (cat, val) => {
+      const s = App.state;
+      if (!s) return;
+      if (!s.settings || typeof s.settings !== 'object') s.settings = {};
+      if (!s.settings.notif || typeof s.settings.notif !== 'object') s.settings.notif = {};
+      s.settings.notif[cat] = !!val;
+      saveNow();
+    },
     onShare: () => UI.shareGame(App.state, App.user),
     onChangelog: () => UI.openChangelog(),
     onTitle: (id) => {
@@ -160,6 +171,8 @@ async function boot() {
   };
   UI.init();
   Audio.init(); // registers first-gesture unlock + button click ticks
+  // Notification prefs live on the save; UI.notify() reads them through this.
+  UI.setNotifPrefsProvider(() => (App.state && App.state.settings && App.state.settings.notif) || {});
 
   // Maintenance / reachability gate: check the server before anything else.
   // Retries briefly so a deploy/restart window shows as "updating", not dead.
@@ -354,6 +367,7 @@ async function continueBoot(state, lastSeenAt) {
       UI.offlineModal({ ...off, gold: addedGold, gains_xp: xpRes.gained }, xpRes.levels);
       // Well-rested: +25% XP for 30 minutes after returning.
       state.restedUntil = Date.now() + 30 * 60 * 1000;
+      announceSkillUnlocks(xpRes.skills);
       await saveNow();
     }
   }
@@ -385,17 +399,52 @@ function setUiStyle(style) {
 // Unknown values normalize to 'default', which renders pixel-identical
 // to the uncustomized game.
 const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
-const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight'];
+const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift'];
 function btnStyleOf(s) {
   return (s && BTN_STYLE_IDS.includes(s.btnStyle)) ? s.btnStyle : 'default';
 }
 function bgStyleOf(s) {
   return (s && BG_STYLE_IDS.includes(s.bgStyle)) ? s.bgStyle : 'default';
 }
+function bgSceneOpts(s) {
+  const st = (s && s.settings) || {};
+  return {
+    eyeColor: st.eyeColor || 'violet',
+    orbColors: (st.orbColors && st.orbColors.length === 3) ? st.orbColors : UI.DEFAULT_ORB_COLORS,
+  };
+}
 function applyCustomStyles() {
   document.body.dataset.btnstyle = btnStyleOf(App.state);
-  document.body.dataset.bgstyle = bgStyleOf(App.state);
-  UI.syncCustomStyles(btnStyleOf(App.state), bgStyleOf(App.state));
+  const bg = bgStyleOf(App.state);
+  document.body.dataset.bgstyle = bg;
+  UI.syncCustomStyles(btnStyleOf(App.state), bg);
+  UI.setBgScene(bg, bgSceneOpts(App.state));
+  UI.renderBgAnimOpts(bg, App.state && App.state.settings);
+}
+function setEyeColor(id) {
+  const s = App.state;
+  if (!s) return;
+  if (!s.settings || typeof s.settings !== 'object') s.settings = {};
+  if (!UI.EYE_COLORS.some((c) => c.id === id)) return;
+  s.settings.eyeColor = id;
+  UI.setBgScene(bgStyleOf(s), bgSceneOpts(s));
+  UI.renderBgAnimOpts(bgStyleOf(s), s.settings);
+  saveNow();
+}
+function setOrbColors(colors) {
+  const s = App.state;
+  if (!s) return;
+  if (!s.settings || typeof s.settings !== 'object') s.settings = {};
+  const clean = (colors || []).slice(0, 3).map((c) => /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : '#a855f7');
+  while (clean.length < 3) clean.push('#a855f7');
+  s.settings.orbColors = clean;
+  UI.setBgScene(bgStyleOf(s), bgSceneOpts(s));
+  UI.renderBgAnimOpts(bgStyleOf(s), s.settings);
+  saveNow();
+}
+function setOrbPalette(id) {
+  const p = UI.ORB_PALETTES.find((x) => x.id === id);
+  if (p) setOrbColors(p.colors);
 }
 function setBtnStyle(id) {
   const s = App.state;
@@ -665,14 +714,14 @@ function onKillEnemy() {
   const petXpRes = Engine.gainPetXp(s, Math.floor(killXp * 0.15));
   for (const g of petXpRes.gains) {
     for (const lv of g.levels) {
-      UI.toast(`🐾 ${g.name} reached level ${lv}!`, 'success');
+      UI.notify('level', `🐾 ${g.name} reached level ${lv}!`, 'success');
       UI.combatLog(`🐾 ${g.name} leveled up to ${lv}!`, 'level');
     }
   }
   const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null);
   if (loot) {
     s.inventory.push(loot);
-    UI.toast(`🎒 Loot: ${loot.name}`, 'loot');
+    UI.notify('loot', `🎒 Loot: ${loot.name}`, 'loot');
     UI.combatLog(`🎒 Looted ${loot.name} (${loot.rarity})`, 'loot');
     if (UI.activeTab === 'gear') UI.renderGear(s);
   }
@@ -680,14 +729,14 @@ function onKillEnemy() {
   const setDrop = Engine.rollSetDrop(stage, { boss: enemy.boss, dungeonBoss: isDungeonBoss, raidBoss: isRaidBoss });
   if (setDrop) {
     s.inventory.push(setDrop);
-    UI.toast(`🔥 Set piece: ${setDrop.name}!`, 'loot');
+    UI.notify('loot', `🔥 Set piece: ${setDrop.name}!`, 'loot');
     UI.combatLog(`🔥 Looted ${setDrop.name} (${setDrop.setName})`, 'loot');
     if (UI.activeTab === 'gear') UI.renderGear(s);
   }
   // Pet eggs from bosses (drop sources documented on Engine.rollPetEgg).
   if (Engine.rollPetEgg({ boss: enemy.boss, dungeonBoss: isDungeonBoss, raidBoss: isRaidBoss })) {
     Engine.ensurePets(s).eggs += 1;
-    UI.toast('🥚 A pet egg dropped! Hatch it in Party → Pets.', 'loot');
+    UI.notify('loot', '🥚 A pet egg dropped! Hatch it in Party → Pets.', 'loot');
     UI.combatLog('🥚 A pet egg dropped!', 'loot');
     if (UI.activeTab === 'party') UI.renderParty(s);
   }
@@ -696,10 +745,11 @@ function onKillEnemy() {
     UI.combatLog(`⬆️ Level ${xpRes.levels[xpRes.levels.length - 1]}!`, 'level');
     const mp = xpRes.levels.filter(l => l % 10 === 0).length;
     if (mp > 0) {
-      UI.toast(`🧠 +${mp} Mastery point${mp > 1 ? 's' : ''}! Spend in More → Mastery.`, 'success');
+      UI.notify('level', `🧠 +${mp} Mastery point${mp > 1 ? 's' : ''}! Spend in More → Mastery.`, 'success');
       if (UI.activeTab === 'more') UI.renderMore(s, App.user);
     }
   }
+  announceSkillUnlocks(xpRes.skills);
   checkAch();
 
   if (inRaid) {
@@ -753,7 +803,7 @@ function enemyStrikeTick(stats) {
     UI.combatLog(`💔 ${target.c.name} took ${formatNum(res.dmg)}.`);
     if (target.c.hp <= 0) {
       target.c.hp = 0;
-      UI.toast(`${target.c.emoji} ${target.c.name} is down!`, 'error');
+      UI.notify('death', `${target.c.emoji} ${target.c.name} is down!`, 'error');
     }
   }
 }
@@ -793,7 +843,7 @@ function onDefeat() {
   }
   UI.setDead(true);
   UI.combatLog(`💀 You fell! Lost ${formatNum(lost)} gold. Reviving…`, 'death');
-  UI.toast(`You fell! −${formatNum(lost)} gold. Reviving…`, 'error');
+  UI.notify('death', `You fell! −${formatNum(lost)} gold. Reviving…`, 'error');
 }
 
 function respawn() {
@@ -878,7 +928,7 @@ function tick() {
     if (!App.dead) enemyStrikeTick(stats);
   }
 
-  UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillReadyAt: App.skillReadyAt });
+  UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillCDs: App.skillCDs });
   // keep chips / hero panel fresh at low frequency
   if (!tick._n) tick._n = 0;
   if (++tick._n % 8 === 0) {
@@ -932,15 +982,83 @@ function checkAch() {
   }
 }
 
-function usePowerStrike() {
+// Toast newly unlocked active skills and refresh the battle skill row.
+function announceSkillUnlocks(skillIds) {
+  if (!skillIds || !skillIds.length) return;
+  for (const id of skillIds) {
+    const def = Engine.SKILLS[id];
+    if (!def) continue;
+    UI.notify('level', `${def.emoji} New skill unlocked: ${def.name}! (${def.desc})`, 'success');
+    UI.combatLog(`${def.emoji} Skill unlocked: ${def.name} — ${def.desc}`, 'level');
+  }
+  if (UI.activeTab === 'battle') UI.renderSkillRow(App.state);
+}
+
+function doClaimQuest(period, id) {
   const s = App.state;
-  if (!s || App.dead || !s.skills.includes('power-strike')) return;
+  if (!s) return;
+  const res = Engine.claimQuest(s, period, id);
+  if (!res || !res.ok) return;
+  UI.notify('quest', `📜 Quest complete! +💰${formatNum(res.rewards.gold)} +⭐${res.rewards.stars} +✨${formatNum(res.rewards.xp)} XP`, 'success');
+  UI.renderQuests(s);
+  UI.updateHUD(s, App.user);
+  if (res.levels && res.levels.length) UI.levelUpModal(res.levels);
+  announceSkillUnlocks(res.skills);
+  saveNow();
+}
+
+function doEnchant(id) {
+  const s = App.state;
+  if (!s) return;
+  const item = (s.inventory || []).find((i) => i.id === id);
+  if (!item) return;
+  const lvl = Engine.enchantLevel(item);
+  if (lvl >= Engine.ENCHANT_MAX) return;
+  const cost = Engine.enchantCost(item);
+  if ((s.gold || 0) < cost) {
+    UI.toast('Not enough gold to enchant.', 'error');
+    return;
+  }
+  s.gold -= cost;
+  item.enchant = lvl + 1;
+  UI.toast(`⬆️ ${item.name} is now +${item.enchant}! Stats ×${(1 + Engine.ENCHANT_PCT * item.enchant).toFixed(2)}`, 'success');
+  UI.renderGear(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+function useSkill(id) {
+  const s = App.state;
+  const def = Engine.SKILLS[id];
+  if (!s || App.dead || !def || !(s.skills || []).includes(id)) return;
   const now = Date.now();
-  if (now < App.skillReadyAt) return;
-  App.skillReadyAt = now + SKILL_CD_MS;
+  if (now < (App.skillCDs[id] || 0)) return;
+  App.skillCDs[id] = now + def.cdMs;
   s.stats.taps += 1;
-  UI.floatText('POWER STRIKE', 'skill');
-  heroStrike(Engine.computeStats(s), SKILL_MULT);
+  // Skill mastery: track the cast, apply +2% effectiveness per mastery level.
+  const mast = Engine.recordSkillUse(s, id) || { level: 0, leveledUp: false };
+  const mMult = 1 + mast.level * Engine.MASTERY_PCT_PER_LEVEL;
+  if (mast.leveledUp) {
+    UI.toast(`🎯 ${def.name} Mastery ${mast.level}! +${Math.round(mast.level * Engine.MASTERY_PCT_PER_LEVEL * 100)}% effectiveness`, 'success');
+  }
+  const stats = Engine.computeStats(s);
+  if (id === 'heal') {
+    const amount = Math.round(stats.maxHp * (def.healPct / 100) * mMult);
+    s.hero.hp = Math.min(stats.maxHp, s.hero.hp + amount);
+    UI.floatText(`+${formatNum(amount)}`, 'heal');
+    UI.combatLog(`💚 Heal restored ${formatNum(amount)} HP.`, 'heal');
+  } else {
+    let mult = (def.mult || 1) * mMult;
+    if (id === 'execute' && App.enemy && App.enemy.maxHp > 0) {
+      const frac = App.enemy.hp / App.enemy.maxHp;
+      mult = frac < def.threshold ? def.mult : def.executeMult;
+      UI.combatLog(frac < def.threshold
+        ? `⚔️ Execute! ${def.mult}× damage on the weakened foe.`
+        : `⚔️ Execute glanced (${def.executeMult}×) — target above ${Math.round(def.threshold * 100)}% HP.`, 'skill');
+    }
+    UI.floatText(def.name.toUpperCase(), 'skill');
+    heroStrike(stats, mult);
+  }
 }
 
 function setMode(mode) {
@@ -1310,8 +1428,9 @@ async function onTabSwitch(tab, force = false) {
   if (!s) return;
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'party') UI.renderParty(s);
-  else if (tab === 'more') { UI.renderMore(s, App.user); }
+  else if (tab === 'more') { UI.renderMore(s, App.user); UI.syncNotifSettings(s.settings && s.settings.notif); }
   else if (tab === 'guild') { mountGuild(); }
+  else if (tab === 'quests') UI.renderQuests(s);
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);

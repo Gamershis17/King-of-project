@@ -429,6 +429,54 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 }
 .skill-btn:disabled { opacity: 0.5; }
 
+/* Active skill row (battle tab): one button per skill */
+.skill-row { display: flex; gap: 6px; margin: 0.4rem 0 0.8rem; }
+.skill-row .skill-btn {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; margin: 0 0 4px; min-height: 58px; padding: 0.45rem 0.2rem;
+  font-size: 0.7rem; font-weight: 700;
+  background: linear-gradient(180deg, #3a3350, #2a2438);
+  border: 2px solid #000; border-radius: 14px;
+  box-shadow: 0 4px 0 #000;
+  transition: transform .12s ease, box-shadow .12s ease, filter .2s ease;
+}
+@media (hover: hover) {
+  .skill-row .skill-btn:hover:not(:disabled):not(.disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #000;
+    filter: brightness(1.08);
+  }
+}
+.skill-row .skill-btn:active:not(:disabled):not(.disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #000;
+}
+.skill-row .skill-btn .sk-emoji { font-size: 1.3rem; line-height: 1; }
+.skill-row .skill-btn .sk-name { font-size: 0.62rem; color: var(--text); }
+.skill-row .skill-btn .skill-cd { font-size: 0.65rem; color: var(--muted); font-weight: 400; min-height: 0.8rem; }
+.skill-btn.locked { filter: grayscale(0.95); opacity: 0.75; }
+.skill-btn .lv-tag { font-size: 0.6rem; font-weight: 700; color: var(--gold); background: rgba(0,0,0,.45); border: 1px solid var(--gold2); border-radius: 999px; padding: 0.05rem 0.4rem; white-space: nowrap; }
+.skill-btn .mastery-badge { font-size: 0.6rem; font-weight: 700; color: #c4b5fd; background: rgba(0,0,0,.45); border: 1px solid #8b5cf6; border-radius: 999px; padding: 0.05rem 0.4rem; white-space: nowrap; }
+.skill-btn.cooling { filter: brightness(0.72); }
+
+/* Quest board */
+.quest-head-row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; margin: 1rem 0 0.5rem; }
+.quest-head { margin: 0; font-size: 1rem; }
+.quest-card { margin-bottom: 0.6rem; }
+.quest-top { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; margin-bottom: 0.2rem; }
+.quest-tag { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; white-space: nowrap; }
+.quest-tag.ready { background: rgba(62,224,111,.14); color: #3ee06f; border: 1px solid #3ee06f; }
+.quest-tag.claimed { background: rgba(255,210,63,.1); color: var(--gold); border: 1px solid var(--gold2); }
+.quest-bar { height: 8px; background: #0d0a14; border: 1px solid var(--stone2); border-radius: 999px; margin: 0.5rem 0; overflow: hidden; }
+.quest-fill { height: 100%; background: linear-gradient(90deg, #ffb800, #ffd63f); border-radius: 999px; }
+.quest-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+
+/* Enchanting */
+.enchant-tag {
+  color: var(--gold); font-weight: 800; font-size: 0.8rem;
+  text-shadow: 0 0 8px rgba(255,210,63,.55); margin-left: auto;
+}
+
 .rebirth-box { text-align: center; margin: 0.6rem 0; padding: 0.8rem; border: 1px dashed var(--gold2); border-radius: var(--radius); }
 .rebirth-note { margin-top: 0.5rem; font-size: 0.85rem; }
 
@@ -1078,9 +1126,11 @@ body.reduce-motion .combo-frenzy { animation: none; }
   text-shadow: 0 0 18px rgba(255, 210, 63, 0.35), 0 2px 6px rgba(0, 0, 0, 0.8);
   margin: 0.4rem 0 0.2rem;
 }
-#view-auth .auth-fantasy .logo {
-  font-size: 3rem;
-  filter: drop-shadow(0 0 12px rgba(139, 92, 246, 0.6));
+#view-auth .auth-fantasy .logo-img {
+  width: 96px; height: 96px; border-radius: 22%;
+  border: 2px solid #000;
+  box-shadow: 0 4px 0 #000, 0 0 24px rgba(139, 92, 246, 0.55);
+  margin-bottom: 0.2rem;
 }
 #view-auth .auth-fantasy .tagline {
   color: var(--muted);
@@ -1852,6 +1902,49 @@ body[data-btnstyle="mono"] {
   --tap-hi: #a8aec2; --tap-mid: #4a4f5e; --tap-lo: #22242c;
   --tap-glow: rgba(160,165,185,.40);
 }
+
+/* ---- animated background scenes (canvas) ----
+   Single fixed canvas behind all content. Shown only for animated presets;
+   the CSS ::before/::after atmosphere layers are hidden for those. */
+#bg-canvas {
+  position: fixed; inset: 0; width: 100%; height: 100%;
+  z-index: -1; pointer-events: none; display: none;
+}
+body[data-bgstyle="shadow-eyes"] #bg-canvas,
+body[data-bgstyle="orbs"] #bg-canvas,
+body[data-bgstyle="ember-drift"] #bg-canvas { display: block; }
+body[data-bgstyle="shadow-eyes"] { --bg: #050308; background-image: none; }
+body[data-bgstyle="orbs"] { --bg: #0a0812; background-image: none; }
+body[data-bgstyle="ember-drift"] { --bg: #0d0505; background-image: none; }
+body[data-bgstyle="shadow-eyes"]::before, body[data-bgstyle="shadow-eyes"]::after,
+body[data-bgstyle="orbs"]::before, body[data-bgstyle="orbs"]::after,
+body[data-bgstyle="ember-drift"]::before, body[data-bgstyle="ember-drift"]::after {
+  display: none;
+}
+/* Scene option controls (Settings → Background) */
+#bg-anim-opts { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 0.35rem; }
+.orb-pickers { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.orb-pick { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; font-size: 0.72rem; color: var(--muted); cursor: pointer; }
+.orb-pick input[type="color"] {
+  width: 44px; height: 34px; padding: 2px; cursor: pointer;
+  background: #1a1626; border: 2px solid #000; border-radius: 10px;
+  box-shadow: 0 3px 0 #000;
+}
+.palette-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.palette-btn {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  background: #1a1626; color: var(--text);
+  border: 2px solid #000; border-radius: 999px;
+  box-shadow: 0 3px 0 #000;
+  padding: 0.3rem 0.6rem; font-size: 0.72rem; font-weight: 700; cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+@media (hover: hover) {
+  .palette-btn:hover { transform: translateY(-2px); box-shadow: 0 5px 0 #000; }
+}
+.palette-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+.palette-btn .pdot { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.6); }
+.palette-btn .plbl { white-space: nowrap; }
 
 /* ---- background style presets: subtle dark gradients only,
         so text stays readable everywhere. ---- */

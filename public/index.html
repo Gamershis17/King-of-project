@@ -6,21 +6,25 @@
   <meta name="theme-color" content="#12101a">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16.png">
+  <link rel="icon" href="/icons/favicon.ico" sizes="16x16 32x32 48x48">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="King of Project">
-  <title>King of Project</title>
+  <meta name="apple-mobile-web-app-title" content="Throne of Shadows">
+  <title>Throne of Shadows</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+<canvas id="bg-canvas" aria-hidden="true"></canvas>
 <div id="app">
 
   <!-- ============ AUTH ============ -->
   <section id="view-auth" class="view">
     <div class="auth-wrap auth-fantasy">
-      <div class="logo">⚔️</div>
-      <h1 class="game-title">KING OF PROJECT</h1>
+      <img class="logo-img" src="img/icon-shadow-crown.webp" alt="Throne of Shadows logo">
+      <h1 class="game-title">THRONE OF SHADOWS</h1>
       <p class="tagline">Tap. Loot. Rebirth. Offline progress.</p>
       <div class="auth-card">
         <div class="auth-tabs">
@@ -170,7 +174,7 @@
         <div class="battle-side">
           <button id="tap-btn" class="tap-btn">⚔️<span>TAP</span></button>
           <div id="combo-meter" class="combo-meter hidden"></div>
-          <button id="skill-btn" class="skill-btn">✨ Power Strike <span id="skill-cd"></span></button>
+          <div id="skill-row" class="skill-row"></div>
 
           <div id="rebirth-box" class="rebirth-box hidden">
             <button id="rebirth-btn" class="btn gold">🌀 Rebirth (Lv 70+)</button>
@@ -221,6 +225,18 @@
         </div>
       </section>
 
+      <!-- QUESTS -->
+      <section id="tab-quests" class="tab">
+        <div class="row-between">
+          <h2 style="margin:0">📜 Quests</h2>
+          <span class="muted small">daily @ UTC midnight · weekly Mon 00:00 UTC</span>
+        </div>
+        <div id="quest-daily"></div>
+        <div id="quest-weekly"></div>
+        <div id="quest-class"></div>
+        <div id="quest-mastery"></div>
+      </section>
+
       <!-- MORE -->
       <section id="tab-more" class="tab">
         <div id="profile-card" class="card"></div>
@@ -232,7 +248,7 @@
         <div class="card">
           <h3>📣 Share the game</h3>
           <p class="muted small">Brag your stats, invite friends, or grab the link for your videos.</p>
-          <button id="share-btn" class="btn gold wide">📣 Share King of Project</button>
+          <button id="share-btn" class="btn gold wide">📣 Share Throne of Shadows</button>
         </div>
         <div class="card">
           <h3>📰 What's New <span id="changelog-badge" class="new-badge hidden">NEW</span></h3>
@@ -256,6 +272,13 @@
           <label class="setting"><input type="checkbox" id="set-motion"> Reduce motion</label>
           <label class="setting"><input type="checkbox" id="set-sfx"> Sound FX</label>
           <label class="setting"><input type="checkbox" id="set-music"> Music <span class="muted small">(ambient)</span></label>
+          <div class="setting-row" style="margin-top:0.55rem">
+            <span class="setting-label">🔔 Notifications</span>
+          </div>
+          <label class="setting"><input type="checkbox" id="set-notif-level" checked> Level-up toasts</label>
+          <label class="setting"><input type="checkbox" id="set-notif-death" checked> Death toasts</label>
+          <label class="setting"><input type="checkbox" id="set-notif-loot" checked> Loot-drop toasts</label>
+          <label class="setting"><input type="checkbox" id="set-notif-quest" checked> Quest-complete toasts</label>
           <div class="setting-row">
             <span class="setting-label">UI style</span>
             <div class="seg-control" id="ui-style-seg" role="group" aria-label="UI style">
@@ -271,6 +294,10 @@
             <span class="setting-label">Background</span>
             <div class="swatch-grid" id="bg-style-picker" role="group" aria-label="Background style"></div>
           </div>
+          <div class="setting-row hidden" id="bg-anim-row">
+            <span class="setting-label" id="bg-anim-label">Scene options</span>
+            <div id="bg-anim-opts"></div>
+          </div>
         </div>
         <button id="logout-btn" class="btn danger wide">Logout</button>
       </section>
@@ -282,6 +309,7 @@
       <button class="tab-btn" data-tab="party"><span class="ticon">👥</span><span>Party</span></button>
       <button class="tab-btn" data-tab="ranks"><span class="ticon">🏆</span><span>Ranks</span></button>
       <button class="tab-btn" data-tab="guild"><span class="ticon">🏰</span><span>Guild</span></button>
+      <button class="tab-btn" data-tab="quests"><span class="ticon">📜</span><span>Quests</span></button>
       <button class="tab-btn" data-tab="more"><span class="ticon">⋯</span><span>More</span></button>
       <button class="tab-btn hidden" data-tab="staff" id="tabbtn-staff"><span class="ticon">🛠️</span><span>Staff</span></button>
     </nav>

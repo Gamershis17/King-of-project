@@ -1,11 +1,11 @@
 'use strict';
-/* King of Project service worker — minimal offline shell for the PWA install.
+/* Throne of Shadows service worker — minimal offline shell for the PWA install.
  * - Cache-first for same-origin static assets (js/css/icons/manifest).
  * - Network-first for navigations and all /api/* requests.
  * - API responses are NEVER cached or altered.
  * - Versioned cache; old caches purged on activate.
  */
-const CACHE = 'kop-static-v6';
+const CACHE = 'kop-static-v7';
 const STATIC_RE = /\.(?:js|css|png|jpg|jpeg|webp|svg|ico|webmanifest|json|woff2?)$/i;
 
 self.addEventListener('install', (event) => {
