@@ -1121,6 +1121,9 @@ router.post(
         return res.status(403).json({ error: 'You do not have permission to do that.' });
       }
       throw err;
+    }
+  })
+);
 
 // ---------- multiplayer parties ----------
 // Invite-code parties (max 4 humans). All member stats are read server-side
@@ -1227,9 +1230,6 @@ router.post(
       res.json({ ok: true, disbanded: true });
     } catch (err) {
       return partyErrorToResponse(err, res);
-    }
-  })
-);
     }
   })
 );
