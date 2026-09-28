@@ -126,6 +126,7 @@ export const UI = {
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
+      'balance-log-btn', 'balance-log-badge',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
     ];
@@ -260,6 +261,9 @@ export const UI = {
     });
     listen('changelog-btn', 'click', () => {
       this.handlers.onChangelog && this.handlers.onChangelog();
+    });
+    listen('balance-log-btn', 'click', () => {
+      this.openBalanceLog();
     });
 
     // More tab
@@ -1930,6 +1934,7 @@ export const UI = {
       ${this.professionsCard(state)}
       ${this.achievementsCard(state)}`;
     this.checkChangelogBadge();
+    this.checkBalanceBadge();
   },
 
   // Staff viewers see every changelog item; players never see items flagged
@@ -2006,6 +2011,62 @@ export const UI = {
     });
     try { localStorage.setItem('kop-changelog-seen', String(log[0].date || '')); } catch { /* ignore */ }
     if (this.els['changelog-badge']) this.els['changelog-badge'].classList.add('hidden');
+  },
+
+  // Balance log: static nerf/patch notes in public/data/balance-log.json
+  // (newest first). Format per entry:
+  //   { version, date, title, changes: [{ system, before, after, note }] }
+  async fetchBalanceLog() {
+    try {
+      const r = await fetch('data/balance-log.json', { cache: 'no-store' });
+      if (r.ok) {
+        const j = await r.json();
+        if (Array.isArray(j)) return j;
+      }
+    } catch { /* ignore */ }
+    return null;
+  },
+
+  // Shows the NEW badge on "Balance Log" until the player opens the latest entry.
+  checkBalanceBadge() {
+    const badge = this.els['balance-log-badge'];
+    if (!badge) return;
+    this.fetchBalanceLog()
+      .then(log => {
+        if (!Array.isArray(log) || !log.length) return;
+        const latest = String(log[0].version || '');
+        let seen = null;
+        try { seen = localStorage.getItem('kop-balance-seen'); } catch { /* ignore */ }
+        badge.classList.toggle('hidden', !latest || seen === latest);
+      })
+      .catch(() => { /* offline-tolerant */ });
+  },
+
+  async openBalanceLog() {
+    const log = await this.fetchBalanceLog();
+    if (!Array.isArray(log) || !log.length) {
+      this.toast('No balance changes logged yet.', 'info');
+      return;
+    }
+    const html = log.map(e => `
+      <div class="bl-entry">
+        <div class="bl-head"><b>⚖️ ${esc(e.title || e.version || 'Balance patch')}</b>
+          <span class="muted small">${e.version ? 'v' + esc(String(e.version).replace(/^v/, '')) : ''}${e.date ? ' · ' + esc(e.date) : ''}</span></div>
+        ${(e.changes || []).map(c => `
+          <div class="bl-change">
+            <div class="bl-system">${esc(c.system || 'Change')}</div>
+            <div class="bl-before"><span class="bl-tag">before</span> ${esc(c.before || '—')}</div>
+            <div class="bl-after"><span class="bl-tag">after</span> ${esc(c.after || '—')}</div>
+            ${c.note ? `<div class="bl-note muted small">${esc(c.note)}</div>` : ''}
+          </div>`).join('')}
+      </div>`).join('');
+    this.modal({
+      title: '⚖️ Balance Log',
+      html: `<div class="bl-log">${html}</div>`,
+      buttons: [{ label: 'Close', cls: 'gold' }],
+    });
+    try { localStorage.setItem('kop-balance-seen', String(log[0].version || '')); } catch { /* ignore */ }
+    if (this.els['balance-log-badge']) this.els['balance-log-badge'].classList.add('hidden');
   },
 
   shareGame(state, user) {

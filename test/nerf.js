@@ -124,6 +124,29 @@ async function main() {
     assert.strictEqual(res.state.xpNext, E.xpForLevel(10, 100000));
   });
 
+  console.log('== balance log json ==');
+  check('balance-log.json parses and entries are newest-first with version/date/changes', () => {
+    const fs = require('fs');
+    const path = require('path');
+    const raw = fs.readFileSync(path.join(__dirname, '..', 'public', 'data', 'balance-log.json'), 'utf8');
+    const log = JSON.parse(raw);
+    assert.ok(Array.isArray(log) && log.length > 0, 'must be a non-empty array');
+    for (const e of log) {
+      assert.ok(typeof e.version === 'string' && e.version.length > 0, 'entry needs version');
+      assert.ok(typeof e.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.date), `bad date ${e.date}`);
+      assert.ok(Array.isArray(e.changes) && e.changes.length > 0, 'entry needs changes');
+      for (const c of e.changes) {
+        assert.ok(typeof c.system === 'string' && c.system.length > 0, 'change needs system');
+        assert.ok(typeof c.before === 'string' && c.before.length > 0, 'change needs before');
+        assert.ok(typeof c.after === 'string' && c.after.length > 0, 'change needs after');
+      }
+    }
+    // newest first: dates non-increasing
+    for (let i = 1; i < log.length; i++) {
+      assert.ok(log[i - 1].date >= log[i].date, 'entries must be newest first');
+    }
+  });
+
   console.log(failures === 0 ? 'NERF TESTS PASSED' : `${failures} NERF TEST(S) FAILED`);
   process.exit(failures === 0 ? 0 : 1);
 }
