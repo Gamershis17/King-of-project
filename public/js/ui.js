@@ -121,6 +121,7 @@ export const UI = {
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'quest-daily', 'quest-weekly', 'quest-class', 'quest-mastery',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
+      'stats-card', 'titles-list',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-notif-level', 'set-notif-death',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
@@ -247,8 +248,8 @@ export const UI = {
       this.handlers.onTab && this.handlers.onTab('ranks', true);
     });
 
-    // More tab: delegated talent / profession / title buttons
-    listen('tab-more', 'click', (e) => {
+    // Settings tab: delegated talent / profession buttons
+    listen('tab-settings', 'click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;      const h = this.handlers;
       if (btn.dataset.action === 'talent' && h.onTalent) h.onTalent(btn.dataset.id);
@@ -257,8 +258,15 @@ export const UI = {
       if (btn.dataset.action === 'titles-list' && h.onTitlesList) h.onTitlesList();
     });
 
-    // Country picker (profile) — delegated change
-    listen('tab-more', 'change', (e) => {
+    // Titles tab: tap an unlocked title to equip it
+    listen('tab-titles', 'click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('button.title-row') : null;
+      if (!btn || !btn.dataset || !btn.dataset.id) return;
+      if (this.handlers && this.handlers.onTitle) this.handlers.onTitle(btn.dataset.id);
+    });
+
+    // Country picker (stats tab) — delegated change
+    listen('tab-stats', 'change', (e) => {
       if (e.target && e.target.id === 'country-select' && this.handlers.onCountry) {
         this.handlers.onCountry(e.target.value);
       }
@@ -1940,11 +1948,8 @@ export const UI = {
     });
   },
 
-  // ---------------- more ----------------
+  // ---------------- settings ----------------
   renderMore(state, user) {
-    const race = Engine.RACES[state.race] || {};
-    const cls = Engine.CLASSES[state.playerClass] || {};
-    const spec = Engine.SPECS[state.spec] || {};
     const role = (user && user.role) || 'player';
     this.role = role; // remembered for role-aware changelog filtering
     const canGM = role === 'owner' || role === 'gm' || role === 'admin' || role === 'moderator';
@@ -1952,18 +1957,31 @@ export const UI = {
     // Staff tab in the main nav: visible to staff only, opens the GM console.
     const staffBtn = document.getElementById('tabbtn-staff');
     if (staffBtn) staffBtn.classList.toggle('hidden', !canGM);
+    this.els['profile-card'].innerHTML = `
+      ${this.masteryCard(state)}
+      ${this.professionsCard(state)}
+      ${this.achievementsCard(state)}`;
+    this.checkChangelogBadge();
+    this.checkBalanceBadge();
+  },
+
+  // ---------------- stats tab ----------------
+  renderStats(state, user) {
+    const race = Engine.RACES[state.race] || {};
+    const cls = Engine.CLASSES[state.playerClass] || {};
+    const spec = Engine.SPECS[state.spec] || {};
+    const role = (user && user.role) || 'player';
     const setCount = (state.inventory || []).filter(i => i.set).length;
     const badge = state.badge ? Engine.badgeDef(state.badge) : null;
     const countryOpts = `<option value="">— no flag —</option>` + Engine.COUNTRIES.map(c =>
       `<option value="${c.code}"${state.country === c.code ? ' selected' : ''}>${Engine.countryFlag(c.code)} ${esc(c.name)}</option>`).join('');
-    this.els['profile-card'].innerHTML = `
+    this.els['stats-card'].innerHTML = `
       <div class="profile-head">
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
           <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${esc(user ? user.username : '—')}</div>
           <div class="profile-title-row">
             <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
-            <button class="btn small titles-btn" data-action="titles-list">🏆 Titles</button>
           </div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
@@ -1983,22 +2001,19 @@ export const UI = {
         <div><span class="muted">Best combo</span><b>🔥${formatNum(state.stats.maxCombo || 0)}</b></div>
         <div><span class="muted">Play time</span><b>${formatPlayTime(state.stats.playTimeSec)}</b></div>
         <div><span class="muted">Relic gear</span><b>👑 ${setCount}</b></div>
-      </div>
-      ${this.masteryCard(state)}
-      ${this.professionsCard(state)}
-      ${this.achievementsCard(state)}`;
-    this.checkChangelogBadge();
-    this.checkBalanceBadge();
+      </div>`;
   },
 
   // ---------------- titles browser ----------------
   // Scrollable modal listing every title. Unlocked titles equip on tap via
   // the same onTitle code path as the profile chips; the modal closes after
   // the equip so the re-rendered profile shows the new active title.
-  showTitlesModal(state) {
+  // ---------------- titles tab ----------------
+  // Shared row builder: unlocked titles equip on tap, locked ones show hints.
+  titleRowsHtml(state) {
     const s = state || {};
     const unlocked = new Set(s.titlesUnlocked || ['wanderer']);
-    const rows = Engine.TITLES.map(t => {
+    return Engine.TITLES.map(t => {
       const has = unlocked.has(t.id);
       const active = s.activeTitle === t.id;
       const rowCls = 'title-row' + (has ? ' unlocked' : ' locked') + (active ? ' active' : '');
@@ -2007,6 +2022,14 @@ export const UI = {
         ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
         : `<div class="${rowCls}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></div>`;
     }).join('');
+  },
+
+  renderTitles(state) {
+    if (this.els['titles-list']) this.els['titles-list'].innerHTML = this.titleRowsHtml(state);
+  },
+
+  showTitlesModal(state) {
+    const rows = this.titleRowsHtml(state);
     const close = this.modal({ title: '👑 Hero Titles', html: `<div class="titles-list">${rows}</div>` });
     // Null-safe: grab the overlay we just appended and delegate row taps.
     const root = this.els && this.els['modal-root'];
