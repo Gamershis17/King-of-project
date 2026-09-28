@@ -88,13 +88,13 @@ export const UI = {
     { id: 'inferno-flare', name: 'Inferno Flare', css: 'radial-gradient(circle at 50% 50%, #5e1f0d, #0d0503 72%)', animated: true },
     { id: 'cinder-storm',  name: 'Cinder Storm',  css: 'radial-gradient(circle at 50% 50%, #4a1508, #0c0603 72%)', animated: true },
     { id: 'phoenix-ash',   name: 'Phoenix Ash',   css: 'radial-gradient(circle at 50% 60%, #4a3208, #0d0a04 72%)', animated: true },
-    { id: 'frostfall', name: 'Frostfall', css: 'radial-gradient(circle at 50% 30%, #1d3a5e, #060a12 72%)', animated: true },
-    { id: 'starfall',  name: 'Starfall',  css: 'radial-gradient(circle at 50% 20%, #1a1440, #050310 72%)', animated: true },
-    { id: 'bloodmoon', name: 'Blood Moon', css: 'radial-gradient(circle at 70% 25%, #5e1420, #0d0408 72%)', animated: true },
-    { id: 'nightsky', name: 'Night Sky', css: 'radial-gradient(circle at 75% 20%, #16224d, #04060f 72%)', animated: true },
-    { id: 'sunset',   name: 'Sunset',    css: 'radial-gradient(circle at 50% 70%, #c65a1e, #1a0b26 75%)', animated: true },
-    { id: 'woods',    name: 'Woods',     css: 'radial-gradient(circle at 50% 80%, #16301f, #060a08 75%)', animated: true },
-    { id: 'water',    name: 'Water',     css: 'radial-gradient(circle at 50% 30%, #12324d, #050a12 72%)', animated: true },
+    { id: 'frostfall', name: 'Frostfall', css: "url('img/bg/frostfall.jpg') center/cover", photo: 'img/bg/frostfall.jpg', animated: true },
+    { id: 'starfall',  name: 'Starfall',  css: "url('img/bg/starfall.jpg') center/cover",  photo: 'img/bg/starfall.jpg',  animated: true },
+    { id: 'bloodmoon', name: 'Blood Moon', css: "url('img/bg/bloodmoon.jpg') center/cover", photo: 'img/bg/bloodmoon.jpg', animated: true },
+    { id: 'nightsky', name: 'Night Sky', css: "url('img/bg/nightsky.jpg') center/cover", photo: 'img/bg/nightsky.jpg', animated: true },
+    { id: 'sunset',   name: 'Sunset',    css: "url('img/bg/sunset.jpg') center/cover",   photo: 'img/bg/sunset.jpg',   animated: true },
+    { id: 'woods',    name: 'Woods',     css: "url('img/bg/woods.jpg') center/cover",     photo: 'img/bg/woods.jpg',     animated: true },
+    { id: 'water',    name: 'Water',     css: "url('img/bg/water.jpg') center/cover",     photo: 'img/bg/water.jpg',     animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -1381,6 +1381,9 @@ export const UI = {
     const W = B.cv.width, H = B.cv.height, dpr = B.dpr || 1;
     const R = (a, b) => a + Math.random() * (b - a);
     B.scene = id; B.parts = []; B.sprites = {}; B.grad = null;
+    B.photoImg = null;
+    const _st = (this.BG_STYLES || []).find((s) => s.id === id);
+    if (_st && _st.photo) { const _im = new Image(); _im.src = _st.photo; B.photoImg = _im; }
     if (id === 'shadow-eyes') {
       const col = (this.EYE_COLORS.find((c) => c.id === (opts.eyeColor || 'violet')) || this.EYE_COLORS[0]).color;
       B.sprites.eye = this._glowSprite(col);
@@ -1651,13 +1654,36 @@ export const UI = {
       B.grad = this._vGrad(['#050a12', '#0d2233', '#050a12']);
     }
   },
+  // Photorealistic scenes: slow Ken Burns drift over the generated art,
+  // with a soft vignette so game UI stays readable. Static when isStatic.
+  _drawBgPhoto(t, isStatic) {
+    const B = this._bg, ctx = B.ctx, cv = B.cv, W = cv.width, H = cv.height;
+    const img = B.photoImg, iw = img.naturalWidth, ih = img.naturalHeight;
+    const secs = t / 1000;
+    let zoom = 1.10, px = 0.5, py = 0.5;
+    if (!isStatic) {
+      zoom = 1.10 + 0.045 * Math.sin(secs * 0.11);
+      px = 0.5 + 0.055 * Math.sin(secs * 0.09 + 1.3);
+      py = 0.5 + 0.055 * Math.cos(secs * 0.07 + 0.5);
+    }
+    const s = Math.max(W / iw, H / ih) * zoom;
+    const dw = iw * s, dh = ih * s;
+    ctx.drawImage(img, px * (W - dw), py * (H - dh), dw, dh);
+    const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.42)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, W, H);
+  },
   _drawBgFrame(t, isStatic) {
     const B = this._bg;
     if (!B || !B.scene) return;
     const { ctx, cv } = B, W = cv.width, H = cv.height, dpr = B.dpr || 1;
     if (B.grad) ctx.drawImage(B.grad, 0, 0, W, H);
     else { ctx.fillStyle = B.scene === 'shadow-eyes' ? '#050308' : '#0a0812'; ctx.fillRect(0, 0, W, H); }
-    if (B.scene === 'shadow-eyes') {
+    if (B.photoImg && B.photoImg.complete && B.photoImg.naturalWidth) {
+      this._drawBgPhoto(t, isStatic);
+    } else if (B.scene === 'shadow-eyes') {
       for (const p of B.parts) {
         const ph = (((t + p.off) % p.cyc) + p.cyc) % p.cyc / p.cyc;
         let a = ph < 0.22 ? ph / 0.22 : ph < 0.62 ? 1 : Math.max(0, 1 - (ph - 0.62) / 0.38);

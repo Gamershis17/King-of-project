@@ -5,7 +5,7 @@
  * - API responses are NEVER cached or altered.
  * - Versioned cache; old caches purged on activate.
  */
-const CACHE = 'kop-static-v23';
+const CACHE = 'kop-static-v24';
 const STATIC_RE = /\.(?:js|css|png|jpg|jpeg|webp|svg|ico|webmanifest|json|woff2?)$/i;
 
 self.addEventListener('install', (event) => {

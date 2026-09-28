@@ -2,13 +2,13 @@
   {
     "version": "v21",
     "date": "2026-09-28",
-    "title": "Four new animated backgrounds",
+    "title": "Photorealistic new backgrounds",
     "changes": [
       {
         "system": "New animated backgrounds",
         "before": "11 animated scenes (16 backgrounds in the Settings picker).",
-        "after": "15 animated scenes. Added 🌌 Night Sky (crescent moon, twinkling stars, drifting night clouds), 🌅 Sunset (low glowing sun, tinted clouds, distant birds), 🌲 Woods (layered pine silhouettes, wandering fireflies, low mist), 🌊 Water (moonlit lake with shimmering reflections, slow waves, surface mist). Pickable in Settings → Background and usable in battle through the 🖼️ My background card.",
-        "note": "Balance-neutral: visuals only."
+        "after": "15 animated scenes. All 7 new scenes (Frostfall, Starfall, Blood Moon, Night Sky, Sunset, Woods, Water) now use photorealistic generated art with a slow cinematic Ken Burns drift and a soft vignette, instead of procedural canvas drawing. Art is compressed to ~872KB total so phones stay light. Pickable in Settings → Background and usable in battle through the 🖼️ My background card.",
+        "note": "Balance-neutral: visuals only. Respects Reduce Motion and Performance Mode (static frame)."
       }
     ]
   },
