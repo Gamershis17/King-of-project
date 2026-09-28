@@ -118,6 +118,30 @@ function sanitizeStateBlob(blob) {
   if (typeof blob.rebirthCount !== 'number') blob.rebirthCount = 0;
   if (!Array.isArray(blob.inventory)) blob.inventory = [];
   if (!Array.isArray(blob.codesRedeemed)) blob.codesRedeemed = [];
+  // Mining + forge: keep legit saves passing. Ores are plain finite
+  // non-negative counts (clamped); forged item stats are clamped to a
+  // sane cap so tampered values can't smuggle Infinity-scale numbers.
+  if (blob.mine && typeof blob.mine === 'object' && !Array.isArray(blob.mine)) {
+    if (typeof blob.mine.depth === 'number') {
+      blob.mine.depth = clamp(Math.floor(blob.mine.depth), 1, 100);
+    }
+    const ores = blob.mine.ores;
+    if (ores && typeof ores === 'object' && !Array.isArray(ores)) {
+      for (const k of Object.keys(ores)) {
+        ores[k] = Number.isFinite(ores[k]) ? clamp(Math.floor(ores[k]), 0, 1e12) : 0;
+      }
+    }
+  }
+  if (blob.forge && typeof blob.forge === 'object' && !Array.isArray(blob.forge)) {
+    for (const slot of ['weapon', 'armor']) {
+      const it = blob.forge[slot];
+      if (it && typeof it === 'object' && it.stats && typeof it.stats === 'object') {
+        for (const k of Object.keys(it.stats)) {
+          it.stats[k] = Number.isFinite(it.stats[k]) ? Math.min(1e9, Math.max(0, it.stats[k])) : 0;
+        }
+      }
+    }
+  }
   return { ok: true, state: blob };
 }
 

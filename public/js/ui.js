@@ -127,6 +127,7 @@ export const UI = {
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
+      'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
@@ -200,6 +201,15 @@ export const UI = {
       const h = this.handlers;
       if (btn.dataset.action === 'buy-gear' && h.onBuyGear) h.onBuyGear(btn.dataset.id);
       if (btn.dataset.action === 'goto-petshop' && h.onGotoPetShop) h.onGotoPetShop();
+      if (btn.dataset.action === 'forge-tier' && h.onForgeTier) h.onForgeTier(btn.dataset.slot, btn.dataset.tier);
+      if (btn.dataset.action === 'forge-stat' && h.onForgeStat) h.onForgeStat(btn.dataset.slot, btn.dataset.stat);
+      if (btn.dataset.action === 'forge-craft' && h.onForgeCraft) h.onForgeCraft(btn.dataset.slot);
+      if (btn.dataset.action === 'galaxy-equip' && h.onGalaxyEquip) h.onGalaxyEquip(btn.dataset.slot);
+      if (btn.dataset.action === 'galaxy-unequip' && h.onGalaxyUnequip) h.onGalaxyUnequip(btn.dataset.slot);
+    });
+    // Mine: tap the rock
+    listen('mine-btn', 'click', () => {
+      if (this.handlers.onMine) this.handlers.onMine();
     });
     listen('upgrade-list', 'click', (e) => {
       const btn = e.target.closest('button[data-upgrade]');
@@ -1306,7 +1316,81 @@ export const UI = {
   },
 
   // ---------------- gear ----------------
+  // Forge UI selections (not persisted): chosen tier + picked stats per slot.
+  forgeSel: {
+    weapon: { tier: 'star', stats: [] },
+    armor: { tier: 'star', stats: [] },
+  },
+
+  renderForge(state) {
+    const el = this.els['forge-section'];
+    if (!el) return;
+    const E = Engine;
+    el.innerHTML = ['weapon', 'armor'].map(slot => {
+      const sel = this.forgeSel[slot];
+      if (!E.FORGE_TIER_BY_ID[sel.tier]) sel.tier = 'star';
+      sel.stats = (sel.stats || []).filter(s => E.FORGE_STATS.includes(s)).slice(0, E.MAX_FORGE_PICKS);
+      const tier = E.FORGE_TIER_BY_ID[sel.tier];
+      const current = E.galaxyItemFor(state, slot);
+      const equipped = state.equipped && state.equipped[slot] === E.GALAXY_EQUIP_ID;
+      const slotName = slot === 'weapon' ? 'Weapon' : 'Armor';
+      const slotEmoji = slot === 'weapon' ? '⚔️' : '🛡️';
+
+      const currentHtml = current ? `
+        <div class="galaxy-card r-galaxy">
+          <div class="galaxy-name">${esc(current.name)}</div>
+          <div class="stat-chips">${Object.entries(current.stats || {}).map(([k, v]) =>
+            `<span class="stat-chip">${E.FORGE_STAT_EMOJI[k] || '✨'} +${formatStatVal(k, v)} ${(E.STAT_LABELS[k] || k)}</span>`).join('')}</div>
+          ${equipped
+            ? `<button class="btn small" data-action="galaxy-unequip" data-slot="${slot}">Unequip</button>`
+            : `<button class="btn small gold" data-action="galaxy-equip" data-slot="${slot}">Equip</button>`}
+          ${equipped ? '<span class="muted small">Equipped — replaces normal ' + slotName.toLowerCase() + '.</span>' : ''}
+        </div>` : `<p class="muted small">No forged ${slotName.toLowerCase()} yet.</p>`;
+
+      const tierHtml = E.FORGE_TIERS.map(t => {
+        const costParts = Object.entries(t.cost).map(([ore, n]) => {
+          const have = (state.mine && state.mine.ores && state.mine.ores[ore]) || 0;
+          const od = E.ORE_BY_ID[ore] || {};
+          return `<span class="${have >= n ? 'cost-ok' : 'cost-lack'}">${od.emoji || ''} ${have}/${n}</span>`;
+        }).join(' ');
+        return `<button class="forge-tier${t.id === sel.tier ? ' picked' : ''}" data-action="forge-tier" data-slot="${slot}" data-tier="${t.id}">
+          <div class="forge-tier-name">${t.emoji} ${esc(t.name)}</div>
+          <div class="muted tiny">×${t.mult} stats</div>
+          <div class="forge-cost">${costParts}</div>
+        </button>`;
+      }).join('');
+
+      const statHtml = E.FORGE_STATS.map(s => {
+        const picked = sel.stats.includes(s);
+        const val = s === 'attackSpeed' ? E.round1((E.FORGE_STAT_BASE[s] || 0) * tier.mult)
+          : Math.round((E.FORGE_STAT_BASE[s] || 0) * tier.mult);
+        return `<button class="stat-pick${picked ? ' picked' : ''}" data-action="forge-stat" data-slot="${slot}" data-stat="${s}"
+          title="${esc(E.STAT_LABELS[s] || s)}">
+          ${E.FORGE_STAT_EMOJI[s] || '✨'} ${(E.STAT_LABELS[s] || s)} <b>+${formatStatVal(s, val)}</b>
+        </button>`;
+      }).join('');
+
+      const afford = E.canCraft(state, sel.tier);
+      const canDo = afford && sel.stats.length > 0;
+      return `
+      <div class="forge-panel">
+        <h3>${slotEmoji} Galaxy ${slotName}</h3>
+        ${currentHtml}
+        <div class="forge-tier-row">${tierHtml}</div>
+        <div class="muted small">Pick up to ${E.MAX_FORGE_PICKS} stats (${sel.stats.length}/${E.MAX_FORGE_PICKS}):</div>
+        <div class="stat-pick-row">${statHtml}</div>
+        <button class="btn gold" data-action="forge-craft" data-slot="${slot}" ${canDo ? '' : 'disabled'}>
+          ${current ? '🔨 Reforge' : '🔨 Forge'} ${esc(tier.name)} ${slotName}
+        </button>
+        ${!afford ? '<div class="muted small">Not enough ores — go mining! ⛏️</div>' : ''}
+        ${afford && !sel.stats.length ? '<div class="muted small">Pick at least 1 stat.</div>' : ''}
+      </div>`;
+    }).join('') + `<p class="muted small">Only <b>one</b> forged weapon and <b>one</b> forged armor can exist — reforging replaces the old one. Forged gear survives rebirth.</p>`;
+  },
+
   renderGear(state) {
+    // Galaxy Forge lives at the top of the Gear tab.
+    this.renderForge(state);
     // --- Gear Shop: buy armor & weapons with gold (guaranteed rarity,
     // stage-scaled stats). Set pieces and legendary/mythic stay drop-only.
     const gs = this.els['gear-shop'];
@@ -1341,7 +1425,9 @@ export const UI = {
     if (strip && Engine.SLOTS) {
       strip.innerHTML = Engine.SLOTS.map(slot => {
         const id = state.equipped && state.equipped[slot];
-        const item = id && (state.inventory || []).find(i => i.id === id);
+        const item = id === Engine.GALAXY_EQUIP_ID
+          ? Engine.galaxyItemFor(state, slot)
+          : (id && (state.inventory || []).find(i => i.id === id));
         const info = (Engine.SLOT_INFO || {})[slot] || {};
         if (!item) {
           return `<div class="loadout-slot empty"><span class="loadout-emoji">${info.emoji || '▫️'}</span><span class="loadout-name muted">${info.name || slot}</span><span class="muted tiny">empty</span></div>`;
@@ -1442,6 +1528,39 @@ export const UI = {
           ${item.unsellable ? '' : `<button class="btn small ghost" data-action="sell">Sell +${formatNum(item.value || 1)}</button>`}
         </div>`;
       grid.appendChild(card);
+    }
+  },
+
+  // ---------------- mine ----------------
+  renderMine(state, findText) {
+    const E = Engine;
+    E.ensureMine(state);
+    const m = state.mine;
+    const rock = this.els['mine-rock'];
+    if (rock) {
+      const pct = Math.max(0, Math.min(100, (m.rockHp / m.rockMaxHp) * 100));
+      const nextTier = E.ORE_TIERS.find(o => m.depth < o.unlockDepth);
+      rock.innerHTML = `
+        <div class="mine-depth">Depth <b>${m.depth}</b> ${m.depth >= E.MAX_MINE_DEPTH ? '<span class="muted">(max)</span>' : ''}</div>
+        <div class="mine-rock-emoji">🪨</div>
+        <div class="bar hp"><div class="fill" style="width:${pct}%"></div></div>
+        <div class="mine-hptext muted small">${Math.max(0, Math.ceil(m.rockHp))} / ${m.rockMaxHp} HP · ⛏️ ${E.mineDamage(state)} dmg/tap</div>
+        ${nextTier ? `<div class="muted tiny">Next ore: ${nextTier.emoji} ${esc(nextTier.name)} at depth ${nextTier.unlockDepth}</div>` : '<div class="muted tiny">All ore tiers unlocked!</div>'}`;
+    }
+    const find = this.els['mine-find'];
+    if (find && findText) find.textContent = findText;
+    const grid = this.els['ore-grid'];
+    if (grid) {
+      grid.innerHTML = E.ORE_TIERS.map(o => {
+        const have = (m.ores && m.ores[o.id]) || 0;
+        const locked = m.depth < o.unlockDepth;
+        return `<div class="ore-card${locked ? ' locked' : ''}">
+          <div class="ore-emoji">${locked ? '🔒' : o.emoji}</div>
+          <div class="ore-name">${esc(o.name)}</div>
+          <div class="ore-count"><b>${formatNum(have)}</b></div>
+          ${locked ? `<div class="muted tiny">Depth ${o.unlockDepth}</div>` : ''}
+        </div>`;
+      }).join('');
     }
   },
 

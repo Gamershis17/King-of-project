@@ -81,6 +81,11 @@ const broadcastLimiter = rateLimit({
 const VALID_ROLES_FOR_ROLES_ROUTE = VALID_ROLES.filter((r) => r !== 'owner');
 const STAR_GRANT_MIN = 1;
 const STAR_GRANT_MAX = 100000;
+// Ore ids mirrored from the client's Engine.ORE_TIERS (server is CJS,
+// engine.js is ESM — keep this list in sync if tiers change).
+const ORE_IDS = ['copper', 'iron', 'silver', 'gold', 'mithril', 'adamant', 'galaxy', 'supergalaxy'];
+const ORE_GRANT_MIN = 1;
+const ORE_GRANT_MAX = 1000000000;
 
 // Unambiguous alphabet: no 0/O, 1/I/L.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -268,7 +273,25 @@ router.post(
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
-    return res.status(400).json({ error: 'Kind must be one of "gold", "levels", "xp", "stars", "gear".' });
+    if (kind === 'ore') {
+      const { ore } = req.body || {};
+      if (typeof ore !== 'string' || !ORE_IDS.includes(ore)) {
+        return res.status(400).json({ error: `Ore must be one of: ${ORE_IDS.join(', ')}.` });
+      }
+      if (!Number.isInteger(amount) || amount < ORE_GRANT_MIN || amount > ORE_GRANT_MAX) {
+        return res
+          .status(400)
+          .json({ error: `Amount must be an integer between ${ORE_GRANT_MIN} and ${ORE_GRANT_MAX}.` });
+      }
+      const blob = await loadBlob(target.id);
+      if (!blob.mine || typeof blob.mine !== 'object') blob.mine = { depth: 1, ores: {} };
+      if (!blob.mine.ores || typeof blob.mine.ores !== 'object') blob.mine.ores = {};
+      blob.mine.ores[ore] = Math.min(1e12, Math.max(0, Math.floor(Number(blob.mine.ores[ore]) || 0)) + amount);
+      await persistMergedState(target.id, blob);
+      return res.json({ ok: true, state: selfState(req, target, blob) });
+    }
+
+    return res.status(400).json({ error: 'Kind must be one of "gold", "levels", "xp", "stars", "gear", "ore".' });
   })
 );
 

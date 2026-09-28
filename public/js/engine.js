@@ -25,6 +25,201 @@ export function innRegen(hp, maxHp, dt) {
   return Math.min(maxHp, hp + maxHp * INN_REGEN_PER_SEC * dt);
 }
 
+// ---------------- Mining & Forging ----------------
+// Mine tab: tap the rock to chip ores loose. Deeper rock unlocks rarer
+// ore tiers. The Galaxy Forge (Gear tab) turns ores into Super Galaxy
+// gear with player-chosen custom stats. Only ONE forged weapon and ONE
+// forged armor can exist at a time — enforced structurally by the two
+// forge slots below.
+export const ORE_TIERS = [
+  { id: 'copper',      name: 'Copper',            emoji: '🟤', power: 1,    unlockDepth: 1 },
+  { id: 'iron',        name: 'Iron',              emoji: '⚙️', power: 3,    unlockDepth: 3 },
+  { id: 'silver',      name: 'Silver',            emoji: '⚪', power: 8,    unlockDepth: 6 },
+  { id: 'gold',        name: 'Gold Ore',          emoji: '🟡', power: 20,   unlockDepth: 10 },
+  { id: 'mithril',     name: 'Mithril',           emoji: '🔷', power: 50,   unlockDepth: 15 },
+  { id: 'adamant',     name: 'Adamant',           emoji: '🟣', power: 130,  unlockDepth: 21 },
+  { id: 'galaxy',      name: 'Galaxy Shard',      emoji: '🌌', power: 350,  unlockDepth: 28 },
+  { id: 'supergalaxy', name: 'Super Galaxy Core', emoji: '💜', power: 1000, unlockDepth: 36 },
+];
+export const ORE_BY_ID = Object.fromEntries(ORE_TIERS.map(o => [o.id, o]));
+export const MAX_MINE_DEPTH = 60;
+
+// Forge tiers: pick a tier when crafting; higher tiers cost rarer ores
+// and multiply the custom stat values. Super Galaxy is deliberately OP.
+export const FORGE_TIERS = [
+  { id: 'star',   name: 'Starforged',   emoji: '⭐', mult: 1,  cost: { iron: 25, silver: 10 } },
+  { id: 'void',   name: 'Voidforged',   emoji: '🌑', mult: 3,  cost: { gold: 20, mithril: 10 } },
+  { id: 'galaxy', name: 'Galaxyforged', emoji: '🌌', mult: 10, cost: { adamant: 15, galaxy: 8 } },
+  { id: 'super',  name: 'Super Galaxy', emoji: '💜', mult: 30, cost: { galaxy: 10, supergalaxy: 5 } },
+];
+export const FORGE_TIER_BY_ID = Object.fromEntries(FORGE_TIERS.map(t => [t.id, t]));
+// Craftable custom stats (pick up to MAX_FORGE_PICKS per item).
+export const FORGE_STATS = ['attack', 'defense', 'maxHp', 'critChance', 'critDamage', 'lifesteal', 'attackSpeed', 'xpBonus', 'goldBonus'];
+export const FORGE_STAT_BASE = {
+  attack: 500, defense: 400, maxHp: 1500, critChance: 8, critDamage: 30,
+  lifesteal: 3, attackSpeed: 0.15, xpBonus: 20, goldBonus: 20,
+};
+export const FORGE_STAT_EMOJI = {
+  attack: '⚔️', defense: '🛡️', maxHp: '❤️', critChance: '🎯', critDamage: '💥',
+  lifesteal: '🩸', attackSpeed: '👆', xpBonus: '✨', goldBonus: '💰',
+};
+export const MAX_FORGE_PICKS = 3;
+export const CRAFT_STAT_CAP = 1e9; // sane upper bound: never Infinity
+export const GALAXY_EQUIP_ID = 'galaxy'; // sentinel id in state.equipped
+
+export function mineRockMaxHp(depth) {
+  return Math.max(10, Math.round(30 * Math.pow(1.22, Math.max(1, depth) - 1)));
+}
+export function mineDamage(state) {
+  const tapLvl = (state.upgrades && state.upgrades.tap) || 1;
+  return Math.max(1, Math.round(4 + (state.level || 1) * 1.5 + (tapLvl - 1) * 4));
+}
+export function unlockedOres(depth) {
+  return ORE_TIERS.filter(o => depth >= o.unlockDepth);
+}
+// Weighted roll among unlocked tiers; common ores drop more often.
+export function rollOre(depth) {
+  const tiers = unlockedOres(depth);
+  if (!tiers.length) return 'copper';
+  const n = tiers.length;
+  let total = 0;
+  const weights = tiers.map((_, i) => { const w = n - i; total += w; return w; });
+  let r = Math.random() * total;
+  for (let i = 0; i < tiers.length; i++) {
+    r -= weights[i];
+    if (r <= 0) return tiers[i].id;
+  }
+  return tiers[tiers.length - 1].id;
+}
+export function ensureMine(s) {
+  if (!s.mine || typeof s.mine !== 'object') s.mine = {};
+  const m = s.mine;
+  m.depth = Math.max(1, Math.min(MAX_MINE_DEPTH, Math.floor(Number(m.depth) || 1)));
+  m.rockMaxHp = mineRockMaxHp(m.depth);
+  if (!Number.isFinite(Number(m.rockHp)) || m.rockHp < 0 || m.rockHp > m.rockMaxHp) {
+    m.rockHp = m.rockMaxHp;
+  }
+  if (!m.ores || typeof m.ores !== 'object' || Array.isArray(m.ores)) m.ores = {};
+  for (const o of ORE_TIERS) {
+    const v = m.ores[o.id];
+    m.ores[o.id] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+  }
+  if (!s.forge || typeof s.forge !== 'object') s.forge = {};
+  for (const slot of ['weapon', 'armor']) {
+    const it = s.forge[slot];
+    if (!it || typeof it !== 'object' || it.slot !== slot || !it.galaxy) {
+      s.forge[slot] = null;
+      continue;
+    }
+    // Normalize a forged item from an older save: finite stats, sane cap.
+    const stats = {};
+    for (const k of FORGE_STATS) {
+      const v = it.stats && it.stats[k];
+      stats[k] = Number.isFinite(v) ? Math.min(CRAFT_STAT_CAP, Math.max(0, v)) : 0;
+    }
+    it.stats = stats;
+    it.enchant = 0;
+    it.unsellable = true;
+  }
+  return s;
+}
+// One tap on the rock. Returns { ore, broke, bonus } for UI feedback.
+export function mineTap(state) {
+  ensureMine(state);
+  const m = state.mine;
+  const dmg = mineDamage(state);
+  m.rockHp -= dmg;
+  const ore = rollOre(m.depth);
+  m.ores[ore] = (m.ores[ore] || 0) + 1;
+  let broke = false;
+  const bonus = [];
+  if (m.rockHp <= 0) {
+    broke = true;
+    const n = 3 + Math.floor(m.depth / 2);
+    for (let i = 0; i < n; i++) {
+      const b = rollOre(m.depth);
+      m.ores[b] = (m.ores[b] || 0) + 1;
+      bonus.push(b);
+    }
+    m.depth = Math.min(MAX_MINE_DEPTH, m.depth + 1);
+    m.rockMaxHp = mineRockMaxHp(m.depth);
+    m.rockHp = m.rockMaxHp;
+  }
+  return { ore, broke, bonus };
+}
+// Slow passive trickle while the game runs (called ~every 30s by the tick).
+export function trickleOre(state) {
+  ensureMine(state);
+  const ore = rollOre(state.mine.depth);
+  state.mine.ores[ore] = (state.mine.ores[ore] || 0) + 1;
+  return ore;
+}
+export function forgeCost(tierId) {
+  const t = FORGE_TIER_BY_ID[tierId];
+  return t ? { ...t.cost } : null;
+}
+export function canCraft(state, tierId) {
+  ensureMine(state);
+  const cost = forgeCost(tierId);
+  if (!cost) return false;
+  return Object.entries(cost).every(([ore, n]) => (state.mine.ores[ore] || 0) >= n);
+}
+function forgeStatValue(stat, mult) {
+  const base = FORGE_STAT_BASE[stat] || 0;
+  const v = base * mult;
+  const r = (stat === 'attackSpeed') ? round1(v) : Math.round(v);
+  return Math.min(CRAFT_STAT_CAP, r);
+}
+// Craft a galaxy item into the forge slot (weapon|armor). Reforging replaces
+// the old item. Returns the item, or an error string.
+export function craftGalaxyItem(state, slot, tierId, statIds) {
+  ensureMine(state);
+  if (slot !== 'weapon' && slot !== 'armor') return 'Invalid forge slot.';
+  const tier = FORGE_TIER_BY_ID[tierId];
+  if (!tier) return 'Invalid forge tier.';
+  const picks = [...new Set((statIds || []).filter(s => FORGE_STATS.includes(s)))].slice(0, MAX_FORGE_PICKS);
+  if (!picks.length) return 'Pick at least 1 stat to forge.';
+  const cost = forgeCost(tierId);
+  for (const [ore, n] of Object.entries(cost)) {
+    if ((state.mine.ores[ore] || 0) < n) {
+      const od = ORE_BY_ID[ore];
+      return `Need ${n} ${(od && od.name) || ore}.`;
+    }
+  }
+  for (const [ore, n] of Object.entries(cost)) state.mine.ores[ore] -= n;
+  const stats = {};
+  for (const s of picks) stats[s] = forgeStatValue(s, tier.mult);
+  const item = {
+    id: uid(), galaxy: true, unsellable: true, enchant: 0,
+    name: `${tier.emoji} ${tier.name} ${slot === 'weapon' ? 'Blade' : 'Aegis'}`,
+    slot, rarity: 'galaxy', forgeTier: tier.id, stats, value: 0,
+  };
+  state.forge[slot] = item;
+  // If a galaxy item was equipped here it is replaced by the new one.
+  if (state.equipped && state.equipped[slot] === GALAXY_EQUIP_ID) {
+    // stays equipped — the new item takes effect immediately
+  }
+  return item;
+}
+export function galaxyItemFor(state, slot) {
+  if (!state.forge || !state.forge[slot] || !state.forge[slot].galaxy) return null;
+  return state.forge[slot];
+}
+export function equipGalaxy(state, slot) {
+  if (slot !== 'weapon' && slot !== 'armor') return false;
+  if (!galaxyItemFor(state, slot)) return false;
+  if (!state.equipped) state.equipped = {};
+  state.equipped[slot] = GALAXY_EQUIP_ID;
+  return true;
+}
+export function unequipGalaxy(state, slot) {
+  if (state.equipped && state.equipped[slot] === GALAXY_EQUIP_ID) {
+    state.equipped[slot] = null;
+    return true;
+  }
+  return false;
+}
+
 // ---------------- Races ----------------
 export const RACES = {
   human:     { name: 'Human Vanguard', emoji: '🛡️', trait: 'Balanced: +10% XP gain',
@@ -177,6 +372,8 @@ export function defaultState(race) {
     playerClass: null, // permanent class choice: hunter|warrior|mage|assassin (null = not chosen)
     spec: null,       // permanent specialization: tank|dps|healer|classic (null = not chosen)
     pets: { collection: [], activeUid: null, eggs: 0 }, // pet system (all players)
+    mine: { depth: 1, rockHp: 30, rockMaxHp: 30, ores: {} }, // mining (backfilled by ensureMine)
+    forge: { weapon: null, armor: null }, // at most ONE forged galaxy weapon + ONE forged armor
   };
 }
 
@@ -248,6 +445,7 @@ export function ensureState(raw) {
   }
   ensureQuests(s); // backfill the quest board on old saves
   ensureStoryQuests(s); // backfill one-time class + mastery quests
+  ensureMine(s); // backfill mining + forge slots on old saves
   if (!Array.isArray(s.codesRedeemed)) s.codesRedeemed = [];
   if (!Array.isArray(s.companions)) s.companions = [];
   if (!['clicker', 'auto', 'dungeon'].includes(s.mode)) s.mode = 'clicker';
@@ -703,7 +901,10 @@ export function computeStats(state) {
   for (const slot of SLOTS) {
     const id = state.equipped && state.equipped[slot];
     if (!id) continue;
-    const item = (state.inventory || []).find(i => i.id === id);
+    // Forged galaxy gear lives in state.forge, not the inventory.
+    const item = id === GALAXY_EQUIP_ID
+      ? galaxyItemFor(state, slot)
+      : (state.inventory || []).find(i => i.id === id);
     if (!item || item.slot !== slot || !item.stats) continue;
     const em = enchantMult(item);
     for (const [k, v] of Object.entries(item.stats)) {

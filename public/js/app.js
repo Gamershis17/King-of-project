@@ -116,6 +116,12 @@ async function boot() {
     onLeaveInn: () => leaveInn(true),
     onEquip: doEquip,
     onSell: doSell,
+    onMine: doMine,
+    onForgeTier: doForgeTier,
+    onForgeStat: doForgeStat,
+    onForgeCraft: doForgeCraft,
+    onGalaxyEquip: doGalaxyEquip,
+    onGalaxyUnequip: doGalaxyUnequip,
     onUpgrade: doUpgrade,
     onRecruit: doRecruit,
     onDismiss: doDismiss,
@@ -693,6 +699,7 @@ function onKillEnemy() {
   const enemy = App.enemy;
   const stage = enemy.stage;
   const stats = Engine.computeStats(s);
+
   // Raid: each kill advances the wave instead of the stage, with a gold bonus.
   const inRaid = Raid.isActive();
   const raidLoot = inRaid ? Raid.onKill(s) : null;
@@ -883,6 +890,14 @@ function tick() {
   }
 
   const stats = Engine.computeStats(s);
+
+  // Mining trickle: a slow passive ore drip while the game runs (~1/30s).
+  App.mineTrickle = (App.mineTrickle || 0) + dt;
+  if (App.mineTrickle >= 30) {
+    App.mineTrickle = 0;
+    Engine.trickleOre(s);
+    if (UI.activeTab === 'mine') UI.renderMine(s);
+  }
 
   // regen
   if (stats.regen > 0 && s.hero.hp < stats.maxHp) {
@@ -1133,6 +1148,73 @@ function doSell(id) {
   const gold = Engine.sellItem(s, id);
   if (gold > 0) {
     UI.toast(`Sold ${item.name} for 💰${formatNum(gold)}.`, 'success');
+    UI.renderGear(s);
+    UI.updateHUD(s, App.user);
+    saveNow();
+  }
+}
+
+// ---------------- Mining & Forging ----------------
+function doMine() {
+  const s = App.state;
+  if (!s || App.dead) return;
+  const res = Engine.mineTap(s);
+  const oreDef = Engine.ORE_BY_ID[res.ore] || {};
+  let msg = `+1 ${oreDef.emoji || ''} ${oreDef.name || res.ore}`;
+  if (res.broke) {
+    const bonusTxt = res.bonus.length ? ` (+${res.bonus.length} bonus)` : '';
+    msg += ` — rock shattered!${bonusTxt} Now depth ${s.mine.depth}.`;
+    UI.toast(`⛏️ Rock shattered! Depth ${s.mine.depth}.`, 'success');
+  }
+  UI.renderMine(s, msg);
+  if (App.mineTaps === undefined) App.mineTaps = 0;
+  if (++App.mineTaps % 25 === 0) saveNow(); // don't hammer the save endpoint
+}
+
+function doForgeTier(slot, tier) {
+  if (UI.forgeSel[slot]) UI.forgeSel[slot].tier = tier;
+  UI.renderGear(App.state);
+}
+
+function doForgeStat(slot, stat) {
+  const sel = UI.forgeSel[slot];
+  if (!sel || !Engine.FORGE_STATS.includes(stat)) return;
+  const i = sel.stats.indexOf(stat);
+  if (i >= 0) sel.stats.splice(i, 1);
+  else if (sel.stats.length < Engine.MAX_FORGE_PICKS) sel.stats.push(stat);
+  else UI.toast(`Pick at most ${Engine.MAX_FORGE_PICKS} stats.`, 'error');
+  UI.renderGear(App.state);
+}
+
+function doForgeCraft(slot) {
+  const s = App.state;
+  const sel = UI.forgeSel[slot];
+  if (!s || !sel) return;
+  const res = Engine.craftGalaxyItem(s, slot, sel.tier, sel.stats);
+  if (typeof res === 'string') {
+    UI.toast(res, 'error');
+    return;
+  }
+  UI.toast(`🌌 Forged ${res.name}!`, 'success');
+  UI.renderGear(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+function doGalaxyEquip(slot) {
+  const s = App.state;
+  if (Engine.equipGalaxy(s, slot)) {
+    const item = Engine.galaxyItemFor(s, slot);
+    UI.toast(`Equipped ${item ? item.name : 'galaxy gear'}.`, 'success');
+    UI.renderGear(s);
+    UI.updateHUD(s, App.user);
+    saveNow();
+  }
+}
+
+function doGalaxyUnequip(slot) {
+  const s = App.state;
+  if (Engine.unequipGalaxy(s, slot)) {
     UI.renderGear(s);
     UI.updateHUD(s, App.user);
     saveNow();
@@ -1469,6 +1551,7 @@ async function onTabSwitch(tab, force = false) {
   // the tab switch in progress, so exit silently here).
   if (tab !== 'inn' && App.inInn) leaveInn(false);
   if (tab === 'gear') UI.renderGear(s);
+  else if (tab === 'mine') UI.renderMine(s);
   else if (tab === 'party') UI.renderParty(s);
   else if (tab === 'more') { UI.renderMore(s, App.user); UI.syncNotifSettings(s.settings && s.settings.notif); }
   else if (tab === 'guild') { mountGuild(); }
