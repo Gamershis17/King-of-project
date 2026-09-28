@@ -147,6 +147,7 @@ export const UI = {
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
       'balance-log-btn', 'balance-log-badge', 'balance-log-hud', 'balance-log-badge-hud',
+      'friends-hud', 'friend-req-badge-hud',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
       'mine-pickaxe', 'mine-stats',
@@ -333,15 +334,18 @@ export const UI = {
       this.handlers.onRanksSubtab && this.handlers.onRanksSubtab(btn.dataset.subtab);
     });
 
-    // Friends panel: delegated friend actions
-    listen('friends-panel', 'click', (e) => {
+    // Friends: delegated friend actions, shared by the Ranks-tab panel and
+    // the HUD friends modal. The add-friend input is looked up inside the
+    // button's own container so panel and modal never clash.
+    const friendAction = (e) => {
       const btn = e.target.closest('button[data-friend]');
       if (!btn || btn.disabled) return;
       const h = this.handlers;
       const action = btn.dataset.friend;
       const uname = btn.dataset.username;
       if (action === 'send') {
-        const input = document.getElementById('friend-add-input');
+        const scope = btn.closest('.modal-body, #friends-panel') || document;
+        const input = scope.querySelector('.friend-input');
         const name = input ? input.value.trim() : '';
         if (!name) { this.toast('Type a username first.', 'info'); return; }
         h.onFriendSend && h.onFriendSend(name);
@@ -353,15 +357,22 @@ export const UI = {
       else if (action === 'compare' && uname && h.onInspectCompare) h.onInspectCompare(uname);
       else if (action === 'remove' && uname && h.onFriendRemove) h.onFriendRemove(uname);
       else if (action === 'upgrade' && h.onUpgradeAccount) h.onUpgradeAccount();
-    });
-    // Enter key in the add-friend box sends the request.
-    listen('friends-panel', 'keydown', (e) => {
-      if (e.target && e.target.id === 'friend-add-input' && e.key === 'Enter') {
+    };
+    listen('friends-panel', 'click', friendAction);
+    // Modal root: same actions inside the HUD friends modal.
+    if (this.els['modal-root']) this.els['modal-root'].addEventListener('click', friendAction);
+    // Enter key in any add-friend box sends the request.
+    const friendKey = (e) => {
+      if (e.target && e.target.classList && e.target.classList.contains('friend-input') && e.key === 'Enter') {
         const name = e.target.value.trim();
         if (!name) return;
         this.handlers.onFriendSend && this.handlers.onFriendSend(name);
       }
-    });
+    };
+    listen('friends-panel', 'keydown', friendKey);
+    if (this.els['modal-root']) this.els['modal-root'].addEventListener('keydown', friendKey);
+    // HUD friends button (top bar 👥 icon).
+    listen('friends-hud', 'click', () => { this.openFriendsModal(); });
 
     // Settings tab: delegated talent / profession buttons
     listen('tab-settings', 'click', (e) => {
@@ -2754,22 +2765,19 @@ export const UI = {
   // Ranks sub-tab: friends list, requests, and the add-by-username box.
   // `data` is the /api/friends payload (or null while loading); `isGuest`
   // shows the account-upgrade prompt instead.
-  renderFriends(data, isGuest) {
-    const panel = this.els['friends-panel'];
-    if (!panel) return;
+  // Shared friends markup used by both the Ranks-tab panel and the HUD
+  // friends modal. `data` is the /friends payload ({friends, incoming,
+  // outgoing}); friends sort online-first.
+  friendsHtml(data, isGuest) {
     if (isGuest) {
-      panel.innerHTML = `
+      return `
         <div class="card friends-guest">
           <h3>👥 Friends</h3>
           <p class="muted">Friends need an account — your progress carries over.</p>
           <button class="btn gold" data-friend="upgrade">✨ Create free account</button>
         </div>`;
-      return;
     }
-    if (!data) {
-      panel.innerHTML = '<div class="muted center">Loading friends…</div>';
-      return;
-    }
+    if (!data) return '<div class="muted center">Loading friends…</div>';
     const onlineDot = (on) => `<span class="online-dot${on ? ' on' : ''}" title="${on ? 'Online' : 'Offline'}"></span>`;
     const incoming = (data.incoming || []).map((u) => `
       <div class="friend-row req">
@@ -2790,7 +2798,8 @@ export const UI = {
           <button class="btn small ghost" data-friend="cancel" data-username="${esc(u)}">Cancel</button>
         </span>
       </div>`).join('');
-    const friends = (data.friends || []).map((f) => {
+    const sorted = (data.friends || []).slice().sort((a, b) => Number(!!b.online) - Number(!!a.online));
+    const friends = sorted.map((f) => {
       const cls = f.playerClass && UI_CLASS_EMOJI[f.playerClass] ? UI_CLASS_EMOJI[f.playerClass] + ' ' : '';
       return `
       <div class="friend-row" data-username="${esc(f.username)}">
@@ -2804,11 +2813,11 @@ export const UI = {
         </span>
       </div>`;
     }).join('');
-    panel.innerHTML = `
+    return `
       <div class="card friends-add">
         <h3>➕ Add friend</h3>
         <div class="friend-add-row">
-          <input id="friend-add-input" class="friend-input" placeholder="Exact username…" maxlength="20" autocomplete="off">
+          <input class="friend-input" placeholder="Exact username…" maxlength="20" autocomplete="off">
           <button class="btn gold" data-friend="send">Send request</button>
         </div>
         <p class="muted small">Usernames are exact — ask your friend for theirs.</p>
@@ -2820,14 +2829,48 @@ export const UI = {
       </div>`;
   },
 
+  renderFriends(data, isGuest) {
+    const panel = this.els['friends-panel'];
+    if (!panel) return;
+    panel.innerHTML = this.friendsHtml(data, isGuest);
+  },
+
+  // Opens the HUD friends modal (👥 top-bar button). Content is filled by
+  // showFriendsModal once the payload arrives.
+  openFriendsModal() {
+    if (this._friendsModalOpen) return;
+    this._friendsModalOpen = true;
+    this._friendsModalBody = null;
+    this.modal({
+      title: '👥 Friends',
+      html: '<div class="muted center">Loading friends…</div>',
+      buttons: [{ label: 'Close', cls: 'gold' }],
+      wide: true,
+      onClose: () => { this._friendsModalOpen = false; this._friendsModalBody = null; },
+    });
+    const overlays = this.els['modal-root'] ? this.els['modal-root'].querySelectorAll('.modal-overlay') : [];
+    const last = overlays[overlays.length - 1];
+    if (last) this._friendsModalBody = last.querySelector('.modal-body');
+    if (this.handlers.onOpenFriends) this.handlers.onOpenFriends();
+  },
+
+  // Fill / refresh the open friends modal. No-op when it isn't open.
+  showFriendsModal(data, isGuest) {
+    if (!this._friendsModalOpen || !this._friendsModalBody) return;
+    this._friendsModalBody.innerHTML = this.friendsHtml(data, isGuest);
+  },
+
   setFriendBadge(count) {
-    const b = this.els['friend-req-badge'];
-    if (!b) return;
-    if (count > 0) {
-      b.textContent = count > 9 ? '9+' : String(count);
-      b.classList.remove('hidden');
-    } else {
-      b.classList.add('hidden');
+    const n = count > 0 ? (count > 9 ? '9+' : String(count)) : '';
+    const sub = this.els['friend-req-badge'];
+    if (sub) {
+      sub.textContent = n;
+      sub.classList.toggle('hidden', !n);
+    }
+    const hud = this.els['friend-req-badge-hud'];
+    if (hud) {
+      hud.textContent = n;
+      hud.classList.toggle('hidden', !n);
     }
   },
 

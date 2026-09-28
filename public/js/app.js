@@ -168,10 +168,21 @@ async function boot() {
       try {
         const r = await api.friendRequest(name);
         UI.toast(`Friend request sent to ${r.username}.`, 'success');
-        const input = document.getElementById('friend-add-input');
-        if (input) input.value = '';
+        document.querySelectorAll('.friend-input').forEach((i) => { i.value = ''; });
         loadFriends();
       } catch (e) { UI.toast(e.message || 'Request failed.', 'error'); }
+    },
+    // HUD 👥 button: open the friends modal and fill it with live data.
+    onOpenFriends: async () => {
+      if (isGuest()) { UI.showFriendsModal(null, true); return; }
+      try {
+        const data = await api.getFriends();
+        App.friends = data;
+        UI.showFriendsModal(data, false);
+        UI.setFriendBadge((data.incoming || []).length);
+      } catch (e) {
+        UI.showFriendsModal({ friends: [], incoming: [], outgoing: [] }, false);
+      }
     },
     onFriendAdd: async (username) => {
       const r = await api.friendRequest(username);
@@ -1999,6 +2010,7 @@ async function loadRanks() {
 async function loadFriends() {
   if (isGuest()) {
     UI.renderFriends(null, true);
+    UI.showFriendsModal(null, true);
     UI.setFriendBadge(0);
     return;
   }
@@ -2006,9 +2018,11 @@ async function loadFriends() {
     const data = await api.getFriends();
     App.friends = data;
     UI.renderFriends(data, false);
+    UI.showFriendsModal(data, false);
     UI.setFriendBadge((data.incoming || []).length);
   } catch (e) {
     UI.renderFriends({ friends: [], incoming: [], outgoing: [] }, false);
+    UI.showFriendsModal({ friends: [], incoming: [], outgoing: [] }, false);
     UI.setFriendBadge(0);
   }
 }
