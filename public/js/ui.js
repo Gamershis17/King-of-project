@@ -245,6 +245,7 @@ export const UI = {
       if (btn.dataset.action === 'talent' && h.onTalent) h.onTalent(btn.dataset.id);
       if (btn.dataset.action === 'prof' && h.onProfession) h.onProfession(btn.dataset.id);
       if (btn.dataset.action === 'title' && h.onTitle) h.onTitle(btn.dataset.id);
+      if (btn.dataset.action === 'titles-list' && h.onTitlesList) h.onTitlesList();
     });
 
     // Country picker (profile) — delegated change
@@ -1902,7 +1903,10 @@ export const UI = {
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
           <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${esc(user ? user.username : '—')}</div>
-          <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
+          <div class="profile-title-row">
+            <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
+            <button class="btn small titles-btn" data-action="titles-list">🏆 Titles</button>
+          </div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
         </div>
@@ -1930,6 +1934,37 @@ export const UI = {
       ${this.professionsCard(state)}
       ${this.achievementsCard(state)}`;
     this.checkChangelogBadge();
+  },
+
+  // ---------------- titles browser ----------------
+  // Scrollable modal listing every title. Unlocked titles equip on tap via
+  // the same onTitle code path as the profile chips; the modal closes after
+  // the equip so the re-rendered profile shows the new active title.
+  showTitlesModal(state) {
+    const s = state || {};
+    const unlocked = new Set(s.titlesUnlocked || ['wanderer']);
+    const rows = Engine.TITLES.map(t => {
+      const has = unlocked.has(t.id);
+      const active = s.activeTitle === t.id;
+      const rowCls = 'title-row' + (has ? ' unlocked' : ' locked') + (active ? ' active' : '');
+      const nameHtml = (has && active ? '👑 ' : has ? '' : '🔒 ') + esc(t.name);
+      return has
+        ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
+        : `<div class="${rowCls}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></div>`;
+    }).join('');
+    const close = this.modal({ title: '👑 Hero Titles', html: `<div class="titles-list">${rows}</div>` });
+    // Null-safe: grab the overlay we just appended and delegate row taps.
+    const root = this.els && this.els['modal-root'];
+    const overlay = root ? root.lastElementChild : null;
+    if (overlay && overlay.addEventListener) {
+      overlay.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('button.title-row') : null;
+        if (!btn || !btn.dataset || !btn.dataset.id) return;
+        if (this.handlers && this.handlers.onTitle) this.handlers.onTitle(btn.dataset.id);
+        close();
+      });
+    }
+    return close;
   },
 
   // Staff viewers see every changelog item; players never see items flagged

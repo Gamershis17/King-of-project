@@ -168,6 +168,9 @@ async function boot() {
       UI.toast(`👑 Title set: ${Engine.titleName(id)}`, 'success');
       saveNow();
     },
+    onTitlesList: () => {
+      if (App.state) UI.showTitlesModal(App.state);
+    },
     onCountry: (code) => {
       const s = App.state;
       if (!s) return;

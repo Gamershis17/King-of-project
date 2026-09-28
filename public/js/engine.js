@@ -1811,6 +1811,21 @@ export const TITLES = [
   { id: 'raider',          name: 'the Raider',          desc: 'Reach wave 10 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 10 },
   { id: 'stormcaller',     name: 'the Stormcaller',     desc: 'Reach wave 25 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 25 },
   { id: 'tidebreaker',     name: 'the Tidebreaker',     desc: 'Reach wave 50 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 50 },
+  // ---- Mining & Galaxy Forge titles (stream 3) ----
+  // Mine/forge counters may not exist yet (added by a parallel stream);
+  // every check below degrades to "locked" on a fresh/old save.
+  { id: 'delver',          name: '⛏️ the Delver',        desc: 'Reach depth 20 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 20 },
+  { id: 'deepdelver',      name: '🕳️ the Deepdelver',    desc: 'Reach depth 40 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 40 },
+  { id: 'corediver',       name: '🌋 the Corediver',      desc: 'Reach depth 60 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 60 },
+  { id: 'rockbreaker',     name: '💥 the Rockbreaker',   desc: 'Tap the mining rock 1,000 times.',          check: (s) => (((s.mine || {}).totalTaps) || 0) >= 1000 },
+  { id: 'orehoarder',      name: '💰 the Orehoarder',     desc: 'Mine 1,000 ore in total.',                  check: (s) => (((s.mine || {}).totalMined) || 0) >= 1000 },
+  { id: 'prospector',      name: '🧭 the Prospector',     desc: 'Upgrade your pickaxe to tier 3.',           check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 3 },
+  { id: 'master-miner',    name: '⚒️ the Master Miner',   desc: 'Upgrade your pickaxe to the max tier.',     check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 7 },
+  { id: 'starforger',      name: '⭐ the Starforger',     desc: 'Craft an item in the Galaxy Forge.',        check: (s) => (((s.forge || {}).crafts) || 0) >= 1 },
+  { id: 'galaxyforger',    name: '🌌 the Galaxyforger',   desc: 'Craft 10 items in the Galaxy Forge.',       check: (s) => (((s.forge || {}).crafts) || 0) >= 10 },
+  { id: 'transcendent',    name: '✨ the Transcendent',   desc: 'Craft your first Super Galaxy item.',       check: (s) => ((s.forge || {}).superCrafted) === true },
+  { id: 'ever-reborn',     name: '🌀 the Ever-Reborn',    desc: 'Rebirth 100 times.',                        check: (s) => (s.rebirthCount || 0) >= 100 },
+  { id: 'true-capped',     name: '👑 the True Capped',    desc: 'Reach level 70, then rebirth at least once.', check: (s) => ((s.level || 1) >= MAX_LEVEL) && ((s.rebirthCount || 0) >= 1) },
 ];
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
 export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }
