@@ -1,0 +1,39 @@
+[
+  {
+    "changes": [
+      {
+        "after": "1.30 exponent for levels 1–60, then 1.42 for 61–70, continuous at 60 (33.93B total XP for 1→70)",
+        "before": "80 × 1.30^(L-1) for all 70 levels (19.41B total XP for 1→70)",
+        "note": "Endgame levels take ~75% more XP; the early game is untouched.",
+        "system": "Level XP curve"
+      },
+      {
+        "after": "10 × 1.12^stage (≈192.43M per kill at stage 148 — about 176 kills for 1→70)",
+        "before": "10 × 1.15^stage (≈9.62B per kill at stage 148 — about 2 kills for 1→70)",
+        "note": "Farming high stages no longer skips the climb.",
+        "system": "Kill XP"
+      },
+      {
+        "after": "Capped at +50% inside XP gains (tooltips still show the true total)",
+        "before": "Uncapped — a Super Galaxy xpBonus pick gave +600% XP (7× leveling speed)",
+        "note": "Forged gear stays overpowered for combat, just not for leveling.",
+        "system": "Gear XP bonus"
+      },
+      {
+        "after": "Each rebirth multiplies all XP requirements ×1.35 (×1.35 at 1 rebirth, ×1.82 at 2)",
+        "before": "Reset to level 1 with identical XP costs every climb",
+        "note": "The multiplier is shown in the Rebirth panel. The server recomputes XP needs from level + rebirth count and ignores client-supplied values.",
+        "system": "Rebirth"
+      },
+      {
+        "after": "Guild level capped at 20 (+40% XP max)",
+        "before": "Uncapped +2% XP per guild level",
+        "note": "Ships with the guild rework; bounds the biggest XP accelerator.",
+        "system": "Guild XP perk"
+      }
+    ],
+    "date": "2026-09-28",
+    "title": "Balance patch v12 — pacing nerfs",
+    "version": "v12"
+  }
+]

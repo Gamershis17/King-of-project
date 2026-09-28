@@ -2,7 +2,7 @@
 node_modules/
 
 # SQLite database (created at runtime; never commit player data)
-data/
+/data/
 
 # Local secrets
 .env
