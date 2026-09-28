@@ -124,6 +124,7 @@ export const UI = {
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
       'stats-card', 'titles-list',
+      'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
@@ -265,6 +266,20 @@ export const UI = {
           }, 6000);
         }
       }
+      // Multiplayer party actions
+      if (btn.dataset.action === 'mp-create' && h.onMpCreate) h.onMpCreate();
+      if (btn.dataset.action === 'mp-leave' && h.onMpLeave) h.onMpLeave();
+      if (btn.dataset.action === 'mp-disband' && h.onMpDisband) h.onMpDisband();
+      if (btn.dataset.action === 'mp-copy' && h.onMpCopy) h.onMpCopy();
+      if (btn.dataset.action === 'mp-kick' && h.onMpKick) h.onMpKick(btn.dataset.id);
+      if (btn.dataset.action === 'mp-join' && h.onMpJoin) {
+        const input = document.getElementById('mp-join-code');
+        h.onMpJoin(input ? input.value : '');
+      }
+    });
+    // Multiplayer party: manual refresh
+    listen('mp-refresh', 'click', () => {
+      this.handlers.onMpRefresh && this.handlers.onMpRefresh();
     });
 
     // Ranks refresh
@@ -1505,11 +1520,14 @@ export const UI = {
     const hue = this.portraitHue(c.name);
     const initial = (c.name || '?').trim().charAt(0).toUpperCase();
     const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
+    const roleKind = (c && c.roleKind) || (Engine.companionRole && Engine.companionRole(c)) || 'dps';
+    const roleLabel = ((Engine.COMPANION_ROLES || {})[roleKind] || {}).label || roleKind;
+    const roleBadge = `<span class="role-badge role-${roleKind}">${roleLabel}</span>`;
     if (mini) {
       return `
       <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
       <div class="member-name">${esc(c.name)}</div>
-      <div class="member-role">${esc(c.role || 'Companion')}</div>
+      <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge}</div>
       <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
       <div class="member-hptext" data-comp-hptext="${esc(c.id)}">${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}</div>`;
     }
@@ -1520,7 +1538,7 @@ export const UI = {
         <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
         <div class="member-id">
           <div class="member-name">${esc(c.name)} <span class="lvl-badge">Lv ${c.level}</span></div>
-          <div class="member-role">${esc(c.role || 'Companion')} · <span class="tier-badge ${tierCls}">${esc(tier)}</span></div>
+          <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge} · <span class="tier-badge ${tierCls}">${esc(tier)}</span></div>
         </div>
       </div>
       <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
@@ -2005,7 +2023,114 @@ export const UI = {
   },
 
   // ---------------- party ----------------
-  renderParty(state) {
+  // ---------------- multiplayer party ----------------
+  // Server-side invite-code party. mp is the GET /api/party view (or null).
+  // ctx: { username, isGuest, ownNpcCount }. Self is matched by username
+  // (the client knows its own; no id exposure needed for this).
+  renderMpParty(mp, ctx) {
+    const card = this.els['mp-party-card'];
+    if (!card) return;
+    const joinCard = this.els['mp-join-card'];
+    ctx = ctx || {};
+    if (ctx.isGuest) {
+      card.innerHTML = `
+        <h3>🎉 Multiplayer party</h3>
+        <p class="muted">Parties need an account — guest sessions are solo-only. Create an account to team up with friends.</p>`;
+      if (joinCard) joinCard.classList.add('hidden');
+      return;
+    }
+    if (joinCard) joinCard.classList.remove('hidden');
+    if (!mp) {
+      card.innerHTML = `
+        <h3>🎉 Multiplayer party</h3>
+        <p class="muted">Team up with friends: <b>+8% XP</b> and <b>+5% gold</b> per other
+        <b>online</b> member (up to 4 total). Your NPC allies add <b>+4% XP</b> each.</p>
+        <button class="btn gold" data-action="mp-create">🎉 Create party</button>`;
+      return;
+    }
+    const me = String(ctx.username || '');
+    // Server sends a FLAT roster: humans (isNpc:false) + NPC allies
+    // (isNpc:true, with ownerUsername). Group NPCs under their owner.
+    const rows = Array.isArray(mp.members) ? mp.members : [];
+    const humans = rows.filter(m => !m.isNpc);
+    const npcsByOwner = {};
+    for (const n of rows) {
+      if (!n.isNpc) continue;
+      const k = String(n.ownerUsername || '');
+      (npcsByOwner[k] = npcsByOwner[k] || []).push(n);
+    }
+    // Bonuses are computed server-side from DB truth (mp.bonuses). Fall back
+    // to a local estimate only if the field is missing.
+    const b = mp.bonuses || {};
+    const othersOnline = Number.isFinite(b.onlineOtherHumans)
+      ? b.onlineOtherHumans
+      : humans.filter(m => m.online && String(m.username) !== me).length;
+    const activeNpcs = Number.isFinite(b.activeNpcs)
+      ? b.activeNpcs
+      : (npcsByOwner[me] || []).length;
+    const xpPct = Number.isFinite(b.xpPct) ? b.xpPct : othersOnline * 8 + activeNpcs * 4;
+    const goldPct = Number.isFinite(b.goldPct) ? b.goldPct : othersOnline * 5;
+    const isLeader = String(mp.leaderUsername) === me;
+    // Flat roster: humans and NPC allies share the 4 slots, rendered in
+    // roster order. Humans get full cards, NPCs get compact ally cards.
+    const slots = [];
+    const roster = rows.slice(0, 4);
+    for (let i = 0; i < 4; i++) {
+      const m = roster[i];
+      if (!m) {
+        slots.push(`<div class="mp-member empty"><div class="empty-slot-inner"><span class="empty-plus">＋</span><span>Open slot</span></div></div>`);
+        continue;
+      }
+      if (m.isNpc) {
+        slots.push(`
+          <div class="mp-member mp-npc">
+            <div class="mp-avatar">${esc(m.emoji || '🛡️')}</div>
+            <div class="mp-info">
+              <div class="mp-name">${esc(m.name)} <span class="muted small">Lv ${m.level}</span></div>
+              <div class="muted small">NPC ally · ${esc(m.ownerUsername || '')}${m.online ? '' : ' · owner offline'}</div>
+            </div>
+          </div>`);
+        continue;
+      }
+      const race = (Engine.RACES && Engine.RACES[m.race]) || {};
+      const cls = (Engine.CLASSES && Engine.CLASSES[m.playerClass]) || {};
+      const dot = m.online ? '🟢' : '⚪';
+      const crown = m.isLeader ? ' 👑' : '';
+      const flag = (Engine.countryFlag && Engine.countryFlag(m.country)) || '';
+      const title = m.activeTitle ? `<div class="mp-title">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
+      const kick = (isLeader && String(m.username) !== me)
+        ? `<button class="btn small ghost icon-btn" data-action="mp-kick" data-id="${m.userId}" title="Kick ${esc(m.username)}">✕</button>`
+        : '';
+      slots.push(`
+        <div class="mp-member">
+          <div class="mp-avatar">${race.emoji || '🛡️'}</div>
+          <div class="mp-info">
+            <div class="mp-name">${dot} ${esc(m.username)}${flag ? ' ' + flag : ''}${crown}</div>
+            ${title}
+            <div class="muted small">Lv ${m.level} · Stage ${m.stage}${cls.name ? ' · ' + esc(cls.name) : ''}${m.online ? '' : ' · offline'}</div>
+          </div>
+          ${kick}
+        </div>`);
+    }
+    card.innerHTML = `
+      <div class="mp-head">
+        <div class="mp-code-row"><span class="muted">Invite code</span>
+          <b class="mp-code">${esc(mp.code)}</b>
+          <button class="btn small ghost" data-action="mp-copy" title="Copy invite code">📋 Copy</button>
+        </div>
+        <div class="mp-bonus">✨ +${xpPct}% XP · 💰 +${goldPct}% gold
+          <span class="muted small">(${othersOnline} online member${othersOnline === 1 ? '' : 's'} + ${activeNpcs} NPC)</span>
+        </div>
+      </div>
+      <div class="mp-members">${slots.join('')}</div>
+      <div class="mp-controls">
+        <button class="btn small ghost" data-action="mp-leave">🚪 Leave party</button>
+        ${isLeader ? `<button class="btn small danger" data-action="mp-disband">💥 Disband</button>` : ''}
+      </div>`;
+  },
+
+  renderParty(state, ctx) {
+    this.renderMpParty((ctx && ctx.mpParty) || null, ctx);
     const slots = this.els['party-slots'];
     slots.innerHTML = '';
     for (let i = 0; i < Engine.MAX_PARTY; i++) {
@@ -2039,11 +2164,14 @@ export const UI = {
       const reason = owned ? 'Recruited' : full ? 'Party full' : !afford ? 'Need 💰' : '';
       const tier = (r.tier || 'common').toLowerCase();
       const tierBadge = `<span class="tier-badge tier-${tier}">${tier}</span>`;
+      const roleKind = (Engine.companionRole && Engine.companionRole(r)) || 'dps';
+      const roleLabel = ((Engine.COMPANION_ROLES || {})[roleKind] || {}).label || roleKind;
+      const roleBadge = `<span class="role-badge role-${roleKind}">${roleLabel}</span>`;
       const row = document.createElement('div');
       row.className = 'recruit-row recruit-' + tier;
       row.innerHTML = `
         <div class="recruit-info"><span class="comp-emoji">${r.emoji}</span>
-          <div><div class="comp-name">${esc(r.name)} ${tierBadge}</div>
+          <div><div class="comp-name">${esc(r.name)} ${tierBadge} ${roleBadge}</div>
           <div class="muted small">⚔️${r.atk} 🛡️${r.def} ❤️${r.hp} · scales with your level</div></div></div>
         <button class="btn small" data-action="recruit" data-id="${r.id}" ${disabled ? 'disabled' : ''}>
           ${owned ? '✔' : `💰 ${formatNum(r.cost)}`} ${reason && !owned ? `<span class="muted small">${reason}</span>` : ''}

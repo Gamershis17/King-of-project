@@ -17,7 +17,7 @@ function setGoldCap(cap) {
 function getGoldCapValue() { return goldCap; }
 
 // Server-side mirror of the client XP curve in public/js/engine.js:
-// levels 1-60 use a 1.30 exponent, 61-70 continue from the kinked value with
+// levels 1-60 use a 1.30 exponent, 61-90 continue from the kinked value with
 // a 1.42 exponent, and every rebirth multiplies requirements by 1.35^rebirths.
 // Keep in sync if the client formula ever changes.
 function xpForLevelServer(level, rebirthCount) {
@@ -52,7 +52,7 @@ function validatePassword(password) {
 // Named root fields and their clamp ranges [min, max]. Only applied when the
 // field exists and holds a finite number; non-finite numbers become the min.
 const CLAMPED_FIELDS = {
-  level: [1, 70],
+  level: [1, 90],
   stage: [1, 100000],
   gold: [0, 9.99e20], // 999Qi
   stars: [0, 1e15],

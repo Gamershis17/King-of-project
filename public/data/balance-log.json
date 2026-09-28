@@ -75,6 +75,87 @@
     ]
   },
   {
+    "version": "v15",
+    "date": "2026-09-28",
+    "title": "Balance patch v15 — NPC ally buffs",
+    "changes": [
+      {
+        "system": "NPC combat roles",
+        "before": "Roles were flavor text (Brute/Ranger/Cleric…) with one flat stat curve for everyone",
+        "after": "Real roles: Tank (Ember, Mira), Healer (Anselm), DPS (everyone else) — shown as badges in the Party tab",
+        "note": "Pre-v15 allies are migrated to the new stats automatically on load."
+      },
+      {
+        "system": "NPC survivability",
+        "before": "Max HP +20/level, defense +1/level — allies died in 1–2 hits past mid-game",
+        "after": "Max HP now scales exponentially with companion level (1.075^level × role multiplier + flat/level), plus role damage-taken: Tank 35%, Healer 55%, DPS 60%",
+        "note": "Example at Lv 60: Mira (Tank) 1,340 → 26,357 HP taking 35% damage; Lyra (DPS) 1,250 → 7,464 HP taking 60% damage."
+      },
+      {
+        "system": "Healer NPC",
+        "before": "Anselm only regenerated its own HP",
+        "after": "Healer mends the PLAYER for 10% of player max HP every 8s during dungeon combat (light personal damage: 0.8×)",
+        "note": "Only heals when the player is hurt; never overheals."
+      },
+      {
+        "system": "Tank NPC damage",
+        "before": "+3 attack/level, no damage multiplier",
+        "after": "+4 attack/level and 1.5× strike damage",
+        "note": "Example at Lv 60: Mira 211 → ~405 per hit."
+      },
+      {
+        "system": "DPS NPC damage",
+        "before": "+3 attack/level, no damage multiplier",
+        "after": "+6 attack/level and 2.0× strike damage (glass cannon: lower HP, 60% damage taken)",
+        "note": "Example at Lv 60: Lyra 187 → ~728 per hit (~3.9×)."
+      }
+    ]
+  },
+  {
+    "version": "v15",
+    "date": "2026-09-28",
+    "title": "Level cap raised 70 → 90",
+    "changes": [
+      {
+        "system": "Level cap",
+        "before": "70 (briefly 120 on 2026-09-27, moved back to 70 before this raise)",
+        "after": "90 everywhere: XP gains, GM level/XP grants, save validation [1,90], rebirth unlocks at 90",
+        "note": "Saves above 90 clamp down to 90 on load. Rebirth still resets to level 1."
+      },
+      {
+        "system": "XP curve 61–90",
+        "before": "1.30 exponent for levels 1–60, then 1.42 for 61–70",
+        "after": "The same 1.42 exponent continues through 61–90 — no new kink",
+        "note": "Total XP 1→90 is ~37.25T (vs ~33.93B for 1→70). Levels 71–90 are the new endgame grind."
+      }
+    ]
+  },
+  {
+    "version": "v15",
+    "date": "2026-09-28",
+    "title": "Balance patch v15 — multiplayer parties",
+    "changes": [
+      {
+        "system": "Party XP bonus",
+        "before": "No party system — XP came from race/gear/rested multipliers only",
+        "after": "+8% XP per other ONLINE human party member (max +24%), +4% XP per own NPC ally (max +12%)",
+        "note": "Only online members count, so parked alt accounts grant nothing. Applies to kill XP."
+      },
+      {
+        "system": "Party gold bonus",
+        "before": "No party system",
+        "after": "+5% gold per other ONLINE human party member (max +15%)",
+        "note": "Applies to kill gold. NPC allies grant no gold bonus."
+      },
+      {
+        "system": "Gear XP bonus cap",
+        "before": "Capped at +50% inside XP gains",
+        "after": "Capped at +40% inside XP gains (tooltips still show the true total)",
+        "note": "Modest offset for the new party XP income; only affects heavily-forged XP gear. Cutting the kill-XP growth rate instead would have been a ~14x nuke at high stages."
+      }
+    ]
+  },
+  {
     "version": "v14",
     "title": "Balance patch v14 — pet/world content",
     "date": "2026-09-28",

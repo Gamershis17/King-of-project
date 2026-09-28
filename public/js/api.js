@@ -57,6 +57,14 @@ export const api = {
   // Guild rankings (no auth required)
   guildRankings: () => request('/api/guilds/rankings'),
 
+  // Multiplayer parties (invite codes)
+  partyGet: () => request('/api/party'),
+  partyCreate: () => post('/api/party/create', {}),
+  partyJoin: (code) => post('/api/party/join', { code }),
+  partyLeave: () => post('/api/party/leave', {}),
+  partyKick: (userId) => post('/api/party/kick', { userId }),
+  partyDisband: () => post('/api/party/disband', {}),
+
   // Gift codes
   redeem: (code) => post('/api/redeem', { code }),
 

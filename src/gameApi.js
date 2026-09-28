@@ -62,6 +62,14 @@ const {
   getMyInvites,
   acceptGuildInvite,
   declineGuildInvite,
+  // multiplayer parties
+  createParty,
+  joinPartyByCode,
+  leaveParty,
+  kickPartyMember,
+  disbandParty,
+  getPartyView,
+  syncPartyNpcs,
 } = require('./db');
 
 const router = express.Router();
@@ -275,6 +283,9 @@ router.post(
       // ignore guild bookkeeping errors; the save itself succeeded
     }
     await saveState(req.user.id, result.state);
+    // Keep the multiplayer NPC roster in sync with owned allies. A party-sync
+    // hiccup must never break the save itself.
+    try { await syncPartyNpcs(req.user.id); } catch (e) { console.error('party npc sync failed', e && e.message); }
     res.json({ ok: true });
   })
 );
@@ -778,6 +789,35 @@ router.post(
         return res.status(403).json({ error: 'You do not have permission to do that.' });
       }
       throw err;
+
+// ---------- multiplayer parties ----------
+// Invite-code parties (max 4 humans). All member stats are read server-side
+// from stored saves — never trusted from the client.
+function partyErrorToResponse(err, res) {
+  const map = {
+    PARTY_ALREADY_IN: [409, 'You are already in a party. Leave it first.'],
+    PARTY_NOT_IN: [404, 'You are not in a party.'],
+    PARTY_NOT_FOUND: [404, 'No party with that code. Check the code and try again.'],
+    PARTY_FULL: [409, 'That party is full (4 roster slots max).'],
+    PARTY_NOT_LEADER: [403, 'Only the party leader can do that.'],
+    PARTY_TARGET_NOT_IN: [404, 'That player is not in your party.'],
+    PARTY_CANNOT_KICK_SELF: [400, 'You cannot kick yourself — leave or disband instead.'],
+  };
+  const hit = err && map[err.code];
+  if (hit) return res.status(hit[0]).json({ error: hit[1] });
+  throw err;
+}
+
+router.post(
+  '/party/create',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      const party = await createParty(req.user.id);
+      const view = await getPartyView(req.user.id);
+      res.json({ ok: true, party: view, code: party.code });
+    } catch (err) {
+      return partyErrorToResponse(err, res);
     }
   })
 );
@@ -800,6 +840,64 @@ router.post(
         return res.status(403).json({ error: 'You do not have permission to do that.' });
       }
       throw err;
+    }
+  })
+);
+
+router.post(
+  '/party/join',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      await joinPartyByCode(req.user.id, req.body && req.body.code);
+      const view = await getPartyView(req.user.id);
+      res.json({ ok: true, party: view });
+    } catch (err) {
+      return partyErrorToResponse(err, res);
+    }
+  })
+);
+
+router.post(
+  '/party/leave',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await leaveParty(req.user.id);
+      res.json({ ok: true, disbanded: result.disbanded });
+    } catch (err) {
+      return partyErrorToResponse(err, res);
+    }
+  })
+);
+
+router.post(
+  '/party/kick',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const targetId = req.body && Number(req.body.userId);
+    if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'userId is required.' });
+    try {
+      const result = await kickPartyMember(req.user.id, targetId);
+      res.json({ ok: true, disbanded: result.disbanded });
+    } catch (err) {
+      return partyErrorToResponse(err, res);
+    }
+  })
+);
+
+router.post(
+  '/party/disband',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      await disbandParty(req.user.id);
+      res.json({ ok: true, disbanded: true });
+    } catch (err) {
+      return partyErrorToResponse(err, res);
+    }
+  })
+);
     }
   })
 );
@@ -863,6 +961,15 @@ router.post(
       }
       throw err;
     }
+  })
+);
+
+router.get(
+  '/party',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const view = await getPartyView(req.user.id);
+    res.json({ party: view });
   })
 );
 
