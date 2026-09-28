@@ -109,6 +109,13 @@ export const UI = {
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
+    // Null-safe listener wiring: a single missing element (e.g. stale cached
+    // JS paired with newer HTML after a deploy) must never brick the boot.
+    const listen = (id, evt, fn) => {
+      const el = this.els[id] || document.getElementById(id);
+      if (el) el.addEventListener(evt, fn);
+    };
+
     // Bottom tab bar
     $$('#tabbar .tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -122,19 +129,19 @@ export const UI = {
     $$('#mode-switch .mode-btn').forEach(btn => {
       btn.addEventListener('click', () => this.handlers.onMode && this.handlers.onMode(btn.dataset.mode));
     });
-    this.els['tap-btn'].addEventListener('pointerdown', (e) => {
+    listen('tap-btn', 'pointerdown', (e) => {
       e.preventDefault();
       this.handlers.onTap && this.handlers.onTap();
     });
-    this.els['skill-btn'].addEventListener('click', () => {
+    listen('skill-btn', 'click', () => {
       this.handlers.onSkill && this.handlers.onSkill();
     });
-    this.els['rebirth-btn'].addEventListener('click', () => {
+    listen('rebirth-btn', 'click', () => {
       this.handlers.onRebirth && this.handlers.onRebirth();
     });
 
     // Gear: delegated equip/sell/upgrade/shop
-    this.els['inventory-grid'].addEventListener('click', (e) => {
+    listen('inventory-grid', 'click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
       const id = btn.closest('.item-card').dataset.id;
@@ -142,21 +149,21 @@ export const UI = {
       if (btn.dataset.action === 'equip' && h.onEquip) h.onEquip(id);
       if (btn.dataset.action === 'sell' && h.onSell) h.onSell(id);
     });
-    document.getElementById('tab-gear').addEventListener('click', (e) => {
+    listen('tab-gear', 'click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;
       const h = this.handlers;
       if (btn.dataset.action === 'buy-gear' && h.onBuyGear) h.onBuyGear(btn.dataset.id);
       if (btn.dataset.action === 'goto-petshop' && h.onGotoPetShop) h.onGotoPetShop();
     });
-    this.els['upgrade-list'].addEventListener('click', (e) => {
+    listen('upgrade-list', 'click', (e) => {
       const btn = e.target.closest('button[data-upgrade]');
       if (!btn) return;
       this.handlers.onUpgrade && this.handlers.onUpgrade(btn.dataset.upgrade);
     });
 
     // Party: delegated recruit/dismiss/pet actions
-    document.getElementById('tab-party').addEventListener('click', (e) => {
+    listen('tab-party', 'click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
       const h = this.handlers;
@@ -172,12 +179,12 @@ export const UI = {
     });
 
     // Ranks refresh
-    this.els['lb-refresh'].addEventListener('click', () => {
+    listen('lb-refresh', 'click', () => {
       this.handlers.onTab && this.handlers.onTab('ranks', true);
     });
 
     // More tab: delegated talent / profession / title buttons
-    document.getElementById('tab-more').addEventListener('click', (e) => {
+    listen('tab-more', 'click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;      const h = this.handlers;
       if (btn.dataset.action === 'talent' && h.onTalent) h.onTalent(btn.dataset.id);
@@ -186,44 +193,44 @@ export const UI = {
     });
 
     // Country picker (profile) — delegated change
-    document.getElementById('tab-more').addEventListener('change', (e) => {
+    listen('tab-more', 'change', (e) => {
       if (e.target && e.target.id === 'country-select' && this.handlers.onCountry) {
         this.handlers.onCountry(e.target.value);
       }
     });
 
     // Share + update log (More tab)
-    this.els['share-btn'].addEventListener('click', () => {
+    listen('share-btn', 'click', () => {
       this.handlers.onShare && this.handlers.onShare();
     });
-    this.els['changelog-btn'].addEventListener('click', () => {
+    listen('changelog-btn', 'click', () => {
       this.handlers.onChangelog && this.handlers.onChangelog();
     });
 
     // More tab
-    this.els['redeem-btn'].addEventListener('click', () => {
+    listen('redeem-btn', 'click', () => {
       this.handlers.onRedeem && this.handlers.onRedeem();
     });
-    this.els['redeem-input'].addEventListener('keydown', (e) => {
+    listen('redeem-input', 'keydown', (e) => {
       if (e.key === 'Enter') this.handlers.onRedeem && this.handlers.onRedeem();
     });
-    this.els['gm-open-btn'].addEventListener('click', () => {
+    listen('gm-open-btn', 'click', () => {
       this.handlers.onOpenGM && this.handlers.onOpenGM();
     });
-    this.els['logout-btn'].addEventListener('click', () => {
+    listen('logout-btn', 'click', () => {
       this.handlers.onLogout && this.handlers.onLogout();
     });
-    this.els['set-dmgnums'].checked = !!this.settings.damageNumbers;
-    this.els['set-motion'].checked = !!this.settings.reduceMotion;
-    this.els['set-dmgnums'].addEventListener('change', (e) => this.saveSetting('damageNumbers', e.target.checked));
-    this.els['set-motion'].addEventListener('change', (e) => {
+    if (this.els['set-dmgnums']) this.els['set-dmgnums'].checked = !!this.settings.damageNumbers;
+    if (this.els['set-motion']) this.els['set-motion'].checked = !!this.settings.reduceMotion;
+    listen('set-dmgnums', 'change', (e) => this.saveSetting('damageNumbers', e.target.checked));
+    listen('set-motion', 'change', (e) => {
       this.saveSetting('reduceMotion', e.target.checked);
       document.body.classList.toggle('reduce-motion', e.target.checked);
     });
     // Audio prefs live on the game state (per player / guest save), not in
     // localStorage — app.js syncs the checkboxes via applyAudioPrefs().
-    this.els['set-sfx'].addEventListener('change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
-    this.els['set-music'].addEventListener('change', (e) => this.handlers.onMusic && this.handlers.onMusic(e.target.checked));
+    listen('set-sfx', 'change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
+    listen('set-music', 'change', (e) => this.handlers.onMusic && this.handlers.onMusic(e.target.checked));
     // UI style segmented control (More → Settings)
     const seg = document.getElementById('ui-style-seg');
     if (seg) {
