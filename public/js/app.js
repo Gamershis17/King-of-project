@@ -7,7 +7,7 @@ import { UI, esc, formatNum } from './ui.js';
 import { Auth } from './auth.js';
 import { GM } from './gm.js';
 import { Raid } from './raid.js';
-import { renderGuildSection } from './guild.js';
+import { renderGuildSection, syncGuildPerks } from './guild.js';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js';
 import { Audio } from './audio.js';
 
@@ -371,6 +371,11 @@ async function enterAppWithState(user, raw, lastSeenAt) {
 async function continueBoot(state, lastSeenAt) {
   Raid.init(state);
   UI.showView('app');
+  // Guild perks: fetch once at boot for account players (no-op for guests
+  // and guildless players). Fire-and-forget; the engine defaults to zero.
+  if (!isGuest()) {
+    try { syncGuildPerks(api); } catch { /* offline-tolerant */ }
+  }
 
   // Offline earnings (lastSeenAt null on brand-new accounts).
   if (lastSeenAt) {

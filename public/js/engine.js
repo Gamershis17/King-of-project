@@ -15,6 +15,22 @@ export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midn
 // character past this. Rebirth unlocks at MAX_LEVEL.
 export const MAX_LEVEL = 70;
 
+// ---------------- Guild perks ----------------
+// Set by the guild module after fetching the player's guild (server-side
+// guild level). Applied in computeStats / gainXp below. Defaults to no
+// bonus so guests / guildless players are unaffected.
+let GUILD_PERKS = { xpPct: 0, goldPct: 0, dmgPct: 0 };
+export function setGuildPerks(p) {
+  GUILD_PERKS = {
+    xpPct: Math.max(0, Number(p && p.xpPct) || 0),
+    goldPct: Math.max(0, Number(p && p.goldPct) || 0),
+    dmgPct: Math.max(0, Number(p && p.dmgPct) || 0),
+  };
+}
+export function getGuildPerks() {
+  return { ...GUILD_PERKS };
+}
+
 // ---------------- Inn (AFK safe zone) ----------------
 // Session-only rest state: while inside the inn combat is fully
 // suspended (no damage in or out) and the hero regenerates.
@@ -440,7 +456,7 @@ export function defaultState(race) {
     skills: ['power-strike'],
     companions: [],
     codesRedeemed: [],
-    stats: { taps: 0, kills: 0, playTimeSec: 0, maxCombo: 0 },
+    stats: { taps: 0, kills: 0, playTimeSec: 0, maxCombo: 0, questsCompleted: 0 },
     mastery: { points: 0, spent: { might: 0, vitality: 0, fortune: 0 } },
     professions: { herbalism: 1, smithing: 1 },
     achievements: [],
@@ -668,7 +684,8 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
   const rested = state.restedUntil && nowMs < state.restedUntil;
   // Anti-power-creep: gear/stat XP bonuses are capped at +50% here.
   // computeStats() still reports the true total so tooltips stay truthful.
-  const xpBonusPct = Math.min(50, stats.xpBonus || 0);
+  // Guild XP perk (+2%/guild level, max +40%) stacks on top of the gear cap.
+  const xpBonusPct = Math.min(50, stats.xpBonus || 0) + (GUILD_PERKS.xpPct || 0);
   const amount = Math.max(1, Math.round(
     baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1)
   ));
@@ -910,6 +927,8 @@ export function claimQuest(state, period, id, nowMs = Date.now()) {
   entry.claimed = true;
   const rw = questRewardPreview(state, period);
   addGold(state, rw.gold);
+  if (!state.stats || typeof state.stats !== 'object') state.stats = {};
+  state.stats.questsCompleted = Math.max(0, Math.floor(Number(state.stats.questsCompleted) || 0)) + 1;
   state.stars = Math.min(1e15, Math.max(0, Number(state.stars) || 0) + rw.stars);
   const xpRes = gainXp(state, rw.xp, nowMs);
   return { ok: true, rewards: rw, levels: xpRes.levels, skills: xpRes.skills };
@@ -1043,9 +1062,12 @@ export function computeStats(state) {
   // Pet bond: flat bonuses from the ACTIVE pet, added AFTER all multiplicative
   // bonuses (predictable, no double-dipping). Hunger-gated; benched pets give nothing.
   const bond = petBond(state);
+  // Guild perks: multiplicative damage, additive XP/gold percentages.
+  const gp = GUILD_PERKS;
+  const guildDmgMult = 1 + (gp.dmgPct || 0) / 100;
   const h = state.hero;
   return {
-    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * mightMult * smithMult + bond.atk),
+    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * mightMult * smithMult * guildDmgMult + bond.atk),
     defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) + bond.def),
     maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * vitMult) + bond.hp),
     critChance: clamp(h.critChance + gear.critChance + pCritCh + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
@@ -1055,7 +1077,7 @@ export function computeStats(state) {
     lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
     attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1), 0.2, 5),
     regen: Math.max(0, h.regen + gear.regen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
-    goldBonus: gear.goldBonus,
+    goldBonus: gear.goldBonus + (gp.goldPct || 0),
     xpBonus: gear.xpBonus,
     talentGoldPct: 4 * (tal.fortune || 0),
     setInfo,

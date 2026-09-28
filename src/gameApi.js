@@ -31,14 +31,49 @@ const {
   createGuild,
   getGuildByName,
   getMyGuild,
+  addGuildNews,
   getGuildRoster,
   joinGuild,
   leaveGuild,
   getGoldCap,
   getSetting,
+  // guild rework
+  GUILD_RANKS,
+  guildPerks,
+  xpForGuildLevel,
+  setMemberRank,
+  kickGuildMember,
+  setGuildMotd,
+  setGuildDescription,
+  unlockGuildBanner,
+  setGuildBanner,
+  getUnlockedBanners,
+  addGuildChat,
+  getGuildChat,
+  deleteGuildChat,
+  getGuildNews,
+  getGuildChallenges,
+  recordMemberActivity,
+  buyVendorItem,
+  GUILD_VENDOR,
+  getGuildPerksFor,
+  inviteToGuild,
+  getMyInvites,
+  acceptGuildInvite,
+  declineGuildInvite,
 } = require('./db');
 
 const router = express.Router();
+
+// Singular aliases: the guild rework spec requests /api/guild/* routes.
+// The codebase convention is /api/guilds/*; rewrite the singular form to
+// the plural form before route matching so both work identically.
+router.use((req, res, next) => {
+  if (req.url === '/guild' || req.url.startsWith('/guild/') || req.url.startsWith('/guild?')) {
+    req.url = req.url.replace(/^\/guild(?=\/|\?|$)/, '/guilds');
+  }
+  next();
+});
 
 // Per-user flood protection (keyed on user id so one bad actor can't
 // exhaust a shared IP budget, e.g. behind NAT). Applied after requireAuth
@@ -204,6 +239,40 @@ router.post(
       } catch { /* keep false */ }
     }
     result.state.infGold = serverInfGold;
+    // Guild XP: award the player's guild for activity since the last save.
+    // Deltas are clamped >= 0 and the per-save contribution is capped in
+    // recordMemberActivity, so a single save can't spike the guild. Guild
+    // failures must never break saving.
+    try {
+      if (row && row.state_json) {
+        const prev = JSON.parse(row.state_json);
+        const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+        const deltas = {
+          kills: Math.max(0, Math.floor(num(result.state.stats && result.state.stats.kills) - num(prev.stats && prev.stats.kills))),
+          bosses: Math.max(0, Math.floor(num(result.state.bossesKilled) - num(prev.bossesKilled))),
+          quests: Math.max(0, Math.floor(num(result.state.stats && result.state.stats.questsCompleted) - num(prev.stats && prev.stats.questsCompleted))),
+        };
+        if (deltas.kills || deltas.bosses || deltas.quests) {
+          await recordMemberActivity(req.user.username, deltas);
+          // Announce boss kills in guild news (aggregated per save so a
+          // boss-grinding session doesn't flood the feed).
+          if (deltas.bosses > 0) {
+            try {
+              const mg = await getMyGuild(req.user.username);
+              if (mg) {
+                await addGuildNews(
+                  mg.id,
+                  'boss',
+                  `${req.user.username} slew ${deltas.bosses} boss${deltas.bosses === 1 ? '' : 'es'}!`
+                );
+              }
+            } catch { /* news must never break the save */ }
+          }
+        }
+      }
+    } catch {
+      // ignore guild bookkeeping errors; the save itself succeeded
+    }
     await saveState(req.user.id, result.state);
     res.json({ ok: true });
   })
@@ -418,15 +487,136 @@ router.post(
   })
 );
 
+// ---------- guild invites ----------
+// Officers and the Guild Master can invite a player by username.
+router.post(
+  '/guilds/invite',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      const invite = await inviteToGuild(req.user.username, req.body && req.body.username);
+      res.json({ ok: true, invite });
+    } catch (err) {
+      if (err.code === 'GUILD_NOT_IN') return res.status(404).json({ error: 'You are not in a guild.' });
+      if (err.code === 'GUILD_NO_PERMISSION') {
+        return res.status(403).json({ error: 'Only the Guild Master and Officers can invite players.' });
+      }
+      if (err.code === 'GUILD_USER_NOT_FOUND') return res.status(404).json({ error: 'Player not found.' });
+      if (err.code === 'GUILD_ALREADY_IN') return res.status(409).json({ error: 'That player is already in a guild.' });
+      if (err.code === 'GUILD_ALREADY_INVITED') {
+        return res.status(409).json({ error: 'That player is already invited.' });
+      }
+      throw err;
+    }
+  })
+);
+
+// Pending invites for the signed-in player.
+router.get(
+  '/guilds/invites',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    res.json({ invites: await getMyInvites(req.user.username) });
+  })
+);
+
+router.post(
+  '/guilds/invites/accept',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      const result = await acceptGuildInvite(req.user.username, req.body && req.body.inviteId);
+      res.json({ ok: true, guildId: result.guildId });
+    } catch (err) {
+      if (err.code === 'GUILD_NOT_FOUND') return res.status(404).json({ error: 'Invite not found.' });
+      if (err.code === 'GUILD_ALREADY_IN') return res.status(409).json({ error: 'You are already in a guild.' });
+      throw err;
+    }
+  })
+);
+
+router.post(
+  '/guilds/invites/decline',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    try {
+      await declineGuildInvite(req.user.username, req.body && req.body.inviteId);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === 'GUILD_NOT_FOUND') return res.status(404).json({ error: 'Invite not found.' });
+      throw err;
+    }
+  })
+);
+
 router.get(
   '/guilds/mine',
   requireAuth,
   asyncHandler(async (req, res) => {
     const mine = await getMyGuild(req.user.username);
     if (!mine) return res.json({ guild: null, members: [] });
-    const { my_rank: myRank, ...guild } = mine;
+    const { my_rank: myRank, my_credits: myCredits, my_title: myTitle, ...guild } = mine;
     const members = await getGuildRoster(guild.id);
-    res.json({ guild: { ...guild, myRank }, members });
+    const challenges = await getGuildChallenges(guild.id);
+    const unlockedBanners = await getUnlockedBanners(guild.id);
+    const level = Number(guild.level) || 1;
+    res.json({
+      guild: {
+        ...guild,
+        myRank,
+        myName: req.user.username,
+        myCredits: Number(myCredits) || 0,
+        myTitle: myTitle || null,
+        perks: guildPerks(level),
+        xpForNext: xpForGuildLevel(level + 1),
+        unlockedBanners,
+      },
+      members,
+      challenges,
+    });
+  })
+);
+
+// Slim endpoint so the client can apply guild perks at boot without
+// pulling the whole roster.
+router.get(
+  '/guilds/perks',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const mine = await getMyGuild(req.user.username);
+    if (!mine) return res.json({ inGuild: false, perks: null });
+    res.json({ inGuild: true, perks: guildPerks(Number(mine.level) || 1) });
+  })
+);
+
+// Guild level / XP progress (explicit endpoint for the rework spec).
+router.get(
+  '/guilds/xp',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const mine = await getMyGuild(req.user.username);
+    if (!mine) return res.json({ inGuild: false });
+    const level = Number(mine.level) || 1;
+    const xp = Number(mine.xp) || 0;
+    res.json({
+      inGuild: true,
+      level,
+      xp,
+      xpForNext: xpForGuildLevel(level + 1),
+      xpForCurrent: xpForGuildLevel(level),
+      perks: guildPerks(level),
+    });
+  })
+);
+
+// Weekly guild challenges (explicit endpoint for the rework spec).
+router.get(
+  '/guilds/challenges',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const mine = await getMyGuild(req.user.username);
+    if (!mine) return res.json({ inGuild: false, challenges: [] });
+    res.json({ inGuild: true, challenges: await getGuildChallenges(mine.id) });
   })
 );
 
@@ -439,6 +629,227 @@ router.get(
     if (!guild) return res.status(404).json({ error: 'Guild not found.' });
     const members = await getGuildRoster(guild.id);
     res.json({ guild, members });
+  })
+);
+
+// ---------- guild rework endpoints ----------
+
+/** Load the caller's guild + rank; 404 when not in a guild. */
+async function guildContext(req, res) {
+  const mine = await getMyGuild(req.user.username);
+  if (!mine) {
+    res.status(404).json({ error: 'You are not in a guild.' });
+    return null;
+  }
+  const { my_rank: myRank, ...guild } = mine;
+  return { guild, myRank };
+}
+
+function rankAtLeast(rank, need) {
+  return (GUILD_RANKS[rank] || 0) >= (GUILD_RANKS[need] || 0);
+}
+
+// Chat flood protection: 20 messages/min per user.
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: userKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Chatting too fast. Slow down a moment.' },
+});
+
+router.get(
+  '/guilds/chat',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const after = Math.max(0, Math.floor(Number((req.query && req.query.after) || 0)));
+    res.json({ messages: await getGuildChat(ctx.guild.id, after) });
+  })
+);
+
+router.post(
+  '/guilds/chat',
+  requireAuth,
+  chatLimiter,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const raw = req.body && typeof req.body.message === 'string' ? req.body.message.trim() : '';
+    if (!raw) return res.status(400).json({ error: 'Message is empty.' });
+    if (raw.length > 500) return res.status(400).json({ error: 'Message is too long (max 500 characters).' });
+    const msg = await addGuildChat(ctx.guild.id, req.user.username, raw);
+    res.json({ ok: true, message: { id: msg.id, username: req.user.username, message: raw, created_at: msg.created_at } });
+  })
+);
+
+// Officers+ can delete a guild chat message.
+router.delete(
+  '/guilds/chat/:id',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    if (!rankAtLeast(ctx.myRank, 'officer')) {
+      return res.status(403).json({ error: 'Only officers and the Guild Master can delete messages.' });
+    }
+    const id = Math.floor(Number(req.params.id));
+    if (!id || id < 1) return res.status(400).json({ error: 'Bad message id.' });
+    const ok = await deleteGuildChat(ctx.guild.id, id);
+    if (!ok) return res.status(404).json({ error: 'Message not found.' });
+    res.json({ ok: true });
+  })
+);
+
+router.get(
+  '/guilds/news',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    res.json({ news: await getGuildNews(ctx.guild.id) });
+  })
+);
+
+router.post(
+  '/guilds/motd',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    if (!rankAtLeast(ctx.myRank, 'officer')) {
+      return res.status(403).json({ error: 'Only the Guild Master and Officers can set the Message of the Day.' });
+    }
+    const raw = req.body && typeof req.body.motd === 'string' ? req.body.motd.trim() : '';
+    if (raw.length > 200) return res.status(400).json({ error: 'Message of the Day is too long (max 200 characters).' });
+    await setGuildMotd(ctx.guild.id, raw);
+    res.json({ ok: true, motd: raw });
+  })
+);
+
+router.post(
+  '/guilds/description',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    if (!rankAtLeast(ctx.myRank, 'officer')) {
+      return res.status(403).json({ error: 'Only the Guild Master and Officers can edit the description.' });
+    }
+    const raw = req.body && typeof req.body.description === 'string' ? req.body.description.trim() : '';
+    if (raw.length > 500) return res.status(400).json({ error: 'Description is too long (max 500 characters).' });
+    await setGuildDescription(ctx.guild.id, raw);
+    res.json({ ok: true, description: raw });
+  })
+);
+
+router.post(
+  '/guilds/rank',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const target = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : '';
+    const rank = req.body && typeof req.body.rank === 'string' ? req.body.rank.trim().toLowerCase() : '';
+    if (!target) return res.status(400).json({ error: 'Username is required.' });
+    try {
+      const updated = await setMemberRank(ctx.guild.id, req.user.username, target, rank);
+      res.json({ ok: true, member: { username: updated.username, rank: updated.rank } });
+    } catch (err) {
+      if (err.code === 'GUILD_BAD_RANK') return res.status(400).json({ error: 'Invalid rank.' });
+      if (err.code === 'GUILD_SELF') return res.status(400).json({ error: 'You cannot change your own rank.' });
+      if (err.code === 'GUILD_NOT_IN') return res.status(404).json({ error: 'That player is not in your guild.' });
+      if (err.code === 'GUILD_FORBIDDEN') {
+        return res.status(403).json({ error: 'You do not have permission to do that.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.post(
+  '/guilds/kick',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const target = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : '';
+    if (!target) return res.status(400).json({ error: 'Username is required.' });
+    try {
+      await kickGuildMember(ctx.guild.id, req.user.username, target);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === 'GUILD_SELF') return res.status(400).json({ error: 'You cannot kick yourself. Leave instead.' });
+      if (err.code === 'GUILD_NOT_IN') return res.status(404).json({ error: 'That player is not in your guild.' });
+      if (err.code === 'GUILD_FORBIDDEN') {
+        return res.status(403).json({ error: 'You do not have permission to do that.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.get(
+  '/guilds/vendor',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const mine = await getMyGuild(req.user.username);
+    const unlockedBanners = await getUnlockedBanners(ctx.guild.id);
+    res.json({
+      items: GUILD_VENDOR,
+      credits: Number(mine.my_credits) || 0,
+      myTitle: mine.my_title || null,
+      bannerStyle: ctx.guild.banner_style,
+      unlockedBanners,
+      canSetBanner: rankAtLeast(ctx.myRank, 'officer'),
+    });
+  })
+);
+
+router.post(
+  '/guilds/vendor/buy',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const itemId = req.body && typeof req.body.itemId === 'string' ? req.body.itemId : '';
+    try {
+      const result = await buyVendorItem(ctx.guild.id, req.user.username, itemId);
+      res.json({ ok: true, item: result.item });
+    } catch (err) {
+      if (err.code === 'GUILD_ITEM_UNKNOWN') return res.status(400).json({ error: 'Unknown item.' });
+      if (err.code === 'GUILD_NOT_IN') return res.status(404).json({ error: 'You are not in a guild.' });
+      if (err.code === 'GUILD_NO_CREDITS') {
+        return res.status(402).json({ error: 'Not enough guild credits. Contribute guild XP to earn more.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.post(
+  '/guilds/banner',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    if (!rankAtLeast(ctx.myRank, 'officer')) {
+      return res.status(403).json({ error: 'Only the Guild Master and Officers can change the banner.' });
+    }
+    const style = req.body && typeof req.body.style === 'string' ? req.body.style.trim() : '';
+    try {
+      await setGuildBanner(ctx.guild.id, style, req.user.username);
+      res.json({ ok: true, bannerStyle: style });
+    } catch (err) {
+      if (err.code === 'GUILD_LOCKED') {
+        return res.status(400).json({ error: 'That banner is not unlocked yet. Buy it in Rewards.' });
+      }
+      throw err;
+    }
   })
 );
 

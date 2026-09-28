@@ -329,6 +329,431 @@ async function refreshGoldCap() {
   setGoldCap(await getGoldCap());
 }
 
+/** Rank ladder: master > officer > member > initiate. */
+const GUILD_RANKS = { initiate: 1, member: 2, officer: 3, master: 4 };
+const GUILD_RANK_NAMES = ['initiate', 'member', 'officer', 'master'];
+const GUILD_MAX_LEVEL = 20;
+
+/** Cumulative guild XP required to reach `level` (level 1 = 0). */
+function xpForGuildLevel(level) {
+  const L = Math.max(1, Math.floor(level));
+  if (L <= 1) return 0;
+  return 250 * (L - 1) * L;
+}
+
+function guildLevelForXp(xp) {
+  let level = 1;
+  const total = Math.max(0, Math.floor(xp || 0));
+  while (level < GUILD_MAX_LEVEL && total >= xpForGuildLevel(level + 1)) level++;
+  return level;
+}
+
+/**
+ * Perks granted by guild level:
+ * +2% XP per level, +1% gold per level, +1% damage per 2 levels.
+ */
+function guildPerks(level) {
+  const L = Math.max(1, Math.min(GUILD_MAX_LEVEL, Math.floor(level || 1)));
+  return { xpPct: 2 * L, goldPct: L, dmgPct: Math.floor(L / 2) };
+}
+
+/** Perks for a specific guild id (null when guild unknown). */
+async function getGuildPerksFor(guildId) {
+  const { rows } = await pool.query('SELECT level FROM guilds WHERE id = $1', [guildId]);
+  if (!rows.length) return null;
+  return guildPerks(rows[0].level);
+}
+
+/** Monday 00:00 UTC of the week containing `nowMs`. */
+function weekStartMs(nowMs = Date.now()) {
+  const d = new Date(nowMs);
+  const back = (d.getUTCDay() + 6) % 7; // Monday -> 0
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - back);
+}
+
+const CHALLENGE_DEFS = [
+  { kind: 'bosses', name: 'Boss Hunt', desc: 'Slay bosses as a guild', target: 40, emoji: '👹' },
+  { kind: 'kills', name: 'Extermination', desc: 'Slay enemies as a guild', target: 10000, emoji: '⚔️' },
+  { kind: 'quests', name: 'Dutiful', desc: 'Complete quests as a guild', target: 25, emoji: '📜' },
+];
+
+/** Ensure this week's challenge rows exist; returns the week's rows. */
+async function getGuildChallenges(guildId) {
+  const ws = weekStartMs();
+  for (const def of CHALLENGE_DEFS) {
+    await pool.query(
+      `INSERT INTO guild_challenges (guild_id, week_start, kind, target)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (guild_id, week_start, kind) DO NOTHING`,
+      [guildId, ws, def.kind, def.target]
+    );
+  }
+  const { rows } = await pool.query(
+    'SELECT kind, target, progress, completed FROM guild_challenges WHERE guild_id = $1 AND week_start = $2',
+    [guildId, ws]
+  );
+  return rows.map((r) => {
+    const def = CHALLENGE_DEFS.find((d) => d.kind === r.kind) || {};
+    return {
+      kind: r.kind,
+      name: def.name || r.kind,
+      desc: def.desc || '',
+      emoji: def.emoji || '🏰',
+      target: Number(r.target),
+      progress: Number(r.progress),
+      completed: !!r.completed,
+    };
+  });
+}
+
+async function addGuildXp(guildId, amount) {
+  const amt = Math.max(0, Math.floor(amount || 0));
+  if (amt <= 0) return { leveledUp: false, level: 1 };
+  const { rows } = await pool.query(
+    'UPDATE guilds SET xp = xp + $2 WHERE id = $1 RETURNING xp, level',
+    [guildId, amt]
+  );
+  if (!rows.length) return { leveledUp: false, level: 1 };
+  const newLevel = guildLevelForXp(Number(rows[0].xp));
+  const leveledUp = newLevel > Number(rows[0].level);
+  if (leveledUp) {
+    await pool.query('UPDATE guilds SET level = $2 WHERE id = $1', [guildId, newLevel]);
+    await addGuildNews(guildId, 'levelup', `The guild reached level ${newLevel}! New perks unlocked.`);
+  }
+  return { leveledUp, level: newLevel };
+}
+
+/**
+ * Record member activity (from save deltas): awards guild XP, advances
+ * weekly challenges, and grants personal guild credits.
+ * Deltas must already be clamped >= 0 by the caller.
+ */
+async function recordMemberActivity(username, deltas) {
+  const kills = Math.max(0, Math.floor((deltas && deltas.kills) || 0));
+  const bosses = Math.max(0, Math.floor((deltas && deltas.bosses) || 0));
+  const quests = Math.max(0, Math.floor((deltas && deltas.quests) || 0));
+  if (!kills && !bosses && !quests) return;
+  const mem = await pool.query(
+    'SELECT guild_id FROM guild_members WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+  if (!mem.rows.length) return;
+  const guildId = mem.rows[0].guild_id;
+  // Cap per-save contribution so a single inflated save can't spike the guild.
+  const xpGain = Math.min(5000, kills * 1 + bosses * 25 + quests * 10);
+  if (xpGain > 0) {
+    await addGuildXp(guildId, xpGain);
+    await pool.query(
+      'UPDATE guild_members SET credits = credits + $2 WHERE guild_id = $1 AND LOWER(username) = LOWER($3)',
+      [guildId, Math.floor(xpGain / 10), username]
+    );
+  }
+  // Weekly challenges.
+  const ws = weekStartMs();
+  await getGuildChallenges(guildId); // ensure rows exist
+  const inc = { bosses, kills, quests };
+  for (const [kind, amount] of Object.entries(inc)) {
+    if (amount <= 0) continue;
+    const { rows } = await pool.query(
+      `UPDATE guild_challenges SET progress = progress + $4
+       WHERE guild_id = $1 AND week_start = $2 AND kind = $3 AND completed = FALSE
+       RETURNING progress, target`,
+      [guildId, ws, kind, amount]
+    );
+    if (rows.length && Number(rows[0].progress) >= Number(rows[0].target)) {
+      await pool.query(
+        'UPDATE guild_challenges SET completed = TRUE, progress = target WHERE guild_id = $1 AND week_start = $2 AND kind = $3',
+        [guildId, ws, kind]
+      );
+      const def = CHALLENGE_DEFS.find((d) => d.kind === kind);
+      await addGuildNews(guildId, 'challenge', `Weekly challenge complete: ${def ? def.name : kind}! The guild earned bonus XP.`);
+      await addGuildXp(guildId, 500);
+    }
+  }
+}
+
+function guildError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
+
+/**
+ * Create a guild and make the creator its leader.
+ * Throws errors with .code: GUILD_NAME_TAKEN | GUILD_ALREADY_IN
+ */
+async function createGuild(name, tag, ownerUsername) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const inGuild = await client.query(
+      'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
+      [ownerUsername]
+    );
+    if (inGuild.rows.length > 0) throw guildError('GUILD_ALREADY_IN');
+    const taken = await client.query(
+      'SELECT 1 FROM guilds WHERE LOWER(name) = LOWER($1)',
+      [name]
+    );
+    if (taken.rows.length > 0) throw guildError('GUILD_NAME_TAKEN');
+    const { rows } = await client.query(
+      'INSERT INTO guilds (name, tag, owner_username) VALUES ($1, $2, $3) RETURNING *',
+      [name, tag, ownerUsername]
+    );
+    await client.query(
+      "INSERT INTO guild_members (guild_id, username, rank) VALUES ($1, $2, 'master')",
+      [rows[0].id, ownerUsername]
+    );
+    await client.query('COMMIT');
+    await addGuildNews(rows[0].id, 'join', `${ownerUsername} founded the guild.`);
+    return rows[0];
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors; the original error is what matters
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function getGuildByName(name) {
+  const { rows } = await pool.query(
+    'SELECT * FROM guilds WHERE LOWER(name) = LOWER($1)',
+    [name]
+  );
+  return rows[0] || null;
+}
+
+/** The guild a player belongs to, with their rank as my_rank. Null if none. */
+async function getMyGuild(username) {
+  const { rows } = await pool.query(
+    `SELECT g.*, m.rank AS my_rank, m.credits AS my_credits, m.title AS my_title
+     FROM guild_members m
+     JOIN guilds g ON g.id = m.guild_id
+     WHERE LOWER(m.username) = LOWER($1)`,
+    [username]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Roster ordered by rank (highest first) then join date. Includes level,
+ * stage, class/spec, and last-active timestamp for online status.
+ */
+async function getGuildRoster(guildId) {
+  const { rows } = await pool.query(
+    `SELECT m.username, m.rank, m.joined_at, m.credits, m.title,
+            ps.level, ps.stage, ps.updated_at AS last_active, ps.state_json
+     FROM guild_members m
+     LEFT JOIN users u ON LOWER(u.username) = LOWER(m.username)
+     LEFT JOIN player_state ps ON ps.user_id = u.id
+     WHERE m.guild_id = $1
+     ORDER BY
+       CASE m.rank WHEN 'master' THEN 0 WHEN 'officer' THEN 1 WHEN 'member' THEN 2 ELSE 3 END,
+       m.joined_at ASC`,
+    [guildId]
+  );
+  return rows.map((r) => {
+    let playerClass = null;
+    let spec = null;
+    if (r.state_json) {
+      try {
+        const s = JSON.parse(r.state_json);
+        playerClass = s.playerClass || null;
+        spec = s.spec || null;
+      } catch { /* ignore corrupt blob */ }
+    }
+    return {
+      username: r.username,
+      rank: r.rank,
+      joined_at: r.joined_at,
+      title: r.title || null,
+      level: r.level == null ? null : Number(r.level),
+      stage: r.stage == null ? null : Number(r.stage),
+      playerClass,
+      spec,
+      lastActive: r.last_active == null ? null : Number(r.last_active),
+    };
+  });
+}
+
+/** Throws errors with .code: GUILD_ALREADY_IN */
+async function joinGuild(guildId, username) {
+  const inGuild = await pool.query(
+    'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+  if (inGuild.rows.length > 0) throw guildError('GUILD_ALREADY_IN');
+  await pool.query(
+    "INSERT INTO guild_members (guild_id, username, rank) VALUES ($1, $2, 'initiate')",
+    [guildId, username]
+  );
+  await addGuildNews(guildId, 'join', `${username} joined the guild.`);
+}
+
+/**
+ * Leave the current guild. If the master leaves and members remain, the
+ * earliest-joined remaining member is promoted to master. If the last
+ * member leaves, the guild is deleted.
+ * Throws errors with .code: GUILD_NOT_IN
+ * Returns { guildDeleted, guildName }.
+ */
+/**
+ * Invite a player to the inviter's guild. The inviter must be an officer or
+ * the guild master. The target must be a registered user who is not already
+ * in a guild and has no pending invite to this guild.
+ * Throws errors with .code: GUILD_NOT_IN | GUILD_NO_PERMISSION |
+ * GUILD_USER_NOT_FOUND | GUILD_ALREADY_IN | GUILD_ALREADY_INVITED
+ * Returns the invite row.
+ */
+async function inviteToGuild(inviterUsername, targetUsername) {
+  const clean = String(targetUsername || '').trim();
+  if (!clean) throw guildError('GUILD_USER_NOT_FOUND');
+  const inviter = await getMyGuild(inviterUsername);
+  if (!inviter) throw guildError('GUILD_NOT_IN');
+  const inviterRank = (GUILD_RANKS[inviter.my_rank] || 0);
+  if (inviterRank < GUILD_RANKS.officer) throw guildError('GUILD_NO_PERMISSION');
+  const target = await getUserByUsername(clean);
+  if (!target) throw guildError('GUILD_USER_NOT_FOUND');
+  if (String(target.username).toLowerCase() === String(inviterUsername).toLowerCase()) {
+    throw guildError('GUILD_USER_NOT_FOUND');
+  }
+  const already = await pool.query(
+    'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
+    [target.username]
+  );
+  if (already.rows.length > 0) throw guildError('GUILD_ALREADY_IN');
+  const dup = await pool.query(
+    'SELECT 1 FROM guild_invites WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
+    [inviter.id, target.username]
+  );
+  if (dup.rows.length > 0) throw guildError('GUILD_ALREADY_INVITED');
+  const res = await pool.query(
+    'INSERT INTO guild_invites (guild_id, username, invited_by, created_at) VALUES ($1, $2, $3, $4) RETURNING id',
+    [inviter.id, target.username, inviterUsername, Date.now()]
+  );
+  return { id: res.rows[0].id, guildId: inviter.id, guildName: inviter.name };
+}
+
+/** Pending invites for a username (guild name + inviter included). */
+async function getMyInvites(username) {
+  const res = await pool.query(
+    `SELECT i.id, i.guild_id, i.invited_by, i.created_at, g.name AS guild_name
+     FROM guild_invites i JOIN guilds g ON g.id = i.guild_id
+     WHERE LOWER(i.username) = LOWER($1) ORDER BY i.id DESC`,
+    [username]
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    guildId: r.guild_id,
+    guildName: r.guild_name,
+    invitedBy: r.invited_by,
+    createdAt: Number(r.created_at),
+  }));
+}
+
+/**
+ * Accept a pending invite: joins the guild as initiate (via joinGuild, so
+ * the join news entry is written) and clears all of the user's invites.
+ * Throws GUILD_NOT_FOUND when the invite doesn't belong to the user.
+ */
+async function acceptGuildInvite(username, inviteId) {
+  const res = await pool.query(
+    'SELECT guild_id FROM guild_invites WHERE id = $1 AND LOWER(username) = LOWER($2)',
+    [inviteId, username]
+  );
+  if (res.rows.length === 0) throw guildError('GUILD_NOT_FOUND');
+  await joinGuild(res.rows[0].guild_id, username);
+  await pool.query('DELETE FROM guild_invites WHERE LOWER(username) = LOWER($1)', [username]);
+  return { guildId: res.rows[0].guild_id };
+}
+
+/** Decline a pending invite. Throws GUILD_NOT_FOUND when not owned by user. */
+async function declineGuildInvite(username, inviteId) {
+  const res = await pool.query(
+    'DELETE FROM guild_invites WHERE id = $1 AND LOWER(username) = LOWER($2)',
+    [inviteId, username]
+  );
+  if (res.rowCount === 0) throw guildError('GUILD_NOT_FOUND');
+  return { ok: true };
+}
+
+async function leaveGuild(username) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `SELECT m.guild_id, m.rank, g.name
+       FROM guild_members m
+       JOIN guilds g ON g.id = m.guild_id
+       WHERE LOWER(m.username) = LOWER($1)`,
+      [username]
+    );
+    const mem = rows[0] || null;
+    if (!mem) throw guildError('GUILD_NOT_IN');
+    const others = await client.query(
+      'SELECT username FROM guild_members WHERE guild_id = $1 AND LOWER(username) <> LOWER($2) ORDER BY joined_at ASC',
+      [mem.guild_id, username]
+    );
+    await client.query(
+      'DELETE FROM guild_members WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
+      [mem.guild_id, username]
+    );
+    let guildDeleted = false;
+    if (others.rows.length === 0) {
+      await client.query('DELETE FROM guilds WHERE id = $1', [mem.guild_id]);
+      guildDeleted = true;
+    } else if (mem.rank === 'master') {
+      await client.query(
+        "UPDATE guild_members SET rank = 'master' WHERE guild_id = $1 AND LOWER(username) = LOWER($2)",
+        [mem.guild_id, others.rows[0].username]
+      );
+      await addGuildNews(mem.guild_id, 'promote', `${others.rows[0].username} has become the new Guild Master.`, client);
+    } else {
+      await addGuildNews(mem.guild_id, 'leave', `${username} left the guild.`, client);
+    }
+    await client.query('COMMIT');
+    return { guildDeleted, guildName: mem.name };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors; the original error is what matters
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function isInGuild(username) {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
+    [username]
+  );
+  return rows.length > 0;
+}
+
+// ============================================================
+// Guild rework (2026-09-28): ranks, chat, news, XP/levels,
+// perks, challenges, vendor.
+// ============================================================
+
+// ---------- credits / vendor ----------
+// Cosmetic-only vendor. Credits are earned by contributing guild XP.
+const GUILD_VENDOR = [
+  { id: 'banner-goldflare', kind: 'banner', name: 'Goldflare Banner', desc: 'Radiant golden guild banner', cost: 250, emoji: '🌟' },
+  { id: 'banner-bloodmoon', kind: 'banner', name: 'Bloodmoon Banner', desc: 'Crimson moonlit banner', cost: 500, emoji: '🌑' },
+  { id: 'banner-frostbound', kind: 'banner', name: 'Frostbound Banner', desc: 'Icy blue banner of the north', cost: 500, emoji: '❄️' },
+  { id: 'banner-voidveil', kind: 'banner', name: 'Voidveil Banner', desc: 'Banner woven from the void itself', cost: 1000, emoji: '🌀' },
+  { id: 'title-loyal', kind: 'title', name: 'the Loyal', desc: 'Title shown beside your name in the roster', cost: 300, emoji: '🎖️' },
+  { id: 'title-champion', kind: 'title', name: 'Guild Champion', desc: 'Title shown beside your name in the roster', cost: 800, emoji: '🏆' },
+  { id: 'title-bane', kind: 'title', name: 'Bane of Shadows', desc: 'Title shown beside your name in the roster', cost: 1500, emoji: '👑' },
+];
+
 module.exports = {
   pool,
   buildPoolConfig,
@@ -366,153 +791,237 @@ module.exports = {
   joinGuild,
   leaveGuild,
   isInGuild,
+  // guild rework
+  GUILD_RANKS,
+  guildPerks,
+  xpForGuildLevel,
+  guildLevelForXp,
+  setMemberRank,
+  kickGuildMember,
+  setGuildMotd,
+  setGuildDescription,
+  unlockGuildBanner,
+  setGuildBanner,
+  addGuildChat,
+  getGuildChat,
+  deleteGuildChat,
+  addGuildNews,
+  getGuildNews,
+  getGuildChallenges,
+  recordMemberActivity,
+  addMemberCredits,
+  setMemberTitle,
+  buyVendorItem,
+  GUILD_VENDOR,
+  getGuildPerksFor,
+  getUnlockedBanners,
+  inviteToGuild,
+  getMyInvites,
+  acceptGuildInvite,
+  declineGuildInvite,
 };
 
 // ---------- guilds ----------
-function guildError(code) {
-  const err = new Error(code);
-  err.code = code;
-  return err;
-}
-
-/**
- * Create a guild and make the creator its leader.
- * Throws errors with .code: GUILD_NAME_TAKEN | GUILD_ALREADY_IN
- */
-async function createGuild(name, tag, ownerUsername) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const inGuild = await client.query(
-      'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
-      [ownerUsername]
-    );
-    if (inGuild.rows.length > 0) throw guildError('GUILD_ALREADY_IN');
-    const taken = await client.query(
-      'SELECT 1 FROM guilds WHERE LOWER(name) = LOWER($1)',
-      [name]
-    );
-    if (taken.rows.length > 0) throw guildError('GUILD_NAME_TAKEN');
-    const { rows } = await client.query(
-      'INSERT INTO guilds (name, tag, owner_username) VALUES ($1, $2, $3) RETURNING *',
-      [name, tag, ownerUsername]
-    );
-    await client.query(
-      "INSERT INTO guild_members (guild_id, username, rank) VALUES ($1, $2, 'leader')",
-      [rows[0].id, ownerUsername]
-    );
-    await client.query('COMMIT');
-    return rows[0];
-  } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      // ignore rollback errors; the original error is what matters
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-async function getGuildByName(name) {
+// ---------- chat ----------
+async function addGuildChat(guildId, username, message) {
   const { rows } = await pool.query(
-    'SELECT * FROM guilds WHERE LOWER(name) = LOWER($1)',
-    [name]
+    'INSERT INTO guild_chat (guild_id, username, message, created_at) VALUES ($1, $2, $3, $4) RETURNING id, created_at',
+    [guildId, username, message, Date.now()]
   );
-  return rows[0] || null;
-}
-
-/** The guild a player belongs to, with their rank as my_rank. Null if none. */
-async function getMyGuild(username) {
-  const { rows } = await pool.query(
-    `SELECT g.*, m.rank AS my_rank
-     FROM guild_members m
-     JOIN guilds g ON g.id = m.guild_id
-     WHERE LOWER(m.username) = LOWER($1)`,
-    [username]
-  );
-  return rows[0] || null;
-}
-
-/** Roster ordered by join date (earliest first). */
-async function getGuildRoster(guildId) {
-  const { rows } = await pool.query(
-    'SELECT username, rank, joined_at FROM guild_members WHERE guild_id = $1 ORDER BY joined_at ASC',
+  // Prune to the newest 100 messages per guild.
+  await pool.query(
+    `DELETE FROM guild_chat WHERE guild_id = $1 AND id NOT IN
+     (SELECT id FROM guild_chat WHERE guild_id = $1 ORDER BY id DESC LIMIT 100)`,
     [guildId]
+  );
+  return rows[0];
+}
+
+/** Delete one chat message in a guild. Returns true when a row was removed. */
+async function deleteGuildChat(guildId, messageId) {
+  const { rowCount } = await pool.query(
+    'DELETE FROM guild_chat WHERE guild_id = $1 AND id = $2',
+    [guildId, messageId]
+  );
+  return rowCount > 0;
+}
+
+async function getGuildChat(guildId, afterId = 0, limit = 100) {
+  const { rows } = await pool.query(
+    `SELECT id, username, message, created_at FROM guild_chat
+     WHERE guild_id = $1 AND id > $2 ORDER BY id ASC LIMIT $3`,
+    [guildId, Math.max(0, Math.floor(afterId || 0)), Math.min(100, Math.max(1, limit || 100))]
   );
   return rows;
 }
 
-/** Throws errors with .code: GUILD_ALREADY_IN */
-async function joinGuild(guildId, username) {
-  const inGuild = await pool.query(
-    'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
-    [username]
+// ---------- news ----------
+async function addGuildNews(guildId, kind, text, q) {
+  const db = q || pool;
+  await db.query(
+    'INSERT INTO guild_news (guild_id, kind, text, created_at) VALUES ($1, $2, $3, $4)',
+    [guildId, kind, text, Date.now()]
   );
-  if (inGuild.rows.length > 0) throw guildError('GUILD_ALREADY_IN');
-  await pool.query(
-    "INSERT INTO guild_members (guild_id, username, rank) VALUES ($1, $2, 'member')",
+  await db.query(
+    `DELETE FROM guild_news WHERE guild_id = $1 AND id NOT IN
+     (SELECT id FROM guild_news WHERE guild_id = $1 ORDER BY id DESC LIMIT 100)`,
+    [guildId]
+  );
+}
+
+async function getGuildNews(guildId, limit = 50) {
+  const { rows } = await pool.query(
+    `SELECT id, kind, text, created_at FROM guild_news
+     WHERE guild_id = $1 ORDER BY id DESC LIMIT $2`,
+    [guildId, Math.min(100, Math.max(1, limit || 50))]
+  );
+  return rows;
+}
+
+// ---------- rank management (server-enforced hierarchy) ----------
+async function getMembership(guildId, username, q) {
+  const db = q || pool;
+  const { rows } = await db.query(
+    'SELECT username, rank FROM guild_members WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
     [guildId, username]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Change a member's rank. Throws .code: GUILD_NOT_IN | GUILD_BAD_RANK |
+ * GUILD_FORBIDDEN | GUILD_SELF.
+ */
+async function setMemberRank(guildId, actorUsername, targetUsername, newRank) {
+  if (!GUILD_RANK_NAMES.includes(newRank) || newRank === 'master') {
+    throw guildError('GUILD_BAD_RANK');
+  }
+  if (String(actorUsername).toLowerCase() === String(targetUsername).toLowerCase()) {
+    throw guildError('GUILD_SELF');
+  }
+  const actor = await getMembership(guildId, actorUsername);
+  if (!actor || GUILD_RANKS[actor.rank] < GUILD_RANKS.officer) throw guildError('GUILD_FORBIDDEN');
+  const target = await getMembership(guildId, targetUsername);
+  if (!target) throw guildError('GUILD_NOT_IN');
+  const aLvl = GUILD_RANKS[actor.rank];
+  const tLvl = GUILD_RANKS[target.rank];
+  const nLvl = GUILD_RANKS[newRank];
+  // You can only manage members strictly below you, and the new rank must
+  // also be strictly below you (officers: only initiate <-> member).
+  if (tLvl >= aLvl || nLvl >= aLvl) throw guildError('GUILD_FORBIDDEN');
+  if (target.rank === newRank) return target;
+  await pool.query(
+    'UPDATE guild_members SET rank = $3 WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
+    [guildId, targetUsername, newRank]
+  );
+  const verb = nLvl > tLvl ? 'promoted' : 'demoted';
+  await addGuildNews(guildId, nLvl > tLvl ? 'promote' : 'demote',
+    `${target.username} was ${verb} to ${rankLabel(newRank)} by ${actor.username}.`);
+  return { ...target, rank: newRank };
+}
+
+function rankLabel(rank) {
+  return { master: 'Guild Master', officer: 'Officer', member: 'Member', initiate: 'Initiate' }[rank] || rank;
+}
+
+/** Remove a member. Master/officer only; target must rank below the actor. */
+async function kickGuildMember(guildId, actorUsername, targetUsername) {
+  if (String(actorUsername).toLowerCase() === String(targetUsername).toLowerCase()) {
+    throw guildError('GUILD_SELF');
+  }
+  const actor = await getMembership(guildId, actorUsername);
+  if (!actor || GUILD_RANKS[actor.rank] < GUILD_RANKS.officer) throw guildError('GUILD_FORBIDDEN');
+  const target = await getMembership(guildId, targetUsername);
+  if (!target) throw guildError('GUILD_NOT_IN');
+  if (GUILD_RANKS[target.rank] >= GUILD_RANKS[actor.rank]) throw guildError('GUILD_FORBIDDEN');
+  await pool.query(
+    'DELETE FROM guild_members WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
+    [guildId, targetUsername]
+  );
+  await addGuildNews(guildId, 'kick', `${target.username} was removed from the guild by ${actor.username}.`);
+  return { ok: true };
+}
+
+// ---------- motd / description / banner ----------
+async function setGuildMotd(guildId, motd) {
+  await pool.query('UPDATE guilds SET motd = $2 WHERE id = $1', [guildId, motd]);
+  await addGuildNews(guildId, 'motd', 'The Message of the Day was updated.');
+}
+
+async function setGuildDescription(guildId, description) {
+  await pool.query('UPDATE guilds SET description = $2 WHERE id = $1', [guildId, description]);
+}
+
+function parseBanners(json) {
+  try {
+    const a = JSON.parse(json);
+    return Array.isArray(a) ? a.filter((x) => typeof x === 'string') : ['shadow'];
+  } catch {
+    return ['shadow'];
+  }
+}
+
+async function getUnlockedBanners(guildId) {
+  const { rows } = await pool.query('SELECT unlocked_banners FROM guilds WHERE id = $1', [guildId]);
+  if (!rows.length) return ['shadow'];
+  return parseBanners(rows[0].unlocked_banners);
+}
+
+async function unlockGuildBanner(guildId, style) {
+  const unlocked = await getUnlockedBanners(guildId);
+  if (!unlocked.includes(style)) {
+    unlocked.push(style);
+    await pool.query('UPDATE guilds SET unlocked_banners = $2 WHERE id = $1', [guildId, JSON.stringify(unlocked)]);
+  }
+  return unlocked;
+}
+
+async function setGuildBanner(guildId, style, actorUsername) {
+  const unlocked = await getUnlockedBanners(guildId);
+  if (!unlocked.includes(style)) throw guildError('GUILD_LOCKED');
+  await pool.query('UPDATE guilds SET banner_style = $2 WHERE id = $1', [guildId, style]);
+  await addGuildNews(guildId, 'banner', `${actorUsername} raised the ${style} banner.`);
+}
+
+
+
+async function addMemberCredits(username, amount) {
+  await pool.query(
+    'UPDATE guild_members SET credits = credits + $2 WHERE LOWER(username) = LOWER($1)',
+    [username, Math.max(0, Math.floor(amount || 0))]
+  );
+}
+
+async function setMemberTitle(username, title) {
+  await pool.query(
+    'UPDATE guild_members SET title = $2 WHERE LOWER(username) = LOWER($1)',
+    [username, title]
   );
 }
 
 /**
- * Leave the current guild. If the leader leaves and members remain, the
- * earliest-joined remaining member is promoted to leader. If the last
- * member leaves, the guild is deleted.
- * Throws errors with .code: GUILD_NOT_IN
- * Returns { guildDeleted, guildName }.
+ * Buy a vendor item with guild credits. Throws .code: GUILD_NOT_IN |
+ * GUILD_ITEM_UNKNOWN | GUILD_NO_CREDITS.
  */
-async function leaveGuild(username) {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const { rows } = await client.query(
-      `SELECT m.guild_id, m.rank, g.name
-       FROM guild_members m
-       JOIN guilds g ON g.id = m.guild_id
-       WHERE LOWER(m.username) = LOWER($1)`,
-      [username]
-    );
-    const mem = rows[0] || null;
-    if (!mem) throw guildError('GUILD_NOT_IN');
-    const others = await client.query(
-      'SELECT username FROM guild_members WHERE guild_id = $1 AND LOWER(username) <> LOWER($2) ORDER BY joined_at ASC',
-      [mem.guild_id, username]
-    );
-    await client.query(
-      'DELETE FROM guild_members WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
-      [mem.guild_id, username]
-    );
-    let guildDeleted = false;
-    if (others.rows.length === 0) {
-      await client.query('DELETE FROM guilds WHERE id = $1', [mem.guild_id]);
-      guildDeleted = true;
-    } else if (mem.rank === 'leader') {
-      await client.query(
-        "UPDATE guild_members SET rank = 'leader' WHERE guild_id = $1 AND LOWER(username) = LOWER($2)",
-        [mem.guild_id, others.rows[0].username]
-      );
-    }
-    await client.query('COMMIT');
-    return { guildDeleted, guildName: mem.name };
-  } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      // ignore rollback errors; the original error is what matters
-    }
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-async function isInGuild(username) {
+async function buyVendorItem(guildId, username, itemId) {
+  const item = GUILD_VENDOR.find((i) => i.id === itemId);
+  if (!item) throw guildError('GUILD_ITEM_UNKNOWN');
+  const mem = await getMembership(guildId, username);
+  if (!mem) throw guildError('GUILD_NOT_IN');
   const { rows } = await pool.query(
-    'SELECT 1 FROM guild_members WHERE LOWER(username) = LOWER($1)',
-    [username]
+    'SELECT credits FROM guild_members WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
+    [guildId, username]
   );
-  return rows.length > 0;
+  const credits = rows.length ? Number(rows[0].credits) : 0;
+  if (credits < item.cost) throw guildError('GUILD_NO_CREDITS');
+  await pool.query(
+    'UPDATE guild_members SET credits = credits - $3 WHERE guild_id = $1 AND LOWER(username) = LOWER($2)',
+    [guildId, username, item.cost]
+  );
+  if (item.kind === 'banner') {
+    await unlockGuildBanner(guildId, item.id.replace('banner-', ''));
+  } else if (item.kind === 'title') {
+    await setMemberTitle(username, item.name);
+  }
+  return { ok: true, item };
 }
