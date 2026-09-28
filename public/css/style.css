@@ -2125,7 +2125,10 @@ body[data-bgstyle="void-tide"] #bg-canvas,
 body[data-bgstyle="throne-storm"] #bg-canvas,
 body[data-bgstyle="inferno-flare"] #bg-canvas,
 body[data-bgstyle="cinder-storm"] #bg-canvas,
-body[data-bgstyle="phoenix-ash"] #bg-canvas { display: block; }
+body[data-bgstyle="phoenix-ash"] #bg-canvas,
+body[data-bgstyle="frostfall"] #bg-canvas,
+body[data-bgstyle="starfall"] #bg-canvas,
+body[data-bgstyle="bloodmoon"] #bg-canvas { display: block; }
 body[data-bgstyle="shadow-eyes"] { --bg: #050308; background-image: none; }
 body[data-bgstyle="orbs"] { --bg: #0a0812; background-image: none; }
 body[data-bgstyle="ember-drift"] { --bg: #0d0505; background-image: none; }
@@ -2134,6 +2137,9 @@ body[data-bgstyle="throne-storm"] { --bg: #080304; background-image: none; }
 body[data-bgstyle="inferno-flare"] { --bg: #0d0503; background-image: none; }
 body[data-bgstyle="cinder-storm"] { --bg: #0c0603; background-image: none; }
 body[data-bgstyle="phoenix-ash"] { --bg: #0d0a04; background-image: none; }
+body[data-bgstyle="frostfall"] { --bg: #0a1420; background-image: none; }
+body[data-bgstyle="starfall"] { --bg: #080514; background-image: none; }
+body[data-bgstyle="bloodmoon"] { --bg: #12060a; background-image: none; }
 body[data-bgstyle="shadow-eyes"]::before, body[data-bgstyle="shadow-eyes"]::after,
 body[data-bgstyle="orbs"]::before, body[data-bgstyle="orbs"]::after,
 body[data-bgstyle="ember-drift"]::before, body[data-bgstyle="ember-drift"]::after,
@@ -2141,7 +2147,10 @@ body[data-bgstyle="void-tide"]::before, body[data-bgstyle="void-tide"]::after,
 body[data-bgstyle="throne-storm"]::before, body[data-bgstyle="throne-storm"]::after,
 body[data-bgstyle="inferno-flare"]::before, body[data-bgstyle="inferno-flare"]::after,
 body[data-bgstyle="cinder-storm"]::before, body[data-bgstyle="cinder-storm"]::after,
-body[data-bgstyle="phoenix-ash"]::before, body[data-bgstyle="phoenix-ash"]::after {
+body[data-bgstyle="phoenix-ash"]::before, body[data-bgstyle="phoenix-ash"]::after,
+body[data-bgstyle="frostfall"]::before, body[data-bgstyle="frostfall"]::after,
+body[data-bgstyle="starfall"]::before, body[data-bgstyle="starfall"]::after,
+body[data-bgstyle="bloodmoon"]::before, body[data-bgstyle="bloodmoon"]::after {
   display: none;
 }
 /* Scene option controls (Settings → Background) */
