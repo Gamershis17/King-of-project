@@ -122,9 +122,10 @@ export const UI = {
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
-      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'lb-filters', 'profile-card',
+      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
       'stats-card', 'titles-list',
       'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
+      'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
@@ -295,17 +296,58 @@ export const UI = {
       this.handlers.onRanksCategory && this.handlers.onRanksCategory(btn.dataset.lbcat);
     });
 
-    // Ranks: ranking pills + All/Friends filter (delegated, null-safe).
+    // Ranks: ranking pills (delegated, null-safe).
     // Ranking pills use data-by so they never collide with the Heroes/Guilds pills above.
     listen('lb-cats', 'click', (e) => {
       const btn = e.target && e.target.closest ? e.target.closest('button[data-by]') : null;
       if (!btn || !btn.dataset || !btn.dataset.by) return;
       this.setLbCategory(btn.dataset.by);
     });
-    listen('lb-filters', 'click', (e) => {
-      const btn = e.target && e.target.closest ? e.target.closest('button.lb-filter') : null;
-      if (!btn || !btn.dataset || !btn.dataset.filter) return;
-      this.setLbFilter(btn.dataset.filter);
+
+    });
+
+    // Ranks: leaderboard rows are clickable → player inspect
+    listen('lb-body', 'click', (e) => {
+      const row = e.target.closest('.lb-row[data-username]');
+      if (!row || !row.dataset.username) return;
+      this.handlers.onInspect && this.handlers.onInspect(row.dataset.username);
+    });
+
+    // Ranks sub-tabs (Board / Friends)
+    listen('ranks-subtabs', 'click', (e) => {
+      const btn = e.target.closest('button[data-subtab]');
+      if (!btn) return;
+      this.handlers.onRanksSubtab && this.handlers.onRanksSubtab(btn.dataset.subtab);
+    });
+
+    // Friends panel: delegated friend actions
+    listen('friends-panel', 'click', (e) => {
+      const btn = e.target.closest('button[data-friend]');
+      if (!btn || btn.disabled) return;
+      const h = this.handlers;
+      const action = btn.dataset.friend;
+      const uname = btn.dataset.username;
+      if (action === 'send') {
+        const input = document.getElementById('friend-add-input');
+        const name = input ? input.value.trim() : '';
+        if (!name) { this.toast('Type a username first.', 'info'); return; }
+        h.onFriendSend && h.onFriendSend(name);
+      }
+      else if (action === 'accept' && uname && h.onFriendAccept) h.onFriendAccept(uname);
+      else if (action === 'decline' && uname && h.onFriendDecline) h.onFriendDecline(uname);
+      else if (action === 'cancel' && uname && h.onFriendRemove) h.onFriendRemove(uname);
+      else if (action === 'inspect' && uname && h.onInspect) h.onInspect(uname);
+      else if (action === 'compare' && uname && h.onInspectCompare) h.onInspectCompare(uname);
+      else if (action === 'remove' && uname && h.onFriendRemove) h.onFriendRemove(uname);
+      else if (action === 'upgrade' && h.onUpgradeAccount) h.onUpgradeAccount();
+    });
+    // Enter key in the add-friend box sends the request.
+    listen('friends-panel', 'keydown', (e) => {
+      if (e.target && e.target.id === 'friend-add-input' && e.key === 'Enter') {
+        const name = e.target.value.trim();
+        if (!name) return;
+        this.handlers.onFriendSend && this.handlers.onFriendSend(name);
+      }
     });
 
     // Settings tab: delegated talent / profession buttons
@@ -614,12 +656,12 @@ export const UI = {
 
   // ---------------- modals ----------------
   // buttons: [{label, cls, onClick(close)}]; returns close fn.
-  modal({ title, html, buttons, dismissable = true, onClose = null }) {
+  modal({ title, html, buttons, dismissable = true, wide = false, onClose = null }) {
     const root = this.els['modal-root'];
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal${wide ? ' modal-wide' : ''}" role="dialog" aria-modal="true">
         <h2 class="modal-title">${esc(title)}</h2>
         <div class="modal-body">${html}</div>
         <div class="modal-actions"></div>
@@ -2363,27 +2405,12 @@ export const UI = {
     rebirths: { emoji: '🌀', label: 'Rebirths', fmt: (en) => (en.rebirth > 0 ? en.rebirth : '—') },
   },
   lbCategory: 'level',
-  lbFilter: 'all',
 
   setLbCategory(by) {
     if (!this.LB_CATS[by]) return;
     this.lbCategory = by;
     $$('#lb-cats button[data-by]').forEach(b => b.classList.toggle('active', b.dataset.by === by));
-    if (this.lbFilter === 'friends') { this.renderFriendsSoon(); return; }
     if (this.handlers.onLbCategory) this.handlers.onLbCategory(by);
-  },
-
-  setLbFilter(f) {
-    this.lbFilter = f;
-    $$('#lb-filters .lb-filter').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
-    if (f === 'friends') { this.renderFriendsSoon(); return; }
-    if (this.handlers.onLbFilter) this.handlers.onLbFilter();
-  },
-
-  renderFriendsSoon() {
-    const body = this.els['lb-body'];
-    if (!body) return;
-    body.innerHTML = '<div class="lb-empty muted center">👥 Friend rankings are coming soon.<br>The friends system isn\'t live yet — check back later!</div>';
   },
 
   renderRanks(entries, meUsername, by) {
@@ -2401,7 +2428,9 @@ export const UI = {
     const medals = ['🥇', '🥈', '🥉'];
     entries.forEach((en, i) => {
       const row = document.createElement('div');
-      row.className = 'lb-row' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      row.className = 'lb-row lb-clickable' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      row.dataset.username = en.username || '';
+      row.title = 'Inspect ' + (en.username || '');
       const isMe = en.username === meUsername;
       if (isMe) row.classList.add('me-row');
       const race = Engine.RACES[en.race] || {};
@@ -2475,6 +2504,293 @@ export const UI = {
   },
 
   // ---------------- settings ----------------
+
+  // ---------------- friends ----------------
+  // Ranks sub-tab: friends list, requests, and the add-by-username box.
+  // `data` is the /api/friends payload (or null while loading); `isGuest`
+  // shows the account-upgrade prompt instead.
+  renderFriends(data, isGuest) {
+    const panel = this.els['friends-panel'];
+    if (!panel) return;
+    if (isGuest) {
+      panel.innerHTML = `
+        <div class="card friends-guest">
+          <h3>👥 Friends</h3>
+          <p class="muted">Friends need an account — your progress carries over.</p>
+          <button class="btn gold" data-friend="upgrade">✨ Create free account</button>
+        </div>`;
+      return;
+    }
+    if (!data) {
+      panel.innerHTML = '<div class="muted center">Loading friends…</div>';
+      return;
+    }
+    const onlineDot = (on) => `<span class="online-dot${on ? ' on' : ''}" title="${on ? 'Online' : 'Offline'}"></span>`;
+    const incoming = (data.incoming || []).map((u) => `
+      <div class="friend-row req">
+        ${onlineDot(false)}
+        <span class="friend-name">${esc(u)}</span>
+        <span class="muted small">wants to be friends</span>
+        <span class="friend-actions">
+          <button class="btn small gold" data-friend="accept" data-username="${esc(u)}">✓ Accept</button>
+          <button class="btn small ghost" data-friend="decline" data-username="${esc(u)}">✕</button>
+        </span>
+      </div>`).join('');
+    const outgoing = (data.outgoing || []).map((u) => `
+      <div class="friend-row req">
+        ${onlineDot(false)}
+        <span class="friend-name">${esc(u)}</span>
+        <span class="muted small">request sent</span>
+        <span class="friend-actions">
+          <button class="btn small ghost" data-friend="cancel" data-username="${esc(u)}">Cancel</button>
+        </span>
+      </div>`).join('');
+    const friends = (data.friends || []).map((f) => {
+      const cls = f.playerClass && UI_CLASS_EMOJI[f.playerClass] ? UI_CLASS_EMOJI[f.playerClass] + ' ' : '';
+      return `
+      <div class="friend-row" data-username="${esc(f.username)}">
+        ${onlineDot(!!f.online)}
+        <span class="friend-name">${cls}${esc(f.username)}</span>
+        <span class="muted small">Lv ${f.level} · Stage ${f.stage}</span>
+        <span class="friend-actions">
+          <button class="btn small" data-friend="inspect" data-username="${esc(f.username)}">🔍</button>
+          <button class="btn small ghost" data-friend="compare" data-username="${esc(f.username)}" title="Compare with me">⚖️</button>
+          <button class="btn small ghost" data-friend="remove" data-username="${esc(f.username)}" title="Remove friend">🗑️</button>
+        </span>
+      </div>`;
+    }).join('');
+    panel.innerHTML = `
+      <div class="card friends-add">
+        <h3>➕ Add friend</h3>
+        <div class="friend-add-row">
+          <input id="friend-add-input" class="friend-input" placeholder="Exact username…" maxlength="20" autocomplete="off">
+          <button class="btn gold" data-friend="send">Send request</button>
+        </div>
+        <p class="muted small">Usernames are exact — ask your friend for theirs.</p>
+      </div>
+      ${incoming || outgoing ? `<div class="card"><h3>📨 Requests</h3>${incoming}${outgoing}</div>` : ''}
+      <div class="card">
+        <h3>👥 Friends (${(data.friends || []).length})</h3>
+        ${friends || '<p class="muted">No friends yet — add someone above.</p>'}
+      </div>`;
+  },
+
+  setFriendBadge(count) {
+    const b = this.els['friend-req-badge'];
+    if (!b) return;
+    if (count > 0) {
+      b.textContent = count > 9 ? '9+' : String(count);
+      b.classList.remove('hidden');
+    } else {
+      b.classList.add('hidden');
+    }
+  },
+
+  switchRanksSubtab(which) {
+    const tabs = this.els['ranks-subtabs'];
+    if (tabs) {
+      tabs.querySelectorAll('.subtab').forEach((t) => {
+        t.classList.toggle('active', t.dataset.subtab === which);
+      });
+    }
+    const board = this.els['lb-board-view'] || this.els['lb-body'];
+    const panel = this.els['friends-panel'];
+    if (board) board.classList.toggle('hidden', which !== 'board');
+    if (panel) panel.classList.toggle('hidden', which !== 'friends');
+  },
+
+  // ---------------- player inspect ----------------
+  // Opens the full character sheet for any player (from the leaderboard or a
+  // friend row). `meState` powers the "Compare with me" side-by-side view.
+  async openInspect(username, meState, autoCompare = false) {
+    if (!username) return;
+    const h = this.handlers;
+    if (h.onInspectLoading) h.onInspectLoading(true);
+    try {
+      const data = await h.onFetchInspect(username);
+      if (!data) throw new Error('no data');
+      this.showInspect(data, meState, autoCompare);
+    } catch (e) {
+      this.toast('Could not load that hero.', 'error');
+    } finally {
+      if (h.onInspectLoading) h.onInspectLoading(false);
+    }
+  },
+
+  showInspect(d, meState, autoCompare = false) {
+    const h = this.handlers;
+    const raceEmoji = (d.race && d.race.emoji) || '❓';
+    const clsLine = [d.playerClass && d.playerClass.emoji, d.playerClass && d.playerClass.name,
+      d.spec && d.spec.emoji, d.spec && d.spec.name].filter(Boolean).join(' ');
+    const tiles = [
+      { icon: '⚔️', label: 'Power', val: formatNum(d.power) },
+      { icon: '🌀', label: 'Raid Wave', val: String(d.bestRaidWave) },
+      { icon: '💀', label: 'Kills', val: formatNum(d.kills) },
+      { icon: '🏰', label: 'Stage', val: String(d.stage) },
+    ].map((t) => `
+      <div class="inspect-tile">
+        <div class="inspect-tile-icon">${t.icon}</div>
+        <div class="inspect-tile-label">${t.label}</div>
+        <div class="inspect-tile-val">${esc(t.val)}</div>
+      </div>`).join('');
+
+    const gearHtml = (d.gear || []).map((g) => {
+      if (!g.item) {
+        return `<div class="inspect-gear empty"><span class="inspect-slot-name">${esc(g.slot)}</span><span class="muted small">— empty —</span></div>`;
+      }
+      const it = g.item;
+      const statChips = Object.entries(it.stats || {}).slice(0, 4).map(([k, v]) =>
+        `<span class="gear-stat">${STAT_EMOJI[k] || '•'}+${formatStatVal(k, v)}</span>`).join(' ');
+      return `
+        <div class="inspect-gear rarity-${esc(it.rarity)}">
+          <span class="inspect-slot-name">${esc(g.slot)}</span>
+          <b>${esc(it.name)}</b>
+          ${it.enchant > 0 ? `<span class="enchant-tag">+${it.enchant}</span>` : ''}
+          <span class="rarity-tag">${esc(it.rarity)}</span>
+          <div class="gear-stats">${statChips}</div>
+        </div>`;
+    }).join('');
+
+    const petHtml = (d.pets && d.pets.length)
+      ? d.pets.map((p) => `<div class="inspect-pet"><span class="pet-emoji">${esc(p.emoji)}</span><span>${esc(p.name)}</span><span class="muted small">Lv ${p.level}</span></div>`).join('')
+      : '<p class="muted small">No active pets.</p>';
+
+    const statRows = d.stats ? Object.entries(Engine.STAT_LABELS).map(([k, label]) => {
+      const v = d.stats[k];
+      if (v == null) return '';
+      return `<div class="inspect-stat-row"><span>${label}</span><b>${formatStatVal(k, v)}</b></div>`;
+    }).join('') : '';
+
+    const guildHtml = d.guild
+      ? `<div class="inspect-guild">🏰 <b>${esc(d.guild.name)}</b> <span class="muted">[${esc(d.guild.tag)}]</span></div>`
+      : `<div class="inspect-guild muted">No guild</div>`;
+
+    const onlineHtml = d.online
+      ? '<span class="online-dot on"></span> <span class="online-label on">Online</span>'
+      : '<span class="online-dot"></span> <span class="online-label muted">Offline</span>';
+
+    let friendBtn = '';
+    if (d.relation === 'self') {
+      friendBtn = '<button class="btn ghost" disabled>This is you</button>';
+    } else if (d.relation === 'friends') {
+      friendBtn = `<button class="btn ghost" data-inspect="unfriend" data-username="${esc(d.username)}">✓ Friends — Remove</button>`;
+    } else if (d.relation === 'outgoing') {
+      friendBtn = `<button class="btn ghost" data-inspect="unfriend" data-username="${esc(d.username)}">Request sent — Cancel</button>`;
+    } else if (d.relation === 'incoming') {
+      friendBtn = `<button class="btn gold" data-inspect="accept" data-username="${esc(d.username)}">Accept request</button>`;
+    } else {
+      friendBtn = `<button class="btn gold" data-inspect="add" data-username="${esc(d.username)}">➕ Add Friend</button>`;
+    }
+
+    const html = `
+      <div class="inspect-sheet">
+        <div class="inspect-head">
+          <div class="inspect-avatar">${raceEmoji}</div>
+          <div class="inspect-id">
+            <div class="inspect-name">${esc(d.username)}</div>
+            <div class="inspect-lv">⚔️ Lv ${d.level}</div>
+            <div class="inspect-class">${esc(clsLine || '—')}</div>
+            ${d.title ? `<div class="inspect-title">👑 ${esc(d.title)}</div>` : ''}
+            <div class="inspect-online">${onlineHtml}</div>
+          </div>
+        </div>
+        <div class="inspect-tiles">${tiles}</div>
+        ${guildHtml}
+        <h4 class="inspect-h">🛡️ Equipped</h4>
+        <div class="inspect-gear-list">${gearHtml}</div>
+        <h4 class="inspect-h">📊 Stats</h4>
+        <div class="inspect-stats">${statRows}</div>
+        <h4 class="inspect-h">🐾 Pets</h4>
+        <div class="inspect-pets">${petHtml}</div>
+        <div class="inspect-compare hidden" id="inspect-compare"></div>
+        <div class="inspect-actions">
+          <button class="btn" data-inspect="compare">⚖️ Compare with me</button>
+          ${friendBtn}
+        </div>
+      </div>`;
+
+    const close = this.modal({
+      title: '🔍 Player Inspect',
+      html,
+      buttons: [{ label: 'Close' }],
+      wide: true,
+    });
+
+    // Wire the inspect-modal buttons (delegated on the overlay).
+    const overlay = document.querySelector('#modal-root .modal-overlay:last-child');
+    if (overlay) {
+      overlay.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-inspect]');
+        if (!btn || btn.disabled) return;
+        const action = btn.dataset.inspect;
+        const uname = btn.dataset.username || d.username;
+        try {
+          if (action === 'add' && h.onFriendAdd) {
+            await h.onFriendAdd(uname);
+            close(); this.openInspect(uname, meState, autoCompare);
+          } else if (action === 'accept' && h.onFriendAccept) {
+            await h.onFriendAccept(uname);
+            close(); this.openInspect(uname, meState, autoCompare);
+          } else if (action === 'unfriend' && h.onFriendRemove) {
+            await h.onFriendRemove(uname, { confirm: false });
+            close(); this.openInspect(uname, meState, autoCompare);
+          } else if (action === 'compare') {
+            this.renderCompare($('#inspect-compare'), d, meState);
+          }
+        } catch (err) {
+          this.toast(err && err.message ? err.message : 'Action failed.', 'error');
+        }
+      });
+      // "Quick compare" entry point opens the sheet with comparison expanded.
+      if (autoCompare) this.renderCompare($('#inspect-compare'), d, meState);
+    }
+  },
+
+  // Side-by-side stat comparison: you vs the inspected hero.
+  renderCompare(box, them, meState) {
+    if (!box) return;
+    box.classList.remove('hidden');
+    if (!meState) {
+      box.innerHTML = '<p class="muted">Sign in to compare.</p>';
+      return;
+    }
+    let mine;
+    try { mine = Engine.computeStats(meState); } catch { mine = null; }
+    if (!mine || !them.stats) {
+      box.innerHTML = '<p class="muted">Stats unavailable.</p>';
+      return;
+    }
+    const rows = [['power', 'Power', Math.round(mine.attack), them.power]];
+    for (const [k, label] of Object.entries(Engine.STAT_LABELS)) {
+      const mv = mine[k];
+      const tv = them.stats[k];
+      if (mv == null || tv == null) continue;
+      rows.push([k, label, mv, tv]);
+    }
+    const fmt = (k, v) => (k === 'power' ? formatNum(v) : formatStatVal(k, v));
+    const html = rows.map(([k, label, mv, tv]) => {
+      const diff = Math.round((mv - tv) * 100) / 100;
+      const cls = diff > 0 ? 'delta-up' : diff < 0 ? 'delta-down' : 'delta-even';
+      const sign = diff > 0 ? '+' : diff < 0 ? '−' : '';
+      const diffStr = (k === 'power' || ['attack', 'defense', 'maxHp'].includes(k))
+        ? sign + formatNum(Math.abs(diff)) : sign + (Math.round(Math.abs(diff) * 10) / 10);
+      return `
+        <div class="compare-row">
+          <span class="compare-label">${esc(label)}</span>
+          <span class="compare-you">${fmt(k, mv)}</span>
+          <span class="compare-them">${fmt(k, tv)}</span>
+          <span class="compare-delta ${cls}">${diff === 0 ? '—' : diffStr}</span>
+        </div>`;
+    }).join('');
+    box.innerHTML = `
+      <h4 class="inspect-h">⚖️ You vs ${esc(them.username)}</h4>
+      <div class="compare-head compare-row">
+        <span class="compare-label"></span><span class="compare-you"><b>You</b></span>
+        <span class="compare-them"><b>${esc(them.username)}</b></span><span class="compare-delta"></span>
+      </div>${html}`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+
   renderMore(state, user) {
     const role = (user && user.role) || 'player';
     this.role = role; // remembered for role-aware changelog filtering

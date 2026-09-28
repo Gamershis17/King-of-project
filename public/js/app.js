@@ -155,6 +155,54 @@ async function boot() {
     onExternalState: applyExternalState,
     onTab: onTabSwitch,
     onRanksCategory: () => { void loadRanks(); },
+    // Social: inspect + friends
+    onInspect: (username) => UI.openInspect(username, App.state),
+    onInspectCompare: (username) => UI.openInspect(username, App.state, true),
+    onFetchInspect: (username) => api.inspectPlayer(username),
+    onRanksSubtab: (which) => {
+      App.ranksSubtab = which;
+      UI.switchRanksSubtab(which);
+      if (which === 'friends') loadFriends();
+    },
+    onFriendSend: async (name) => {
+      try {
+        const r = await api.friendRequest(name);
+        UI.toast(`Friend request sent to ${r.username}.`, 'success');
+        const input = document.getElementById('friend-add-input');
+        if (input) input.value = '';
+        loadFriends();
+      } catch (e) { UI.toast(e.message || 'Request failed.', 'error'); }
+    },
+    onFriendAdd: async (username) => {
+      const r = await api.friendRequest(username);
+      UI.toast(`Friend request sent to ${r.username}.`, 'success');
+      loadFriends();
+    },
+    onFriendAccept: async (username) => {
+      try {
+        await api.friendRespond(username, true);
+        UI.toast(`You are now friends with ${username}.`, 'success');
+        loadFriends();
+      } catch (e) { UI.toast(e.message || 'Accept failed.', 'error'); }
+    },
+    onFriendDecline: async (username) => {
+      try {
+        await api.friendRespond(username, false);
+        UI.toast('Request declined.', 'info');
+        loadFriends();
+      } catch (e) { UI.toast(e.message || 'Decline failed.', 'error'); }
+    },
+    onFriendRemove: async (username, opts) => {
+      const skipConfirm = opts && opts.confirm === false;
+      if (!skipConfirm) {
+        const ok = await UI.confirm('Remove friend?', `Remove <b>${esc(username)}</b> from your friends?`);
+        if (!ok) return;
+      }
+      await api.removeFriend(username);
+      UI.toast('Removed from friends.', 'info');
+      loadFriends();
+    },
+    onUpgradeAccount: () => promptUpgrade('Friends'),
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
@@ -188,7 +236,6 @@ async function boot() {
       if (App.state) UI.showTitlesModal(App.state);
     },
     onLbCategory: () => { loadRanks(); },
-    onLbFilter: () => { loadRanks(); },
     onCountry: (code) => {
       const s = App.state;
       if (!s) return;
@@ -1910,12 +1957,31 @@ async function loadRanks() {
   }
   // Heroes: 7 ranking pills (?by=) + All/Friends filter.
   const by = UI.lbCategory || 'level';
-  if (UI.lbFilter === 'friends') { UI.renderFriendsSoon(); return; }
   try {
     const { entries } = await api.leaderboard(by);
     UI.renderRanks(entries || [], App.user ? App.user.username : null, by);
   } catch (e) {
     UI.toast('Could not load leaderboard.', 'error');
+  }
+  // Keep the selected sub-tab and refresh friends in the background.
+  UI.switchRanksSubtab(App.ranksSubtab === 'friends' ? 'friends' : 'board');
+  loadFriends();
+}
+
+async function loadFriends() {
+  if (isGuest()) {
+    UI.renderFriends(null, true);
+    UI.setFriendBadge(0);
+    return;
+  }
+  try {
+    const data = await api.getFriends();
+    App.friends = data;
+    UI.renderFriends(data, false);
+    UI.setFriendBadge((data.incoming || []).length);
+  } catch (e) {
+    UI.renderFriends({ friends: [], incoming: [], outgoing: [] }, false);
+    UI.setFriendBadge(0);
   }
 }
 

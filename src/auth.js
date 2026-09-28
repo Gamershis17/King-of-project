@@ -13,6 +13,7 @@ const {
   getUserByUsername,
   getUserById,
   createUser,
+  touchLastActive,
 } = require('./db');
 const { validateUsername, validatePassword } = require('./validation');
 
@@ -78,6 +79,15 @@ async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Session expired. Please sign in again.' });
     }
     req.user = user;
+    // Lightweight presence: refresh last_active at most once per minute
+    // (the UPDATE is a no-op when the throttle window hasn't elapsed).
+    // Powers the friends list "online" indicator.
+    try {
+      const lastActive = Number(user.last_active) || 0;
+      if (Date.now() - lastActive > 60000) {
+        touchLastActive(user.id).catch(() => {});
+      }
+    } catch { /* presence is best-effort */ }
     next();
   } catch (err) {
     next(err);
