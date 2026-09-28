@@ -432,7 +432,7 @@ router.post(
 );
 
 // ---------- server settings (owner only) ----------
-// Owner-tunable tunables. Currently: goldCap (max player gold, default 9000T).
+// Owner-tunable tunables. Currently: goldCap (max player gold, default 999Qi).
 // The client fetches the live value from GET /api/settings at boot.
 router.post(
   '/gm/settings',

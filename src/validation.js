@@ -10,7 +10,7 @@ const MAX_BLOB_BYTES = 1024 * 1024; // 1 MB
 // Server gold cap (owner-adjustable via server_settings). sanitizeStateBlob
 // clamps player gold to it on every save. Refreshed from the DB at boot and
 // whenever the owner changes it (see db.refreshGoldCap).
-let goldCap = 9e15; // 9000T default
+let goldCap = 9.99e20; // 999Qi default
 function setGoldCap(cap) {
   if (Number.isFinite(cap) && cap >= 1e12) goldCap = cap;
 }
@@ -54,7 +54,7 @@ function validatePassword(password) {
 const CLAMPED_FIELDS = {
   level: [1, 70],
   stage: [1, 100000],
-  gold: [0, 1e15],
+  gold: [0, 9.99e20], // 999Qi
   stars: [0, 1e15],
   xp: [0, 1e15],
   xpNext: [0, 1e15],
