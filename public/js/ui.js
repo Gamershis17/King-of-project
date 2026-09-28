@@ -1950,14 +1950,6 @@ export const UI = {
     const staffBtn = document.getElementById('tabbtn-staff');
     if (staffBtn) staffBtn.classList.toggle('hidden', !canGM);
     const setCount = (state.inventory || []).filter(i => i.set).length;
-    const unlocked = new Set(state.titlesUnlocked || ['wanderer']);
-    const titleChips = Engine.TITLES.map(t => {
-      const has = unlocked.has(t.id);
-      const active = state.activeTitle === t.id;
-      return has
-        ? `<button class="title-chip${active ? ' active' : ''}" data-action="title" data-id="${t.id}" title="${esc(t.desc)}">${esc(t.name)}</button>`
-        : `<span class="title-chip locked" title="${esc(t.desc)}">🔒 ${esc(t.name)}</span>`;
-    }).join('');
     const badge = state.badge ? Engine.badgeDef(state.badge) : null;
     const countryOpts = `<option value="">— no flag —</option>` + Engine.COUNTRIES.map(c =>
       `<option value="${c.code}"${state.country === c.code ? ' selected' : ''}>${Engine.countryFlag(c.code)} ${esc(c.name)}</option>`).join('');
@@ -1973,10 +1965,6 @@ export const UI = {
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
         </div>
-      </div>
-      <div class="titles-block">
-        <div class="muted small titles-label">👑 Hero title</div>
-        <div class="title-chips">${titleChips}</div>
       </div>
       <div class="titles-block">
         <div class="muted small titles-label">🌍 Country flag <span class="muted">(shows on leaderboard)</span></div>
