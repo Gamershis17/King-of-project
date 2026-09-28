@@ -114,14 +114,14 @@ async function check(name, fn) {
     assert.strictEqual(r.body.state.race, 'human');
   });
   await check('POST /state round-trip', async () => {
-    const blob = { level: 5, stage: 7, bossesKilled: 2, prestigeCount: 1, gold: 999, stars: 10, race: 'orc' };
+    const blob = { level: 5, stage: 7, bossesKilled: 2, rebirthCount: 1, gold: 999, stars: 10, race: 'orc' };
     const r = await alice.fetch('/api/state', { method: 'POST', body: { state: blob } });
     assert.deepStrictEqual(r.body, { ok: true });
     const g = await alice.fetch('/api/state');
     assert.strictEqual(g.body.state.level, 5);
     assert.strictEqual(g.body.state.stage, 7);
     assert.strictEqual(g.body.state.bossesKilled, 2);
-    assert.strictEqual(g.body.state.prestigeCount, 1);
+    assert.strictEqual(g.body.state.rebirthCount, 1);
     assert.strictEqual(g.body.state.gold, 999);
     assert.ok(typeof g.body.lastSeenAt === 'number');
   });
@@ -138,14 +138,14 @@ async function check(name, fn) {
     assert.strictEqual(g.body.state.stage, 1);
   });
   // restore sane state for later leaderboard assertions
-  await alice.fetch('/api/state', { method: 'POST', body: { state: { level: 5, stage: 7, bossesKilled: 2, prestigeCount: 1, gold: 999, race: 'orc' } } });
+  await alice.fetch('/api/state', { method: 'POST', body: { state: { level: 5, stage: 7, bossesKilled: 2, rebirthCount: 1, gold: 999, race: 'orc' } } });
 
   console.log('== leaderboard ==');
   const bob = jar();
   await check('register bob + save level 10', async () => {
     const r = await bob.fetch('/api/auth/register', { method: 'POST', body: { username: 'bob', password: 'secret123' } });
     assert.strictEqual(r.status, 201);
-    await bob.fetch('/api/state', { method: 'POST', body: { state: { level: 10, stage: 20, bossesKilled: 1, prestigeCount: 0, race: 'human' } } });
+    await bob.fetch('/api/state', { method: 'POST', body: { state: { level: 10, stage: 20, bossesKilled: 1, rebirthCount: 0, race: 'human' } } });
   });
   await check('leaderboard ordered level desc, has race + fields', async () => {
     const r = await anon.fetch('/api/leaderboard');
@@ -156,7 +156,7 @@ async function check(name, fn) {
     assert.strictEqual(e[0].level, 10);
     assert.strictEqual(e[0].race, 'human');
     assert.strictEqual(e[0].bossesKilled, 1);
-    assert.strictEqual(e[0].prestige, 0);
+    assert.strictEqual(e[0].rebirth, 0);
     assert.ok('stage' in e[0]);
     const aliceEntry = e.find((x) => x.username === 'alice');
     assert.strictEqual(aliceEntry.level, 5);

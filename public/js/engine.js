@@ -6,14 +6,14 @@
 
 // ---------------- Player cosmetic styles ----------------
 // Custom button / background presets (Settings). Cosmetic only —
-// unknown values normalize to 'default' in ensureState() and prestige().
+// unknown values normalize to 'default' in ensureState().
 export const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
 export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight'];
 
 // ---------------- Level cap ----------------
 // Hard level cap: no XP gains, GM grants, or loaded saves may push a
-// character past this. Prestige unlocks at MAX_LEVEL.
-export const MAX_LEVEL = 120;
+// character past this. Rebirth unlocks at MAX_LEVEL.
+export const MAX_LEVEL = 70;
 
 // ---------------- Races ----------------
 export const RACES = {
@@ -37,8 +37,8 @@ export const RACES = {
 export const CLASSES = {
   hunter: {
     name: 'Hunter', emoji: '🏹',
-    desc: 'Master of beasts. Your pets fight harder and eat cheaper.',
-    perks: ['Pets deal +50% damage', 'Feeding costs 30% less', '+5% dodge'],
+    desc: 'Master of beasts. Field two pets at once — they fight harder and eat cheaper.',
+    perks: ['Field 2 pets at once', 'Pets deal +50% damage', 'Feeding costs 30% less', '+5% dodge'],
     petDmgMult: 1.5, feedCostMult: 0.7, dodgeBonus: 5,
   },
   warrior: {
@@ -141,7 +141,7 @@ export function defaultState(race) {
     level: 1, xp: 0, xpNext: xpForLevel(1),
     gold: 0, stars: 0,
     stage: 1, bossesKilled: 0,
-    prestigeCount: 0, prestigeBonus: 0,
+    rebirthCount: 0,
     hero: {
       hp: 100, maxHp: 100, attack: 10, defense: 2,
       critChance: 5, critDamage: 150, parry: 0, dodge: 5,
@@ -214,6 +214,15 @@ export function ensureState(raw) {
   if (!Array.isArray(s.companions)) s.companions = [];
   if (!['clicker', 'auto', 'dungeon'].includes(s.mode)) s.mode = 'clicker';
   s.level = Math.min(MAX_LEVEL, Math.max(1, Math.floor(s.level || 1)));
+  // Legacy prestige saves: fold the old count into rebirths, drop the bonus.
+  if (raw.rebirthCount === undefined && raw.prestigeCount !== undefined) s.rebirthCount = raw.prestigeCount;
+  delete s.prestigeCount; delete s.prestigeBonus;
+  // Achievement id rename: prestige-1 -> rebirth-1 (same feat, new name).
+  if (Array.isArray(s.achievements)) {
+    const i = s.achievements.indexOf('prestige-1');
+    if (i !== -1) s.achievements[i] = 'rebirth-1';
+  }
+  s.rebirthCount = Math.max(0, Math.floor(s.rebirthCount || 0));
   s.stage = Math.max(1, Math.floor(s.stage || 1));
   s.xpNext = xpForLevel(s.level);
   s.hero.hp = clamp(s.hero.hp, 0, s.hero.maxHp);
@@ -266,10 +275,10 @@ export function addGold(s, amount) {
   return added;
 }
 
-export function goldForKill(stage, goldBonusPct = 0, prestigeBonusPct = 0) {
+export function goldForKill(stage, goldBonusPct = 0) {
   return Math.max(1, Math.round(
     6 * Math.pow(1.12, stage) *
-    (1 + goldBonusPct / 100) * (1 + prestigeBonusPct / 100)
+    (1 + goldBonusPct / 100)
   ));
 }
 
@@ -345,7 +354,7 @@ export function enemyFor(stage) {
 
 // ---------------- Combat ----------------
 // Effective hero stats = base + level gains + equipped gear,
-// x race traits x upgrade multipliers x prestige x full-set bonus.
+// x race traits x upgrade multipliers x full-set bonus.
 export function computeStats(state) {
   const race = RACES[state.race] || {};
   const cls = CLASSES[state.playerClass] || {};
@@ -388,7 +397,6 @@ export function computeStats(state) {
   const prof = state.professions || {};
   const smithMult = 1 + 0.015 * (prof.smithing || 1);
   const herbRegen = 0.5 * (prof.herbalism || 1);
-  const prestDmgMult = 1 + (state.prestigeBonus || 0) / 100; // damage & gold only
   const up = state.upgrades || { weapon: 1, armor: 1, skill: 1 };
   const dmgUpMult = Math.pow(1.12, Math.max(0, up.weapon - 1)) *
                     Math.pow(1.12, Math.max(0, up.skill - 1));
@@ -398,7 +406,7 @@ export function computeStats(state) {
   const bond = petBond(state);
   const h = state.hero;
   return {
-    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * prestDmgMult * setMult * pAtkMult * dmgUpMult * mightMult * smithMult + bond.atk),
+    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * mightMult * smithMult + bond.atk),
     defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) + bond.def),
     maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * vitMult) + bond.hp),
     critChance: clamp(h.critChance + gear.critChance + pCritCh + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
@@ -748,7 +756,7 @@ export function buyGearItem(s, stockId) {
 // Pet eggs drop from bosses (see rollPetEgg); hatching is instant in the
 // Pets UI (Party tab). The active pet strikes every 4s in every combat mode
 // (see App.tick / petStrike in app.js), gains 15% of kill XP, and survives
-// prestige. Hunger 0-100 decays with play time (-1 per 5 min); feeding costs
+// rebirth. Hunger 0-100 decays with play time (-1 per 5 min); feeding costs
 // gold scaling with pet level and restores +35 hunger.
 // Hunger gating: >50 full damage, 1-50 → 40% damage, 0 → pet sits out.
 export const PET_SPECIES = {
@@ -824,7 +832,23 @@ export function ensurePets(s) {
     p.shopEggs[t] = Math.max(0, Math.floor(Number(p.shopEggs[t]) || 0));
   }
   if (p.activeUid && !p.collection.some(x => x.uid === p.activeUid)) p.activeUid = null;
+  // Hunters may field a second pet. Non-hunters (or a stale uid) lose it.
+  if (p.secondUid && !p.collection.some(x => x.uid === p.secondUid)) p.secondUid = null;
+  if (s.playerClass !== 'hunter') p.secondUid = null;
+  if (p.secondUid && p.secondUid === p.activeUid) p.secondUid = null;
   return p;
+}
+
+export function activePets(s) {
+  const p = ensurePets(s);
+  const out = [];
+  const primary = p.collection.find(x => x.uid === p.activeUid);
+  if (primary) out.push(primary);
+  if (s.playerClass === 'hunter') {
+    const second = p.collection.find(x => x.uid === p.secondUid);
+    if (second) out.push(second);
+  }
+  return out;
 }
 
 export function activePet(s) {
@@ -953,7 +977,13 @@ export function petBondFor(pet) {
   };
 }
 export function petBond(s) {
-  return petBondFor(activePet(s));
+  const zero = { atk: 0, def: 0, hp: 0 };
+  const out = { ...zero };
+  for (const pet of activePets(s)) {
+    const b = petBondFor(pet);
+    out.atk += b.atk; out.def += b.def; out.hp += b.hp;
+  }
+  return out;
 }
 
 // Hunger damage gating: >50 full, 1-50 → 40%, 0 → sits out.
@@ -963,38 +993,47 @@ export function petHungerMult(pet) {
   return pet.hunger > 50 ? 1 : 0.4;
 }
 
-// Active pet strike damage: (25% + 4%/level) of hero attack, hunger-gated.
-// Meaningful but never outshines the hero. Hunters get +50% pet damage.
+// Active pet(s) strike damage: (25% + 4%/level) of hero attack each, hunger-gated.
+// Meaningful but never outshines the hero. Hunters get +50% pet damage and
+// may field a second pet — both strike.
 export function petStrikeDamage(s, stats) {
-  const pet = activePet(s);
-  if (!pet) return 0;
-  const mult = petHungerMult(pet);
-  if (!mult) return 0;
-  const sp = petSpeciesOf(pet);
-  const base = stats.attack * (0.25 + 0.04 * (pet.level - 1));
-  const speciesMult = 1 + (sp.baseDmg / 200); // rarer species hit a touch harder
+  const pets = activePets(s);
+  if (!pets.length) return 0;
   const classMult = (s && CLASSES[s.playerClass] && CLASSES[s.playerClass].petDmgMult) || 1;
-  return Math.max(1, Math.round(base * mult * speciesMult * classMult));
+  let total = 0;
+  for (const pet of pets) {
+    const mult = petHungerMult(pet);
+    if (!mult) continue;
+    const sp = petSpeciesOf(pet);
+    const base = stats.attack * (0.25 + 0.04 * (pet.level - 1));
+    const speciesMult = 1 + (sp.baseDmg / 200); // rarer species hit a touch harder
+    total += Math.max(1, Math.round(base * mult * speciesMult * classMult));
+  }
+  return total;
 }
 
 export function petXpForLevel(level) {
   return Math.max(1, Math.round(40 * Math.pow(1.28, Math.max(1, level) - 1)));
 }
 
-// The active pet gains xp (15% of the kill's XP). Returns {levels} of level-ups.
+// Active pets gain xp (15% of the kill's XP each). Returns {gains} with one
+// entry per pet that leveled: {name, levels}.
 export function gainPetXp(s, xp) {
-  const pet = activePet(s);
-  if (!pet || !Number.isFinite(xp) || xp <= 0) return { levels: [] };
-  pet.xp += xp;
-  const levels = [];
-  let guard = 0;
-  while (pet.xp >= pet.xpNext && guard++ < 1000) {
-    pet.xp -= pet.xpNext;
-    pet.level += 1;
-    pet.xpNext = petXpForLevel(pet.level);
-    levels.push(pet.level);
+  const gains = [];
+  if (!Number.isFinite(xp) || xp <= 0) return { gains };
+  for (const pet of activePets(s)) {
+    pet.xp += xp;
+    const levels = [];
+    let guard = 0;
+    while (pet.xp >= pet.xpNext && guard++ < 1000) {
+      pet.xp -= pet.xpNext;
+      pet.level += 1;
+      pet.xpNext = petXpForLevel(pet.level);
+      levels.push(pet.level);
+    }
+    if (levels.length) gains.push({ name: (petSpeciesOf(pet) || {}).name || 'Pet', levels });
   }
-  return { levels };
+  return { gains };
 }
 
 // Decays every pet's hunger by `amount` (clamped at 0).
@@ -1078,49 +1117,16 @@ export function companionStats(c) {
   };
 }
 
-// ---------------- Prestige ----------------
-// Level >= MAX_LEVEL. Returns a FRESH state blob: level/stage/gold/inventory reset,
-// privileged set items + stars + lifetime stats kept, prestigeBonus += 25%.
-export function prestige(state) {
+// ---------------- Rebirth ----------------
+// Level >= MAX_LEVEL. Sets the hero back to level 1; everything else
+// (stage, gold, gear, pets, titles, styles) is kept. No stacking bonus.
+export function rebirth(state) {
   if ((state.level || 1) < MAX_LEVEL) return null;
-  const kept = (state.inventory || []).filter(i => i && i.set);
-  const keptIds = new Set(kept.map(i => i.id));
-  const equipped = {};
-  for (const slot of SLOTS) {
-    const id = state.equipped && state.equipped[slot];
-    equipped[slot] = (id && keptIds.has(id)) ? id : null;
-  }
-  const fresh = defaultState(state.race);
-  fresh.prestigeCount = (state.prestigeCount || 0) + 1;
-  fresh.prestigeBonus = (state.prestigeBonus || 0) + 25;
-  fresh.stars = state.stars || 0;
-  fresh.stats = state.stats || fresh.stats;
-  fresh.inventory = kept;
-  fresh.equipped = equipped;
-  fresh.codesRedeemed = state.codesRedeemed || [];
-  fresh.titlesUnlocked = Array.isArray(state.titlesUnlocked) && state.titlesUnlocked.length
-    ? [...state.titlesUnlocked] : ['wanderer'];
-  fresh.activeTitle = state.activeTitle || fresh.titlesUnlocked[0];
-  fresh.badge = (typeof state.badge === 'string' && BADGE_BY_ID[state.badge]) ? state.badge : null;
-  fresh.country = (typeof state.country === 'string' && isValidCountry(state.country)) ? state.country : null;
-  fresh.mode = state.mode || 'clicker';
-  fresh.infGold = state.infGold === true; // owner perk survives prestige
-  // Custom button/background styles are cosmetic prefs — they survive prestige.
-  fresh.btnStyle = BTN_STYLE_IDS.includes(state.btnStyle) ? state.btnStyle : 'default';
-  fresh.bgStyle = BG_STYLE_IDS.includes(state.bgStyle) ? state.bgStyle : 'default';
-  // Audio prefs are cosmetic too — they survive prestige.
-  fresh.audio = { sfx: !state.audio || state.audio.sfx !== false, music: !!(state.audio && state.audio.music) };
-  // Class is identity (like race) — it survives prestige.
-  fresh.playerClass = (state.playerClass && CLASSES[state.playerClass]) ? state.playerClass : null;
-  // Specialization is identity too — it survives prestige.
-  fresh.spec = (state.spec && SPECS[state.spec]) ? state.spec : null;
-  // Pets survive prestige (collection, active pet, eggs) — deep copy so the
-  // old and new states don't share pet objects.
-  try {
-    const p = ensurePets(state);
-    fresh.pets = JSON.parse(JSON.stringify(p));
-  } catch { /* keep default pets */ }
-  return fresh;
+  state.level = 1;
+  state.xp = 0;
+  state.xpNext = xpForLevel(1);
+  state.rebirthCount = (state.rebirthCount || 0) + 1;
+  return ensureState(state);
 }
 
 // ---------------- Offline earnings ----------------
@@ -1132,7 +1138,7 @@ export function offlineEarnings(state, lastSeenAt, nowMs) {
   const minutes = Math.floor(cappedMs / 60000);
   const kills = Math.max(1, Math.floor(minutes * 6)); // estimated kills/min
   const stats = computeStats(state);
-  const gold = kills * goldForKill(state.stage, stats.goldBonus + (stats.talentGoldPct || 0), state.prestigeBonus);
+  const gold = kills * goldForKill(state.stage, stats.goldBonus + (stats.talentGoldPct || 0));
   const xp = kills * xpForKill(state.stage); // gainXp applies race/gear mults
   return { minutes, kills, gold, xp, capped: elapsedMs > 8 * 3600 * 1000 };
 }
@@ -1202,7 +1208,7 @@ export const ACHIEVEMENTS = [
   { id: 'level-50', name: 'Veteran', emoji: '🎖️', desc: 'Reach level 50.', stars: 20, check: (s) => (s.level || 1) >= 50 },
   { id: 'rich-1', name: 'Gold Hoarder', emoji: '💰', desc: 'Hold 10,000 gold at once.', stars: 10, check: (s) => (s.gold || 0) >= 10000 },
   { id: 'collector', name: 'Collector', emoji: '🎒', desc: 'Hold 25 items at once.', stars: 10, check: (s) => (s.inventory || []).length >= 25 },
-  { id: 'prestige-1', name: 'Reborn', emoji: '🔥', desc: 'Prestige once.', stars: 25, check: (s) => (s.prestigeCount || 0) >= 1 },
+  { id: 'rebirth-1', name: 'Reborn', emoji: '🔥', desc: 'Rebirth once.', stars: 25, check: (s) => (s.rebirthCount || 0) >= 1 },
   { id: 'zone-5', name: 'Explorer', emoji: '🗺️', desc: 'Reach the Ashen Badlands (stage 41).', stars: 10, check: (s) => (s.stage || 1) >= 41 },
 ];
 // ---------------- Titles ----------------
@@ -1217,7 +1223,7 @@ export const TITLES = [
   { id: 'veteran',         name: 'the Veteran',         desc: 'Reach level 50.',                           check: (s) => (s.level || 1) >= 50 },
   { id: 'unbroken',        name: 'the Unbroken',        desc: 'Reach stage 50.',                           check: (s) => (s.stage || 1) >= 50 },
   { id: 'goldhoarder',     name: 'the Goldhoarder',     desc: 'Hold 100,000 gold at once.',                check: (s) => (s.gold || 0) >= 100000 },
-  { id: 'idle-king',       name: 'the Idle King',       desc: 'Prestige once.',                            check: (s) => (s.prestigeCount || 0) >= 1 },
+  { id: 'idle-king',       name: 'the Idle King',       desc: 'Rebirth once.',                             check: (s) => (s.rebirthCount || 0) >= 1 },
   { id: 'dungeon-master',  name: 'the Dungeon Master',  desc: 'Fill your 3-companion dungeon party.',      check: (s) => (s.party || []).length >= MAX_PARTY },
   { id: 'overlord',        name: 'the Overlord',        desc: 'Reach stage 100.',                          check: (s) => (s.stage || 1) >= 100 },
   { id: 'sleepless',       name: 'the Sleepless',       desc: 'Play for 1 hour total.',                    check: (s) => (s.stats.playTimeSec || 0) >= 3600 },
@@ -1229,12 +1235,12 @@ export const TITLES = [
   { id: 'slayer',          name: 'the Slayer',          desc: 'Slay 100 enemies.',                         check: (s) => (s.stats.kills || 0) >= 100 },
   { id: 'butcher',         name: 'the Butcher',         desc: 'Slay 1,000 enemies.',                       check: (s) => (s.stats.kills || 0) >= 1000 },
   { id: 'annihilator',     name: 'the Annihilator',     desc: 'Slay 10,000 enemies.',                      check: (s) => (s.stats.kills || 0) >= 10000 },
-  { id: 'reborn',          name: 'the Reborn',          desc: 'Prestige twice.',                           check: (s) => (s.prestigeCount || 0) >= 2 },
-  { id: 'phoenix',         name: 'the Phoenix',         desc: 'Prestige 3 times.',                         check: (s) => (s.prestigeCount || 0) >= 3 },
-  { id: 'immortal',        name: 'the Immortal',        desc: 'Prestige 5 times.',                         check: (s) => (s.prestigeCount || 0) >= 5 },
-  { id: 'paragon',         name: 'the Paragon',         desc: 'Prestige 10 times.',                        check: (s) => (s.prestigeCount || 0) >= 10 },
-  { id: 'demigod',         name: 'the Demigod',         desc: 'Prestige 25 times.',                        check: (s) => (s.prestigeCount || 0) >= 25 },
-  { id: 'worldforger',     name: 'the Worldforger',     desc: 'Prestige 50 times.',                        check: (s) => (s.prestigeCount || 0) >= 50 },
+  { id: 'reborn',          name: 'the Reborn',          desc: 'Rebirth twice.',                            check: (s) => (s.rebirthCount || 0) >= 2 },
+  { id: 'phoenix',         name: 'the Phoenix',         desc: 'Rebirth 3 times.',                         check: (s) => (s.rebirthCount || 0) >= 3 },
+  { id: 'immortal',        name: 'the Immortal',        desc: 'Rebirth 5 times.',                         check: (s) => (s.rebirthCount || 0) >= 5 },
+  { id: 'paragon',         name: 'the Paragon',         desc: 'Rebirth 10 times.',                        check: (s) => (s.rebirthCount || 0) >= 10 },
+  { id: 'demigod',         name: 'the Demigod',         desc: 'Rebirth 25 times.',                        check: (s) => (s.rebirthCount || 0) >= 25 },
+  { id: 'worldforger',     name: 'the Worldforger',     desc: 'Rebirth 50 times.',                        check: (s) => (s.rebirthCount || 0) >= 50 },
   { id: 'beastfriend',      name: 'the Beastfriend',     desc: 'Hatch your first pet.',                     check: (s) => ((s.pets && s.pets.collection) || []).length >= 1 },
   { id: 'packleader',       name: 'the Packleader',      desc: 'Hatch 5 pets.',                             check: (s) => ((s.pets && s.pets.collection) || []).length >= 5 },
   { id: 'apexcompanion',    name: 'the Apex Companion',  desc: 'Raise a pet to level 25.',                  check: (s) => (((s.pets && s.pets.collection) || []).some(p => (p.level || 1) >= 25)) },
@@ -1287,7 +1293,7 @@ export function checkTitles(state) {
   if (!Array.isArray(state.titlesUnlocked)) state.titlesUnlocked = ['wanderer'];
   // Lifetime gold tracking: no dedicated field exists, so accumulate
   // positive gold deltas between checks into stats.totalGoldEarned.
-  // (Decreases from spending are ignored; the total survives prestige
+  // (Decreases from spending are ignored; the total survives rebirth
   // because stats are lifetime stats.)
   if (!state.stats || typeof state.stats !== 'object') state.stats = {};
   const goldNow = state.gold || 0;
@@ -1364,8 +1370,7 @@ export function grantLevels(state, n) {
 // RAID MODE (PvE endless waves) — appended 2026-09-25
 // Pure logic. raid.js (Raid object) drives the combat loop with these.
 // state.raid = { best: 0 } — best wave reached.
-// Call ensureRaidState(state) on load; call carryRaidPrestige(new, old)
-// right after Engine.prestige(old) so best survives prestige.
+// Call ensureRaidState(state) on load.
 // ============================================================
 
 // Wave scaling: hp 1.18^wave, atk 1.10^wave, gold 1 + wave*0.15.
@@ -1418,11 +1423,4 @@ export function ensureRaidState(state) {
   return state;
 }
 
-// Keeps the best-wave record across prestige (call after prestige()).
-export function carryRaidPrestige(newState, oldState) {
-  ensureRaidState(newState);
-  ensureRaidState(oldState);
-  newState.raid.best = Math.max(newState.raid.best, oldState.raid.best);
-  return newState;
-}
-
+// (Rebirth mutates the state in place, so raid progress survives it.)

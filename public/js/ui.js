@@ -99,8 +99,8 @@ export const UI = {
       'mode-switch', 'enemy-card', 'enemy-sprite', 'enemy-name', 'enemy-stage',
       'boss-badge', 'enemy-hpfill', 'enemy-hptext', 'enemy-atk', 'float-layer',
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
-      'tap-btn', 'skill-btn', 'skill-cd', 'combo-meter', 'prestige-box', 'prestige-btn',
-      'prestige-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
+      'tap-btn', 'skill-btn', 'skill-cd', 'combo-meter', 'rebirth-box', 'rebirth-btn',
+      'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'logout-btn', 'modal-root', 'toast-root',
@@ -129,8 +129,8 @@ export const UI = {
     this.els['skill-btn'].addEventListener('click', () => {
       this.handlers.onSkill && this.handlers.onSkill();
     });
-    this.els['prestige-btn'].addEventListener('click', () => {
-      this.handlers.onPrestige && this.handlers.onPrestige();
+    this.els['rebirth-btn'].addEventListener('click', () => {
+      this.handlers.onRebirth && this.handlers.onRebirth();
     });
 
     // Gear: delegated equip/sell/upgrade/shop
@@ -166,6 +166,8 @@ export const UI = {
       if (btn.dataset.action === 'hatch-pet' && h.onHatchPet) h.onHatchPet(btn.dataset.tier || 'wild');
       if (btn.dataset.action === 'feed-pet' && h.onFeedPet) h.onFeedPet(btn.dataset.id);
       if (btn.dataset.action === 'set-active-pet' && h.onSetActivePet) h.onSetActivePet(btn.dataset.id);
+      if (btn.dataset.action === 'set-second-pet' && h.onSetSecondPet) h.onSetSecondPet(btn.dataset.id);
+      if (btn.dataset.action === 'remove-second-pet' && h.onRemoveSecondPet) h.onRemoveSecondPet();
       if (btn.dataset.action === 'buy-egg' && h.onBuyEgg) h.onBuyEgg(btn.dataset.tier);
     });
 
@@ -541,12 +543,12 @@ export const UI = {
   // ---------------- battle ----------------
   renderBattle(state) {
     this.setMode(state.mode);
-    const showPrestige = state.level >= Engine.MAX_LEVEL;
-    this.els['prestige-box'].classList.toggle('hidden', !showPrestige);
-    if (showPrestige) {
-      this.els['prestige-note'].innerHTML =
-        `Reset to level 1 / stage 1 for <b class="gold-text">+25% damage & gold</b> (now +${state.prestigeBonus || 0}%).<br>` +
-        `<span class="muted">Keeps: privileged gear sets, ⭐ stars, lifetime stats.</span>`;
+    const showRebirth = state.level >= Engine.MAX_LEVEL;
+    this.els['rebirth-box'].classList.toggle('hidden', !showRebirth);
+    if (showRebirth) {
+      this.els['rebirth-note'].innerHTML =
+        `Return to <b class="gold-text">level 1</b> — everything else stays (stage, gold, gear, pets, titles).<br>` +
+        `<span class="muted">Rebirths so far: ${state.rebirthCount || 0}.</span>`;
     }
     this.updateHeroPanel(state, Engine.computeStats(state), null);
   },
@@ -611,11 +613,10 @@ export const UI = {
       ? `<div class="set-active" title="${esc(pSet.desc)}">${pSet.emoji} ${esc(pSet.name)} <b>(${pSet.count}pc)</b></div>` : '';
     const rested = state.restedUntil && Date.now() < state.restedUntil
       ? `<span class="buff-chip" title="Well-rested: +25% XP">😴 rested</span>` : '';
-    // Active pet fights beside the hero — show its face next to the stats.
-    const pet = Engine.activePet(state);
-    const sp = pet && Engine.petSpeciesOf(pet);
-    const petChip = sp
-      ? `<span class="buff-chip" title="${esc(sp.name)} Lv ${pet.level} — strikes every 4s">${sp.emoji} Lv ${pet.level}</span>` : '';
+    // Active pets fight beside the hero — show their faces next to the stats.
+    const pets = Engine.activePets(state);
+    const petChip = pets.length
+      ? `<span class="buff-chip" title="${pets.map(pt => { const s2 = Engine.petSpeciesOf(pt); return `${s2.name} Lv ${pt.level} — strikes every 4s`; }).join(' + ')}">${pets.map(pt => `${Engine.petSpeciesOf(pt).emoji} Lv ${pt.level}`).join(' ')}</span>` : '';
     // Pet bond contribution (flat, added after multipliers) — small chip when nonzero.
     const bond = stats.bond || { atk: 0, def: 0, hp: 0 };
     const bondChip = (bond.atk + bond.def + bond.hp) > 0
@@ -1095,11 +1096,20 @@ export const UI = {
       panel.appendChild(empty);
       return;
     }
+    if (state.playerClass === 'hunter') {
+      const hint = document.createElement('p');
+      hint.className = 'muted small';
+      hint.textContent = '🏹 Hunter perk: field a second pet — set any pet as your 2nd and both will fight.';
+      panel.appendChild(hint);
+    }
     const list = document.createElement('div');
     list.className = 'pet-list';
     for (const pet of p.collection) {
       const sp = Engine.petSpeciesOf(pet);
-      const active = pet.uid === p.activeUid;
+      const isPrimary = pet.uid === p.activeUid;
+      const isSecond = pet.uid === p.secondUid;
+      const isHunter = state.playerClass === 'hunter';
+      const active = isPrimary || isSecond;
       const cost = Engine.petFeedCost(pet, state);
       const hungerPct = Math.round(pet.hunger);
       const hungerLabel = pet.hunger <= 0 ? 'hungry — sits out!' : pet.hunger <= 50 ? 'peckish (40% dmg)' : 'full power';
@@ -1111,11 +1121,17 @@ export const UI = {
         : `🔗 Bond: +${pb.atk} ATK / +${pb.def} DEF / +${pb.hp} HP (applies when active)`;
       const row = document.createElement('div');
       row.className = 'pet-card' + (active ? ' active' : '');
+      const badge = isPrimary ? '<span class="pet-active">ACTIVE</span>'
+        : isSecond ? '<span class="pet-active">2ND PET</span>' : '';
+      const setActiveBtn = isPrimary ? '' : `<button class="btn small ghost" data-action="set-active-pet" data-id="${esc(pet.uid)}">Set active</button>`;
+      const secondBtn = !isHunter || isPrimary ? '' : isSecond
+        ? `<button class="btn small ghost" data-action="remove-second-pet" data-id="${esc(pet.uid)}">Remove 2nd</button>`
+        : `<button class="btn small ghost" data-action="set-second-pet" data-id="${esc(pet.uid)}">Set as 2nd</button>`;
       row.innerHTML = `
         <div class="pet-head"><span class="pet-emoji">${sp.emoji}</span>
           <div><div class="comp-name">${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></div>
           <div class="muted small">${esc(sp.rarity)} · strikes every 4s</div></div>
-          ${active ? '<span class="pet-active">ACTIVE</span>' : ''}
+          ${badge}
         </div>
         <div class="muted small">📊 ${ps.atk} ATK · ${ps.def} DEF · ${ps.hp} HP</div>
         <div class="muted small">${bondText}</div>
@@ -1123,7 +1139,8 @@ export const UI = {
           <span class="muted small">🍖 ${hungerPct}% ${hungerLabel}</span></div>
         <div class="row">
           <button class="btn small" data-action="feed-pet" data-id="${esc(pet.uid)}" ${pet.hunger >= 100 ? 'disabled' : ''}>🍖 Feed (💰${formatNum(cost)})</button>
-          ${active ? '' : `<button class="btn small ghost" data-action="set-active-pet" data-id="${esc(pet.uid)}">Set active</button>`}
+          ${setActiveBtn}
+          ${secondBtn}
         </div>`;
       list.appendChild(row);
     }
@@ -1170,7 +1187,7 @@ export const UI = {
           <span class="lb-chip"><b>Stage</b>${en.stage}</span>
           <span class="lb-chip"><b>⚔️</b>${formatNum(en.power || 0)}</span>
           <span class="lb-chip"><b>👑</b>${en.bossesKilled}</span>
-          <span class="lb-chip"><b>🔥</b>${en.prestige > 0 ? en.prestige : '—'}</span>
+          <span class="lb-chip"><b>🌀</b>${en.rebirth > 0 ? en.rebirth : '—'}</span>
         </div>`;
       body.appendChild(row);
     });
@@ -1222,7 +1239,7 @@ export const UI = {
         <div><span class="muted">Level</span><b>${state.level}</b></div>
         <div><span class="muted">Stage</span><b>${state.stage}</b></div>
         <div><span class="muted">Bosses</span><b>${state.bossesKilled}</b></div>
-        <div><span class="muted">Prestige</span><b>🔥${state.prestigeCount || 0} (+${state.prestigeBonus || 0}%)</b></div>
+        <div><span class="muted">Rebirths</span><b>🌀${state.rebirthCount || 0}</b></div>
         <div><span class="muted">Kills</span><b>${formatNum(state.stats.kills)}</b></div>
         <div><span class="muted">Taps</span><b>${formatNum(state.stats.taps)}</b></div>
         <div><span class="muted">Best combo</span><b>🔥${formatNum(state.stats.maxCombo || 0)}</b></div>

@@ -20,9 +20,8 @@
 //      Returns { wavesCleared, best }. The run ends (loot already kept);
 //      respawn the hero / return to the normal stage as you do for deaths.
 //   4. State load: call `Raid.init(state)` (normalizes state.raid).
-//   5. Prestige: after `Engine.prestige(old)` returns newState, call
-//        Raid.carryOver(newState, old);
-//      so the best-wave record survives prestige.
+//      (Rebirth mutates the state in place, so the best-wave record
+//      survives it automatically — no carry-over call needed.)
 //
 // UX notes: wave + best-wave are available via Raid.wave() and
 // Raid.best(state) — show them in the enemy-stage label, e.g.
@@ -34,7 +33,6 @@ import {
   isRaidBoss,
   raidWaveScaling,
   ensureRaidState,
-  carryRaidPrestige,
 } from './engine.js';
 
 // Module-level run state (not saved; the run always restarts at wave 1).
@@ -109,11 +107,5 @@ export const Raid = {
     _wave = 0;
     const best = state && state.raid ? this.best(state) : null;
     return { wavesCleared, best }; // best lives on state.raid
-  },
-
-  // Carry the best-wave record across prestige. Call after
-  // Engine.prestige(old) returns newState.
-  carryOver(newState, oldState) {
-    return carryRaidPrestige(newState, oldState);
   },
 };

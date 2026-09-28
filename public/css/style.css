@@ -429,8 +429,8 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 }
 .skill-btn:disabled { opacity: 0.5; }
 
-.prestige-box { text-align: center; margin: 0.6rem 0; padding: 0.8rem; border: 1px dashed var(--gold2); border-radius: var(--radius); }
-.prestige-note { margin-top: 0.5rem; font-size: 0.85rem; }
+.rebirth-box { text-align: center; margin: 0.6rem 0; padding: 0.8rem; border: 1px dashed var(--gold2); border-radius: var(--radius); }
+.rebirth-note { margin-top: 0.5rem; font-size: 0.85rem; }
 
 .combat-log { margin-top: 0.4rem; font-size: 0.82rem; color: var(--muted); min-height: 2rem; }
 .log-line { padding: 0.12rem 0; border-bottom: 1px dotted #2a2440; }
@@ -1731,7 +1731,7 @@ body[data-uistyle="modern"] .item-card:hover, body[data-uistyle="modern"] .membe
   #tab-battle .tap-btn:hover:active { transform: translateY(0) scale(.92); }
 }
 
-/* ---- skill + prestige buttons: lift + press ---- */
+/* ---- skill + rebirth buttons: lift + press ---- */
 #tab-battle .skill-btn {
   border-radius: 14px;
   box-shadow: 0 10px 24px rgba(0,0,0,.42), 0 0 16px rgba(255,210,63,.12), inset 0 1px 0 rgba(255,255,255,.1);
@@ -1741,16 +1741,16 @@ body[data-uistyle="modern"] .item-card:hover, body[data-uistyle="modern"] .membe
 @media (hover: hover) {
   #tab-battle .skill-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(0,0,0,.45), 0 0 20px rgba(255,210,63,.2), inset 0 1px 0 rgba(255,255,255,.1); }
 }
-#tab-battle .prestige-box {
+#tab-battle .rebirth-box {
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255,210,63,.09), rgba(255,210,63,.02));
   box-shadow: 0 0 26px rgba(255,210,63,.13), 0 12px 30px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.07);
 }
-#tab-battle #prestige-btn {
+#tab-battle #rebirth-btn {
   box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 18px rgba(255,210,63,.25);
   transition: transform .15s ease, box-shadow .2s ease;
 }
-#tab-battle #prestige-btn:active { transform: scale(.96); }
+#tab-battle #rebirth-btn:active { transform: scale(.96); }
 
 /* ---- frenzy: softer pulse (was 0.6s aggressive) ---- */
 @keyframes frenzy-soft {
@@ -1795,7 +1795,7 @@ body[data-uistyle="modern"] .item-card:hover, body[data-uistyle="modern"] .membe
 #tab-battle .battle-side > * { margin-bottom: 0; margin-top: 0; }
 #tab-battle .tap-btn { margin: 0.4rem auto; }
 #tab-battle .skill-btn { margin: 0 auto; }
-#tab-battle .prestige-box { margin: 0; }
+#tab-battle .rebirth-box { margin: 0; }
 #tab-battle .combat-log { margin-top: 0; }
 
 /* ---- reduce motion: kill the new keyframes too ---- */

@@ -35,6 +35,7 @@ const {
   joinGuild,
   leaveGuild,
   getGoldCap,
+  getSetting,
 } = require('./db');
 
 const router = express.Router();
@@ -68,11 +69,25 @@ const redeemLimiter = rateLimit({
 // cryptic errors. Toggle with env vars (Render → Environment):
 //   MAINTENANCE_MODE=1            → maintenance screen on
 //   MAINTENANCE_MESSAGE="..."     → optional custom message
-router.get('/status', (req, res) => {
-  const maintenance = /^(1|true|yes)$/i.test(String(process.env.MAINTENANCE_MODE || ''));
-  const message = process.env.MAINTENANCE_MESSAGE || null;
+// The owner can override both at runtime from the GM console (server
+// settings maintenance_mode / maintenance_message); a present override
+// ('1' or '0') wins over the env vars.
+router.get('/status', asyncHandler(async (req, res) => {
+  const override = await getSetting('maintenance_mode');
+  let maintenance;
+  let message;
+  if (override === '1' || override === '0') {
+    maintenance = override === '1';
+    const msg = await getSetting('maintenance_message');
+    message = (typeof msg === 'string' && msg.trim())
+      ? msg
+      : (process.env.MAINTENANCE_MESSAGE || null);
+  } else {
+    maintenance = /^(1|true|yes)$/i.test(String(process.env.MAINTENANCE_MODE || ''));
+    message = process.env.MAINTENANCE_MESSAGE || null;
+  }
   res.json({ ok: true, maintenance, message });
-});
+}));
 
 // ---------- changelog ----------
 // Public, but role-aware: entries/items flagged "staff" in changelog.json are
@@ -122,8 +137,7 @@ function defaultStateBlob() {
     stars: 0,
     stage: 1,
     bossesKilled: 0,
-    prestigeCount: 0,
-    prestigeBonus: 0,
+    rebirthCount: 0,
     hero: {
       hp: 100, maxHp: 100, attack: 10, defense: 2,
       critChance: 5, critDamage: 150, parry: 0, dodge: 5,
@@ -135,6 +149,7 @@ function defaultStateBlob() {
     upgrades: { weapon: 1, armor: 1, skill: 1 },
     skills: ['power-strike'],
     companions: [],
+    pets: { collection: [], activeUid: null, eggs: 0 },
     codesRedeemed: [],
     stats: { taps: 0, kills: 0, playTimeSec: 0 },
   };
@@ -248,7 +263,7 @@ router.get(
         stage: r.stage,
         power,
         bossesKilled: r.bosses_killed,
-        prestige: r.prestige_count,
+        rebirth: r.rebirth_count,
       };
     });
     res.json({ entries });
@@ -267,22 +282,33 @@ router.post(
     }
     code = code.trim().toUpperCase();
 
-    let gearSet;
+    const cap = await getGoldCap();
+    let giftRow;
     try {
-      gearSet = await redeemGiftCode(
+      giftRow = await redeemGiftCode(
         code,
         req.user.id,
         (giftCode, blob) => {
-          if (!isValidSetId(giftCode.gear_set)) {
-            const err = new Error('Code has an invalid gear set.');
-            err.status = 500;
-            throw err;
-          }
-          const items = makeGearItems(giftCode.gear_set);
-          if (!Array.isArray(blob.inventory)) blob.inventory = [];
-          blob.inventory.push(...items);
+          const kind = giftCode.reward_kind || 'gear';
+          const amount = Math.max(0, Math.floor(Number(giftCode.reward_amount)) || 0);
           if (!Array.isArray(blob.codesRedeemed)) blob.codesRedeemed = [];
           if (!blob.codesRedeemed.includes(code)) blob.codesRedeemed.push(code);
+          if (kind === 'gold') {
+            const cur = Math.max(0, Number(blob.gold) || 0);
+            // Infinite-gold perk holders bypass the cap; everyone else clamps.
+            blob.gold = blob.infGold === true ? cur + amount : Math.min(cap, cur + amount);
+          } else if (kind === 'stars') {
+            blob.stars = Math.min(1e15, Math.max(0, Number(blob.stars) || 0) + amount);
+          } else {
+            if (!isValidSetId(giftCode.gear_set)) {
+              const err = new Error('Code has an invalid gear set.');
+              err.status = 500;
+              throw err;
+            }
+            const items = makeGearItems(giftCode.gear_set);
+            if (!Array.isArray(blob.inventory)) blob.inventory = [];
+            blob.inventory.push(...items);
+          }
           return blob;
         },
         () => defaultStateBlob()
@@ -302,7 +328,13 @@ router.post(
       throw err;
     }
 
-    res.json({ ok: true, set: gearSet });
+    const rewardKind = giftRow.reward_kind || 'gear';
+    const rewardAmount = Math.max(0, Math.floor(Number(giftRow.reward_amount)) || 0);
+    res.json({
+      ok: true,
+      set: rewardKind === 'gear' ? giftRow.gear_set : null,
+      reward: { kind: rewardKind, amount: rewardAmount },
+    });
   })
 );
 

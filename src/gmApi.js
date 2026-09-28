@@ -6,8 +6,11 @@
  *   POST /api/gm/grant        (gm|owner)
  *   POST /api/gm/grant-title  (gm|owner)
  *   POST /api/gm/badge       (gm|owner)
+ *   POST /api/gm/grant-pet   (gm|owner) — grant unhatched pet eggs
+ *   POST /api/gm/set-rebirth (gm|owner) — set a player's rebirth count
  *   POST /api/gm/inf-gold    (owner) — toggle infinite-gold perk
  *   POST /api/gm/settings    (owner) — update server tunables (gold_cap)
+ *   POST /api/gm/maintenance (owner) — maintenance mode on/off + message
  *   POST /api/gm/set-stage    (gm|owner)
  *   POST /api/gm/heal         (gm|owner)
  *   POST /api/gm/reset        (gm|owner)
@@ -19,6 +22,7 @@
  *   POST /api/gm/stage        (owner|admin) — set a player's stage
  *   POST /api/gm/ban          (owner|admin) — stub until users.banned exists
  *   POST /api/gm/unban        (owner|admin) — stub until users.banned exists
+ *   POST /api/gm/kick         (owner|admin) — force-logout a player now
  *   POST /api/gm/broadcast    (owner|admin|moderator) — server announcement
  *   GET  /api/broadcasts/latest (public) — newest announcement
  *   GET  /api/gm/players      (owner|admin|moderator) — player list w/ search
@@ -49,7 +53,9 @@ const {
   getGiftCode,
   getGoldCap,
   setSetting,
+  getSetting,
   refreshGoldCap,
+  bumpSessionVersion,
 } = require('./db');
 
 const router = express.Router();
@@ -142,7 +148,7 @@ function applyLevelGrant(blob, n) {
   blob.level = Math.max(1, Math.floor(Number(blob.level) || 1));
   const hero = ensureHero(blob);
   let granted = 0;
-  for (let i = 0; i < n && blob.level < 120; i++) {
+  for (let i = 0; i < n && blob.level < 70; i++) {
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
     hero.maxHp = (Number(hero.maxHp) || 0) + 25;
@@ -167,7 +173,7 @@ function applyXpGrant(blob, amount) {
   }
   const hero = ensureHero(blob);
   let guard = 0;
-  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < 120) {
+  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < 70) {
     blob.xp -= blob.xpNext;
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
@@ -178,7 +184,7 @@ function applyXpGrant(blob, amount) {
       blob.mastery.points = Math.max(0, Math.floor(Number(blob.mastery.points) || 0)) + 1;
     }
   }
-  if (blob.level >= 120) blob.xp = 0; // cap reached: bank no XP past it
+  if (blob.level >= 70) blob.xp = 0; // cap reached: bank no XP past it
 }
 
 const GOLD_GRANT_MIN = 1;
@@ -312,9 +318,65 @@ router.post(
   })
 );
 
+// ---------- grant pet eggs (gm|owner) ----------
+// Adds unhatched pet eggs to a player's save. Mirrors the client shape in
+// public/js/engine.js defaultPets(): { collection, activeUid, eggs, shopEggs }.
+const PET_GRANT_MIN = 1;
+const PET_GRANT_MAX = 99;
+function ensurePets(blob) {
+  if (!blob.pets || typeof blob.pets !== 'object' || Array.isArray(blob.pets)) {
+    blob.pets = { collection: [], activeUid: null, eggs: 0 };
+  }
+  const p = blob.pets;
+  if (!Array.isArray(p.collection)) p.collection = [];
+  if (typeof p.eggs !== 'number' || !Number.isFinite(p.eggs)) p.eggs = 0;
+  return p;
+}
+router.post(
+  '/gm/grant-pet',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, amount } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!Number.isInteger(amount) || amount < PET_GRANT_MIN || amount > PET_GRANT_MAX) {
+      return res
+        .status(400)
+        .json({ error: `Amount must be an integer between ${PET_GRANT_MIN} and ${PET_GRANT_MAX}.` });
+    }
+    const blob = await loadBlob(target.id);
+    const pets = ensurePets(blob);
+    pets.eggs = Math.min(9999, Math.max(0, Math.floor(pets.eggs)) + amount);
+    await persistMergedState(target.id, blob);
+    res.json({ ok: true, eggs: pets.eggs, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- set rebirth count (gm|owner) ----------
+const REBIRTH_SET_MIN = 0;
+const REBIRTH_SET_MAX = 999;
+router.post(
+  '/gm/set-rebirth',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, count } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!Number.isInteger(count) || count < REBIRTH_SET_MIN || count > REBIRTH_SET_MAX) {
+      return res
+        .status(400)
+        .json({ error: `Count must be an integer between ${REBIRTH_SET_MIN} and ${REBIRTH_SET_MAX}.` });
+    }
+    const blob = await loadBlob(target.id);
+    blob.rebirthCount = count;
+    await persistMergedState(target.id, blob);
+    res.json({ ok: true, rebirthCount: count, state: selfState(req, target, blob) });
+  })
+);
+
 // ---------- infinite gold (owner only) ----------
 // Toggles the infGold perk on a player's save: purchases never deduct gold
-// and the HUD shows ∞. Survives prestige. Pass enabled: false to revoke.
+// and the HUD shows ∞. Survives rebirth. Pass enabled: false to revoke.
 router.post(
   '/gm/inf-gold',
   ownerOnly,
@@ -345,6 +407,25 @@ router.post(
     }
     await refreshGoldCap();
     res.json({ ok: true, goldCap: await getGoldCap() });
+  })
+);
+
+// ---------- maintenance mode (owner only) ----------
+// Runtime override for GET /api/status. When a maintenance_mode setting is
+// present ('1'/'0') it wins over the MAINTENANCE_MODE env var; deleting the
+// override is done by turning maintenance off (writes '0').
+router.post(
+  '/gm/maintenance',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { enabled, message } = req.body || {};
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({ error: 'enabled must be a boolean.' });
+    }
+    const msg = typeof message === 'string' ? message.trim().slice(0, 500) : '';
+    await setSetting('maintenance_mode', enabled ? '1' : '0');
+    await setSetting('maintenance_message', msg);
+    res.json({ ok: true, maintenance: enabled, message: msg || null });
   })
 );
 
@@ -484,6 +565,28 @@ router.post(
   })
 );
 
+// ---------- kick (admin+) ----------
+// Force-logout a player right now by bumping their session_version; their
+// next authenticated request fails the version check in requireAuth and the
+// session is destroyed. Unlike a ban, they can sign straight back in.
+router.post(
+  '/gm/kick',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (target.role === 'owner') {
+      return res.status(403).json({ error: 'The owner cannot be kicked.' });
+    }
+    if (target.id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot kick yourself.' });
+    }
+    await bumpSessionVersion(target.id);
+    res.json({ ok: true, username: target.username, kicked: true });
+  })
+);
+
 // ---------- reset player save (admin+) ----------
 router.post(
   '/gm/reset-player',
@@ -578,16 +681,34 @@ router.post(
   '/gm/codes',
   gmOrOwner,
   asyncHandler(async (req, res) => {
-    const { set, maxUses } = req.body || {};
-    if (typeof set !== 'string' || !isValidSetId(set)) {
-      return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden, voidwalker, dragonscale.' });
+    const { rewardKind = 'gear', set, amount, maxUses } = req.body || {};
+    if (!['gear', 'gold', 'stars'].includes(rewardKind)) {
+      return res.status(400).json({ error: 'rewardKind must be one of "gear", "gold", "stars".' });
     }
     if (!Number.isInteger(maxUses) || maxUses < 1 || maxUses > 1000000) {
       return res.status(400).json({ error: 'maxUses must be an integer between 1 and 1000000.' });
     }
+    let gearSet = 'none';
+    let rewardAmount = 0;
+    if (rewardKind === 'gear') {
+      if (typeof set !== 'string' || !isValidSetId(set)) {
+        return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden, voidwalker, dragonscale, gamemaster.' });
+      }
+      gearSet = set;
+    } else if (rewardKind === 'gold') {
+      if (!Number.isInteger(amount) || amount < 1 || amount > 1e12) {
+        return res.status(400).json({ error: 'Gold amount must be an integer between 1 and 1000000000000.' });
+      }
+      rewardAmount = amount;
+    } else {
+      if (!Number.isInteger(amount) || amount < 1 || amount > 100000) {
+        return res.status(400).json({ error: 'Star amount must be an integer between 1 and 100000.' });
+      }
+      rewardAmount = amount;
+    }
     const code = await generateCode();
-    await createGiftCode(code, set, maxUses, req.user.id);
-    res.status(201).json({ code });
+    await createGiftCode(code, gearSet, maxUses, req.user.id, rewardKind, rewardAmount);
+    res.status(201).json({ code, rewardKind, rewardAmount, set: gearSet });
   })
 );
 

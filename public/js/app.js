@@ -105,7 +105,7 @@ async function boot() {
     onTap: doTap,
     onSkill: usePowerStrike,
     onMode: setMode,
-    onPrestige: doPrestige,
+    onRebirth: doRebirth,
     onEquip: doEquip,
     onSell: doSell,
     onUpgrade: doUpgrade,
@@ -115,6 +115,8 @@ async function boot() {
     onHatchPet: doHatchPet,
     onFeedPet: doFeedPet,
     onSetActivePet: doSetActivePet,
+    onSetSecondPet: doSetSecondPet,
+    onRemoveSecondPet: doRemoveSecondPet,
     onBuyEgg: doBuyEgg,
     onBuyGear: doBuyGear,
     onGotoPetShop: doGotoPetShop,
@@ -595,10 +597,12 @@ function petStrike(stats) {
   if (App.dead || !App.enemy || App.spawnPending) return;
   const dmg = Engine.petStrikeDamage(App.state, stats);
   if (dmg <= 0) return;
-  const pet = Engine.activePet(App.state);
-  const sp = pet && Engine.petSpeciesOf(pet);
-  meterHit('pet', sp ? sp.name : 'Pet', dmg);
-  damageEnemy(dmg, '', (sp ? sp.emoji : '🐾') + ' ');
+  const pets = Engine.activePets(App.state);
+  const label = pets.length
+    ? pets.map(pt => { const s2 = Engine.petSpeciesOf(pt); return (s2 ? s2.emoji : '🐾') + ' ' + (s2 ? s2.name : 'Pet'); }).join(' + ')
+    : '🐾 Pet';
+  meterHit('pet', label, dmg);
+  damageEnemy(dmg, '', pets.map(pt => { const s2 = Engine.petSpeciesOf(pt); return s2 ? s2.emoji : '🐾'; }).join('') + ' ');
 }
 
 function damageEnemy(dmg, prefix, sourceLabel) {
@@ -636,7 +640,7 @@ function onKillEnemy() {
   const inRaid = Raid.isActive();
   const raidLoot = inRaid ? Raid.onKill(s) : null;
 
-  let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0), s.prestigeBonus);
+  let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0));
   if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
   const addedGold = Engine.addGold(s, gold);
   Audio.play('coin');
@@ -654,11 +658,11 @@ function onKillEnemy() {
   const xpRes = Engine.gainXp(s, killXp);
   // The active pet earns 15% of the kill's XP.
   const petXpRes = Engine.gainPetXp(s, Math.floor(killXp * 0.15));
-  for (const lv of petXpRes.levels) {
-    const pet = Engine.activePet(s);
-    const petName = pet ? Engine.petSpeciesOf(pet).name : 'Pet';
-    UI.toast(`🐾 ${petName} reached level ${lv}!`, 'success');
-    UI.combatLog(`🐾 ${petName} leveled up to ${lv}!`, 'level');
+  for (const g of petXpRes.gains) {
+    for (const lv of g.levels) {
+      UI.toast(`🐾 ${g.name} reached level ${lv}!`, 'success');
+      UI.combatLog(`🐾 ${g.name} leveled up to ${lv}!`, 'level');
+    }
   }
   const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null);
   if (loot) {
@@ -703,7 +707,7 @@ function onKillEnemy() {
   s.stage += 1;
   spawnNextEnemy();
   UI.updateHUD(s, App.user);
-  // prestige unlock may have appeared
+  // rebirth unlock may have appeared
   if (s.level >= Engine.MAX_LEVEL) UI.renderBattle(s);
 }
 
@@ -1087,6 +1091,30 @@ function doBuyEgg(tier) {
   saveNow();
 }
 
+function doSetSecondPet(petUid) {
+  const s = App.state;
+  if (!s || s.playerClass !== 'hunter') return;
+  const p = Engine.ensurePets(s);
+  const pet = p.collection.find(x => x.uid === petUid);
+  if (!pet || petUid === p.activeUid) return;
+  p.secondUid = petUid;
+  const sp = Engine.petSpeciesOf(pet);
+  UI.toast(`${sp.emoji} ${sp.name} joins the hunt as your second pet!`, 'success');
+  UI.renderParty(s);
+  saveNow();
+}
+
+function doRemoveSecondPet() {
+  const s = App.state;
+  if (!s) return;
+  const p = Engine.ensurePets(s);
+  if (!p.secondUid) return;
+  p.secondUid = null;
+  UI.toast('Second pet dismissed.', 'info');
+  UI.renderParty(s);
+  saveNow();
+}
+
 function doBuyGear(stockId) {
   const s = App.state;
   if (!s) return;
@@ -1158,33 +1186,30 @@ function applyExternalState(srv) {
   saveNow();
 }
 
-async function doPrestige() {
+async function doRebirth() {
   const s = App.state;
   if (s.level < Engine.MAX_LEVEL) return;
-  const nextBonus = (s.prestigeBonus || 0) + 25;
+  const count = (s.rebirthCount || 0) + 1;
   const ok = await UI.confirm(
-    '🔥 Prestige?',
-    `<p>Reset to <b>level 1, stage 1</b> with no gold and no regular gear.</p>
-     <p><b class="gold-text">+25% damage & gold</b> (→ +${nextBonus}% total).</p>
-     <p class="muted">Kept: 👑 privileged gear sets, ⭐ stars, lifetime stats, race.</p>`,
-    'Prestige!'
+    '🌀 Rebirth?',
+    `<p>Return to <b>level 1</b>. Everything else stays: stage, gold, gear, pets, titles.</p>
+     <p class="muted">This will be your rebirth #${count}.</p>`,
+    'Rebirth!'
   );
   if (!ok) return;
-  const fresh = Engine.prestige(s);
-  if (!fresh) return;
-  Raid.carryOver(fresh, s);
-  App.state = fresh;
+  const res = Engine.rebirth(s);
+  if (!res) return;
   App.dead = false;
   UI.setDead(false);
-  applyCustomStyles(); // cosmetic prefs survive prestige
+  applyCustomStyles();
   applyAudioPrefs();
   spawnEnemy();
-  UI.renderBattle(fresh);
-  UI.renderGear(fresh);
-  UI.renderParty(fresh);
-  UI.renderMore(fresh, App.user);
-  UI.updateHUD(fresh, App.user);
-  UI.toast(`🔥 Prestiged! +25% damage & gold (total +${fresh.prestigeBonus}%).`, 'success');
+  UI.renderBattle(s);
+  UI.renderGear(s);
+  UI.renderParty(s);
+  UI.renderMore(s, App.user);
+  UI.updateHUD(s, App.user);
+  UI.toast(`🌀 Reborn! Back to level 1 — rebirth #${s.rebirthCount}.`, 'success');
   checkAch();
   saveNow();
 }
@@ -1196,17 +1221,26 @@ async function doRedeem() {
   if (!code) { UI.toast('Enter a gift code.', 'error'); return; }
   try {
     const res = await api.redeem(code);
-    // Server merged the set into saved state; save local progress first, then pull inventory.
+    // Server merged the reward into saved state; save local progress first,
+    // then pull the server-merged reward fields back in.
     await saveNow();
     const { state: srv } = await api.getState();
     const fresh = Engine.ensureState(srv);
-    // keep local live progress, take the server-merged inventory + redemptions
+    // keep local live progress, take the server-merged reward fields
     App.state.inventory = fresh.inventory;
+    App.state.gold = fresh.gold;
+    App.state.stars = fresh.stars;
     App.state.codesRedeemed = fresh.codesRedeemed;
     input.value = '';
     UI.renderGear(App.state);
     UI.renderMore(App.state, App.user);
-    UI.toast(`🎁 Redeemed! ${res.set ? '(' + res.set + ' set added)' : ''}`, 'success');
+    UI.updateHUD(App.state, App.user);
+    const reward = res.reward || { kind: 'gear', amount: 0 };
+    let msg;
+    if (reward.kind === 'gold') msg = `🎁 Redeemed: +💰${formatNum(reward.amount)} gold!`;
+    else if (reward.kind === 'stars') msg = `🎁 Redeemed: +⭐${formatNum(reward.amount)} stars!`;
+    else msg = `🎁 Redeemed! ${res.set ? '(' + res.set + ' set added)' : ''}`;
+    UI.toast(msg, 'success');
     saveNow();
   } catch (e) {
     UI.toast(e.message || 'Redeem failed.', 'error');

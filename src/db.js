@@ -54,6 +54,21 @@ pool.on('error', (err) => {
 async function migrate() {
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(sql);
+  // Prestige -> Rebirth rename: old installs carry prestige_count.
+  try {
+    await pool.query('ALTER TABLE player_state RENAME COLUMN prestige_count TO rebirth_count');
+  } catch (e) { /* already renamed or fresh install */ }
+  // Kick support: users.session_version (see schema.sql IF NOT EXISTS guard).
+  try {
+    await pool.query('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
+  // Gift-code reward kinds (see schema.sql IF NOT EXISTS guards).
+  try {
+    await pool.query("ALTER TABLE gift_codes ADD COLUMN reward_kind TEXT NOT NULL DEFAULT 'gear'");
+  } catch (e) { /* already exists */ }
+  try {
+    await pool.query('ALTER TABLE gift_codes ADD COLUMN reward_amount INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
 }
 
 async function closePool() {
@@ -90,6 +105,15 @@ async function setUserRole(userId, role) {
   await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
 }
 
+/**
+ * Bump a user's session_version, invalidating all of their existing
+ * sessions. The next authenticated request carrying an older version is
+ * destroyed by requireAuth (see src/auth.js). Used by GM kick.
+ */
+async function bumpSessionVersion(userId) {
+  await pool.query('UPDATE users SET session_version = session_version + 1 WHERE id = $1', [userId]);
+}
+
 async function ownerExists() {
   const { rows } = await pool.query("SELECT COUNT(*) AS n FROM users WHERE role = 'owner'");
   return Number(rows[0].n) > 0;
@@ -119,18 +143,18 @@ async function upsertState(q, userId, blob) {
   const level = Math.max(1, Math.floor(Number(blob.level) || 1));
   const stage = Math.max(1, Math.floor(Number(blob.stage) || 1));
   const bossesKilled = Math.max(0, Math.floor(Number(blob.bossesKilled) || 0));
-  const prestigeCount = Math.max(0, Math.floor(Number(blob.prestigeCount) || 0));
+  const rebirthCount = Math.max(0, Math.floor(Number(blob.rebirthCount ?? blob.prestigeCount) || 0));
   await q.query(
-    `INSERT INTO player_state (user_id, level, stage, bosses_killed, prestige_count, state_json, updated_at)
+    `INSERT INTO player_state (user_id, level, stage, bosses_killed, rebirth_count, state_json, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (user_id) DO UPDATE SET
        level = EXCLUDED.level,
        stage = EXCLUDED.stage,
        bosses_killed = EXCLUDED.bosses_killed,
-       prestige_count = EXCLUDED.prestige_count,
+       rebirth_count = EXCLUDED.rebirth_count,
        state_json = EXCLUDED.state_json,
        updated_at = EXCLUDED.updated_at`,
-    [userId, level, stage, bossesKilled, prestigeCount, JSON.stringify(blob), Date.now()]
+    [userId, level, stage, bossesKilled, rebirthCount, JSON.stringify(blob), Date.now()]
   );
 }
 
@@ -144,7 +168,7 @@ async function saveState(userId, blob) {
 
 async function getLeaderboardRows(limit = 100) {
   const { rows } = await pool.query(
-    `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.prestige_count, ps.state_json
+    `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.rebirth_count, ps.state_json
      FROM player_state ps
      JOIN users u ON u.id = ps.user_id
      ORDER BY ps.level DESC, ps.stage DESC, ps.bosses_killed DESC
@@ -160,10 +184,10 @@ async function getGiftCode(code) {
   return rows[0] || null;
 }
 
-async function createGiftCode(code, gearSet, maxUses, createdBy) {
+async function createGiftCode(code, gearSet, maxUses, createdBy, rewardKind = 'gear', rewardAmount = 0) {
   await pool.query(
-    'INSERT INTO gift_codes (code, gear_set, max_uses, uses, created_by, created_at) VALUES ($1, $2, $3, 0, $4, $5)',
-    [code, gearSet, maxUses, createdBy, Date.now()]
+    'INSERT INTO gift_codes (code, gear_set, reward_kind, reward_amount, max_uses, uses, created_by, created_at) VALUES ($1, $2, $3, $4, $5, 0, $6, $7)',
+    [code, gearSet, rewardKind, rewardAmount, maxUses, createdBy, Date.now()]
   );
 }
 
@@ -173,7 +197,7 @@ async function incrementCodeUses(code) {
 
 async function listGiftCodes() {
   const { rows } = await pool.query(
-    'SELECT code, gear_set, max_uses, uses, created_at FROM gift_codes ORDER BY created_at DESC'
+    'SELECT code, gear_set, reward_kind, reward_amount, max_uses, uses, created_at FROM gift_codes ORDER BY created_at DESC'
   );
   return rows;
 }
@@ -213,7 +237,7 @@ function redeemError(code) {
  * player's blob (may throw to abort, e.g. invalid gear set config).
  * `defaultBlobFn()` supplies a fresh blob when the player has no saved row.
  *
- * Returns the gear_set id. Throws errors with .code:
+ * Returns the gift_codes row. Throws errors with .code:
  *   REDEEM_NOT_FOUND | REDEEM_EXHAUSTED | REDEEM_ALREADY
  */
 async function redeemGiftCode(code, userId, grantFn, defaultBlobFn) {
@@ -257,7 +281,7 @@ async function redeemGiftCode(code, userId, grantFn, defaultBlobFn) {
       [code, userId, Date.now()]
     );
     await client.query('COMMIT');
-    return giftCode.gear_set;
+    return giftCode;
   } catch (err) {
     try {
       await client.query('ROLLBACK');
@@ -315,6 +339,7 @@ module.exports = {
   createUser,
   createUserWithRole,
   setUserRole,
+  bumpSessionVersion,
   ownerExists,
   getPlayerCount,
   getUsernamesByRole,
