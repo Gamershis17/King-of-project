@@ -570,8 +570,10 @@ const xpForLevelBase = (level) => {
 };
 // Rebirth scaling: every rebirth multiplies all XP requirements by
 // 1.35^rebirths, so repeated climbs stay meaningful instead of trivial.
+// Effective count is clamped at 200 so tampered values can't blow up the math.
+export const MAX_EFFECTIVE_REBIRTHS = 200;
 export const rebirthXpMult = (rebirthCount) =>
-  Math.pow(1.35, Math.max(0, Math.floor(rebirthCount || 0)));
+  Math.pow(1.35, Math.min(MAX_EFFECTIVE_REBIRTHS, Math.max(0, Math.floor(rebirthCount || 0))));
 export const xpForLevel = (level, rebirthCount = 0) =>
   Math.max(1, Math.round(xpForLevelBase(level) * rebirthXpMult(rebirthCount)));
 export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.12, stage)));

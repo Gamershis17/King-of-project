@@ -25,7 +25,8 @@ function xpForLevelServer(level, rebirthCount) {
   const base = l <= 60
     ? 80 * Math.pow(1.30, l - 1)
     : 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
-  const mult = Math.pow(1.35, Math.max(0, Math.floor(Number(rebirthCount) || 0)));
+  const rb = Math.min(200, Math.max(0, Math.floor(Number(rebirthCount) || 0)));
+  const mult = Math.pow(1.35, rb);
   return Math.max(1, Math.round(base * mult));
 }
 
