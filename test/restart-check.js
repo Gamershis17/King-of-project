@@ -18,7 +18,7 @@ const BASE = `http://localhost:${process.env.PORT || 3000}`;
     });
     if (res.status !== 200) throw new Error('login failed: ' + res.status);
     const cookie = res.headers.get('set-cookie').split(';')[0];
-    const marker = { level: 42, stage: 77, bossesKilled: 9, prestigeCount: 3, gold: 123456, stars: 777, race: 'fae' };
+    const marker = { level: 42, stage: 77, bossesKilled: 9, rebirthCount: 3, gold: 123456, stars: 777, race: 'fae' };
     const put = await fetch(BASE + '/api/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Cookie: cookie },
@@ -37,9 +37,9 @@ const BASE = `http://localhost:${process.env.PORT || 3000}`;
     const st = await fetch(BASE + '/api/state', { headers: { Cookie: cookie } });
     const stBody = await st.json();
     const s = stBody.state;
-    console.log('state:', JSON.stringify({ level: s.level, stage: s.stage, bossesKilled: s.bossesKilled, prestigeCount: s.prestigeCount, gold: s.gold, stars: s.stars, race: s.race }));
+    console.log('state:', JSON.stringify({ level: s.level, stage: s.stage, bossesKilled: s.bossesKilled, rebirthCount: s.rebirthCount, gold: s.gold, stars: s.stars, race: s.race }));
     const ok = s.level === 42 && s.stage === 77 && s.bossesKilled === 9 &&
-      s.prestigeCount === 3 && s.gold === 123456 && s.stars === 777 && s.race === 'fae';
+      s.rebirthCount === 3 && s.gold === 123456 && s.stars === 777 && s.race === 'fae';
     if (!ok) throw new Error('state mismatch after restart');
     console.log('RESTART-PERSISTENCE OK');
   } else {

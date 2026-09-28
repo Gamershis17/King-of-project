@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS player_state (
   level INTEGER NOT NULL DEFAULT 1,
   stage INTEGER NOT NULL DEFAULT 1,
   bosses_killed INTEGER NOT NULL DEFAULT 0,
-  prestige_count INTEGER NOT NULL DEFAULT 0,
+  rebirth_count INTEGER NOT NULL DEFAULT 0,
   state_json TEXT NOT NULL DEFAULT '{}',
   updated_at BIGINT NOT NULL
 );

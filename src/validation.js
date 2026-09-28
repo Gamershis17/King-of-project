@@ -45,8 +45,7 @@ const CLAMPED_FIELDS = {
   xp: [0, 1e15],
   xpNext: [0, 1e15],
   bossesKilled: [0, 100000000],
-  prestigeCount: [0, 100000],
-  prestigeBonus: [0, 100000],
+  rebirthCount: [0, 100000],
 };
 
 function clamp(n, min, max) {
@@ -116,7 +115,7 @@ function sanitizeStateBlob(blob) {
   if (typeof blob.level !== 'number') blob.level = 1;
   if (typeof blob.stage !== 'number') blob.stage = 1;
   if (typeof blob.bossesKilled !== 'number') blob.bossesKilled = 0;
-  if (typeof blob.prestigeCount !== 'number') blob.prestigeCount = 0;
+  if (typeof blob.rebirthCount !== 'number') blob.rebirthCount = 0;
   if (!Array.isArray(blob.inventory)) blob.inventory = [];
   if (!Array.isArray(blob.codesRedeemed)) blob.codesRedeemed = [];
   return { ok: true, state: blob };

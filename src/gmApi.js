@@ -314,7 +314,7 @@ router.post(
 
 // ---------- infinite gold (owner only) ----------
 // Toggles the infGold perk on a player's save: purchases never deduct gold
-// and the HUD shows ∞. Survives prestige. Pass enabled: false to revoke.
+// and the HUD shows ∞. Survives rebirth. Pass enabled: false to revoke.
 router.post(
   '/gm/inf-gold',
   ownerOnly,

@@ -1,5 +1,15 @@
 [
   {
+    "date": "2026-09-28",
+    "title": "🌀 Rebirth replaces Prestige · Hunters field 2 pets",
+    "changes": [
+      "Prestige is gone — the new 🌀 Rebirth button (level 70+) returns you to level 1 while keeping your stage, gold, gear, pets, and titles; no stacking bonus",
+      "Old prestige counts carry over as rebirths, and prestige titles/achievements now track rebirths",
+      "Hunters can now field 2 pets at once: set any second pet from the Party tab — both fight, both earn XP, both bond bonuses apply",
+      "Level cap stays at 70 — saves above 70 clamp down on load"
+    ]
+  },
+  {
     "date": "2026-09-27",
     "title": "Level cap raised to 120",
     "changes": [

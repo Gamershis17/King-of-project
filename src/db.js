@@ -54,6 +54,10 @@ pool.on('error', (err) => {
 async function migrate() {
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(sql);
+  // Prestige -> Rebirth rename: old installs carry prestige_count.
+  try {
+    await pool.query('ALTER TABLE player_state RENAME COLUMN rebirth_count TO rebirth_count');
+  } catch (e) { /* already renamed or fresh install */ }
 }
 
 async function closePool() {
@@ -119,18 +123,18 @@ async function upsertState(q, userId, blob) {
   const level = Math.max(1, Math.floor(Number(blob.level) || 1));
   const stage = Math.max(1, Math.floor(Number(blob.stage) || 1));
   const bossesKilled = Math.max(0, Math.floor(Number(blob.bossesKilled) || 0));
-  const prestigeCount = Math.max(0, Math.floor(Number(blob.prestigeCount) || 0));
+  const rebirthCount = Math.max(0, Math.floor(Number(blob.rebirthCount ?? blob.prestigeCount) || 0));
   await q.query(
-    `INSERT INTO player_state (user_id, level, stage, bosses_killed, prestige_count, state_json, updated_at)
+    `INSERT INTO player_state (user_id, level, stage, bosses_killed, rebirth_count, state_json, updated_at)
      VALUES ($1, $2, $3, $4, $5, $6, $7)
      ON CONFLICT (user_id) DO UPDATE SET
        level = EXCLUDED.level,
        stage = EXCLUDED.stage,
        bosses_killed = EXCLUDED.bosses_killed,
-       prestige_count = EXCLUDED.prestige_count,
+       rebirth_count = EXCLUDED.rebirth_count,
        state_json = EXCLUDED.state_json,
        updated_at = EXCLUDED.updated_at`,
-    [userId, level, stage, bossesKilled, prestigeCount, JSON.stringify(blob), Date.now()]
+    [userId, level, stage, bossesKilled, rebirthCount, JSON.stringify(blob), Date.now()]
   );
 }
 
@@ -144,7 +148,7 @@ async function saveState(userId, blob) {
 
 async function getLeaderboardRows(limit = 100) {
   const { rows } = await pool.query(
-    `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.prestige_count, ps.state_json
+    `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.rebirth_count, ps.state_json
      FROM player_state ps
      JOIN users u ON u.id = ps.user_id
      ORDER BY ps.level DESC, ps.stage DESC, ps.bosses_killed DESC

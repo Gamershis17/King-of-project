@@ -122,8 +122,7 @@ function defaultStateBlob() {
     stars: 0,
     stage: 1,
     bossesKilled: 0,
-    prestigeCount: 0,
-    prestigeBonus: 0,
+    rebirthCount: 0,
     hero: {
       hp: 100, maxHp: 100, attack: 10, defense: 2,
       critChance: 5, critDamage: 150, parry: 0, dodge: 5,
@@ -248,7 +247,7 @@ router.get(
         stage: r.stage,
         power,
         bossesKilled: r.bosses_killed,
-        prestige: r.prestige_count,
+        rebirth: r.rebirth_count,
       };
     });
     res.json({ entries });

@@ -191,7 +191,7 @@ export const GM = {
           <button id="gm-infgold-on" class="btn small gold">Enable ∞</button>
           <button id="gm-infgold-off" class="btn small">Disable</button>
         </div>
-        <p class="muted small">Purchases never deduct gold and the HUD shows ∞. Survives prestige. Only the owner can grant it.</p>
+        <p class="muted small">Purchases never deduct gold and the HUD shows ∞. Survives rebirth. Only the owner can grant it.</p>
       </div>
 
       <div class="card"><h3>⚙️ Server settings <span class="muted small">(owner only)</span></h3>

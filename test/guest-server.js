@@ -58,7 +58,7 @@ function guestBlob() {
   return {
     race: 'elf', mode: 'clicker', level: 12, xp: 500, xpNext: 1000,
     gold: 3450, stars: 3, stage: 14, bossesKilled: 1,
-    prestigeCount: 0, prestigeBonus: 0,
+    rebirthCount: 0,
     hero: { hp: 90, maxHp: 120, attack: 25, defense: 8 },
     party: [], inventory: [], upgrades: { weapon: 2, armor: 1, skill: 1, tap: 1 },
     skills: ['power-strike'], companions: [], codesRedeemed: [],
