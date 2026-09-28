@@ -2113,9 +2113,13 @@ export const UI = {
   async fetchBalanceLog() {
     try {
       const r = await fetch('data/balance-log.json', { cache: 'no-store' });
-      if (r.ok) {
-        const j = await r.json();
-        if (Array.isArray(j)) return j;
+      // Accept status 0 as well: file:// and some WebView contexts report 0
+      // for successful local loads.
+      if (r.ok || r.status === 0) {
+        try {
+          const j = await r.json();
+          if (Array.isArray(j)) return j;
+        } catch { /* fall through */ }
       }
     } catch { /* ignore */ }
     return null;
