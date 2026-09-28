@@ -16,6 +16,20 @@ function setGoldCap(cap) {
 }
 function getGoldCapValue() { return goldCap; }
 
+// Server-side mirror of the client XP curve in public/js/engine.js:
+// levels 1-60 use a 1.30 exponent, 61-70 continue from the kinked value with
+// a 1.42 exponent, and every rebirth multiplies requirements by 1.35^rebirths.
+// Keep in sync if the client formula ever changes.
+function xpForLevelServer(level, rebirthCount) {
+  const l = Math.max(1, Math.floor(Number(level) || 1));
+  const base = l <= 60
+    ? 80 * Math.pow(1.30, l - 1)
+    : 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+  const rb = Math.min(200, Math.max(0, Math.floor(Number(rebirthCount) || 0)));
+  const mult = Math.pow(1.35, rb);
+  return Math.max(1, Math.round(base * mult));
+}
+
 // All roles recognized by the server, highest privilege first.
 const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'player'];
 
@@ -118,12 +132,25 @@ function sanitizeStateBlob(blob) {
   if (typeof blob.rebirthCount !== 'number') blob.rebirthCount = 0;
   if (!Array.isArray(blob.inventory)) blob.inventory = [];
   if (!Array.isArray(blob.codesRedeemed)) blob.codesRedeemed = [];
+  // Anti-spoof: never trust client-supplied xpNext — recompute it from
+  // level + rebirthCount so tampered saves can't grant cheap levels.
+  // Mirrors public/js/engine.js xpForLevel (kinked at 60, 1.35^rebirths).
+  blob.xpNext = xpForLevelServer(blob.level, blob.rebirthCount);
   // Mining + forge: keep legit saves passing. Ores are plain finite
   // non-negative counts (clamped); forged item stats are clamped to a
   // sane cap so tampered values can't smuggle Infinity-scale numbers.
   if (blob.mine && typeof blob.mine === 'object' && !Array.isArray(blob.mine)) {
     if (typeof blob.mine.depth === 'number') {
       blob.mine.depth = clamp(Math.floor(blob.mine.depth), 1, 100);
+    }
+    // Pickaxe tier must be an int 0..7; lifetime mining counters must be
+    // finite non-negative ints.
+    blob.mine.pickaxe = typeof blob.mine.pickaxe === 'number'
+      ? clamp(Math.floor(blob.mine.pickaxe), 0, 7)
+      : 0;
+    for (const k of ['totalTaps', 'totalMined', 'maxDepth']) {
+      const v = blob.mine[k];
+      blob.mine[k] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
     }
     const ores = blob.mine.ores;
     if (ores && typeof ores === 'object' && !Array.isArray(ores)) {
@@ -133,6 +160,11 @@ function sanitizeStateBlob(blob) {
     }
   }
   if (blob.forge && typeof blob.forge === 'object' && !Array.isArray(blob.forge)) {
+    // Forge lifetime counters: crafts is a non-negative int, superCrafted
+    // is strictly boolean.
+    const cr = blob.forge.crafts;
+    blob.forge.crafts = Number.isFinite(cr) ? Math.max(0, Math.floor(cr)) : 0;
+    blob.forge.superCrafted = blob.forge.superCrafted === true;
     for (const slot of ['weapon', 'armor']) {
       const it = blob.forge[slot];
       if (it && typeof it === 'object' && it.stats && typeof it.stats === 'object') {

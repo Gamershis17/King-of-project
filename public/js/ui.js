@@ -126,8 +126,10 @@ export const UI = {
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
+      'balance-log-btn', 'balance-log-badge',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
+      'mine-pickaxe', 'mine-stats',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
@@ -211,6 +213,13 @@ export const UI = {
     listen('mine-btn', 'click', () => {
       if (this.handlers.onMine) this.handlers.onMine();
     });
+    // Mine: pickaxe upgrade (button is re-rendered inside the card, so the
+    // listener lives on the card container and delegates).
+    listen('mine-pickaxe', 'click', (e) => {
+      const btn = e.target.closest('#mine-pickaxe-btn');
+      if (!btn || btn.disabled) return;
+      if (this.handlers.onPickaxeUpgrade) this.handlers.onPickaxeUpgrade();
+    });
     listen('upgrade-list', 'click', (e) => {
       const btn = e.target.closest('button[data-upgrade]');
       if (!btn) return;
@@ -245,6 +254,7 @@ export const UI = {
       if (btn.dataset.action === 'talent' && h.onTalent) h.onTalent(btn.dataset.id);
       if (btn.dataset.action === 'prof' && h.onProfession) h.onProfession(btn.dataset.id);
       if (btn.dataset.action === 'title' && h.onTitle) h.onTitle(btn.dataset.id);
+      if (btn.dataset.action === 'titles-list' && h.onTitlesList) h.onTitlesList();
     });
 
     // Country picker (profile) — delegated change
@@ -260,6 +270,9 @@ export const UI = {
     });
     listen('changelog-btn', 'click', () => {
       this.handlers.onChangelog && this.handlers.onChangelog();
+    });
+    listen('balance-log-btn', 'click', () => {
+      this.openBalanceLog();
     });
 
     // More tab
@@ -778,9 +791,11 @@ export const UI = {
     const showRebirth = state.level >= Engine.MAX_LEVEL;
     this.els['rebirth-box'].classList.toggle('hidden', !showRebirth);
     if (showRebirth) {
+      const nextMult = Engine.rebirthXpMult ? Engine.rebirthXpMult((state.rebirthCount || 0) + 1) : 1;
       this.els['rebirth-note'].innerHTML =
         `Return to <b class="gold-text">level 1</b> — everything else stays (stage, gold, gear, pets, titles).<br>` +
-        `<span class="muted">Rebirths so far: ${state.rebirthCount || 0}.</span>`;
+        `<span class="muted">Rebirths so far: ${state.rebirthCount || 0}. ` +
+        `Next climb: XP requirements ×${nextMult.toFixed(2)}.</span>`;
     }
     this.updateHeroPanel(state, Engine.computeStats(state), null);
   },
@@ -1536,6 +1551,52 @@ export const UI = {
     const E = Engine;
     E.ensureMine(state);
     const m = state.mine;
+    const pkCard = this.els['mine-pickaxe'];
+    if (pkCard) {
+      const cur = E.pickaxeTier(state);
+      const cost = E.pickaxeUpgradeCost(state);
+      let cardHtml;
+      if (!cost) {
+        // MAX tier — show a badge, no button.
+        cardHtml = `
+          <div class="pk-row">
+            <div class="pk-cur"><span class="pk-emoji">${cur.emoji}</span>
+              <div><b>${esc(cur.name)}</b><div class="muted small">×${cur.mult} tap damage</div></div>
+            </div>
+            <div class="pk-next"><span class="btn small gold" style="pointer-events:none">MAX</span>
+              <div class="muted tiny">Strongest pickaxe forged.</div></div>
+          </div>`;
+      } else {
+        const next = E.PICKAXE_TIERS[m.pickaxe + 1];
+        const costParts = [];
+        let reason = null;
+        for (const [k, n] of Object.entries(cost)) {
+          if (k === 'gold') continue;
+          const od = E.ORE_BY_ID[k];
+          const have = (m.ores && m.ores[k]) || 0;
+          if (!reason && have < n) reason = `Need ${n - have} more ${(od && od.name) || k}`;
+          costParts.push(`<span class="${have >= n ? 'cost-ok' : 'cost-lack'}">${(od && od.emoji) || ''} ${formatNum(n)} ${(od && od.name) || k}</span>`);
+        }
+        const goldCost = cost.gold || 0;
+        const goldOk = state.infGold === true || (state.gold || 0) >= goldCost;
+        if (!reason && !goldOk) reason = `Need ${formatNum(goldCost - (state.gold || 0))} more gold`;
+        costParts.push(`<span class="${goldOk ? 'cost-ok' : 'cost-lack'}">💰 ${formatNum(goldCost)} gold</span>`);
+        cardHtml = `
+          <div class="pk-row">
+            <div class="pk-cur"><span class="pk-emoji">${cur.emoji}</span>
+              <div><b>${esc(cur.name)}</b><div class="muted small">×${cur.mult} tap damage</div></div>
+            </div>
+            <div class="pk-next">
+              <div class="muted tiny">Next: ${next.emoji} ${esc(next.name)} ×${next.mult}</div>
+              <div class="pk-cost">${costParts.join(' + ')}</div>
+              ${reason
+                ? `<button class="btn small" id="mine-pickaxe-btn" disabled>${esc(reason)}</button>`
+                : `<button class="btn small gold" id="mine-pickaxe-btn">Upgrade ⛏️</button>`}
+            </div>
+          </div>`;
+      }
+      pkCard.innerHTML = cardHtml;
+    }
     const rock = this.els['mine-rock'];
     if (rock) {
       const pct = Math.max(0, Math.min(100, (m.rockHp / m.rockMaxHp) * 100));
@@ -1549,6 +1610,11 @@ export const UI = {
     }
     const find = this.els['mine-find'];
     if (find && findText) find.textContent = findText;
+    const stats = this.els['mine-stats'];
+    if (stats) {
+      const fmt = (n) => Math.max(0, Math.floor(n || 0)).toLocaleString('en-US');
+      stats.textContent = `Deepest: ${m.maxDepth || m.depth} · Total taps: ${fmt(m.totalTaps)} · Total ore mined: ${fmt(m.totalMined)}`;
+    }
     const grid = this.els['ore-grid'];
     if (grid) {
       grid.innerHTML = E.ORE_TIERS.map(o => {
@@ -1884,14 +1950,6 @@ export const UI = {
     const staffBtn = document.getElementById('tabbtn-staff');
     if (staffBtn) staffBtn.classList.toggle('hidden', !canGM);
     const setCount = (state.inventory || []).filter(i => i.set).length;
-    const unlocked = new Set(state.titlesUnlocked || ['wanderer']);
-    const titleChips = Engine.TITLES.map(t => {
-      const has = unlocked.has(t.id);
-      const active = state.activeTitle === t.id;
-      return has
-        ? `<button class="title-chip${active ? ' active' : ''}" data-action="title" data-id="${t.id}" title="${esc(t.desc)}">${esc(t.name)}</button>`
-        : `<span class="title-chip locked" title="${esc(t.desc)}">🔒 ${esc(t.name)}</span>`;
-    }).join('');
     const badge = state.badge ? Engine.badgeDef(state.badge) : null;
     const countryOpts = `<option value="">— no flag —</option>` + Engine.COUNTRIES.map(c =>
       `<option value="${c.code}"${state.country === c.code ? ' selected' : ''}>${Engine.countryFlag(c.code)} ${esc(c.name)}</option>`).join('');
@@ -1900,14 +1958,13 @@ export const UI = {
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
           <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${esc(user ? user.username : '—')}</div>
-          <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
+          <div class="profile-title-row">
+            <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
+            <button class="btn small titles-btn" data-action="titles-list">🏆 Titles</button>
+          </div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
         </div>
-      </div>
-      <div class="titles-block">
-        <div class="muted small titles-label">👑 Hero title</div>
-        <div class="title-chips">${titleChips}</div>
       </div>
       <div class="titles-block">
         <div class="muted small titles-label">🌍 Country flag <span class="muted">(shows on leaderboard)</span></div>
@@ -1928,6 +1985,38 @@ export const UI = {
       ${this.professionsCard(state)}
       ${this.achievementsCard(state)}`;
     this.checkChangelogBadge();
+    this.checkBalanceBadge();
+  },
+
+  // ---------------- titles browser ----------------
+  // Scrollable modal listing every title. Unlocked titles equip on tap via
+  // the same onTitle code path as the profile chips; the modal closes after
+  // the equip so the re-rendered profile shows the new active title.
+  showTitlesModal(state) {
+    const s = state || {};
+    const unlocked = new Set(s.titlesUnlocked || ['wanderer']);
+    const rows = Engine.TITLES.map(t => {
+      const has = unlocked.has(t.id);
+      const active = s.activeTitle === t.id;
+      const rowCls = 'title-row' + (has ? ' unlocked' : ' locked') + (active ? ' active' : '');
+      const nameHtml = (has && active ? '👑 ' : has ? '' : '🔒 ') + esc(t.name);
+      return has
+        ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
+        : `<div class="${rowCls}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></div>`;
+    }).join('');
+    const close = this.modal({ title: '👑 Hero Titles', html: `<div class="titles-list">${rows}</div>` });
+    // Null-safe: grab the overlay we just appended and delegate row taps.
+    const root = this.els && this.els['modal-root'];
+    const overlay = root ? root.lastElementChild : null;
+    if (overlay && overlay.addEventListener) {
+      overlay.addEventListener('click', (e) => {
+        const btn = e.target && e.target.closest ? e.target.closest('button.title-row') : null;
+        if (!btn || !btn.dataset || !btn.dataset.id) return;
+        if (this.handlers && this.handlers.onTitle) this.handlers.onTitle(btn.dataset.id);
+        close();
+      });
+    }
+    return close;
   },
 
   // Staff viewers see every changelog item; players never see items flagged
@@ -2004,6 +2093,66 @@ export const UI = {
     });
     try { localStorage.setItem('kop-changelog-seen', String(log[0].date || '')); } catch { /* ignore */ }
     if (this.els['changelog-badge']) this.els['changelog-badge'].classList.add('hidden');
+  },
+
+  // Balance log: static nerf/patch notes in public/data/balance-log.json
+  // (newest first). Format per entry:
+  //   { version, date, title, changes: [{ system, before, after, note }] }
+  async fetchBalanceLog() {
+    try {
+      const r = await fetch('data/balance-log.json', { cache: 'no-store' });
+      // Accept status 0 as well: file:// and some WebView contexts report 0
+      // for successful local loads.
+      if (r.ok || r.status === 0) {
+        try {
+          const j = await r.json();
+          if (Array.isArray(j)) return j;
+        } catch { /* fall through */ }
+      }
+    } catch { /* ignore */ }
+    return null;
+  },
+
+  // Shows the NEW badge on "Balance Log" until the player opens the latest entry.
+  checkBalanceBadge() {
+    const badge = this.els['balance-log-badge'];
+    if (!badge) return;
+    this.fetchBalanceLog()
+      .then(log => {
+        if (!Array.isArray(log) || !log.length) return;
+        const latest = String(log[0].version || '');
+        let seen = null;
+        try { seen = localStorage.getItem('kop-balance-seen'); } catch { /* ignore */ }
+        badge.classList.toggle('hidden', !latest || seen === latest);
+      })
+      .catch(() => { /* offline-tolerant */ });
+  },
+
+  async openBalanceLog() {
+    const log = await this.fetchBalanceLog();
+    if (!Array.isArray(log) || !log.length) {
+      this.toast('No balance changes logged yet.', 'info');
+      return;
+    }
+    const html = log.map(e => `
+      <div class="bl-entry">
+        <div class="bl-head"><b>⚖️ ${esc(e.title || e.version || 'Balance patch')}</b>
+          <span class="muted small">${e.version ? 'v' + esc(String(e.version).replace(/^v/, '')) : ''}${e.date ? ' · ' + esc(e.date) : ''}</span></div>
+        ${(e.changes || []).map(c => `
+          <div class="bl-change">
+            <div class="bl-system">${esc(c.system || 'Change')}</div>
+            <div class="bl-before"><span class="bl-tag">before</span> ${esc(c.before || '—')}</div>
+            <div class="bl-after"><span class="bl-tag">after</span> ${esc(c.after || '—')}</div>
+            ${c.note ? `<div class="bl-note muted small">${esc(c.note)}</div>` : ''}
+          </div>`).join('')}
+      </div>`).join('');
+    this.modal({
+      title: '⚖️ Balance Log',
+      html: `<div class="bl-log">${html}</div>`,
+      buttons: [{ label: 'Close', cls: 'gold' }],
+    });
+    try { localStorage.setItem('kop-balance-seen', String(log[0].version || '')); } catch { /* ignore */ }
+    if (this.els['balance-log-badge']) this.els['balance-log-badge'].classList.add('hidden');
   },
 
   shareGame(state, user) {

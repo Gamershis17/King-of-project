@@ -44,6 +44,21 @@ export const ORE_TIERS = [
 export const ORE_BY_ID = Object.fromEntries(ORE_TIERS.map(o => [o.id, o]));
 export const MAX_MINE_DEPTH = 60;
 
+// Pickaxe tiers: each tier multiplies tap damage in mineDamage().
+// Tier 0 is the starting stick (free). Upgrades cost the named ore +
+// gold and are bought from the Mine tab via buyPickaxeUpgrade().
+export const PICKAXE_TIERS = [
+  { name: 'Cracked Stick',    emoji: '🪵', mult: 1,    cost: null },
+  { name: 'Copper Pick',      emoji: '⛏️', mult: 1.6,  cost: { copper: 20, gold: 500 } },
+  { name: 'Iron Pick',        emoji: '⛏️', mult: 2.5,  cost: { iron: 30, gold: 5000 } },
+  { name: 'Steel Pick',       emoji: '⛏️', mult: 4,    cost: { iron: 40, silver: 20, gold: 50000 } },
+  { name: 'Mithril Pick',     emoji: '⛏️', mult: 6.5,  cost: { mithril: 30, gold: 500000 } },
+  { name: 'Adamant Pick',     emoji: '⛏️', mult: 10,   cost: { adamant: 25, gold: 5000000 } },
+  { name: 'Galaxy Pick',      emoji: '🌌', mult: 16,   cost: { galaxy: 20, gold: 50000000 } },
+  { name: 'Super Galaxy Pick',emoji: '💜', mult: 25,   cost: { supergalaxy: 10, gold: 500000000 } },
+];
+export const MAX_PICKAXE_TIER = PICKAXE_TIERS.length - 1;
+
 // Forge tiers: pick a tier when crafting; higher tiers cost rarer ores
 // and multiply the custom stat values. Super Galaxy is deliberately OP.
 export const FORGE_TIERS = [
@@ -72,7 +87,51 @@ export function mineRockMaxHp(depth) {
 }
 export function mineDamage(state) {
   const tapLvl = (state.upgrades && state.upgrades.tap) || 1;
-  return Math.max(1, Math.round(4 + (state.level || 1) * 1.5 + (tapLvl - 1) * 4));
+  const base = Math.max(1, Math.round(4 + (state.level || 1) * 1.5 + (tapLvl - 1) * 4));
+  // Equipped pickaxe multiplies tap damage (rounded).
+  return Math.max(1, Math.round(base * pickaxeTier(state).mult));
+}
+// Defensive pickaxe tier lookup: clamps a tampered/missing value to 0..7.
+export function pickaxeTier(state) {
+  const raw = state && state.mine && state.mine.pickaxe;
+  const idx = Number.isFinite(Number(raw))
+    ? Math.max(0, Math.min(MAX_PICKAXE_TIER, Math.floor(Number(raw))))
+    : 0;
+  return PICKAXE_TIERS[idx];
+}
+// Cost object ({oreId: n, gold}) of the NEXT pickaxe tier, or null when
+// already at MAX tier.
+export function pickaxeUpgradeCost(state) {
+  ensureMine(state);
+  const next = PICKAXE_TIERS[state.mine.pickaxe + 1];
+  return next && next.cost ? { ...next.cost } : null;
+}
+// Buy the next pickaxe tier. Returns true on success, or an error string
+// (maxed / missing ore / missing gold). Deducts ores + gold (spendGold
+// so the infinite-gold perk bypasses the gold cost).
+export function buyPickaxeUpgrade(state) {
+  ensureMine(state);
+  const cur = state.mine.pickaxe;
+  const next = PICKAXE_TIERS[cur + 1];
+  if (!next || !next.cost) return 'Pickaxe is already at MAX tier.';
+  const cost = next.cost;
+  for (const [k, n] of Object.entries(cost)) {
+    if (k === 'gold') continue;
+    const have = state.mine.ores[k] || 0;
+    if (have < n) {
+      const od = ORE_BY_ID[k];
+      return `Need ${n - have} more ${(od && od.name) || k}.`;
+    }
+  }
+  const goldCost = cost.gold || 0;
+  const goldHave = state.gold || 0;
+  if (!spendGold(state, goldCost)) return `Need ${goldCost - goldHave} more gold.`;
+  for (const [k, n] of Object.entries(cost)) {
+    if (k === 'gold') continue;
+    state.mine.ores[k] = Math.max(0, (state.mine.ores[k] || 0) - n);
+  }
+  state.mine.pickaxe = cur + 1;
+  return true;
 }
 export function unlockedOres(depth) {
   return ORE_TIERS.filter(o => depth >= o.unlockDepth);
@@ -104,7 +163,21 @@ export function ensureMine(s) {
     const v = m.ores[o.id];
     m.ores[o.id] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
   }
+  // Pickaxe tier (0..7) + lifetime mining counters. All default 0 and stay
+  // finite/non-negative so tampered saves can't smuggle weird values in.
+  const pk = Math.floor(Number(m.pickaxe));
+  m.pickaxe = Number.isFinite(pk) ? Math.max(0, Math.min(MAX_PICKAXE_TIER, pk)) : 0;
+  for (const k of ['totalTaps', 'totalMined', 'maxDepth']) {
+    const v = m[k];
+    m[k] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
+  }
   if (!s.forge || typeof s.forge !== 'object') s.forge = {};
+  // Forge lifetime counters (read by title unlocks): total crafts ever
+  // plus whether a Super Galaxy item has ever been crafted.
+  const f = s.forge;
+  const cr = Math.floor(Number(f.crafts));
+  f.crafts = Number.isFinite(cr) ? Math.max(0, cr) : 0;
+  f.superCrafted = f.superCrafted === true;
   for (const slot of ['weapon', 'armor']) {
     const it = s.forge[slot];
     if (!it || typeof it !== 'object' || it.slot !== slot || !it.galaxy) {
@@ -131,6 +204,8 @@ export function mineTap(state) {
   m.rockHp -= dmg;
   const ore = rollOre(m.depth);
   m.ores[ore] = (m.ores[ore] || 0) + 1;
+  m.totalTaps++;
+  m.totalMined++;
   let broke = false;
   const bonus = [];
   if (m.rockHp <= 0) {
@@ -139,12 +214,14 @@ export function mineTap(state) {
     for (let i = 0; i < n; i++) {
       const b = rollOre(m.depth);
       m.ores[b] = (m.ores[b] || 0) + 1;
+      m.totalMined++;
       bonus.push(b);
     }
     m.depth = Math.min(MAX_MINE_DEPTH, m.depth + 1);
     m.rockMaxHp = mineRockMaxHp(m.depth);
     m.rockHp = m.rockMaxHp;
   }
+  m.maxDepth = Math.max(m.maxDepth, m.depth);
   return { ore, broke, bonus };
 }
 // Slow passive trickle while the game runs (called ~every 30s by the tick).
@@ -152,6 +229,7 @@ export function trickleOre(state) {
   ensureMine(state);
   const ore = rollOre(state.mine.depth);
   state.mine.ores[ore] = (state.mine.ores[ore] || 0) + 1;
+  state.mine.totalMined++;
   return ore;
 }
 export function forgeCost(tierId) {
@@ -195,6 +273,9 @@ export function craftGalaxyItem(state, slot, tierId, statIds) {
     slot, rarity: 'galaxy', forgeTier: tier.id, stats, value: 0,
   };
   state.forge[slot] = item;
+  // Lifetime forge counters (read by title unlocks).
+  state.forge.crafts = (state.forge.crafts || 0) + 1;
+  if (tierId === 'super') state.forge.superCrafted = true;
   // If a galaxy item was equipped here it is replaced by the new one.
   if (state.equipped && state.equipped[slot] === GALAXY_EQUIP_ID) {
     // stays equipped — the new item takes effect immediately
@@ -460,7 +541,7 @@ export function ensureState(raw) {
   }
   s.rebirthCount = Math.max(0, Math.floor(s.rebirthCount || 0));
   s.stage = Math.max(1, Math.floor(s.stage || 1));
-  s.xpNext = xpForLevel(s.level);
+  s.xpNext = xpForLevel(s.level, s.rebirthCount);
   s.hero.hp = clamp(s.hero.hp, 0, s.hero.maxHp);
   for (const c of s.party) {
     c.hp = clamp(c.hp, 0, c.maxHp);
@@ -480,8 +561,22 @@ export function ensureState(raw) {
 }
 
 // ---------------- XP / levels / gold ----------------
-export const xpForLevel = (level) => Math.max(1, Math.round(80 * Math.pow(1.30, level - 1)));
-export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.15, stage)));
+// XP curve: 1.30 exponent for levels 1-60, then a steeper 1.42 exponent for
+// 61-70. The value is continuous at the kink (level 60).
+const xpForLevelBase = (level) => {
+  const l = Math.max(1, Math.floor(level || 1));
+  if (l <= 60) return 80 * Math.pow(1.30, l - 1);
+  return 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+};
+// Rebirth scaling: every rebirth multiplies all XP requirements by
+// 1.35^rebirths, so repeated climbs stay meaningful instead of trivial.
+// Effective count is clamped at 200 so tampered values can't blow up the math.
+export const MAX_EFFECTIVE_REBIRTHS = 200;
+export const rebirthXpMult = (rebirthCount) =>
+  Math.pow(1.35, Math.min(MAX_EFFECTIVE_REBIRTHS, Math.max(0, Math.floor(rebirthCount || 0))));
+export const xpForLevel = (level, rebirthCount = 0) =>
+  Math.max(1, Math.round(xpForLevelBase(level) * rebirthXpMult(rebirthCount)));
+export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.12, stage)));
 // Deducts gold for a purchase. Returns false when the player can't afford
 // it. Infinite-gold perk holders never pay.
 export function spendGold(s, cost) {
@@ -571,8 +666,11 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
   const race = RACES[state.race] || {};
   const stats = computeStats(state);
   const rested = state.restedUntil && nowMs < state.restedUntil;
+  // Anti-power-creep: gear/stat XP bonuses are capped at +50% here.
+  // computeStats() still reports the true total so tooltips stay truthful.
+  const xpBonusPct = Math.min(50, stats.xpBonus || 0);
   const amount = Math.max(1, Math.round(
-    baseAmount * (race.xpMult || 1) * (1 + (stats.xpBonus || 0) / 100) * (rested ? 1.25 : 1)
+    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1)
   ));
   state.xp += amount;
   const levels = [];
@@ -583,7 +681,7 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
     state.hero.attack += 3;
     state.hero.maxHp += 25;
     state.hero.defense += 2;
-    state.xpNext = xpForLevel(state.level);
+    state.xpNext = xpForLevel(state.level, state.rebirthCount);
     levels.push(state.level);
     if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
   }
@@ -1663,13 +1761,14 @@ export function companionStats(c) {
 
 // ---------------- Rebirth ----------------
 // Level >= MAX_LEVEL. Sets the hero back to level 1; everything else
-// (stage, gold, gear, pets, titles, styles) is kept. No stacking bonus.
+// (stage, gold, gear, pets, titles, styles) is kept. Each rebirth raises all
+// future XP requirements by x1.35 (stacking), so the climb stays meaningful.
 export function rebirth(state) {
   if ((state.level || 1) < MAX_LEVEL) return null;
   state.level = 1;
   state.xp = 0;
-  state.xpNext = xpForLevel(1);
   state.rebirthCount = (state.rebirthCount || 0) + 1;
+  state.xpNext = xpForLevel(1, state.rebirthCount);
   return ensureState(state);
 }
 
@@ -1795,6 +1894,21 @@ export const TITLES = [
   { id: 'raider',          name: 'the Raider',          desc: 'Reach wave 10 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 10 },
   { id: 'stormcaller',     name: 'the Stormcaller',     desc: 'Reach wave 25 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 25 },
   { id: 'tidebreaker',     name: 'the Tidebreaker',     desc: 'Reach wave 50 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 50 },
+  // ---- Mining & Galaxy Forge titles (stream 3) ----
+  // Mine/forge counters may not exist yet (added by a parallel stream);
+  // every check below degrades to "locked" on a fresh/old save.
+  { id: 'delver',          name: '⛏️ the Delver',        desc: 'Reach depth 20 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 20 },
+  { id: 'deepdelver',      name: '🕳️ the Deepdelver',    desc: 'Reach depth 40 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 40 },
+  { id: 'corediver',       name: '🌋 the Corediver',      desc: 'Reach depth 60 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 60 },
+  { id: 'rockbreaker',     name: '💥 the Rockbreaker',   desc: 'Tap the mining rock 1,000 times.',          check: (s) => (((s.mine || {}).totalTaps) || 0) >= 1000 },
+  { id: 'orehoarder',      name: '💰 the Orehoarder',     desc: 'Mine 1,000 ore in total.',                  check: (s) => (((s.mine || {}).totalMined) || 0) >= 1000 },
+  { id: 'prospector',      name: '🧭 the Prospector',     desc: 'Upgrade your pickaxe to tier 3.',           check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 3 },
+  { id: 'master-miner',    name: '⚒️ the Master Miner',   desc: 'Upgrade your pickaxe to the max tier.',     check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 7 },
+  { id: 'starforger',      name: '⭐ the Starforger',     desc: 'Craft an item in the Galaxy Forge.',        check: (s) => (((s.forge || {}).crafts) || 0) >= 1 },
+  { id: 'galaxyforger',    name: '🌌 the Galaxyforger',   desc: 'Craft 10 items in the Galaxy Forge.',       check: (s) => (((s.forge || {}).crafts) || 0) >= 10 },
+  { id: 'transcendent',    name: '✨ the Transcendent',   desc: 'Craft your first Super Galaxy item.',       check: (s) => ((s.forge || {}).superCrafted) === true },
+  { id: 'ever-reborn',     name: '🌀 the Ever-Reborn',    desc: 'Rebirth 100 times.',                        check: (s) => (s.rebirthCount || 0) >= 100 },
+  { id: 'true-capped',     name: '👑 the True Capped',    desc: 'Reach level 70, then rebirth at least once.', check: (s) => ((s.level || 1) >= MAX_LEVEL) && ((s.rebirthCount || 0) >= 1) },
 ];
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
 export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }
@@ -1905,7 +2019,7 @@ export function grantLevels(state, n) {
     granted += 1;
   }
   state.xp = 0;
-  state.xpNext = xpForLevel(state.level);
+  state.xpNext = xpForLevel(state.level, state.rebirthCount);
   const s2 = computeStats(state);
   state.hero.hp = s2.maxHp;
   return granted;

@@ -99,6 +99,7 @@ export const GM = {
               <option value="xp">✨ XP</option>
               <option value="gear">👑 Gear set</option>
               <option value="ore">⛏️ Ore</option>
+              <option value="pickaxe">🪓 Pickaxe tier</option>
             </select></label>
           <label class="fld" id="gm-grant-amount-wrap"><span id="gm-grant-amount-label">Amount (1–100000)</span>
             <input id="gm-grant-amount" type="number" min="1" max="1000000" value="100"></label>
@@ -114,6 +115,17 @@ export const GM = {
               <option value="adamant">🟣 Adamant</option>
               <option value="galaxy">🌌 Galaxy Shard</option>
               <option value="supergalaxy">💜 Super Galaxy Core</option>
+            </select></label>
+          <label class="fld hidden" id="gm-grant-pickaxe-wrap"><span>Pickaxe tier</span>
+            <select id="gm-grant-pickaxe">
+              <option value="0">🪵 0 — Cracked Stick</option>
+              <option value="1">⛏️ 1 — Copper Pick</option>
+              <option value="2">⛏️ 2 — Iron Pick</option>
+              <option value="3">⛏️ 3 — Steel Pick</option>
+              <option value="4">⛏️ 4 — Mithril Pick</option>
+              <option value="5">⛏️ 5 — Adamant Pick</option>
+              <option value="6">🌌 6 — Galaxy Pick</option>
+              <option value="7">💜 7 — Super Galaxy Pick</option>
             </select></label>
         </div>
         <button id="gm-grant-btn" class="btn gold wide">Grant</button>
@@ -280,9 +292,11 @@ export const GM = {
         const kind = kindSel.value;
         const isGear = kind === 'gear';
         const isOre = kind === 'ore';
-        $('gm-grant-amount-wrap').classList.toggle('hidden', isGear);
+        const isPickaxe = kind === 'pickaxe';
+        $('gm-grant-amount-wrap').classList.toggle('hidden', isGear || isPickaxe);
         $('gm-grant-set-wrap').classList.toggle('hidden', !isGear);
         $('gm-grant-ore-wrap').classList.toggle('hidden', !isOre);
+        $('gm-grant-pickaxe-wrap').classList.toggle('hidden', !isPickaxe);
         if (kind === 'gold') { amountLabel.textContent = 'Amount (1–1000000)'; amountInput.max = '1000000'; }
         else if (kind === 'levels') { amountLabel.textContent = 'Levels (1–100)'; amountInput.max = '100'; }
         else if (kind === 'xp') { amountLabel.textContent = 'XP (1–1000000)'; amountInput.max = '1000000'; }
@@ -339,6 +353,13 @@ export const GM = {
           const ore = $('gm-grant-ore').value;
           res = await api.gmGrant(username, 'ore', { ore, amount });
           UI.toast(`Granted ⛏️${formatNum(amount)} ${ore} to ${username}.`, 'success');
+        } else if (kind === 'pickaxe') {
+          const tier = Math.floor(Number($('gm-grant-pickaxe').value));
+          if (!Number.isFinite(tier) || tier < 0 || tier > 7) {
+            return UI.toast('Pickaxe tier must be 0–7.', 'error');
+          }
+          res = await api.gmGrant(username, 'pickaxe', { tier });
+          UI.toast(`Set ${username}'s pickaxe to tier ${tier}.`, 'success');
         } else {
           const set = $('gm-grant-set').value;
           res = await api.gmGrant(username, 'gear', { set });
