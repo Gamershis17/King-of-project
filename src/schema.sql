@@ -79,6 +79,29 @@ CREATE TABLE IF NOT EXISTS guild_members (
 );
 CREATE INDEX IF NOT EXISTS idx_guild_members_guild ON guild_members (guild_id);
 
+-- Multiplayer parties: invite-code groups, max 4 humans. NPC allies are
+-- derived live from each member's save blob (state.party) and are NOT
+-- stored here; the is_npc/npc_id columns are reserved for future use.
+CREATE TABLE IF NOT EXISTS parties (
+  id SERIAL PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  leader_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at BIGINT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS party_members (
+  party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_npc BOOLEAN NOT NULL DEFAULT false,
+  npc_id TEXT NOT NULL DEFAULT '',
+  joined_at BIGINT NOT NULL,
+  PRIMARY KEY (party_id, user_id, npc_id)
+);
+CREATE INDEX IF NOT EXISTS idx_party_members_user ON party_members (user_id);
+-- One party per human: a human row (is_npc=false) is unique per user.
+-- NPC rows (is_npc=true) are exempt so allies can attach freely.
+CREATE UNIQUE INDEX IF NOT EXISTS party_one_human_per_party
+  ON party_members (user_id) WHERE is_npc = false;
+
 -- Server-wide tunable settings (key/value). The GM console's owner-only
 -- "Server settings" card writes here; e.g. gold_cap (max player gold).
 CREATE TABLE IF NOT EXISTS server_settings (

@@ -370,6 +370,17 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .float-dodge { color: #9adcff; }
 .float-parry { color: #9dffc9; }
 .float-skill { color: var(--arcane); font-size: 1.4rem; }
+.float-heal { color: #7dffa8; font-size: 1.25rem; }
+
+/* companion role badges */
+.role-badge {
+  font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  border: 1px solid var(--stone2); border-radius: 999px; padding: 0.08rem 0.45rem;
+  color: var(--muted); vertical-align: 0.1em; margin-left: 0.3rem; white-space: nowrap;
+}
+.role-tank { color: #9adcff; border-color: #1f6feb66; background: #1f6feb14; }
+.role-healer { color: #7dffa8; border-color: #2ea04366; background: #2ea04314; }
+.role-dps { color: #ffb86b; border-color: #b86b0066; background: #b86b0014; }
 @keyframes floatup {
   0% { transform: translateY(0) scale(0.6) rotate(var(--tilt, 0deg)); opacity: 0; }
   12% { transform: translateY(-10px) scale(1.2) rotate(var(--tilt, 0deg)); opacity: 1; }
@@ -594,6 +605,34 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 }
 .recruit-legendary { border-color: #ffd70055; }
 .recruit-mythic { border-color: #c678dd77; }
+
+/* ---------- multiplayer party ---------- */
+.mp-head { margin-bottom: 0.7rem; }
+.mp-code-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.mp-code {
+  font-size: 1.25rem; letter-spacing: 0.18em; color: var(--gold);
+  background: #00000055; border: 1px dashed var(--stone2); border-radius: var(--radius);
+  padding: 0.15rem 0.7rem;
+}
+.mp-bonus { font-weight: 700; color: var(--gold); }
+.mp-members { display: grid; grid-template-columns: 1fr; gap: 0.6rem; margin-bottom: 0.7rem; }
+.mp-member {
+  display: flex; gap: 0.7rem; align-items: center;
+  background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem;
+}
+.mp-member.empty { border-style: dashed; justify-content: center; padding: 1rem; color: var(--muted); }
+.mp-avatar { font-size: 2rem; }
+.mp-info { flex: 1; min-width: 0; }
+.mp-name { font-weight: 700; }
+.mp-title { color: var(--gold); font-style: italic; font-size: 0.85rem; }
+.mp-npcs { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+.mp-npc-chip {
+  font-size: 0.72rem; background: #00000044; border: 1px solid var(--stone2);
+  border-radius: 999px; padding: 0.1rem 0.5rem; white-space: nowrap;
+}
+.mp-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+#mp-join-card .row { display: flex; gap: 0.5rem; }
+#mp-join-code { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: 0.15em; }
 
 /* ---------- pet shop ---------- */
 .pet-shop {

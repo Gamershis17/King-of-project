@@ -218,10 +218,26 @@
 
       <!-- PARTY -->
       <section id="tab-party" class="tab">
-        <p class="muted">Your dungeon party fights beside you in Dungeon mode (up to 3 companions).</p>
-        <div id="party-slots" class="party-slots"></div>
-        <h2>Recruit</h2>
-        <div id="recruit-list" class="recruit-list"></div>
+        <div class="row-between">
+          <h2 style="margin:0">🎉 Party</h2>
+          <button id="mp-refresh" class="btn small ghost" title="Refresh party">↻ Refresh</button>
+        </div>
+        <div id="mp-party-card" class="card"></div>
+        <div class="card" id="mp-join-card">
+          <h3>🔗 Join a party</h3>
+          <div class="row">
+            <input id="mp-join-code" class="text-input" placeholder="6-letter code" maxlength="6"
+              autocapitalize="characters" autocomplete="off" spellcheck="false" />
+            <button id="mp-join-btn" class="btn gold">Join</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>🛡️ NPC allies</h3>
+          <p class="muted small">Your dungeon party fights beside you in Dungeon mode (up to 3 companions). Each ally also grants <b>+4% XP</b>.</p>
+          <div id="party-slots" class="party-slots"></div>
+          <h3>Recruit</h3>
+          <div id="recruit-list" class="recruit-list"></div>
+        </div>
         <h2>Pets</h2>
         <div id="pets-panel" class="pets-panel"></div>
       </section>

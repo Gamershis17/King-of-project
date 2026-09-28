@@ -52,6 +52,9 @@ async function main() {
   }
 
   const app = express();
+  // Test-only: let the suite rotate X-Forwarded-For so the register
+  // rate limiter (10/hour/IP) doesn't choke a 30+ user test run.
+  app.set('trust proxy', 1);
   app.use(express.json({ limit: '1mb' }));
   app.use(
     session({

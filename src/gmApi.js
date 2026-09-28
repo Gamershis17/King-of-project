@@ -134,7 +134,7 @@ router.get(
 // ---------- grants ----------
 /**
  * Mirrors the client curve in public/js/engine.js (kinked at 60, 1.35^rebirths):
- *   xpForLevelBase: 1-60 -> 80*1.30^(l-1); 61-70 -> 80*1.30^59*1.42^(l-60)
+ *   xpForLevelBase: 1-60 -> 80*1.30^(l-1); 61-90 -> 80*1.30^59*1.42^(l-60)
  *   xpForLevel(level, rebirthCount) = round(base * 1.35^rebirthCount)
  * Keep in sync if the client formula ever changes.
  */
@@ -158,7 +158,7 @@ function applyLevelGrant(blob, n) {
   blob.level = Math.max(1, Math.floor(Number(blob.level) || 1));
   const hero = ensureHero(blob);
   let granted = 0;
-  for (let i = 0; i < n && blob.level < 70; i++) {
+  for (let i = 0; i < n && blob.level < 90; i++) {
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
     hero.maxHp = (Number(hero.maxHp) || 0) + 25;
@@ -183,7 +183,7 @@ function applyXpGrant(blob, amount) {
   }
   const hero = ensureHero(blob);
   let guard = 0;
-  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < 70) {
+  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < 90) {
     blob.xp -= blob.xpNext;
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
@@ -194,7 +194,7 @@ function applyXpGrant(blob, amount) {
       blob.mastery.points = Math.max(0, Math.floor(Number(blob.mastery.points) || 0)) + 1;
     }
   }
-  if (blob.level >= 70) blob.xp = 0; // cap reached: bank no XP past it
+  if (blob.level >= 90) blob.xp = 0; // cap reached: bank no XP past it
 }
 
 const GOLD_GRANT_MIN = 1;
