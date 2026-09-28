@@ -1019,6 +1019,29 @@ body.reduce-motion .combo-frenzy { animation: none; }
 .title-chip.active { background: var(--gold); border-color: var(--gold); color: #241a05; font-weight: 700; }
 .title-chip.locked { opacity: 0.45; cursor: default; }
 
+/* ---------- titles browser (modal list) ---------- */
+.profile-title-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.15rem 0 0.3rem; }
+.profile-title-row .profile-title { flex: 1 1 auto; min-width: 0; margin: 0; }
+.titles-btn { white-space: nowrap; flex: 0 0 auto; }
+.titles-list {
+  display: flex; flex-direction: column; gap: 0.4rem;
+  max-height: 70vh; overflow-y: auto; padding-right: 0.2rem;
+}
+.title-row {
+  width: 100%; text-align: left; display: flex; flex-direction: column; gap: 0.15rem;
+  background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius);
+  padding: 0.6rem 0.8rem; color: var(--text);
+}
+button.title-row { cursor: pointer; }
+.title-row.locked { opacity: 0.5; cursor: default; background: transparent; }
+.title-row .title-row-name { font-weight: 700; }
+.title-row .title-row-desc { font-size: 0.8rem; color: var(--muted); }
+.title-row.active {
+  border-color: var(--gold); background: var(--stone2);
+  box-shadow: 0 0 12px rgba(255,210,63,.28);
+}
+.title-row.active .title-row-name { color: var(--gold); }
+
 /* ---------- rainbow Sovereign gear ---------- */
 @property --rainbow-angle {
   syntax: '<angle>';
