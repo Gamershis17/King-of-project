@@ -1,0 +1,20 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch();
+const page = await (await browser.newContext({ viewport: { width: 390, height: 844 } })).newPage();
+const errors = [];
+page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
+await page.goto('http://localhost:3101', { waitUntil: 'networkidle' });
+await page.waitForSelector('#tap-btn', { timeout: 15000 }).catch(() => {});
+await page.waitForTimeout(1500);
+await page.evaluate(() => {
+  const fill = document.getElementById('hero-hpfill');
+  fill.style.width = '18%';
+  document.getElementById('hero-hptext').textContent = '❤️ 16 / 89';
+  fill.parentElement.classList.add('hp-low');
+});
+await page.waitForTimeout(600);
+console.log('class:', await page.evaluate(() => document.getElementById('hero-hpfill').parentElement.className));
+console.log('animation:', await page.evaluate(() => getComputedStyle(document.getElementById('hero-hpfill')).animationName));
+await page.screenshot({ path: 'preview/rework-lowhp.png' });
+console.log('errors:', errors.length ? errors.join(' | ') : 'none');
+await browser.close();

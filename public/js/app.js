@@ -165,7 +165,8 @@ async function boot() {
       const s = App.state;
       if (!s || !(s.titlesUnlocked || []).includes(id)) return;
       s.activeTitle = id;
-      UI.renderMore(s, App.user);
+      if (UI.activeTab === 'titles') UI.renderTitles(s);
+      else UI.renderMore(s, App.user);
       UI.toast(`👑 Title set: ${Engine.titleName(id)}`, 'success');
       saveNow();
     },
@@ -177,7 +178,8 @@ async function boot() {
       if (!s) return;
       const c = String(code || '').toUpperCase();
       s.country = c && Engine.isValidCountry(c) ? c : null;
-      UI.renderMore(s, App.user);
+      if (UI.activeTab === 'stats') UI.renderStats(s, App.user);
+      else UI.renderMore(s, App.user);
       UI.toast(c && s.country ? `🌍 Flag set: ${Engine.countryFlag(c)}` : '🌍 Flag removed.', 'success');
       saveNow();
     },
@@ -759,8 +761,8 @@ function onKillEnemy() {
     UI.combatLog(`⬆️ Level ${xpRes.levels[xpRes.levels.length - 1]}!`, 'level');
     const mp = xpRes.levels.filter(l => l % 10 === 0).length;
     if (mp > 0) {
-      UI.notify('level', `🧠 +${mp} Mastery point${mp > 1 ? 's' : ''}! Spend in More → Mastery.`, 'success');
-      if (UI.activeTab === 'more') UI.renderMore(s, App.user);
+      UI.notify('level', `🧠 +${mp} Mastery point${mp > 1 ? 's' : ''}! Spend in Settings → Mastery.`, 'success');
+      if (UI.activeTab === 'settings') UI.renderMore(s, App.user);
     }
   }
   announceSkillUnlocks(xpRes.skills);
@@ -1008,7 +1010,7 @@ function checkAch() {
   }
   if (fresh.length || freshTitles.length) {
     Audio.play('claim');
-    if (UI.activeTab === 'more') UI.renderMore(s, App.user);
+    if (UI.activeTab === 'settings') UI.renderMore(s, App.user);
     UI.updateHUD(s, App.user);
     saveNow();
   }
@@ -1443,7 +1445,7 @@ function applyExternalState(srv) {
   UI.renderBattle(s);
   UI.renderGear(s);
   UI.renderParty(s);
-  if (UI.activeTab === 'more') UI.renderMore(s, App.user);
+  if (UI.activeTab === 'settings') UI.renderMore(s, App.user);
   if (App.enemy) UI.setEnemy(App.enemy);
   UI.updateHeroPanel(s, Engine.computeStats(s), App);
   saveNow();
@@ -1572,7 +1574,9 @@ async function onTabSwitch(tab, force = false) {
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'mine') UI.renderMine(s);
   else if (tab === 'party') UI.renderParty(s);
-  else if (tab === 'more') { UI.renderMore(s, App.user); UI.syncNotifSettings(s.settings && s.settings.notif); }
+  else if (tab === 'settings') { UI.renderMore(s, App.user); UI.syncNotifSettings(s.settings && s.settings.notif); }
+  else if (tab === 'stats') UI.renderStats(s, App.user);
+  else if (tab === 'titles') UI.renderTitles(s);
   else if (tab === 'guild') { mountGuild(); }
   else if (tab === 'quests') UI.renderQuests(s);
   else if (tab === 'battle') {
