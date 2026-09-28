@@ -2186,7 +2186,7 @@ export const UI = {
   shareGame(state, user) {
     if (!state) return;
     const name = (user && user.username) || 'a hero';
-    const url = 'https://king-of-project.onrender.com';
+    const url = 'https://throne-of-shadows.onrender.com';
     const shareText = `⚔️ I'm ${name} — Lv ${state.level}, Stage ${state.stage} in Throne of Shadows! Can you beat me? #ThroneOfShadows`;
     if (navigator.share) {
       navigator.share({ title: 'Throne of Shadows', text: shareText, url }).catch(() => { /* dismissed */ });
