@@ -60,7 +60,7 @@ const SETTINGS_KEY = 'rpg-idle-settings';
 export const UI = {
   handlers: {},
   els: {},
-  settings: { damageNumbers: true, reduceMotion: false },
+  settings: { damageNumbers: true, reduceMotion: false, performanceMode: false },
   activeTab: 'battle',
 
   // Player customization presets (Settings → Buttons / Background).
@@ -85,6 +85,9 @@ export const UI = {
     { id: 'ember-drift', name: 'Ember Drift', css: 'radial-gradient(circle at 50% 100%, #5e1f1a, #0d0505 75%)', animated: true },
     { id: 'void-tide',   name: 'Void Tide',   css: 'radial-gradient(circle at 50% 40%, #1d1040, #060310 72%)', animated: true },
     { id: 'throne-storm', name: 'Throne Storm', css: 'radial-gradient(circle at 50% 30%, #2a0d16, #080304 72%)', animated: true },
+    { id: 'inferno-flare', name: 'Inferno Flare', css: 'radial-gradient(circle at 50% 50%, #5e1f0d, #0d0503 72%)', animated: true },
+    { id: 'cinder-storm',  name: 'Cinder Storm',  css: 'radial-gradient(circle at 50% 50%, #4a1508, #0c0603 72%)', animated: true },
+    { id: 'phoenix-ash',   name: 'Phoenix Ash',   css: 'radial-gradient(circle at 50% 60%, #4a3208, #0d0a04 72%)', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -100,7 +103,8 @@ export const UI = {
     { id: 'royal-gold',  name: 'Royal Gold',  colors: ['#ffd63f', '#f59e0b', '#fff7cc'] },
   ],
   DEFAULT_ORB_COLORS: ['#a855f7', '#7c3aed', '#22d3ee'],
-  BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm'],
+  BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm',
+    'inferno-flare', 'cinder-storm', 'phoenix-ash'],
 
   // ---------------- init ----------------
   init() {
@@ -112,6 +116,17 @@ export const UI = {
     // app.js overrides from state.uiStyle once the player is loaded.
     if (!document.body.dataset.uistyle) document.body.dataset.uistyle = 'modern';
     document.body.classList.toggle('reduce-motion', !!this.settings.reduceMotion);
+    document.body.classList.toggle('perf', !!this.settings.performanceMode);
+    // OS reduced-motion auto-enables the visual parts of Performance mode
+    // even when the toggle is off (body.os-reduced shares the perf CSS).
+    const osReduced = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.body.classList.toggle('os-reduced', !!osReduced());
+    try {
+      matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (e) => {
+        document.body.classList.toggle('os-reduced', !!e.matches);
+        if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
+      });
+    } catch { /* older browsers: static check above is enough */ }
 
     const ids = [
       'hud-emoji', 'hud-username', 'hud-role', 'hud-race', 'hud-gold', 'hud-stars',
@@ -124,8 +139,10 @@ export const UI = {
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
       'stats-card', 'titles-list',
+      'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
+      'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
-      'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
+      'set-dmgnums', 'set-motion', 'set-perf', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
@@ -265,6 +282,20 @@ export const UI = {
           }, 6000);
         }
       }
+      // Multiplayer party actions
+      if (btn.dataset.action === 'mp-create' && h.onMpCreate) h.onMpCreate();
+      if (btn.dataset.action === 'mp-leave' && h.onMpLeave) h.onMpLeave();
+      if (btn.dataset.action === 'mp-disband' && h.onMpDisband) h.onMpDisband();
+      if (btn.dataset.action === 'mp-copy' && h.onMpCopy) h.onMpCopy();
+      if (btn.dataset.action === 'mp-kick' && h.onMpKick) h.onMpKick(btn.dataset.id);
+      if (btn.dataset.action === 'mp-join' && h.onMpJoin) {
+        const input = document.getElementById('mp-join-code');
+        h.onMpJoin(input ? input.value : '');
+      }
+    });
+    // Multiplayer party: manual refresh
+    listen('mp-refresh', 'click', () => {
+      this.handlers.onMpRefresh && this.handlers.onMpRefresh();
     });
 
     // Ranks refresh
@@ -278,6 +309,58 @@ export const UI = {
       if (!btn || btn.disabled) return;
       this.setRanksCategory(btn.dataset.lbcat);
       this.handlers.onRanksCategory && this.handlers.onRanksCategory(btn.dataset.lbcat);
+    });
+
+    // Ranks: ranking pills (delegated, null-safe).
+    // Ranking pills use data-by so they never collide with the Heroes/Guilds pills above.
+    listen('lb-cats', 'click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('button[data-by]') : null;
+      if (!btn || !btn.dataset || !btn.dataset.by) return;
+      this.setLbCategory(btn.dataset.by);
+    });
+
+    // Ranks: leaderboard rows are clickable → player inspect
+    listen('lb-body', 'click', (e) => {
+      const row = e.target.closest('.lb-row[data-username]');
+      if (!row || !row.dataset.username) return;
+      this.handlers.onInspect && this.handlers.onInspect(row.dataset.username);
+    });
+
+    // Ranks sub-tabs (Board / Friends)
+    listen('ranks-subtabs', 'click', (e) => {
+      const btn = e.target.closest('button[data-subtab]');
+      if (!btn) return;
+      this.handlers.onRanksSubtab && this.handlers.onRanksSubtab(btn.dataset.subtab);
+    });
+
+    // Friends panel: delegated friend actions
+    listen('friends-panel', 'click', (e) => {
+      const btn = e.target.closest('button[data-friend]');
+      if (!btn || btn.disabled) return;
+      const h = this.handlers;
+      const action = btn.dataset.friend;
+      const uname = btn.dataset.username;
+      if (action === 'send') {
+        const input = document.getElementById('friend-add-input');
+        const name = input ? input.value.trim() : '';
+        if (!name) { this.toast('Type a username first.', 'info'); return; }
+        h.onFriendSend && h.onFriendSend(name);
+      }
+      else if (action === 'accept' && uname && h.onFriendAccept) h.onFriendAccept(uname);
+      else if (action === 'decline' && uname && h.onFriendDecline) h.onFriendDecline(uname);
+      else if (action === 'cancel' && uname && h.onFriendRemove) h.onFriendRemove(uname);
+      else if (action === 'inspect' && uname && h.onInspect) h.onInspect(uname);
+      else if (action === 'compare' && uname && h.onInspectCompare) h.onInspectCompare(uname);
+      else if (action === 'remove' && uname && h.onFriendRemove) h.onFriendRemove(uname);
+      else if (action === 'upgrade' && h.onUpgradeAccount) h.onUpgradeAccount();
+    });
+    // Enter key in the add-friend box sends the request.
+    listen('friends-panel', 'keydown', (e) => {
+      if (e.target && e.target.id === 'friend-add-input' && e.key === 'Enter') {
+        const name = e.target.value.trim();
+        if (!name) return;
+        this.handlers.onFriendSend && this.handlers.onFriendSend(name);
+      }
     });
 
     // Settings tab: delegated talent / profession buttons
@@ -340,6 +423,11 @@ export const UI = {
       // Re-render the ambient scene (animated vs. static frame).
       if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
     });
+    if (this.els['set-perf']) this.els['set-perf'].checked = !!this.settings.performanceMode;
+    listen('set-perf', 'change', (e) => {
+      this.saveSetting('performanceMode', e.target.checked);
+      this.applyPerfMode();
+    });
     // Audio prefs live on the game state (per player / guest save), not in
     // localStorage — app.js syncs the checkboxes via applyAudioPrefs().
     listen('set-sfx', 'change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
@@ -365,6 +453,7 @@ export const UI = {
 
     // Custom button / background pickers (Settings)
     this._renderStylePickers();
+    this._renderNameStylePickers();
 
     // Ambient animated background canvas (null-safe: hidden if absent)
     this.initBgCanvas();
@@ -377,6 +466,24 @@ export const UI = {
   saveSetting(key, val) {
     this.settings[key] = val;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings)); } catch { /* ignore */ }
+  },
+
+  // Performance mode (anti-lag): visual-only. Game logic/tick rate untouched.
+  // Applies the body.perf class (flattened CSS) and re-renders the ambient
+  // background as a single static frame (no rAF loop) via _bgReduced().
+  applyPerfMode() {
+    const on = !!this.settings.performanceMode;
+    document.body.classList.toggle('perf', on);
+    this._dmgAcc = null;
+    // Re-render the ambient scene (animated loop vs. static frame).
+    if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
+  },
+
+  // True when the perf visuals should apply: user toggle OR the OS
+  // prefers-reduced-motion setting (which auto-enables the visual parts).
+  _perfVisual() {
+    return !!this.settings.performanceMode ||
+      (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   },
 
   // ---------------- views & tabs ----------------
@@ -501,7 +608,7 @@ export const UI = {
   },
 
   // ---------------- toasts ----------------
-  toast(msg, kind = 'info', ms = 2600) {
+  toast(msg, kind = 'info', ms = 2600, cls = '') {
     const root = this.els['toast-root'];
     if (!root) return;
     const now = Date.now();
@@ -517,7 +624,7 @@ export const UI = {
       return;
     }
     const el = document.createElement('div');
-    el.className = 'toast toast-' + kind;
+    el.className = 'toast toast-' + kind + (cls ? ' ' + cls : '');
     el.innerHTML = '<span class="toast-msg"></span>';
     el.querySelector('.toast-msg').textContent = msg;
     root.appendChild(el);
@@ -525,6 +632,11 @@ export const UI = {
     const timer = this._toastTimer(el, ms);
     this._lastToast = { text: msg, el, count: 1, time: now, timer };
     while (root.children.length > 4) root.firstChild.remove();
+  },
+
+  // Title-unlock toast: subtle gold glow only (kept readable, no rainbow).
+  titleToast(name) {
+    this.toast(`👑 New title unlocked: ${name}!`, 'success', 2600, 'toast-title');
   },
 
   _toastTimer(el, ms) {
@@ -586,12 +698,12 @@ export const UI = {
 
   // ---------------- modals ----------------
   // buttons: [{label, cls, onClick(close)}]; returns close fn.
-  modal({ title, html, buttons, dismissable = true, onClose = null }) {
+  modal({ title, html, buttons, dismissable = true, wide = false, onClose = null }) {
     const root = this.els['modal-root'];
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true">
+      <div class="modal${wide ? ' modal-wide' : ''}" role="dialog" aria-modal="true">
         <h2 class="modal-title">${esc(title)}</h2>
         <div class="modal-body">${html}</div>
         <div class="modal-actions"></div>
@@ -993,7 +1105,7 @@ export const UI = {
     }
   },
 
-  floatText(text, kind = 'dmg') {
+  floatText(text, kind = 'dmg', raw = null) {
     // Battle SFX ride on the same dispatch as the damage numbers, so every
     // hit/crit/hurt/dodge/parry/skill tick gets its sound from one place.
     // (Plays even when damage numbers are hidden — the setting is visual.)
@@ -1003,6 +1115,18 @@ export const UI = {
     } catch { /* audio must never break rendering */ }
     if (!this.settings.damageNumbers && (kind === 'dmg' || kind === 'crit')) return;
     const layer = this.els['float-layer'];
+    const perf = this._perfVisual();
+    // Perf mode: merge rapid plain-damage ticks into one rolling number so a
+    // flurry of hits costs a single DOM node instead of dozens.
+    if (perf && kind === 'dmg' && typeof raw === 'number' && isFinite(raw)) {
+      const now = performance.now();
+      const acc = this._dmgAcc;
+      if (acc && acc.el.isConnected && now - acc.t < 220) {
+        acc.total += raw; acc.t = now; acc.n++;
+        acc.el.textContent = formatNum(acc.total);
+        return;
+      }
+    }
     const el = document.createElement('div');
     el.className = 'float-txt float-' + kind;
     el.textContent = text;
@@ -1010,7 +1134,10 @@ export const UI = {
     el.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
     layer.appendChild(el);
     setTimeout(() => el.remove(), 1100);
-    while (layer.children.length > 12) layer.firstChild.remove();
+    while (layer.children.length > (perf ? 8 : 12)) layer.firstChild.remove();
+    if (perf && kind === 'dmg' && typeof raw === 'number' && isFinite(raw)) {
+      this._dmgAcc = { el, t: performance.now(), total: raw, n: 1 };
+    }
   },
 
   // ---------------- modern theme animation hooks ----------------
@@ -1056,6 +1183,86 @@ export const UI = {
     mark('bg-style-picker', bgStyle || 'default');
   },
 
+  // ---------------- player name styles ----------------
+  // Cosmetic name colors + animated text effects. Stored top-level on
+  // state as nameColor (hex) / nameFx (id); other players' styles are
+  // NOT served by the leaderboard API, so only the local player's own
+  // name ever renders with these.
+  NAME_COLOR_DEFAULT: '#ffd76a',
+  NAME_COLORS: [
+    { id: '#ffd76a', name: 'Gold' },
+    { id: '#ffffff', name: 'White' },
+    { id: '#ff5b5b', name: 'Red' },
+    { id: '#ff9f43', name: 'Orange' },
+    { id: '#5bff8f', name: 'Green' },
+    { id: '#5bd7ff', name: 'Cyan' },
+    { id: '#b78bff', name: 'Violet' },
+    { id: '#ff8bd1', name: 'Pink' },
+  ],
+  NAME_FX: [
+    { id: 'none', name: 'None' },
+    { id: 'fire', name: '🔥 Fire' },
+    { id: 'neon', name: '💡 Neon' },
+    { id: 'rainbow', name: '🌈 Rainbow' },
+    { id: 'shine', name: '✨ Shine' },
+    { id: 'galaxy', name: '🌌 Galaxy' },
+    { id: 'ice', name: '🧊 Ice' },
+    { id: 'lightning', name: '⚡ Lightning' },
+    { id: 'shadow', name: '🌑 Shadow' },
+    { id: 'glitch', name: '👾 Glitch' },
+  ],
+  // Rarest titles: these cycle rainbow in the Titles tab / profile.
+  RAINBOW_TITLES: ['ever-reborn', 'true-capped', 'worldforger'],
+
+  // Returns the local player's display name, HTML-escaped and wrapped
+  // in a styled span when a custom color/effect is set. `state` is the
+  // LOCAL player's state; pass null/{} for the default plain name.
+  nameHtml(name, state) {
+    const safe = esc(name);
+    const color = /^#[0-9a-fA-F]{6}$/.test(state && state.nameColor) ? state.nameColor : this.NAME_COLOR_DEFAULT;
+    const fx = this.NAME_FX.some((f) => f.id === (state && state.nameFx)) && state.nameFx !== 'none' ? state.nameFx : 'none';
+    if (fx === 'none' && color.toLowerCase() === this.NAME_COLOR_DEFAULT) return safe;
+    return `<span class="pname${fx === 'none' ? '' : ' fx-' + fx}" style="--namec:${color}">${safe}</span>`;
+  },
+
+  // Builds the Settings name-color swatches + custom color input + effect buttons.
+  _renderNameStylePickers() {
+    const cel = document.getElementById('name-color-picker');
+    if (cel) {
+      cel.innerHTML = this.NAME_COLORS.map((c) =>
+        `<button type="button" class="swatch" data-color="${c.id}" title="${c.name}" aria-label="${c.name} name color">` +
+        `<span class="dot" style="background:${c.id}"></span><span class="lbl">${c.name}</span></button>`
+      ).join('');
+      cel.querySelectorAll('.swatch').forEach((b) => {
+        b.addEventListener('click', () => { if (this.handlers.onNameColor) this.handlers.onNameColor(b.dataset.color); });
+      });
+    }
+    const custom = document.getElementById('name-color-custom');
+    if (custom) {
+      custom.addEventListener('input', () => { if (this.handlers.onNameColor) this.handlers.onNameColor(custom.value); });
+    }
+    const fel = document.getElementById('name-fx-picker');
+    if (fel) {
+      fel.innerHTML = this.NAME_FX.map((f) =>
+        `<button type="button" class="btn fx-btn" data-fx="${f.id}">${f.name}</button>`
+      ).join('');
+      fel.querySelectorAll('.fx-btn').forEach((b) => {
+        b.addEventListener('click', () => { if (this.handlers.onNameFx) this.handlers.onNameFx(b.dataset.fx); });
+      });
+    }
+  },
+
+  // Marks the active name color swatch / effect button after a change or on load.
+  syncNameStyle(color, fx) {
+    const cel = document.getElementById('name-color-picker');
+    if (cel) cel.querySelectorAll('.swatch').forEach((b) =>
+      b.classList.toggle('active', (b.dataset.color || '').toLowerCase() === String(color || '').toLowerCase()));
+    const custom = document.getElementById('name-color-custom');
+    if (custom && /^#[0-9a-fA-F]{6}$/.test(color || '')) custom.value = color;
+    const fel = document.getElementById('name-fx-picker');
+    if (fel) fel.querySelectorAll('.fx-btn').forEach((b) => b.classList.toggle('active', b.dataset.fx === fx));
+  },
+
   // ---------------- animated background scenes ----------------
   // Single fixed canvas behind all content; one scene at a time.
   // Cheap particle counts, pre-rendered glow sprites, dt-clamped motion,
@@ -1081,7 +1288,7 @@ export const UI = {
     });
   },
   _bgReduced() {
-    return !!this.settings.reduceMotion ||
+    return !!this.settings.reduceMotion || !!this.settings.performanceMode ||
       (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   },
   _glowSprite(color) {
@@ -1182,6 +1389,55 @@ export const UI = {
       }
       B.flashAt = 0; B.flashUntil = 0; B.bolt = null;
       B.grad = this._vGrad(['#0c0408', '#220a12', '#0c0408']);
+    } else if (id === 'inferno-flare') {
+      // Swirling fire vortex: embers orbit a hot core, faster near the middle.
+      B.sprites.flare = ['#ff6b35', '#f7c548', '#ef4444', '#ff9f1c'].map((c) => this._glowSprite(c));
+      const cx = W / 2, cy = H / 2, maxR = Math.min(W, H) * 0.48;
+      B.cx = cx; B.cy = cy;
+      for (let i = 0; i < 52; i++) {
+        const rr = R(0.12, 1) * maxR;
+        B.parts.push({
+          ang: R(0, 6.28), r: rr,
+          // inner particles whirl faster (vortex feel)
+          va: R(0.5, 1.4) * (maxR / Math.max(rr, maxR * 0.12)) * 0.55,
+          s: R(3, 7) * dpr, si: (Math.random() * 4) | 0,
+          a: R(0.45, 0.95), ph: R(0, 6.28),
+        });
+      }
+      B.grad = this._vGrad(['#160704', '#33110a', '#160704']);
+    } else if (id === 'cinder-storm') {
+      // Wind-blown burning cinders streaking sideways with gusty jitter.
+      B.sprites.cinder = ['#ff8c42', '#ffd23f', '#ff3b3b'].map((c) => this._glowSprite(c));
+      for (let i = 0; i < 60; i++) {
+        B.parts.push({
+          x: R(0, W), y: R(0, H),
+          s: R(2, 5) * dpr, vx: R(60, 170) * dpr,
+          sway: R(14, 42) * dpr, ph: R(0, 6.28), fs: R(1.5, 3.5),
+          si: (Math.random() * 3) | 0, a: R(0.4, 0.9),
+        });
+      }
+      B.grad = this._vGrad(['#120603', '#2b0e05', '#120603']);
+    } else if (id === 'phoenix-ash') {
+      // Golden embers rise slowly; every few seconds one erupts in a soft
+      // glow burst that expands and fades.
+      B.sprites.ash = ['#ffd63f', '#f59e0b', '#fff7cc'].map((c) => this._glowSprite(c));
+      for (let i = 0; i < 38; i++) {
+        const e = this._newEmber(W, H, true);
+        e.s = Math.min(e.s, 4 * dpr);
+        e.vy = e.vy * 0.55;
+        e.si = (Math.random() * 3) | 0;
+        B.parts.push(e);
+      }
+      B.bursts = [];
+      for (let i = 0; i < 7; i++) {
+        B.bursts.push({
+          x: R(0.1, 0.9) * W, y: R(0.15, 0.85) * H,
+          r0: R(6, 14) * dpr, r1: R(46, 90) * dpr,
+          si: (Math.random() * 3) | 0,
+          t0: R(0, 5200), period: R(2600, 6200),
+        });
+      }
+      B.grad = this._vGrad(['#100b04', '#2b2008', '#100b04']);
     }
   },
   _drawBgFrame(t, isStatic) {
@@ -1307,6 +1563,65 @@ export const UI = {
           ctx.drawImage(B.sprites.shard[p.si], -d / 2, -d / 2, d, d);
           ctx.restore();
         }
+      }
+    } else if (B.scene === 'inferno-flare') {
+      // Swirling fire vortex: embers orbit a hot core, inner ones faster.
+      const cx = B.cx || W / 2, cy = B.cy || H / 2;
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.ang += p.va * B.dt;
+          if (p.ang > 6.2832) p.ang -= 6.2832;
+        }
+        const px = cx + Math.cos(p.ang) * p.r;
+        const py = cy + Math.sin(p.ang) * p.r * 0.82;
+        const flick = 0.8 + 0.2 * Math.sin(t / 130 + p.ph);
+        const d = p.s * 5.5 * flick;
+        ctx.globalAlpha = p.a * flick;
+        ctx.drawImage(B.sprites.flare[p.si], px - d / 2, py - d / 2, d, d);
+      }
+      // Hot core glow pulsing at the center.
+      const pulse = isStatic ? 0.5 : 0.5 + 0.18 * Math.sin(t / 900);
+      const cd = Math.min(W, H) * 0.34 * (1 + pulse * 0.2);
+      ctx.globalAlpha = 0.35 + pulse * 0.25;
+      ctx.drawImage(B.sprites.flare[1], cx - cd / 2, cy - cd / 2, cd, cd);
+    } else if (B.scene === 'cinder-storm') {
+      // Wind-blown burning cinders streaking sideways with gusty jitter.
+      for (const p of B.parts) {
+        if (!isStatic) {
+          const gust = 1 + 0.55 * Math.sin(t / 1700 + p.ph);
+          p.x += p.vx * gust * B.dt;
+          p.y += Math.cos(t / 900 * p.fs + p.ph) * p.sway * B.dt;
+          const m = p.s * 3;
+          if (p.x > W + m) { p.x = -m; p.y = Math.random() * H; }
+          else if (p.y < -m) p.y = H + m;
+          else if (p.y > H + m) p.y = -m;
+        }
+        const streak = isStatic ? 1 : 1 + 0.4 * Math.sin(t / 1700 + p.ph);
+        const d = p.s * 4.5;
+        ctx.globalAlpha = p.a;
+        ctx.drawImage(B.sprites.cinder[p.si], p.x - d * streak / 2, p.y - d / 2, d * streak, d);
+      }
+    } else if (B.scene === 'phoenix-ash') {
+      // Golden embers rise; every few seconds one erupts in a soft glow burst.
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.y -= p.vy * B.dt;
+          p.x += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * B.dt;
+          if (p.y < -12) Object.assign(p, this._newEmber(W, H, false), { si: (Math.random() * 3) | 0 });
+        }
+        const fade = Math.min(1, Math.max(0, (H - p.y) / (H * 0.3))) * Math.min(1, Math.max(0, (p.y + 12) / 60));
+        if (fade <= 0.02) continue;
+        const d = p.s * 5;
+        ctx.globalAlpha = p.a * fade;
+        ctx.drawImage(B.sprites.ash[p.si], p.x - d / 2, p.y - d / 2, d, d);
+      }
+      for (const b of B.bursts) {
+        let phase = ((t - b.t0) % b.period) / 1200; // 1.2s burst, rest quiet
+        if (phase < 0) phase += b.period / 1200;
+        if (phase >= 1) continue;
+        const rr = b.r0 + (b.r1 - b.r0) * phase;
+        ctx.globalAlpha = 0.5 * (1 - phase);
+        ctx.drawImage(B.sprites.ash[b.si], b.x - rr / 2, b.y - rr / 2, rr, rr);
       }
     }
     ctx.globalAlpha = 1;
@@ -1505,11 +1820,14 @@ export const UI = {
     const hue = this.portraitHue(c.name);
     const initial = (c.name || '?').trim().charAt(0).toUpperCase();
     const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
+    const roleKind = (c && c.roleKind) || (Engine.companionRole && Engine.companionRole(c)) || 'dps';
+    const roleLabel = ((Engine.COMPANION_ROLES || {})[roleKind] || {}).label || roleKind;
+    const roleBadge = `<span class="role-badge role-${roleKind}">${roleLabel}</span>`;
     if (mini) {
       return `
       <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
       <div class="member-name">${esc(c.name)}</div>
-      <div class="member-role">${esc(c.role || 'Companion')}</div>
+      <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge}</div>
       <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
       <div class="member-hptext" data-comp-hptext="${esc(c.id)}">${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}</div>`;
     }
@@ -1520,7 +1838,7 @@ export const UI = {
         <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
         <div class="member-id">
           <div class="member-name">${esc(c.name)} <span class="lvl-badge">Lv ${c.level}</span></div>
-          <div class="member-role">${esc(c.role || 'Companion')} · <span class="tier-badge ${tierCls}">${esc(tier)}</span></div>
+          <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge} · <span class="tier-badge ${tierCls}">${esc(tier)}</span></div>
         </div>
       </div>
       <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
@@ -2005,7 +2323,114 @@ export const UI = {
   },
 
   // ---------------- party ----------------
-  renderParty(state) {
+  // ---------------- multiplayer party ----------------
+  // Server-side invite-code party. mp is the GET /api/party view (or null).
+  // ctx: { username, isGuest, ownNpcCount }. Self is matched by username
+  // (the client knows its own; no id exposure needed for this).
+  renderMpParty(mp, ctx) {
+    const card = this.els['mp-party-card'];
+    if (!card) return;
+    const joinCard = this.els['mp-join-card'];
+    ctx = ctx || {};
+    if (ctx.isGuest) {
+      card.innerHTML = `
+        <h3>🎉 Multiplayer party</h3>
+        <p class="muted">Parties need an account — guest sessions are solo-only. Create an account to team up with friends.</p>`;
+      if (joinCard) joinCard.classList.add('hidden');
+      return;
+    }
+    if (joinCard) joinCard.classList.remove('hidden');
+    if (!mp) {
+      card.innerHTML = `
+        <h3>🎉 Multiplayer party</h3>
+        <p class="muted">Team up with friends: <b>+8% XP</b> and <b>+5% gold</b> per other
+        <b>online</b> member (up to 4 total). Your NPC allies add <b>+4% XP</b> each.</p>
+        <button class="btn gold" data-action="mp-create">🎉 Create party</button>`;
+      return;
+    }
+    const me = String(ctx.username || '');
+    // Server sends a FLAT roster: humans (isNpc:false) + NPC allies
+    // (isNpc:true, with ownerUsername). Group NPCs under their owner.
+    const rows = Array.isArray(mp.members) ? mp.members : [];
+    const humans = rows.filter(m => !m.isNpc);
+    const npcsByOwner = {};
+    for (const n of rows) {
+      if (!n.isNpc) continue;
+      const k = String(n.ownerUsername || '');
+      (npcsByOwner[k] = npcsByOwner[k] || []).push(n);
+    }
+    // Bonuses are computed server-side from DB truth (mp.bonuses). Fall back
+    // to a local estimate only if the field is missing.
+    const b = mp.bonuses || {};
+    const othersOnline = Number.isFinite(b.onlineOtherHumans)
+      ? b.onlineOtherHumans
+      : humans.filter(m => m.online && String(m.username) !== me).length;
+    const activeNpcs = Number.isFinite(b.activeNpcs)
+      ? b.activeNpcs
+      : (npcsByOwner[me] || []).length;
+    const xpPct = Number.isFinite(b.xpPct) ? b.xpPct : othersOnline * 8 + activeNpcs * 4;
+    const goldPct = Number.isFinite(b.goldPct) ? b.goldPct : othersOnline * 5;
+    const isLeader = String(mp.leaderUsername) === me;
+    // Flat roster: humans and NPC allies share the 4 slots, rendered in
+    // roster order. Humans get full cards, NPCs get compact ally cards.
+    const slots = [];
+    const roster = rows.slice(0, 4);
+    for (let i = 0; i < 4; i++) {
+      const m = roster[i];
+      if (!m) {
+        slots.push(`<div class="mp-member empty"><div class="empty-slot-inner"><span class="empty-plus">＋</span><span>Open slot</span></div></div>`);
+        continue;
+      }
+      if (m.isNpc) {
+        slots.push(`
+          <div class="mp-member mp-npc">
+            <div class="mp-avatar">${esc(m.emoji || '🛡️')}</div>
+            <div class="mp-info">
+              <div class="mp-name">${esc(m.name)} <span class="muted small">Lv ${m.level}</span></div>
+              <div class="muted small">NPC ally · ${esc(m.ownerUsername || '')}${m.online ? '' : ' · owner offline'}</div>
+            </div>
+          </div>`);
+        continue;
+      }
+      const race = (Engine.RACES && Engine.RACES[m.race]) || {};
+      const cls = (Engine.CLASSES && Engine.CLASSES[m.playerClass]) || {};
+      const dot = m.online ? '🟢' : '⚪';
+      const crown = m.isLeader ? ' 👑' : '';
+      const flag = (Engine.countryFlag && Engine.countryFlag(m.country)) || '';
+      const title = m.activeTitle ? `<div class="mp-title">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
+      const kick = (isLeader && String(m.username) !== me)
+        ? `<button class="btn small ghost icon-btn" data-action="mp-kick" data-id="${m.userId}" title="Kick ${esc(m.username)}">✕</button>`
+        : '';
+      slots.push(`
+        <div class="mp-member">
+          <div class="mp-avatar">${race.emoji || '🛡️'}</div>
+          <div class="mp-info">
+            <div class="mp-name">${dot} ${String(m.username) === me ? this.nameHtml(m.username, state) : esc(m.username)}${flag ? ' ' + flag : ''}${crown}</div>
+            ${title}
+            <div class="muted small">Lv ${m.level} · Stage ${m.stage}${cls.name ? ' · ' + esc(cls.name) : ''}${m.online ? '' : ' · offline'}</div>
+          </div>
+          ${kick}
+        </div>`);
+    }
+    card.innerHTML = `
+      <div class="mp-head">
+        <div class="mp-code-row"><span class="muted">Invite code</span>
+          <b class="mp-code">${esc(mp.code)}</b>
+          <button class="btn small ghost" data-action="mp-copy" title="Copy invite code">📋 Copy</button>
+        </div>
+        <div class="mp-bonus">✨ +${xpPct}% XP · 💰 +${goldPct}% gold
+          <span class="muted small">(${othersOnline} online member${othersOnline === 1 ? '' : 's'} + ${activeNpcs} NPC)</span>
+        </div>
+      </div>
+      <div class="mp-members">${slots.join('')}</div>
+      <div class="mp-controls">
+        <button class="btn small ghost" data-action="mp-leave">🚪 Leave party</button>
+        ${isLeader ? `<button class="btn small danger" data-action="mp-disband">💥 Disband</button>` : ''}
+      </div>`;
+  },
+
+  renderParty(state, ctx) {
+    this.renderMpParty((ctx && ctx.mpParty) || null, ctx);
     const slots = this.els['party-slots'];
     slots.innerHTML = '';
     for (let i = 0; i < Engine.MAX_PARTY; i++) {
@@ -2039,11 +2464,14 @@ export const UI = {
       const reason = owned ? 'Recruited' : full ? 'Party full' : !afford ? 'Need 💰' : '';
       const tier = (r.tier || 'common').toLowerCase();
       const tierBadge = `<span class="tier-badge tier-${tier}">${tier}</span>`;
+      const roleKind = (Engine.companionRole && Engine.companionRole(r)) || 'dps';
+      const roleLabel = ((Engine.COMPANION_ROLES || {})[roleKind] || {}).label || roleKind;
+      const roleBadge = `<span class="role-badge role-${roleKind}">${roleLabel}</span>`;
       const row = document.createElement('div');
       row.className = 'recruit-row recruit-' + tier;
       row.innerHTML = `
         <div class="recruit-info"><span class="comp-emoji">${r.emoji}</span>
-          <div><div class="comp-name">${esc(r.name)} ${tierBadge}</div>
+          <div><div class="comp-name">${esc(r.name)} ${tierBadge} ${roleBadge}</div>
           <div class="muted small">⚔️${r.atk} 🛡️${r.def} ❤️${r.hp} · scales with your level</div></div></div>
         <button class="btn small" data-action="recruit" data-id="${r.id}" ${disabled ? 'disabled' : ''}>
           ${owned ? '✔' : `💰 ${formatNum(r.cost)}`} ${reason && !owned ? `<span class="muted small">${reason}</span>` : ''}
@@ -2203,13 +2631,40 @@ export const UI = {
         b.setAttribute('aria-selected', active ? 'true' : 'false');
       });
     }
+    // Ranking pills + All/Friends filter are hero-specific: hide them on the Guilds view.
+    const heroOnly = this.ranksCategory === 'heroes';
+    $$('#lb-cats button[data-by]').forEach((b) => b.classList.toggle('hidden', !heroOnly));
+    const filters = this.els['lb-filters'];
+    if (filters) filters.classList.toggle('hidden', !heroOnly);
     return this.ranksCategory;
   },
-  renderRanks(entries, meUsername) {
+  // Leaderboard ranking categories: label, chip icon and how to read the value off
+  // an entry. Guild tag renders only when the server sends one (never crashes).
+  LB_CATS: {
+    level:    { emoji: '🎖️', label: 'Level',    fmt: (en) => en.level },
+    stage:    { emoji: '🗺️', label: 'Stage',    fmt: (en) => en.stage },
+    bosses:   { emoji: '👑', label: 'Bosses',   fmt: (en) => formatNum(en.bossesKilled) },
+    kills:    { emoji: '⚔️', label: 'Kills',    fmt: (en) => formatNum(en.kills || 0) },
+    depth:    { emoji: '⛏️', label: 'Depth',    fmt: (en) => (en.depth || 0) },
+    titles:   { emoji: '🏵️', label: 'Titles',   fmt: (en) => (en.titles || 0) },
+    rebirths: { emoji: '🌀', label: 'Rebirths', fmt: (en) => (en.rebirth > 0 ? en.rebirth : '—') },
+  },
+  lbCategory: 'level',
+
+  setLbCategory(by) {
+    if (!this.LB_CATS[by]) return;
+    this.lbCategory = by;
+    $$('#lb-cats button[data-by]').forEach(b => b.classList.toggle('active', b.dataset.by === by));
+    if (this.handlers.onLbCategory) this.handlers.onLbCategory(by);
+  },
+
+  renderRanks(entries, meUsername, by, meState) {
     this.setRanksCategory('heroes');
+    const cat = this.LB_CATS[by] || this.LB_CATS[this.lbCategory] || this.LB_CATS.level;
     const note = this.els['lb-note'];
-    if (note) note.textContent = 'Top heroes by level, then stage, then boss kills.';
+    if (note) note.textContent = `Top heroes by ${cat.label.toLowerCase()}.`;
     const body = this.els['lb-body'];
+    if (!body) return;
     body.innerHTML = '';
     if (!entries.length) {
       body.innerHTML = '<div class="lb-empty muted center">No heroes yet.</div>';
@@ -2218,7 +2673,9 @@ export const UI = {
     const medals = ['🥇', '🥈', '🥉'];
     entries.forEach((en, i) => {
       const row = document.createElement('div');
-      row.className = 'lb-row' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      row.className = 'lb-row lb-clickable' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      row.dataset.username = en.username || '';
+      row.title = 'Inspect ' + (en.username || '');
       const isMe = en.username === meUsername;
       if (isMe) row.classList.add('me-row');
       const race = Engine.RACES[en.race] || {};
@@ -2241,10 +2698,11 @@ export const UI = {
         ${rankHtml}
         <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
         <div class="lb-identity">
-          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${isMe ? this.nameHtml(en.username, meState) : esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
           ${title}
         </div>
         <div class="lb-chips">
+          <span class="lb-chip lb-chip-cat"><b>${cat.emoji}</b>${cat.fmt(en)}</span>
           <span class="lb-chip"><b>Lv</b>${en.level}</span>
           <span class="lb-chip"><b>Stage</b>${en.stage}</span>
           <span class="lb-chip"><b>⚔️</b>${formatNum(en.power || 0)}</span>
@@ -2291,6 +2749,293 @@ export const UI = {
   },
 
   // ---------------- settings ----------------
+
+  // ---------------- friends ----------------
+  // Ranks sub-tab: friends list, requests, and the add-by-username box.
+  // `data` is the /api/friends payload (or null while loading); `isGuest`
+  // shows the account-upgrade prompt instead.
+  renderFriends(data, isGuest) {
+    const panel = this.els['friends-panel'];
+    if (!panel) return;
+    if (isGuest) {
+      panel.innerHTML = `
+        <div class="card friends-guest">
+          <h3>👥 Friends</h3>
+          <p class="muted">Friends need an account — your progress carries over.</p>
+          <button class="btn gold" data-friend="upgrade">✨ Create free account</button>
+        </div>`;
+      return;
+    }
+    if (!data) {
+      panel.innerHTML = '<div class="muted center">Loading friends…</div>';
+      return;
+    }
+    const onlineDot = (on) => `<span class="online-dot${on ? ' on' : ''}" title="${on ? 'Online' : 'Offline'}"></span>`;
+    const incoming = (data.incoming || []).map((u) => `
+      <div class="friend-row req">
+        ${onlineDot(false)}
+        <span class="friend-name">${esc(u)}</span>
+        <span class="muted small">wants to be friends</span>
+        <span class="friend-actions">
+          <button class="btn small gold" data-friend="accept" data-username="${esc(u)}">✓ Accept</button>
+          <button class="btn small ghost" data-friend="decline" data-username="${esc(u)}">✕</button>
+        </span>
+      </div>`).join('');
+    const outgoing = (data.outgoing || []).map((u) => `
+      <div class="friend-row req">
+        ${onlineDot(false)}
+        <span class="friend-name">${esc(u)}</span>
+        <span class="muted small">request sent</span>
+        <span class="friend-actions">
+          <button class="btn small ghost" data-friend="cancel" data-username="${esc(u)}">Cancel</button>
+        </span>
+      </div>`).join('');
+    const friends = (data.friends || []).map((f) => {
+      const cls = f.playerClass && UI_CLASS_EMOJI[f.playerClass] ? UI_CLASS_EMOJI[f.playerClass] + ' ' : '';
+      return `
+      <div class="friend-row" data-username="${esc(f.username)}">
+        ${onlineDot(!!f.online)}
+        <span class="friend-name">${cls}${esc(f.username)}</span>
+        <span class="muted small">Lv ${f.level} · Stage ${f.stage}</span>
+        <span class="friend-actions">
+          <button class="btn small" data-friend="inspect" data-username="${esc(f.username)}">🔍</button>
+          <button class="btn small ghost" data-friend="compare" data-username="${esc(f.username)}" title="Compare with me">⚖️</button>
+          <button class="btn small ghost" data-friend="remove" data-username="${esc(f.username)}" title="Remove friend">🗑️</button>
+        </span>
+      </div>`;
+    }).join('');
+    panel.innerHTML = `
+      <div class="card friends-add">
+        <h3>➕ Add friend</h3>
+        <div class="friend-add-row">
+          <input id="friend-add-input" class="friend-input" placeholder="Exact username…" maxlength="20" autocomplete="off">
+          <button class="btn gold" data-friend="send">Send request</button>
+        </div>
+        <p class="muted small">Usernames are exact — ask your friend for theirs.</p>
+      </div>
+      ${incoming || outgoing ? `<div class="card"><h3>📨 Requests</h3>${incoming}${outgoing}</div>` : ''}
+      <div class="card">
+        <h3>👥 Friends (${(data.friends || []).length})</h3>
+        ${friends || '<p class="muted">No friends yet — add someone above.</p>'}
+      </div>`;
+  },
+
+  setFriendBadge(count) {
+    const b = this.els['friend-req-badge'];
+    if (!b) return;
+    if (count > 0) {
+      b.textContent = count > 9 ? '9+' : String(count);
+      b.classList.remove('hidden');
+    } else {
+      b.classList.add('hidden');
+    }
+  },
+
+  switchRanksSubtab(which) {
+    const tabs = this.els['ranks-subtabs'];
+    if (tabs) {
+      tabs.querySelectorAll('.subtab').forEach((t) => {
+        t.classList.toggle('active', t.dataset.subtab === which);
+      });
+    }
+    const board = this.els['lb-board-view'] || this.els['lb-body'];
+    const panel = this.els['friends-panel'];
+    if (board) board.classList.toggle('hidden', which !== 'board');
+    if (panel) panel.classList.toggle('hidden', which !== 'friends');
+  },
+
+  // ---------------- player inspect ----------------
+  // Opens the full character sheet for any player (from the leaderboard or a
+  // friend row). `meState` powers the "Compare with me" side-by-side view.
+  async openInspect(username, meState, autoCompare = false) {
+    if (!username) return;
+    const h = this.handlers;
+    if (h.onInspectLoading) h.onInspectLoading(true);
+    try {
+      const data = await h.onFetchInspect(username);
+      if (!data) throw new Error('no data');
+      this.showInspect(data, meState, autoCompare);
+    } catch (e) {
+      this.toast('Could not load that hero.', 'error');
+    } finally {
+      if (h.onInspectLoading) h.onInspectLoading(false);
+    }
+  },
+
+  showInspect(d, meState, autoCompare = false) {
+    const h = this.handlers;
+    const raceEmoji = (d.race && d.race.emoji) || '❓';
+    const clsLine = [d.playerClass && d.playerClass.emoji, d.playerClass && d.playerClass.name,
+      d.spec && d.spec.emoji, d.spec && d.spec.name].filter(Boolean).join(' ');
+    const tiles = [
+      { icon: '⚔️', label: 'Power', val: formatNum(d.power) },
+      { icon: '🌀', label: 'Raid Wave', val: String(d.bestRaidWave) },
+      { icon: '💀', label: 'Kills', val: formatNum(d.kills) },
+      { icon: '🏰', label: 'Stage', val: String(d.stage) },
+    ].map((t) => `
+      <div class="inspect-tile">
+        <div class="inspect-tile-icon">${t.icon}</div>
+        <div class="inspect-tile-label">${t.label}</div>
+        <div class="inspect-tile-val">${esc(t.val)}</div>
+      </div>`).join('');
+
+    const gearHtml = (d.gear || []).map((g) => {
+      if (!g.item) {
+        return `<div class="inspect-gear empty"><span class="inspect-slot-name">${esc(g.slot)}</span><span class="muted small">— empty —</span></div>`;
+      }
+      const it = g.item;
+      const statChips = Object.entries(it.stats || {}).slice(0, 4).map(([k, v]) =>
+        `<span class="gear-stat">${STAT_EMOJI[k] || '•'}+${formatStatVal(k, v)}</span>`).join(' ');
+      return `
+        <div class="inspect-gear rarity-${esc(it.rarity)}">
+          <span class="inspect-slot-name">${esc(g.slot)}</span>
+          <b>${esc(it.name)}</b>
+          ${it.enchant > 0 ? `<span class="enchant-tag">+${it.enchant}</span>` : ''}
+          <span class="rarity-tag">${esc(it.rarity)}</span>
+          <div class="gear-stats">${statChips}</div>
+        </div>`;
+    }).join('');
+
+    const petHtml = (d.pets && d.pets.length)
+      ? d.pets.map((p) => `<div class="inspect-pet"><span class="pet-emoji">${esc(p.emoji)}</span><span>${esc(p.name)}</span><span class="muted small">Lv ${p.level}</span></div>`).join('')
+      : '<p class="muted small">No active pets.</p>';
+
+    const statRows = d.stats ? Object.entries(Engine.STAT_LABELS).map(([k, label]) => {
+      const v = d.stats[k];
+      if (v == null) return '';
+      return `<div class="inspect-stat-row"><span>${label}</span><b>${formatStatVal(k, v)}</b></div>`;
+    }).join('') : '';
+
+    const guildHtml = d.guild
+      ? `<div class="inspect-guild">🏰 <b>${esc(d.guild.name)}</b> <span class="muted">[${esc(d.guild.tag)}]</span></div>`
+      : `<div class="inspect-guild muted">No guild</div>`;
+
+    const onlineHtml = d.online
+      ? '<span class="online-dot on"></span> <span class="online-label on">Online</span>'
+      : '<span class="online-dot"></span> <span class="online-label muted">Offline</span>';
+
+    let friendBtn = '';
+    if (d.relation === 'self') {
+      friendBtn = '<button class="btn ghost" disabled>This is you</button>';
+    } else if (d.relation === 'friends') {
+      friendBtn = `<button class="btn ghost" data-inspect="unfriend" data-username="${esc(d.username)}">✓ Friends — Remove</button>`;
+    } else if (d.relation === 'outgoing') {
+      friendBtn = `<button class="btn ghost" data-inspect="unfriend" data-username="${esc(d.username)}">Request sent — Cancel</button>`;
+    } else if (d.relation === 'incoming') {
+      friendBtn = `<button class="btn gold" data-inspect="accept" data-username="${esc(d.username)}">Accept request</button>`;
+    } else {
+      friendBtn = `<button class="btn gold" data-inspect="add" data-username="${esc(d.username)}">➕ Add Friend</button>`;
+    }
+
+    const html = `
+      <div class="inspect-sheet">
+        <div class="inspect-head">
+          <div class="inspect-avatar">${raceEmoji}</div>
+          <div class="inspect-id">
+            <div class="inspect-name">${d.relation === 'self' ? this.nameHtml(d.username, meState) : esc(d.username)}</div>
+            <div class="inspect-lv">⚔️ Lv ${d.level}</div>
+            <div class="inspect-class">${esc(clsLine || '—')}</div>
+            ${d.title ? `<div class="inspect-title">👑 ${esc(d.title)}</div>` : ''}
+            <div class="inspect-online">${onlineHtml}</div>
+          </div>
+        </div>
+        <div class="inspect-tiles">${tiles}</div>
+        ${guildHtml}
+        <h4 class="inspect-h">🛡️ Equipped</h4>
+        <div class="inspect-gear-list">${gearHtml}</div>
+        <h4 class="inspect-h">📊 Stats</h4>
+        <div class="inspect-stats">${statRows}</div>
+        <h4 class="inspect-h">🐾 Pets</h4>
+        <div class="inspect-pets">${petHtml}</div>
+        <div class="inspect-compare hidden" id="inspect-compare"></div>
+        <div class="inspect-actions">
+          <button class="btn" data-inspect="compare">⚖️ Compare with me</button>
+          ${friendBtn}
+        </div>
+      </div>`;
+
+    const close = this.modal({
+      title: '🔍 Player Inspect',
+      html,
+      buttons: [{ label: 'Close' }],
+      wide: true,
+    });
+
+    // Wire the inspect-modal buttons (delegated on the overlay).
+    const overlay = document.querySelector('#modal-root .modal-overlay:last-child');
+    if (overlay) {
+      overlay.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button[data-inspect]');
+        if (!btn || btn.disabled) return;
+        const action = btn.dataset.inspect;
+        const uname = btn.dataset.username || d.username;
+        try {
+          if (action === 'add' && h.onFriendAdd) {
+            await h.onFriendAdd(uname);
+            close(); this.openInspect(uname, meState, autoCompare);
+          } else if (action === 'accept' && h.onFriendAccept) {
+            await h.onFriendAccept(uname);
+            close(); this.openInspect(uname, meState, autoCompare);
+          } else if (action === 'unfriend' && h.onFriendRemove) {
+            await h.onFriendRemove(uname, { confirm: false });
+            close(); this.openInspect(uname, meState, autoCompare);
+          } else if (action === 'compare') {
+            this.renderCompare($('#inspect-compare'), d, meState);
+          }
+        } catch (err) {
+          this.toast(err && err.message ? err.message : 'Action failed.', 'error');
+        }
+      });
+      // "Quick compare" entry point opens the sheet with comparison expanded.
+      if (autoCompare) this.renderCompare($('#inspect-compare'), d, meState);
+    }
+  },
+
+  // Side-by-side stat comparison: you vs the inspected hero.
+  renderCompare(box, them, meState) {
+    if (!box) return;
+    box.classList.remove('hidden');
+    if (!meState) {
+      box.innerHTML = '<p class="muted">Sign in to compare.</p>';
+      return;
+    }
+    let mine;
+    try { mine = Engine.computeStats(meState); } catch { mine = null; }
+    if (!mine || !them.stats) {
+      box.innerHTML = '<p class="muted">Stats unavailable.</p>';
+      return;
+    }
+    const rows = [['power', 'Power', Math.round(mine.attack), them.power]];
+    for (const [k, label] of Object.entries(Engine.STAT_LABELS)) {
+      const mv = mine[k];
+      const tv = them.stats[k];
+      if (mv == null || tv == null) continue;
+      rows.push([k, label, mv, tv]);
+    }
+    const fmt = (k, v) => (k === 'power' ? formatNum(v) : formatStatVal(k, v));
+    const html = rows.map(([k, label, mv, tv]) => {
+      const diff = Math.round((mv - tv) * 100) / 100;
+      const cls = diff > 0 ? 'delta-up' : diff < 0 ? 'delta-down' : 'delta-even';
+      const sign = diff > 0 ? '+' : diff < 0 ? '−' : '';
+      const diffStr = (k === 'power' || ['attack', 'defense', 'maxHp'].includes(k))
+        ? sign + formatNum(Math.abs(diff)) : sign + (Math.round(Math.abs(diff) * 10) / 10);
+      return `
+        <div class="compare-row">
+          <span class="compare-label">${esc(label)}</span>
+          <span class="compare-you">${fmt(k, mv)}</span>
+          <span class="compare-them">${fmt(k, tv)}</span>
+          <span class="compare-delta ${cls}">${diff === 0 ? '—' : diffStr}</span>
+        </div>`;
+    }).join('');
+    box.innerHTML = `
+      <h4 class="inspect-h">⚖️ You vs ${esc(them.username)}</h4>
+      <div class="compare-head compare-row">
+        <span class="compare-label"></span><span class="compare-you"><b>You</b></span>
+        <span class="compare-them"><b>${esc(them.username)}</b></span><span class="compare-delta"></span>
+      </div>${html}`;
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  },
+
   renderMore(state, user) {
     const role = (user && user.role) || 'player';
     this.role = role; // remembered for role-aware changelog filtering
@@ -2321,9 +3066,9 @@ export const UI = {
       <div class="profile-head">
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
-          <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${esc(user ? user.username : '—')}</div>
+          <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${this.nameHtml(user ? user.username : '—', state)}</div>
           <div class="profile-title-row">
-            <div class="profile-title">${esc(Engine.titleName(state.activeTitle))}</div>
+            <div class="profile-title ${this.RAINBOW_TITLES.includes(state.activeTitle) ? 'title-rainbow' : 'title-glow'}">${esc(Engine.titleName(state.activeTitle))}</div>
           </div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
@@ -2359,10 +3104,12 @@ export const UI = {
       const has = unlocked.has(t.id);
       const active = s.activeTitle === t.id;
       const rowCls = 'title-row' + (has ? ' unlocked' : ' locked') + (active ? ' active' : '');
+      // Unlocked titles get a subtle gold glow; the 3 rarest cycle rainbow.
+      const glowCls = has ? (this.RAINBOW_TITLES.includes(t.id) ? 'title-rainbow' : 'title-glow') : '';
       const nameHtml = (has && active ? '👑 ' : has ? '' : '🔒 ') + esc(t.name);
       return has
-        ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
-        : `<div class="${rowCls}"><span class="title-row-name">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></div>`;
+        ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name ${glowCls}">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
+        : `<div class="${rowCls}"><span class="title-row-name ${glowCls}">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></div>`;
     }).join('');
   },
 

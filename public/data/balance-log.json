@@ -1,170 +1,58 @@
 [
   {
+    "version": "v19",
     "date": "2026-09-28",
-    "title": "Starter gold for new players",
-    "version": "v17",
+    "title": "Level cap 120 + endgame tuning",
     "changes": [
       {
-        "system": "Starting gold",
-        "before": "New heroes (guest and registered) started with 0 gold",
-        "after": "New heroes start with 500 gold — exactly the Stray Egg price, so the first pet is buyable immediately",
-        "note": "Existing saves untouched. No trading or guild bank exists, so starter gold can't be funneled between accounts."
-      }
-    ]
-  },
-  {
-    "date": "2026-09-28",
-    "title": "Gold cap raised to 999Qi",
-    "version": "v16",
-    "changes": [
-      {
-        "system": "Gold cap",
-        "before": "9Q (9,000,000,000,000,000) — top players were capped out and couldn't earn more",
-        "after": "999Qi (999,000,000,000,000,000,000) — about 111,000× more headroom",
-        "note": "Number display now supports the Qi (quintillion) suffix. Server, client, and save validation all use the new cap."
-      }
-    ]
-  },
-  {
-    "version": "v15",
-    "title": "Polish patch v15 — player feedback round",
-    "date": "2026-09-28",
-    "changes": [
-      {
-        "system": "Boss name match",
-        "before": "Boss was re-rolled randomly on every spawn, so the announced boss could differ from the one that actually spawned (e.g. after a death-respawn).",
-        "after": "Boss identity is deterministic per stage: the announced name always matches the spawned boss, even across re-spawns.",
-        "note": "Normal (non-boss) enemies stay random for variety. No stat changes."
+        "system": "Level cap",
+        "before": "90 — Rebirth unlocked at 90.",
+        "after": "120 — Rebirth now unlocks at 120. All gates (title check, rebirth, UI) follow MAX_LEVEL.",
+        "note": "Rebirth still resets only level/XP and keeps all other progress."
       },
       {
-        "system": "Boss name pool",
-        "before": "2 boss names per world — bosses repeated every other boss stage.",
-        "after": "8 named bosses per world (32 total), e.g. Throne of Shadows adds The Gloom Empress, Dread Inquisitor Morvain, The Pale Chancellor, Nightmare Herald Xhul, The Thronebreaker, Umbral Pontiff Vexar.",
-        "note": "Balance-neutral: boss HP/ATK formulas untouched; only names/faces rotate."
+        "system": "XP curve (levels 91-120)",
+        "before": "No levels above 90.",
+        "after": "Levels 91-120 continue from the level-90 value with a x1.47 exponent, continuous at 90. Level 100 costs ~3.48e15 XP, level 120 ~7.72e18 XP; level 120 is ~104,600x the level-90 cost. Total XP 1->120 is ~98,000x total 1->90, so the last 30 levels are a proper endgame grind.",
+        "note": "Levels 1-90 are unchanged. A raw x1.46-1.48 segment could never hit a 5-8x total target, so the new band is deliberately the steepest — the 91-120 climb stays honest even with the +40% party bonus."
       },
       {
-        "system": "Damage meter",
-        "before": "One-tap kills reset the meter to 0 DPS / 'No damage yet'.",
-        "after": "The meter keeps the last fight's DPS and shows a 'LAST FIGHT' pill until the next fight lands damage.",
-        "note": "Session-only display change; no combat numbers affected."
-      },
-      {
-        "system": "Level-up popups",
-        "before": "Rapid level-ups could stack modal popups on top of each other.",
-        "after": "Level-up popups queue and show one at a time.",
-        "note": "UI-only change."
-      },
-      {
-        "system": "Quest counters",
-        "before": "Quest kill counters could look frozen/stale on first open; completed quests gave no feedback until the tab was reopened.",
-        "after": "Quest progress syncs immediately on first open, refreshes live while the tab is visible, and toasts the moment a quest completes (claim button appears without reopening).",
-        "note": "No quest targets, rewards, or progress math changed."
-      },
-      {
-        "system": "Onboarding guide chain",
-        "before": "New players were hit with mining, forging, pets, guilds, quests, titles, and professions all at once.",
-        "after": "New one-time 'New Adventurer Guide' quest chain introduces systems one at a time in order: Battle -> Mine -> Pets -> Forge/Enchant -> Guilds -> Titles -> Professions -> Daily/Weekly quests. Each step unlocks only after the previous is claimed.",
-        "note": "Rewards use the standard story-quest reward table; no economy changes."
-      },
-      {
-        "system": "Starter pet",
-        "before": "Cheapest pet egg cost 5,000 gold — out of reach for brand-new players.",
-        "after": "New Stray Egg for 500 gold hatches an Ash Mouse (common, weaker than the Cinder Pup — a true starter pet). Marked STARTER in the Pet Shop.",
-        "note": "Ash Mouse is shop-only (excluded from wild-egg drops). Sells for the standard common-pet formula."
-      }
-    ]
-  },
-  {
-    "version": "v14",
-    "title": "Balance patch v14 — pet/world content",
-    "date": "2026-09-28",
-    "changes": [
-      {
-        "system": "Pet selling",
-        "before": "No way to remove pets; unwanted pets sat on the bench forever.",
-        "after": "Sell any non-special pet: rarity base (common 800 / magic 2,000 / rare 5,000 / epic 15,000 / legendary 40,000 / mythic 80,000 / shadow 120,000) x (1 + 15% per level past 1). Two-tap confirm; respects the gold cap; selling the active pet promotes the next pet.",
-        "note": "A level-10 Void Reaver sells for ~282,000 gold — meaningful, but far below its 500,000 egg price, so buying-to-flip loses money."
-      },
-      {
-        "system": "New eggs",
-        "before": "Top shop egg: Radiant (100,000 gold) -> Ember Fox / Tide Turtle.",
-        "after": "Mythic Egg 250,000 gold -> Storm Drake / Prismhorn; Shadow Egg 500,000 gold -> Shadow Wisp / Gloomstalker / Void Reaver. New species can also rarely hatch from wild boss-drop eggs (weights 1-2 vs 100 total).",
-        "note": "Egg prices rise ~2.5x/5x over Radiant; new pets hit ~1.2-1.5x harder than the legendary Tide Turtle via baseDmg 42-56 and growth 1.20-1.21."
-      },
-      {
-        "system": "New worlds",
-        "before": "Enemies were one global random pool at every stage.",
-        "after": "4 worlds at stage thresholds: Gloomwood (1-99), Ember Wastes (100-249), The Void Abyss (250-499, new), Throne of Shadows (500+, new). Each has its own enemy/boss roster and ambient background.",
-        "note": "Balance-neutral by design: enemy HP/ATK formulas are untouched (18x1.125^stage HP, 4x1.085^stage ATK). Worlds change who you fight, not the numbers."
-      },
-      {
-        "system": "Teasers",
-        "before": "No upcoming-content visibility in the Pet Shop.",
-        "after": "Locked 'Coming Soon' cards for Starlight pets and Shadow demons — visible but unobtainable.",
-        "note": "Static teasers only; no Seasons system (per standing request)."
+        "system": "Enemy/boss HP growth",
+        "before": "Enemy HP = 18 x 1.125^stage (x0.6 normal, x2.5 boss).",
+        "after": "Enemy HP = 18 x 1.115^stage (x0.6 normal, x2.5 boss).",
+        "note": "The flatter exponent cuts enemy HP ~9x at stage 250, ~15x at stage 300, and ~1,265x by stage 800 vs 1.125. Early game untouched (already one-taps), and the boss x2.5 multiplier plus incoming-damage auto-tuning (15-30% max HP hits, one-shot guard) still hold."
       }
     ]
   },
   {
     "changes": [
       {
-        "after": "8 × 1.12^stage (≈153.94M per kill at stage 148)",
-        "before": "10 × 1.12^stage (≈192.43M per kill at stage 148)",
-        "note": "A further 20% off every kill, on top of the v12 nerf. Quest XP is untouched (it scales with the XP curve).",
-        "system": "Kill XP"
+        "after": "1-30 unchanged (80 x 1.30^(L-1)); 31-60 use x1.35 exponent; 61-90 use x1.44 exponent, continuous at both kinks. Level 60 needs ~3.1x more XP than before, level 70 ~3.6x, level 90 ~4.7x.",
+        "before": "80 x 1.30^(L-1) for 1-60, then x1.42 exponent 61-90",
+        "note": "Targets the 30-70 climb players called too fast. Early game (1-30) untouched so new players still feel quick progress. Even with a full +40% party XP bonus, level 70 still takes ~2.5x longer than before.",
+        "system": "XP curve (levels 31+)"
       },
       {
-        "after": "Weapon (2 + 1.0×stage), armor (1 + 0.60×stage), helmet (12 + 5.5×stage), before rarity mult",
-        "before": "Weapon (2 + 0.9×stage), armor (1 + 0.55×stage), helmet (12 + 5×stage), before rarity mult",
-        "note": "About +10% gear stats from stage ~30 up, so drops keep feeling like upgrades while leveling slows.",
-        "system": "Gear stat progression"
+        "after": "Up to +40% XP from parties: +8% per other online human, +4% per active NPC companion. Offline members give nothing.",
+        "before": "No parties (solo only)",
+        "note": "The v18 XP curve was steepened with this bonus active in the math, so parties speed you up without trivializing the climb.",
+        "system": "Party XP bonus"
       },
       {
-        "after": "18 × 1.125^stage (≈1.41M normal-enemy HP at stage 100)",
-        "before": "18 × 1.13^stage (≈2.19M normal-enemy HP at stage 100)",
-        "note": "Slightly gentler HP curve: −8% at stage 20, −24% at stage 60. Time-to-kill stays honest while XP income drops.",
-        "system": "Enemy HP scaling"
+        "after": "Capped at +40%",
+        "before": "Gear/stat XP bonuses capped at +50%",
+        "note": "Lowered to offset the new party XP bonus stacking on top.",
+        "system": "Gear XP bonus cap"
+      },
+      {
+        "after": "90 — Rebirth now unlocks at 90. The steepened XP curve runs the full 1-90 range.",
+        "before": "70",
+        "note": "Rebirth still resets only level/XP and keeps all other progress.",
+        "system": "Level cap"
       }
     ],
     "date": "2026-09-28",
-    "title": "Balance patch v13 — XP nerf + pacing tune-up",
-    "version": "v13"
-  },
-  {
-    "changes": [
-      {
-        "after": "1.30 exponent for levels 1–60, then 1.42 for 61–70, continuous at 60 (33.93B total XP for 1→70)",
-        "before": "80 × 1.30^(L-1) for all 70 levels (19.41B total XP for 1→70)",
-        "note": "Endgame levels take ~75% more XP; the early game is untouched.",
-        "system": "Level XP curve"
-      },
-      {
-        "after": "10 × 1.12^stage (≈192.43M per kill at stage 148 — about 176 kills for 1→70)",
-        "before": "10 × 1.15^stage (≈9.62B per kill at stage 148 — about 2 kills for 1→70)",
-        "note": "Farming high stages no longer skips the climb.",
-        "system": "Kill XP"
-      },
-      {
-        "after": "Capped at +50% inside XP gains (tooltips still show the true total)",
-        "before": "Uncapped — a Super Galaxy xpBonus pick gave +600% XP (7× leveling speed)",
-        "note": "Forged gear stays overpowered for combat, just not for leveling.",
-        "system": "Gear XP bonus"
-      },
-      {
-        "after": "Each rebirth multiplies all XP requirements ×1.35 (×1.35 at 1 rebirth, ×1.82 at 2)",
-        "before": "Reset to level 1 with identical XP costs every climb",
-        "note": "The multiplier is shown in the Rebirth panel. The server recomputes XP needs from level + rebirth count and ignores client-supplied values.",
-        "system": "Rebirth"
-      },
-      {
-        "after": "Guild level capped at 20 (+40% XP max)",
-        "before": "Uncapped +2% XP per guild level",
-        "note": "Ships with the guild rework; bounds the biggest XP accelerator.",
-        "system": "Guild XP perk"
-      }
-    ],
-    "date": "2026-09-28",
-    "title": "Balance patch v12 — pacing nerfs",
-    "version": "v12"
+    "title": "Mega-update balance pass",
+    "version": "v18"
   }
 ]

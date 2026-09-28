@@ -16,15 +16,25 @@ function setGoldCap(cap) {
 }
 function getGoldCapValue() { return goldCap; }
 
-// Server-side mirror of the client XP curve in public/js/engine.js:
-// levels 1-60 use a 1.30 exponent, 61-70 continue from the kinked value with
-// a 1.42 exponent, and every rebirth multiplies requirements by 1.35^rebirths.
+// Server-side mirror of the client XP curve in public/js/engine.js (v19):
+// levels 1-30 use a 1.30 exponent, 31-60 continue from the level-30 value
+// with a 1.35 exponent, 61-90 continue from the level-60 value with a 1.44
+// exponent, 91-120 continue from the level-90 value with a 1.47 exponent
+// (continuous at every kink), and every rebirth multiplies
+// requirements by 1.35^rebirths.
 // Keep in sync if the client formula ever changes.
+const SV_XP_V30 = 80 * Math.pow(1.30, 29);
+const SV_XP_V60 = SV_XP_V30 * Math.pow(1.35, 30);
+const SV_XP_V90 = SV_XP_V60 * Math.pow(1.44, 30);
 function xpForLevelServer(level, rebirthCount) {
   const l = Math.max(1, Math.floor(Number(level) || 1));
-  const base = l <= 60
+  const base = l <= 30
     ? 80 * Math.pow(1.30, l - 1)
-    : 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+    : l <= 60
+    ? SV_XP_V30 * Math.pow(1.35, l - 30)
+    : l <= 90
+    ? SV_XP_V60 * Math.pow(1.44, l - 60)
+    : SV_XP_V90 * Math.pow(1.47, l - 90);
   const rb = Math.min(200, Math.max(0, Math.floor(Number(rebirthCount) || 0)));
   const mult = Math.pow(1.35, rb);
   return Math.max(1, Math.round(base * mult));
@@ -52,12 +62,12 @@ function validatePassword(password) {
 // Named root fields and their clamp ranges [min, max]. Only applied when the
 // field exists and holds a finite number; non-finite numbers become the min.
 const CLAMPED_FIELDS = {
-  level: [1, 70],
+  level: [1, 120],
   stage: [1, 100000],
   gold: [0, 9.99e20], // 999Qi
   stars: [0, 1e15],
-  xp: [0, 1e15],
-  xpNext: [0, 1e15],
+  xp: [0, 1e21], // xpForLevel(120) alone is ~7.7e18
+  xpNext: [0, 1e21],
   bossesKilled: [0, 100000000],
   rebirthCount: [0, 100000],
 };
@@ -128,13 +138,17 @@ function sanitizeStateBlob(blob) {
   // Indexed columns must exist as numbers for db.saveState.
   if (typeof blob.level !== 'number') blob.level = 1;
   if (typeof blob.stage !== 'number') blob.stage = 1;
+  // Name styles are cosmetic: keep them only when well-formed so tampered
+  // blobs can't smuggle junk (rendering escapes everything anyway).
+  if (blob.nameColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(blob.nameColor))) delete blob.nameColor;
+  if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch'].includes(blob.nameFx)) delete blob.nameFx;
   if (typeof blob.bossesKilled !== 'number') blob.bossesKilled = 0;
   if (typeof blob.rebirthCount !== 'number') blob.rebirthCount = 0;
   if (!Array.isArray(blob.inventory)) blob.inventory = [];
   if (!Array.isArray(blob.codesRedeemed)) blob.codesRedeemed = [];
   // Anti-spoof: never trust client-supplied xpNext — recompute it from
   // level + rebirthCount so tampered saves can't grant cheap levels.
-  // Mirrors public/js/engine.js xpForLevel (kinked at 60, 1.35^rebirths).
+  // Mirrors public/js/engine.js xpForLevel (v18: kinks at 30 and 60, 1.35^rebirths).
   blob.xpNext = xpForLevelServer(blob.level, blob.rebirthCount);
   // Mining + forge: keep legit saves passing. Ores are plain finite
   // non-negative counts (clamped); forged item stats are clamped to a

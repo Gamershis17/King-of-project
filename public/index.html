@@ -219,10 +219,26 @@
 
       <!-- PARTY -->
       <section id="tab-party" class="tab">
-        <p class="muted">Your dungeon party fights beside you in Dungeon mode (up to 3 companions).</p>
-        <div id="party-slots" class="party-slots"></div>
-        <h2>Recruit</h2>
-        <div id="recruit-list" class="recruit-list"></div>
+        <div class="row-between">
+          <h2 style="margin:0">🎉 Party</h2>
+          <button id="mp-refresh" class="btn small ghost" title="Refresh party">↻ Refresh</button>
+        </div>
+        <div id="mp-party-card" class="card"></div>
+        <div class="card" id="mp-join-card">
+          <h3>🔗 Join a party</h3>
+          <div class="row">
+            <input id="mp-join-code" class="text-input" placeholder="6-letter code" maxlength="6"
+              autocapitalize="characters" autocomplete="off" spellcheck="false" />
+            <button id="mp-join-btn" class="btn gold">Join</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3>🛡️ NPC allies</h3>
+          <p class="muted small">Your dungeon party fights beside you in Dungeon mode (up to 3 companions). Each ally also grants <b>+4% XP</b>.</p>
+          <div id="party-slots" class="party-slots"></div>
+          <h3>Recruit</h3>
+          <div id="recruit-list" class="recruit-list"></div>
+        </div>
         <h2>Pets</h2>
         <div id="pets-panel" class="pets-panel"></div>
       </section>
@@ -233,12 +249,26 @@
           <h2 style="margin:0">🏆 Leaderboard</h2>
           <button id="lb-refresh" class="btn small ghost">↻ Refresh</button>
         </div>
-        <div class="lb-cats" id="lb-cats" role="tablist" aria-label="Leaderboard category">
-          <button class="lb-cat active" id="lb-cat-heroes" data-lbcat="heroes" role="tab" aria-selected="true">🦸 Heroes</button>
-          <button class="lb-cat" id="lb-cat-guilds" data-lbcat="guilds" role="tab" aria-selected="false">🏰 Guilds</button>
+        <div class="subtabs" id="ranks-subtabs" role="tablist" aria-label="Ranks views">
+          <button class="subtab active" data-subtab="board">🏆 Board</button>
+          <button class="subtab" data-subtab="friends">👥 Friends<span id="friend-req-badge" class="req-badge hidden"></span></button>
         </div>
-        <div class="muted small lb-note" id="lb-note"></div>
-        <div class="lb-list" id="lb-body"></div>
+        <div id="lb-board-view">
+          <div class="lb-cats" id="lb-cats" role="tablist" aria-label="Leaderboard category">
+            <button class="lb-cat active" id="lb-cat-heroes" data-lbcat="heroes" role="tab" aria-selected="true">🦸 Heroes</button>
+            <button class="lb-cat" id="lb-cat-guilds" data-lbcat="guilds" role="tab" aria-selected="false">🏰 Guilds</button>
+            <button class="lb-cat active" data-by="level">🎖️ Level</button>
+            <button class="lb-cat" data-by="stage">🗺️ Stage</button>
+            <button class="lb-cat" data-by="bosses">👑 Bosses</button>
+            <button class="lb-cat" data-by="kills">⚔️ Kills</button>
+            <button class="lb-cat" data-by="depth">⛏️ Depth</button>
+            <button class="lb-cat" data-by="titles">🏵️ Titles</button>
+            <button class="lb-cat" data-by="rebirths">🌀 Rebirths</button>
+          </div>
+          <div class="muted small lb-note" id="lb-note"></div>
+          <div class="lb-list" id="lb-body"></div>
+        </div>
+        <div id="friends-panel" class="hidden"></div>
       </section>
 
       <!-- GUILD -->
@@ -329,6 +359,7 @@
           <label class="setting"><input type="checkbox" id="set-motion"> Reduce motion</label>
           <label class="setting"><input type="checkbox" id="set-sfx"> Sound FX</label>
           <label class="setting"><input type="checkbox" id="set-music"> Music <span class="muted small">(ambient)</span></label>
+          <label class="setting"><input type="checkbox" id="set-perf"> Performance mode <span class="muted small">(anti-lag)</span></label>
           <div class="setting-row" id="music-track-row">
             <span class="setting-label">🎼 Music track</span>
             <select id="set-music-track" class="country-select" aria-label="Music track"></select>
@@ -355,6 +386,18 @@
           <div class="setting-row">
             <span class="setting-label">Background</span>
             <div class="swatch-grid" id="bg-style-picker" role="group" aria-label="Background style"></div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">✨ Name style</span>
+            <div class="swatch-grid" id="name-color-picker" role="group" aria-label="Name color"></div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Custom color</span>
+            <input type="color" id="name-color-custom" class="color-input" value="#ffd76a" aria-label="Custom name color">
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">Name effect</span>
+            <div class="fx-grid" id="name-fx-picker" role="group" aria-label="Name effect"></div>
           </div>
           <div class="setting-row hidden" id="bg-anim-row">
             <span class="setting-label" id="bg-anim-label">Scene options</span>

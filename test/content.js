@@ -214,8 +214,10 @@ async function main() {
   });
   check('world stat scaling unchanged (balance-neutral)', () => {
     // Same stage => same HP/ATK formula regardless of world roster.
+    // v19: growth constant is 1.115 (was 1.125) — the TTK tune is the only
+    // intended change; worlds stay cosmetic.
     const e1 = E.enemyFor(251); // non-boss
-    const expectedHp = Math.round(18 * Math.pow(1.125, 251) * 0.6);
+    const expectedHp = Math.round(18 * Math.pow(1.115, 251) * 0.6);
     assert.strictEqual(e1.hp, expectedHp);
   });
 

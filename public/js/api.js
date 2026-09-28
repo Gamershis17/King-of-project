@@ -53,9 +53,26 @@ export const api = {
   },
 
   // Leaderboard (no auth required)
-  leaderboard: () => request('/api/leaderboard'),
+  leaderboard: (by) => request('/api/leaderboard' + (by && by !== 'level' ? '?by=' + encodeURIComponent(by) : '')),
   // Guild rankings (no auth required)
   guildRankings: () => request('/api/guilds/rankings'),
+
+  // Multiplayer parties (invite codes)
+  partyGet: () => request('/api/party'),
+  partyCreate: () => post('/api/party/create', {}),
+  partyJoin: (code) => post('/api/party/join', { code }),
+  partyLeave: () => post('/api/party/leave', {}),
+  partyKick: (userId) => post('/api/party/kick', { userId }),
+  partyDisband: () => post('/api/party/disband', {}),
+
+  // Player inspect (public gameplay profile)
+  inspectPlayer: (username) => request('/api/player/' + encodeURIComponent(username) + '/inspect'),
+
+  // Friends (auth required)
+  getFriends: () => request('/api/friends'),
+  friendRequest: (username) => post('/api/friends/request', { username }),
+  friendRespond: (username, accept) => post('/api/friends/respond', { username, accept }),
+  removeFriend: (username) => request('/api/friends/' + encodeURIComponent(username), { method: 'DELETE' }),
 
   // Gift codes
   redeem: (code) => post('/api/redeem', { code }),

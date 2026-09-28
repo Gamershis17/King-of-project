@@ -13,7 +13,7 @@ export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midn
 // ---------------- Level cap ----------------
 // Hard level cap: no XP gains, GM grants, or loaded saves may push a
 // character past this. Rebirth unlocks at MAX_LEVEL.
-export const MAX_LEVEL = 70;
+export const MAX_LEVEL = 120;
 
 // ---------------- Guild perks ----------------
 // Set by the guild module after fetching the player's guild (server-side
@@ -574,17 +574,39 @@ export function ensureState(raw) {
       c.baseCost = r ? r.cost : 50;
       if (r && !c.recruitId) c.recruitId = r.id;
     }
+    // v15 NPC buff: recompute combat stats from role + level (idempotent,
+    // preserves HP fraction) so pre-buff allies gain the new scaling.
+    recomputeCompanion(c);
   }
   return s;
 }
 
 // ---------------- XP / levels / gold ----------------
-// XP curve: 1.30 exponent for levels 1-60, then a steeper 1.42 exponent for
-// 61-70. The value is continuous at the kink (level 60).
+// XP curve (v19 mega-update: cap raised to 120): four segments, continuous
+// at every kink.
+//   Levels 1-30:   80 * 1.30^(l-1) — unchanged; early game stays snappy for
+//                  new players.
+//   Levels 31-60:  V30 * 1.35^(l-30), where V30 = 80 * 1.30^29 (the level-30
+//                  value), so the curve is continuous at 30.
+//   Levels 61-90:  V60 * 1.44^(l-60), where V60 = V30 * 1.35^30 (the level-60
+//                  value), so the curve is continuous at 60.
+//   Levels 91-120: V90 * 1.47^(l-90), where V90 = V60 * 1.44^30 (the level-90
+//                  value), so the curve is continuous at 90. The steepest
+//                  segment guards the new endgame: total XP 1->120 is ~98,000x
+//                  the total 1->90, so the last 30 levels are a proper grind
+//                  even with quest XP and the +40% party bonus in the math.
+// Versus the old curve: level 40 ~1.46x, 50 ~2.13x, 60 ~3.10x, 70 ~3.57x,
+// 90 ~4.72x. The steepening was sized with the +40% party XP bonus in the
+// math, so even a full party still climbs ~2.5x slower at level 70.
+const XP_V30 = 80 * Math.pow(1.30, 29); // value at the first kink (level 30)
+const XP_V60 = XP_V30 * Math.pow(1.35, 30); // value at the second kink (level 60)
+const XP_V90 = XP_V60 * Math.pow(1.44, 30); // value at the third kink (level 90)
 const xpForLevelBase = (level) => {
   const l = Math.max(1, Math.floor(level || 1));
-  if (l <= 60) return 80 * Math.pow(1.30, l - 1);
-  return 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+  if (l <= 30) return 80 * Math.pow(1.30, l - 1);
+  if (l <= 60) return XP_V30 * Math.pow(1.35, l - 30);
+  if (l <= 90) return XP_V60 * Math.pow(1.44, l - 60);
+  return XP_V90 * Math.pow(1.47, l - 90);
 };
 // Rebirth scaling: every rebirth multiplies all XP requirements by
 // 1.35^rebirths, so repeated climbs stay meaningful instead of trivial.
@@ -594,7 +616,7 @@ export const rebirthXpMult = (rebirthCount) =>
   Math.pow(1.35, Math.min(MAX_EFFECTIVE_REBIRTHS, Math.max(0, Math.floor(rebirthCount || 0))));
 export const xpForLevel = (level, rebirthCount = 0) =>
   Math.max(1, Math.round(xpForLevelBase(level) * rebirthXpMult(rebirthCount)));
-export const xpForKill = (stage) => Math.max(1, Math.round(8 * Math.pow(1.12, stage)));
+export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.12, stage)));
 // Deducts gold for a purchase. Returns false when the player can't afford
 // it. Infinite-gold perk holders never pay.
 export function spendGold(s, cost) {
@@ -680,16 +702,21 @@ export function recordSkillUse(state, id) {
   return { ...after, leveledUp: after.level > before };
 }
 
-export function gainXp(state, baseAmount, nowMs = Date.now()) {
+export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
   const race = RACES[state.race] || {};
   const stats = computeStats(state);
   const rested = state.restedUntil && nowMs < state.restedUntil;
-  // Anti-power-creep: gear/stat XP bonuses are capped at +50% here.
+  // Anti-power-creep: gear/stat XP bonuses are capped at +40% here (was 50%,
+  // lowered in v15 to offset the new multiplayer party XP bonus).
   // computeStats() still reports the true total so tooltips stay truthful.
   // Guild XP perk (+2%/guild level, max +40%) stacks on top of the gear cap.
-  const xpBonusPct = Math.min(50, stats.xpBonus || 0) + (GUILD_PERKS.xpPct || 0);
+  const xpBonusPct = Math.min(40, stats.xpBonus || 0) + (GUILD_PERKS.xpPct || 0);
+  // Multiplayer party bonus (server-derived, passed in by the caller; 0 when
+  // solo/offline). Clamped so a tampered value can't blow up gains.
+  const partyPct = Math.max(0, Math.min(40, Number(partyXpPct) || 0));
+  // v15: gear cap was 50%, lowered to 40% to offset the new multiplayer party XP bonus.
   const amount = Math.max(1, Math.round(
-    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1)
+    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1) * (1 + partyPct / 100)
   ));
   state.xp += amount;
   const levels = [];
@@ -1069,10 +1096,18 @@ export const isBossStage = (stage) => stage % 10 === 0;
 // Balance: normal enemies are weaker (less HP, die faster) but still hit
 // hard; no single hit can ever one-shot (capped in enemyStrike). Boss
 // damage is tuned "around your level" when player stats are provided.
+// v19: enemy HP growth 1.125 -> 1.115 per stage. The flatter exponent means
+// enemies at the 90-120 frontier (stages ~250-350, where kill XP roughly
+// matches the level requirements) carry ~9-20x less HP than under 1.125,
+// and ~1,265x less by stage 800. Early game is untouched (already one-taps
+// there); the boss x2.5 HP multiplier and incoming-damage auto-tuning stay
+// as the guardrails. Absolute TTK swings by orders of magnitude with build
+// investment (upgrades, galaxy forge, sets, pets, active skills), so this
+// only flattens the curve rather than targeting a specific TTK.
 export function enemyFor(stage, playerStats = null) {
   const boss = isBossStage(stage);
   const world = worldForStage(stage);
-  const hp = Math.round(18 * Math.pow(1.125, stage) * (boss ? 1 : 0.6));
+  const hp = Math.round(18 * Math.pow(1.115, stage) * (boss ? 1 : 0.6));
   const atk = Math.round(4 * Math.pow(1.085, stage));
   const roster = boss ? world.bosses : world.enemies;
   // Boss identity is deterministic per stage: the announced boss and the
@@ -1915,6 +1950,40 @@ export const UPGRADE_INFO = {
 export const upgradeCost = (kind, level) => Math.round(30 * Math.pow(1.7, Math.max(0, level - 1)));
 
 // ---------------- Companions / Party ----------------
+// Companion combat roles (v15 buff). Tanks are durable with decent damage,
+// healers mend the PLAYER with light personal damage, DPS are glass cannons.
+// hpMult/hpFlat/hpGrowth drive max-HP scaling (exponential in companion
+// level so allies stay relevant at high levels); atkPer/defPer are the
+// per-level gains; dmgMult scales their strike damage; takenMult scales
+// damage they take (applied in the battle tick).
+export const COMPANION_ROLES = {
+  tank:   { label: 'Tank',   hpMult: 2.0, hpFlat: 60, hpGrowth: 1.075, defPer: 4, atkPer: 4, dmgMult: 1.5, takenMult: 0.35 },
+  healer: { label: 'Healer', hpMult: 1.5, hpFlat: 30, hpGrowth: 1.075, defPer: 2, atkPer: 2, dmgMult: 0.8, takenMult: 0.55 },
+  dps:    { label: 'DPS',    hpMult: 1.2, hpFlat: 25, hpGrowth: 1.075, defPer: 2, atkPer: 6, dmgMult: 2.0, takenMult: 0.60 },
+};
+export function companionRole(c) {
+  const rid = (c && (c.recruitId || c.id)) || '';
+  if (rid === 'ember' || rid === 'mira') return 'tank';
+  if (rid === 'anselm') return 'healer';
+  return 'dps';
+}
+export function companionMaxHp(recruit, level) {
+  const role = COMPANION_ROLES[companionRole(recruit)] || COMPANION_ROLES.dps;
+  const L = Math.max(1, Math.floor(level || 1));
+  return Math.max(1, Math.round(
+    (Number(recruit.hp) || 50) * role.hpMult * Math.pow(role.hpGrowth, L - 1) + role.hpFlat * (L - 1)
+  ));
+}
+export function companionAttack(recruit, level) {
+  const role = COMPANION_ROLES[companionRole(recruit)] || COMPANION_ROLES.dps;
+  const L = Math.max(1, Math.floor(level || 1));
+  return Math.max(1, Math.round((Number(recruit.atk) || 5) + role.atkPer * (L - 1)));
+}
+export function companionDefense(recruit, level) {
+  const role = COMPANION_ROLES[companionRole(recruit)] || COMPANION_ROLES.dps;
+  const L = Math.max(1, Math.floor(level || 1));
+  return Math.max(0, Math.round((Number(recruit.def) || 0) + role.defPer * (L - 1)));
+}
 export const RECRUITS = [
   { id: 'gromm',  name: 'Gromm the Axe',    race: 'orc',       emoji: '🪓', role: 'Brute',        tier: 'common',    cost: 50,    atk: 6,  def: 1, hp: 60,  dodge: 5,  crit: 5 },
   { id: 'lyra',   name: 'Lyra Swiftbow',    race: 'fae',       emoji: '🧚', role: 'Ranger',       tier: 'common',    cost: 150,   atk: 10, def: 1, hp: 70,  dodge: 15, crit: 10 },
@@ -1930,19 +1999,39 @@ export const MAX_PARTY = 3;
 
 export function makeCompanion(recruit, playerLevel) {
   const L = Math.max(1, Math.floor(playerLevel || 1));
-  const maxHp = recruit.hp + 20 * (L - 1);
-  return {
+  const maxHp = companionMaxHp(recruit, L);
+  const c = {
     id: uid(), name: recruit.name, race: recruit.race, emoji: recruit.emoji,
     role: recruit.role || 'Companion',
+    roleKind: companionRole(recruit),
     recruitId: recruit.id,
     baseCost: recruit.cost,
     level: L,
-    attack: recruit.atk + 3 * (L - 1),
-    defense: recruit.def + 1 * (L - 1),
+    attack: companionAttack(recruit, L),
+    defense: companionDefense(recruit, L),
     maxHp, hp: maxHp,
     dodge: recruit.dodge || 5, critChance: recruit.crit || 5,
     regen: recruit.regen || 0,
   };
+  return c;
+}
+
+// Recompute a companion's combat stats from its role + level. Used by
+// levelUpCompanion and by the save backfill (so pre-v15 allies get the buff
+// retroactively). Preserves the current HP fraction — no free heal.
+export function recomputeCompanion(c) {
+  if (!c) return c;
+  const r = (c.recruitId && RECRUIT_BY_ID[c.recruitId])
+    || RECRUITS.find(x => x.name === c.name);
+  const L = Math.max(1, Math.floor(c.level || 1));
+  c.roleKind = companionRole(c);
+  if (!r) return c; // unknown recruit: leave legacy stats alone
+  const frac = c.maxHp > 0 ? Math.max(0, Math.min(1, (Number(c.hp) || 0) / c.maxHp)) : 1;
+  c.attack = companionAttack(r, L);
+  c.defense = companionDefense(r, L);
+  c.maxHp = companionMaxHp(r, L);
+  c.hp = Math.round(frac * c.maxHp);
+  return c;
 }
 
 // Gold cost to level a companion from its current level to the next.
@@ -1953,30 +2042,51 @@ export function companionLevelCost(c) {
   return Math.max(50, Math.floor(base * 0.4 * Math.pow(L, 1.6)));
 }
 
-// Levels a party member up: +3 attack, +1 defense, +20 max HP, +25 HP heal.
-// Matches makeCompanion's per-level formula exactly, so a companion leveled
-// from L1 is identical to a fresh recruit at the same level.
-// Routes through spendGold (respects the infinite-gold perk). No hard cap.
+// Levels a party member up: role-based stat recompute (matches makeCompanion
+// exactly, so a companion leveled from L1 is identical to a fresh recruit at
+// the same level) plus a small heal. Routes through spendGold (respects the
+// infinite-gold perk). No hard cap.
 export function levelUpCompanion(s, companionId) {
   const c = (s.party || []).find(x => x && x.id === companionId);
   if (!c) return { ok: false, reason: 'not-found' };
   const cost = companionLevelCost(c);
   if (!spendGold(s, cost)) return { ok: false, reason: 'gold', cost };
   c.level = Math.max(1, Math.floor(c.level || 1)) + 1;
-  c.attack = (Number(c.attack) || 0) + 3;
-  c.defense = (Number(c.defense) || 0) + 1;
-  c.maxHp = (Number(c.maxHp) || 0) + 20;
+  recomputeCompanion(c);
   c.hp = Math.min(c.maxHp, (Number(c.hp) || 0) + 25);
   return { ok: true, cost, level: c.level };
 }
 
 // Lightweight combat stats view for a companion (dodge/parry/counter support).
+// damageMult scales the companion's strike damage; damageTakenMult scales
+// incoming damage (applied by the battle tick for companion targets).
 export function companionStats(c) {
+  const role = COMPANION_ROLES[(c && c.roleKind) || companionRole(c)] || COMPANION_ROLES.dps;
   return {
     attack: c.attack, defense: c.defense,
     critChance: c.critChance || 5, critDamage: 150,
     dodge: c.dodge || 5, parry: 0,
+    damageMult: role.dmgMult, damageTakenMult: role.takenMult,
   };
+}
+
+// Healer mend: healer-role companions restore PLAYER hp every
+// HEALER_MEND_SEC seconds for HEALER_MEND_PCT of player max HP.
+// Pure function of (state, companion, playerMaxHp) so it's unit-testable;
+// the battle tick owns the cooldown timer and passes computeStats().maxHp.
+export const HEALER_MEND_SEC = 8;
+export const HEALER_MEND_PCT = 0.10;
+export function applyHealerMend(state, companion, playerMaxHp) {
+  const roleKind = (companion && companion.roleKind) || companionRole(companion);
+  if (roleKind !== 'healer') return 0;
+  if (!state || !state.hero) return 0;
+  const maxHp = Number(playerMaxHp) || 0;
+  if (maxHp <= 0) return 0;
+  const missing = maxHp - (Number(state.hero.hp) || 0);
+  if (missing <= 0) return 0;
+  const heal = Math.max(1, Math.min(missing, Math.round(maxHp * HEALER_MEND_PCT)));
+  state.hero.hp = (Number(state.hero.hp) || 0) + heal;
+  return heal;
 }
 
 // ---------------- Rebirth ----------------
@@ -2128,7 +2238,7 @@ export const TITLES = [
   { id: 'galaxyforger',    name: '🌌 the Galaxyforger',   desc: 'Craft 10 items in the Galaxy Forge.',       check: (s) => (((s.forge || {}).crafts) || 0) >= 10 },
   { id: 'transcendent',    name: '✨ the Transcendent',   desc: 'Craft your first Super Galaxy item.',       check: (s) => ((s.forge || {}).superCrafted) === true },
   { id: 'ever-reborn',     name: '🌀 the Ever-Reborn',    desc: 'Rebirth 100 times.',                        check: (s) => (s.rebirthCount || 0) >= 100 },
-  { id: 'true-capped',     name: '👑 the True Capped',    desc: 'Reach level 70, then rebirth at least once.', check: (s) => ((s.level || 1) >= MAX_LEVEL) && ((s.rebirthCount || 0) >= 1) },
+  { id: 'true-capped',     name: '👑 the True Capped',    desc: 'Reach level 120, then rebirth at least once.', check: (s) => ((s.level || 1) >= MAX_LEVEL) && ((s.rebirthCount || 0) >= 1) },
 ];
 export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
 export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }

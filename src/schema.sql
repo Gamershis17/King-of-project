@@ -134,9 +134,51 @@ CREATE TABLE IF NOT EXISTS guild_invites (
 CREATE UNIQUE INDEX IF NOT EXISTS guild_invites_guild_user_uidx ON guild_invites (guild_id, LOWER(username));
 CREATE INDEX IF NOT EXISTS idx_guild_invites_user ON guild_invites (LOWER(username));
 
+-- Multiplayer parties: invite-code groups, max 4 humans. NPC allies are
+-- derived live from each member's save blob (state.party) and are NOT
+-- stored here; the is_npc/npc_id columns are reserved for future use.
+CREATE TABLE IF NOT EXISTS parties (
+  id SERIAL PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  leader_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at BIGINT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS party_members (
+  party_id INTEGER NOT NULL REFERENCES parties(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  is_npc BOOLEAN NOT NULL DEFAULT false,
+  npc_id TEXT NOT NULL DEFAULT '',
+  joined_at BIGINT NOT NULL,
+  PRIMARY KEY (party_id, user_id, npc_id)
+);
+CREATE INDEX IF NOT EXISTS idx_party_members_user ON party_members (user_id);
+-- One party per human: a human row (is_npc=false) is unique per user.
+-- NPC rows (is_npc=true) are exempt so allies can attach freely.
+CREATE UNIQUE INDEX IF NOT EXISTS party_one_human_per_party
+  ON party_members (user_id) WHERE is_npc = false;
+
 -- Server-wide tunable settings (key/value). The GM console's owner-only
 -- "Server settings" card writes here; e.g. gold_cap (max player gold).
 CREATE TABLE IF NOT EXISTS server_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- Friendships: player-to-player friend links. Usernames are case-insensitive;
+-- pair_key is the lowercased "a|b" of the alphabetically-sorted pair, so one
+-- row covers the friendship regardless of who requested or the name casing.
+CREATE TABLE IF NOT EXISTS friendships (
+  id SERIAL PRIMARY KEY,
+  requester TEXT NOT NULL,
+  addressee TEXT NOT NULL,
+  pair_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',   -- 'pending' | 'accepted'
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_uidx ON friendships (pair_key);
+
+-- Online presence: last authenticated activity (epoch ms). Refreshed at most
+-- once per minute per user (see touchLastActive in src/db.js); the friends
+-- list treats "active within 5 minutes" as online.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active BIGINT NOT NULL DEFAULT 0;

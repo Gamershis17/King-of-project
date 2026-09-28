@@ -25,6 +25,7 @@ const App = {
   heroTimer: 0,
   enemyTimer: 0,
   companionTimers: {}, // companion id -> seconds accumulated
+  healerTimers: {}, // healer companion id -> seconds since last mend
   skillCDs: {}, // per-skill cooldowns, keyed by skill id
   tapCombo: 0,
   lastTapAt: 0,
@@ -129,6 +130,13 @@ async function boot() {
     onRecruit: doRecruit,
     onDismiss: doDismiss,
     onLevelUpCompanion: doLevelUpCompanion,
+    onMpCreate: doMpCreate,
+    onMpJoin: doMpJoin,
+    onMpLeave: doMpLeave,
+    onMpKick: doMpKick,
+    onMpDisband: doMpDisband,
+    onMpCopy: doMpCopy,
+    onMpRefresh: () => { loadMpParty(); },
     onHatchPet: doHatchPet,
     onFeedPet: doFeedPet,
     onSellPet: doSellPet,
@@ -146,10 +154,60 @@ async function boot() {
     onSaveState: () => saveNow(),
     onExternalState: applyExternalState,
     onTab: onTabSwitch,
-    onRanksCategory: (cat) => { void loadRanks(cat); },
+    onRanksCategory: () => { void loadRanks(); },
+    // Social: inspect + friends
+    onInspect: (username) => UI.openInspect(username, App.state),
+    onInspectCompare: (username) => UI.openInspect(username, App.state, true),
+    onFetchInspect: (username) => api.inspectPlayer(username),
+    onRanksSubtab: (which) => {
+      App.ranksSubtab = which;
+      UI.switchRanksSubtab(which);
+      if (which === 'friends') loadFriends();
+    },
+    onFriendSend: async (name) => {
+      try {
+        const r = await api.friendRequest(name);
+        UI.toast(`Friend request sent to ${r.username}.`, 'success');
+        const input = document.getElementById('friend-add-input');
+        if (input) input.value = '';
+        loadFriends();
+      } catch (e) { UI.toast(e.message || 'Request failed.', 'error'); }
+    },
+    onFriendAdd: async (username) => {
+      const r = await api.friendRequest(username);
+      UI.toast(`Friend request sent to ${r.username}.`, 'success');
+      loadFriends();
+    },
+    onFriendAccept: async (username) => {
+      try {
+        await api.friendRespond(username, true);
+        UI.toast(`You are now friends with ${username}.`, 'success');
+        loadFriends();
+      } catch (e) { UI.toast(e.message || 'Accept failed.', 'error'); }
+    },
+    onFriendDecline: async (username) => {
+      try {
+        await api.friendRespond(username, false);
+        UI.toast('Request declined.', 'info');
+        loadFriends();
+      } catch (e) { UI.toast(e.message || 'Decline failed.', 'error'); }
+    },
+    onFriendRemove: async (username, opts) => {
+      const skipConfirm = opts && opts.confirm === false;
+      if (!skipConfirm) {
+        const ok = await UI.confirm('Remove friend?', `Remove <b>${esc(username)}</b> from your friends?`);
+        if (!ok) return;
+      }
+      await api.removeFriend(username);
+      UI.toast('Removed from friends.', 'info');
+      loadFriends();
+    },
+    onUpgradeAccount: () => promptUpgrade('Friends'),
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
+    onNameColor: setNameColor,
+    onNameFx: setNameFx,
     onEyeColor: setEyeColor,
     onOrbColors: setOrbColors,
     onOrbPalette: setOrbPalette,
@@ -179,6 +237,7 @@ async function boot() {
     onTitlesList: () => {
       if (App.state) UI.showTitlesModal(App.state);
     },
+    onLbCategory: () => { loadRanks(); },
     onCountry: (code) => {
       const s = App.state;
       if (!s) return;
@@ -427,7 +486,7 @@ function setUiStyle(style) {
 // Unknown values normalize to 'default', which renders pixel-identical
 // to the uncustomized game.
 const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
-const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift'];
+const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm', 'inferno-flare', 'cinder-storm', 'phoenix-ash'];
 function btnStyleOf(s) {
   return (s && BTN_STYLE_IDS.includes(s.btnStyle)) ? s.btnStyle : 'default';
 }
@@ -446,6 +505,7 @@ function applyCustomStyles() {
   const bg = bgStyleOf(App.state);
   document.body.dataset.bgstyle = bg;
   UI.syncCustomStyles(btnStyleOf(App.state), bg);
+  UI.syncNameStyle(nameColorOf(App.state), nameFxOf(App.state));
   UI.setBgScene(bg, bgSceneOpts(App.state));
   UI.renderBgAnimOpts(bg, App.state && App.state.settings);
 }
@@ -486,6 +546,31 @@ function setBgStyle(id) {
   if (!s) return;
   s.bgStyle = BG_STYLE_IDS.includes(id) ? id : 'default';
   applyCustomStyles();
+  saveNow();
+}
+// ---- player name styles (cosmetic; top-level on state like bgStyle) ----
+const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch'];
+const NAME_COLOR_DEFAULT = '#ffd76a';
+function nameColorOf(s) {
+  const c = s && s.nameColor;
+  return /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : NAME_COLOR_DEFAULT;
+}
+function nameFxOf(s) {
+  const f = s && s.nameFx;
+  return NAME_FX_IDS.includes(f) ? f : 'none';
+}
+function setNameColor(c) {
+  const s = App.state;
+  if (!s) return;
+  s.nameColor = /^#[0-9a-fA-F]{6}$/.test(c || '') ? c : NAME_COLOR_DEFAULT;
+  UI.syncNameStyle(nameColorOf(s), nameFxOf(s));
+  saveNow();
+}
+function setNameFx(fx) {
+  const s = App.state;
+  if (!s) return;
+  s.nameFx = NAME_FX_IDS.includes(fx) ? fx : 'none';
+  UI.syncNameStyle(nameColorOf(s), nameFxOf(s));
   saveNow();
 }
 
@@ -571,7 +656,7 @@ function startGame() {
   spawnEnemy();
   UI.renderBattle(App.state);
   UI.renderGear(App.state);
-  UI.renderParty(App.state);
+  renderPartyTab();
   UI.renderMore(App.state, App.user);
   UI.updateHUD(App.state, App.user);
   UI.showTab('battle');
@@ -631,6 +716,7 @@ function spawnEnemy() {
   App.enemyTimer = 0;
   App.heroTimer = 0;
   App.companionTimers = {};
+  App.healerTimers = {};
   // revive downed companions on a fresh enemy
   for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
@@ -722,8 +808,9 @@ function heroStrike(stats, mult = 1) {
 function companionStrike(c) {
   const cs = Engine.companionStats(c);
   const { dmg, crit } = Engine.playerAttack(cs, App.enemy);
-  meterHit(c.id, c.name, dmg);
-  damageEnemy(dmg, crit ? 'CRIT ' : '', c.emoji + ' ');
+  const final = Math.max(1, Math.round(dmg * (cs.damageMult || 1)));
+  meterHit(c.id, c.name, final);
+  damageEnemy(final, crit ? 'CRIT ' : '', c.emoji + ' ');
 }
 
 // Active pet strikes (every 4s from the combat tick). Hunger-gated: a
@@ -746,7 +833,7 @@ function damageEnemy(dmg, prefix, sourceLabel) {
   enemy.hp -= dmg;
   UI.enemyHitFlash();
   const isCrit = String(prefix).includes('CRIT');
-  UI.floatText(`${prefix}${formatNum(dmg)}`, isCrit ? 'crit' : 'dmg');
+  UI.floatText(`${prefix}${formatNum(dmg)}`, isCrit ? 'crit' : 'dmg', dmg);
   if (enemy.hp <= 0) onKillEnemy();
 }
 
@@ -776,7 +863,8 @@ function onKillEnemy() {
   const inRaid = Raid.isActive();
   const raidLoot = inRaid ? Raid.onKill(s) : null;
 
-  let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0));
+  const pb = partyBonus();
+  let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0) + pb.goldPct);
   if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
   const addedGold = Engine.addGold(s, gold);
   Audio.play('coin');
@@ -791,7 +879,7 @@ function onKillEnemy() {
     UI.toast(`Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'success');
   }
   const killXp = Engine.xpForKill(stage);
-  const xpRes = Engine.gainXp(s, killXp);
+  const xpRes = Engine.gainXp(s, killXp, Date.now(), pb.xpPct);
   // The active pet earns 15% of the kill's XP.
   const petXpRes = Engine.gainPetXp(s, Math.floor(killXp * 0.15));
   for (const g of petXpRes.gains) {
@@ -820,7 +908,7 @@ function onKillEnemy() {
     Engine.ensurePets(s).eggs += 1;
     UI.notify('loot', '🥚 A pet egg dropped! Hatch it in Party → Pets.', 'loot');
     UI.combatLog('🥚 A pet egg dropped!', 'loot');
-    if (UI.activeTab === 'party') UI.renderParty(s);
+    if (UI.activeTab === 'party') renderPartyTab();
   }
   if (xpRes.levels.length) {
     UI.levelUpModal(xpRes.levels);
@@ -876,13 +964,19 @@ function enemyStrikeTick(stats) {
     return;
   }
   if (res.dmg <= 0) return;
+  // Role-based toughness: companions take scaled damage (tanks shrug off
+  // far more than DPS). Applied after dodge/parry, before HP subtraction.
+  let finalDmg = res.dmg;
+  if (target.kind !== 'hero' && tStats.damageTakenMult) {
+    finalDmg = Math.max(1, Math.round(res.dmg * tStats.damageTakenMult));
+  }
   if (target.kind === 'hero') {
-    s.hero.hp -= res.dmg;
-    UI.floatText(`-${formatNum(res.dmg)}`, 'hurt');
+    s.hero.hp -= finalDmg;
+    UI.floatText(`-${formatNum(finalDmg)}`, 'hurt');
     if (s.hero.hp <= 0) { s.hero.hp = 0; onDefeat(); }
   } else {
-    target.c.hp -= res.dmg;
-    UI.combatLog(`💔 ${target.c.name} took ${formatNum(res.dmg)}.`);
+    target.c.hp -= finalDmg;
+    UI.combatLog(`💔 ${target.c.name} took ${formatNum(finalDmg)}.`);
     if (target.c.hp <= 0) {
       target.c.hp = 0;
       UI.notify('death', `${target.c.emoji} ${target.c.name} is down!`, 'error');
@@ -1047,7 +1141,7 @@ function tick() {
     }
   }
 
-  // companions attack in dungeon mode
+  // companions attack in dungeon mode; healer-role allies also mend the PLAYER
   if (s.mode === 'dungeon') {
     for (const c of s.party) {
       if (c.hp <= 0 || App.dead) continue;
@@ -1058,6 +1152,20 @@ function tick() {
         App.companionTimers[c.id] -= iv;
         companionStrike(c);
         if (App.dead || !App.enemy) break;
+      }
+      // Healer mend: every HEALER_MEND_SEC, restore player HP (tick owns the
+      // cooldown; Engine.applyHealerMend does the math).
+      const roleKind = c.roleKind || Engine.companionRole(c);
+      if (roleKind === 'healer' && s.hero.hp < stats.maxHp) {
+        App.healerTimers[c.id] = (App.healerTimers[c.id] || 0) + dt;
+        if (App.healerTimers[c.id] >= Engine.HEALER_MEND_SEC) {
+          App.healerTimers[c.id] = 0;
+          const healed = Engine.applyHealerMend(s, c, stats.maxHp);
+          if (healed > 0) {
+            UI.floatText(`+${formatNum(healed)}`, 'heal');
+            UI.combatLog(`💚 ${c.name} mended you for ${formatNum(healed)} HP.`);
+          }
+        }
       }
     }
   }
@@ -1126,7 +1234,7 @@ function checkAch() {
   }
   const freshTitles = Engine.checkTitles(s);
   for (const t of freshTitles) {
-    UI.toast(`👑 New title unlocked: ${t.name}!`, 'success');
+    UI.titleToast(t.name);
     UI.combatLog(`👑 Title unlocked: ${t.name}`, 'level');
   }
   if (fresh.length || freshTitles.length) {
@@ -1224,6 +1332,7 @@ function setMode(mode) {
   s.mode = mode;
   App.heroTimer = 0;
   App.companionTimers = {};
+  App.healerTimers = {};
   UI.setMode(mode);
   UI.renderBattle(s);
   UI.updateHeroPanel(s, Engine.computeStats(s), App);
@@ -1410,7 +1519,7 @@ function doRecruit(recruitId) {
   if (!Engine.spendGold(s, r.cost)) { UI.toast('Not enough gold.', 'error'); return; }
   const c = Engine.makeCompanion(r, s.level);
   s.party.push(c);
-  UI.renderParty(s);
+  renderPartyTab();
   UI.updateHUD(s, App.user);
   UI.toast(`${r.emoji} ${r.name} joined your party!`, 'success');
   saveNow();
@@ -1426,7 +1535,7 @@ function doLevelUpCompanion(id) {
     else UI.toast('Could not level up.', 'error');
     return;
   }
-  UI.renderParty(s);
+  renderPartyTab();
   UI.updateHUD(s, App.user);
   UI.toast(`${c.emoji} ${c.name} leveled up to Lv ${res.level}! (+3⚔️ +1🛡️ +20❤️)`, 'success');
   saveNow();
@@ -1438,7 +1547,7 @@ function doDismiss(id) {
   if (idx < 0) return;
   const [c] = s.party.splice(idx, 1);
   delete App.companionTimers[id];
-  UI.renderParty(s);
+  renderPartyTab();
   UI.toast(`${c.name} left the party.`, 'info');
   saveNow();
 }
@@ -1456,7 +1565,7 @@ function doHatchPet(tier) {
   const sp = Engine.petSpeciesOf(pet);
   UI.toast(`🥚 Hatched a ${sp.name}! ${sp.emoji}`, 'success');
   UI.combatLog(`🥚 Hatched ${sp.emoji} ${sp.name}!`, 'loot');
-  UI.renderParty(s);
+  renderPartyTab();
   checkAch(); // first-hatch / pack titles
   saveNow();
 }
@@ -1473,7 +1582,7 @@ function doBuyEgg(tier) {
   const priceNote = s.infGold ? ' (∞ gold)' : ` for 💰${formatNum(t.price)} gold`;
   UI.toast(`${t.emoji} Bought a ${t.name}${priceNote}!`, 'success');
   UI.combatLog(`🛒 Bought ${t.emoji} ${t.name} from the Pet Shop.`, 'loot');
-  UI.renderParty(s);
+  renderPartyTab();
   saveNow();
 }
 
@@ -1508,7 +1617,7 @@ function doSetSecondPet(petUid) {
   p.secondUid = petUid;
   const sp = Engine.petSpeciesOf(pet);
   UI.toast(`${sp.emoji} ${sp.name} joins the hunt as your second pet!`, 'success');
-  UI.renderParty(s);
+  renderPartyTab();
   saveNow();
 }
 
@@ -1519,8 +1628,120 @@ function doRemoveSecondPet() {
   if (!p.secondUid) return;
   p.secondUid = null;
   UI.toast('Second pet dismissed.', 'info');
-  UI.renderParty(s);
+  renderPartyTab();
   saveNow();
+}
+
+// ---------------- multiplayer party ----------------
+// App.mpParty caches the GET /api/party view (null = not in a party).
+// Bonuses are computed from this cache; the server recomputes them from
+// DB truth on every /api/party response, so the client can never inflate
+// its own bonus — gainXp clamps the passed percentage anyway.
+function partyCtx() {
+  const s = App.state;
+  return {
+    mpParty: App.mpParty,
+    username: App.user && App.user.username,
+    isGuest: isGuest(),
+    ownNpcCount: s && Array.isArray(s.party) ? s.party.length : 0,
+  };
+}
+
+function renderPartyTab() {
+  if (App.state) UI.renderParty(App.state, partyCtx());
+}
+
+function partyBonus() {
+  const mp = App.mpParty;
+  // Server-computed bonuses from DB truth (GET /api/party) — preferred.
+  if (mp && mp.bonuses && Number.isFinite(mp.bonuses.xpPct) && Number.isFinite(mp.bonuses.goldPct)) {
+    return { xpPct: mp.bonuses.xpPct, goldPct: mp.bonuses.goldPct };
+  }
+  // Fallback: local estimate (own NPC allies only; no server data yet).
+  const npcs = App.state && Array.isArray(App.state.party) ? App.state.party.length : 0;
+  return { xpPct: npcs * 4, goldPct: 0 };
+}
+
+// Refetch the party view. Offline-tolerant: keeps the stale cache on error.
+async function loadMpParty() {
+  if (isGuest() || !App.user) { App.mpParty = null; }
+  else {
+    try {
+      const res = await api.partyGet();
+      App.mpParty = res.party || null;
+    } catch { /* keep stale cache */ }
+  }
+  if (UI.activeTab === 'party' && App.state) UI.renderParty(App.state, partyCtx());
+}
+
+// Poll GET /api/party every 30s only while the Party tab is active.
+function setMpPoll(on) {
+  if (App.mpPoll) { clearInterval(App.mpPoll); App.mpPoll = null; }
+  if (on && !isGuest()) App.mpPoll = setInterval(() => { loadMpParty(); }, 30000);
+}
+
+async function doMpCreate() {
+  if (isGuest()) { promptUpgrade('multiplayer parties'); return; }
+  try {
+    const res = await api.partyCreate();
+    App.mpParty = res.party;
+    UI.toast(`🎉 Party created! Code: ${res.code}`, 'success');
+  } catch (e) { UI.toast(e.message || 'Could not create party.', 'error'); }
+  renderPartyTab();
+}
+
+async function doMpJoin(code) {
+  if (isGuest()) { promptUpgrade('multiplayer parties'); return; }
+  code = String(code || '').trim().toUpperCase();
+  if (!code) { UI.toast('Enter the 6-letter party code.', 'error'); return; }
+  try {
+    const res = await api.partyJoin(code);
+    App.mpParty = res.party;
+    UI.toast('🎉 Joined the party!', 'success');
+  } catch (e) { UI.toast(e.message || 'Could not join party.', 'error'); }
+  renderPartyTab();
+}
+
+async function doMpLeave() {
+  try {
+    await api.partyLeave();
+    App.mpParty = null;
+    UI.toast('You left the party.', 'info');
+  } catch (e) { UI.toast(e.message || 'Could not leave party.', 'error'); }
+  renderPartyTab();
+}
+
+async function doMpKick(userId) {
+  try {
+    await api.partyKick(Number(userId));
+    const res = await api.partyGet();
+    App.mpParty = res.party;
+    UI.toast('Member kicked.', 'info');
+  } catch (e) { UI.toast(e.message || 'Could not kick member.', 'error'); }
+  renderPartyTab();
+}
+
+async function doMpDisband() {
+  if (!window.confirm('Disband the party for everyone?')) return;
+  try {
+    await api.partyDisband();
+    App.mpParty = null;
+    UI.toast('Party disbanded.', 'info');
+  } catch (e) { UI.toast(e.message || 'Could not disband party.', 'error'); }
+  renderPartyTab();
+}
+
+function doMpCopy() {
+  const code = App.mpParty && App.mpParty.code;
+  if (!code) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code).then(
+      () => UI.toast('📋 Party code copied!', 'success'),
+      () => UI.toast(`Party code: ${code}`, 'info')
+    );
+  } else {
+    UI.toast(`Party code: ${code}`, 'info');
+  }
 }
 
 function doBuyGear(stockId) {
@@ -1557,7 +1778,7 @@ function doFeedPet(petUid) {
     return;
   }
   UI.toast(`🍖 Fed for 💰${formatNum(res.cost)} gold.`, 'success');
-  UI.renderParty(s);
+  renderPartyTab();
   saveNow();
 }
 
@@ -1570,7 +1791,7 @@ function doSetActivePet(petUid) {
   p.activeUid = petUid;
   const sp = Engine.petSpeciesOf(pet);
   UI.toast(`${sp.emoji} ${sp.name} is now your active pet!`, 'success');
-  UI.renderParty(s);
+  renderPartyTab();
   saveNow();
 }
 
@@ -1587,7 +1808,7 @@ function applyExternalState(srv) {
   UI.updateHUD(s, App.user);
   UI.renderBattle(s);
   UI.renderGear(s);
-  UI.renderParty(s);
+  renderPartyTab();
   if (UI.activeTab === 'settings') UI.renderMore(s, App.user);
   if (App.enemy) UI.setEnemy(App.enemy);
   UI.updateHeroPanel(s, Engine.computeStats(s), App);
@@ -1614,7 +1835,7 @@ async function doRebirth() {
   spawnEnemy();
   UI.renderBattle(s);
   UI.renderGear(s);
-  UI.renderParty(s);
+  renderPartyTab();
   UI.renderMore(s, App.user);
   UI.updateHUD(s, App.user);
   UI.toast(`🌀 Reborn! Back to level 1 — rebirth #${s.rebirthCount}.`, 'success');
@@ -1696,7 +1917,7 @@ function mountGuild() {
     el.querySelector('#guild-upgrade-btn').addEventListener('click', openUpgradeModal);
     return;
   }
-  try { renderGuildSection(el, api); } catch (e) { console.warn('guild mount failed', e); }
+  try { renderGuildSection(el, api, App.state); } catch (e) { console.warn('guild mount failed', e); }
 }
 
 // Polls for staff broadcasts; toasts any announcement newer than the last seen.
@@ -1720,9 +1941,11 @@ async function onTabSwitch(tab, force = false) {
   // Navigating anywhere else ends the inn rest (leaveInn(true) would fight
   // the tab switch in progress, so exit silently here).
   if (tab !== 'inn' && App.inInn) leaveInn(false);
+  // Party polling only lives while the Party tab is open.
+  setMpPoll(tab === 'party');
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'mine') UI.renderMine(s);
-  else if (tab === 'party') UI.renderParty(s);
+  else if (tab === 'party') { loadMpParty(); renderPartyTab(); }
   else if (tab === 'settings') { UI.renderMore(s, App.user); UI.syncNotifSettings(s.settings && s.settings.notif); }
   else if (tab === 'stats') UI.renderStats(s, App.user);
   else if (tab === 'titles') UI.renderTitles(s);
@@ -1748,10 +1971,9 @@ async function onTabSwitch(tab, force = false) {
   void force;
 }
 
-async function loadRanks(forceCat) {
-  // forceCat: explicit category from the pill buttons; otherwise keep the
-  // currently displayed category (refresh preserves it).
-  const cat = forceCat || UI.ranksCategory || 'heroes';
+async function loadRanks() {
+  // Guilds category (server-ranked by guild level → member power → count).
+  const cat = UI.ranksCategory || 'heroes';
   if (cat === 'guilds') {
     try {
       const { guilds } = await api.guildRankings();
@@ -1759,13 +1981,35 @@ async function loadRanks(forceCat) {
     } catch (e) {
       UI.toast('Could not load guild rankings.', 'error');
     }
-  } else {
-    try {
-      const { entries } = await api.leaderboard();
-      UI.renderRanks(entries || [], App.user ? App.user.username : null);
-    } catch (e) {
-      UI.toast('Could not load leaderboard.', 'error');
-    }
+    return;
+  }
+  // Heroes: 7 ranking pills (?by=) + All/Friends filter.
+  const by = UI.lbCategory || 'level';
+  try {
+    const { entries } = await api.leaderboard(by);
+    UI.renderRanks(entries || [], App.user ? App.user.username : null, by, App.state);
+  } catch (e) {
+    UI.toast('Could not load leaderboard.', 'error');
+  }
+  // Keep the selected sub-tab and refresh friends in the background.
+  UI.switchRanksSubtab(App.ranksSubtab === 'friends' ? 'friends' : 'board');
+  loadFriends();
+}
+
+async function loadFriends() {
+  if (isGuest()) {
+    UI.renderFriends(null, true);
+    UI.setFriendBadge(0);
+    return;
+  }
+  try {
+    const data = await api.getFriends();
+    App.friends = data;
+    UI.renderFriends(data, false);
+    UI.setFriendBadge((data.incoming || []).length);
+  } catch (e) {
+    UI.renderFriends({ friends: [], incoming: [], outgoing: [] }, false);
+    UI.setFriendBadge(0);
   }
 }
 

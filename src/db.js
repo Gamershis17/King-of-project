@@ -166,7 +166,18 @@ async function saveState(userId, blob) {
   await upsertState(pool, userId, blob);
 }
 
-async function getLeaderboardRows(limit = 100) {
+// Fixed ORDER BY fragments for leaderboard categories. Keys are validated
+// against LB_CATEGORIES in gameApi.js before reaching here — never
+// interpolate raw user input into SQL.
+const LB_ORDERS = {
+  level: 'ps.level DESC, ps.stage DESC, ps.bosses_killed DESC',
+  stage: 'ps.stage DESC, ps.level DESC, ps.bosses_killed DESC',
+  bosses: 'ps.bosses_killed DESC, ps.level DESC, ps.stage DESC',
+  rebirths: 'ps.rebirth_count DESC, ps.level DESC, ps.stage DESC',
+};
+
+async function getLeaderboardRows(limit = 100, orderKey = 'level') {
+  const order = LB_ORDERS[orderKey] || LB_ORDERS.level;
   const { rows } = await pool.query(
     `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.rebirth_count, ps.state_json,
             g.tag AS guild_tag
@@ -174,7 +185,7 @@ async function getLeaderboardRows(limit = 100) {
      JOIN users u ON u.id = ps.user_id
      LEFT JOIN guild_members gm ON LOWER(gm.username) = LOWER(u.username)
      LEFT JOIN guilds g ON g.id = gm.guild_id
-     ORDER BY ps.level DESC, ps.stage DESC, ps.bosses_killed DESC
+     ORDER BY ${order}
      LIMIT $1`,
     [limit]
   );
@@ -529,6 +540,348 @@ async function recordMemberActivity(username, deltas) {
   }
 }
 
+// ---------- multiplayer parties ----------
+// Invite-code parties: 4 roster slots shared by humans + NPC allies.
+// Humans are rows with is_npc=false — a partial unique index enforces one
+// party per human. Each member's owned NPC allies (from their save blob's
+// state.party) attach as rows with is_npc=true, npc_id=<companion uid>.
+// NPC ownership always lives in the save blob; rows are only the active
+// multiplayer roster and re-sync on every save, so recruit/dismiss/level-up
+// can't desync. A joining human bumps the oldest NPC rows before the party
+// reports "full"; bumped NPCs stay owned in the save.
+const PARTY_MAX_HUMANS = 4;
+const PARTY_MAX_SLOTS = 4;
+const PARTY_ONLINE_MS = 5 * 60 * 1000;
+const PARTY_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+const PARTY_CODE_RE = /^[A-HJ-NP-Z2-9]{6}$/; // same unambiguous alphabet as generation
+
+
+function partyError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
+
+function randomPartyCode() {
+  let s = '';
+  for (let i = 0; i < 6; i++) {
+    s += PARTY_CODE_ALPHABET[Math.floor(Math.random() * PARTY_CODE_ALPHABET.length)];
+  }
+  return s;
+}
+
+/** Human membership only (is_npc=false). Returns party_id or null. */
+async function getMyPartyId(userId) {
+  const { rows } = await pool.query(
+    'SELECT party_id FROM party_members WHERE user_id = $1 AND is_npc = false',
+    [userId]
+  );
+  return rows.length ? rows[0].party_id : null;
+}
+
+/** Owned NPC ally uids, read live from the player's save blob (state.party). */
+async function readOwnedNpcIds(userId) {
+  const { rows } = await pool.query('SELECT state_json FROM player_state WHERE user_id = $1', [userId]);
+  if (!rows.length) return [];
+  try {
+    const blob = JSON.parse(rows[0].state_json);
+    const party = blob && Array.isArray(blob.party) ? blob.party : [];
+    return party.map(n => String((n && n.id) || '')).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Re-sync one member's NPC rows with what they actually own: delete their
+ * current NPC rows, then re-attach owned allies into free roster slots.
+ * Called on every save, on create, and on join. Never touches other members'
+ * rows, and never removes anything from the save blob.
+ */
+async function syncPartyNpcs(userId) {
+  const partyId = await getMyPartyId(userId);
+  if (!partyId) return;
+  const owned = await readOwnedNpcIds(userId);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const lock = await client.query('SELECT id FROM parties WHERE id = $1 FOR UPDATE', [partyId]);
+    if (!lock.rows.length) { await client.query('ROLLBACK'); return; }
+    await client.query(
+      'DELETE FROM party_members WHERE party_id = $1 AND user_id = $2 AND is_npc = true',
+      [partyId, userId]
+    );
+    const { rows } = await client.query(
+      'SELECT COUNT(*) AS n FROM party_members WHERE party_id = $1', [partyId]
+    );
+    let free = PARTY_MAX_SLOTS - Number(rows[0].n);
+    const now = Date.now();
+    for (const npcId of owned) {
+      if (free <= 0) break;
+      await client.query(
+        'INSERT INTO party_members (party_id, user_id, is_npc, npc_id, joined_at) VALUES ($1, $2, true, $3, $4)',
+        [partyId, userId, npcId, now]
+      );
+      free--;
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Bump the oldest NPC rows while the roster exceeds the slot cap. */
+async function trimNpcRows(client, partyId) {
+  const { rows } = await client.query(
+    'SELECT COUNT(*) AS n FROM party_members WHERE party_id = $1', [partyId]
+  );
+  const over = Number(rows[0].n) - PARTY_MAX_SLOTS;
+  if (over <= 0) return;
+  const victims = await client.query(
+    `SELECT user_id, npc_id FROM party_members
+     WHERE party_id = $1 AND is_npc = true
+     ORDER BY joined_at ASC LIMIT $2`,
+    [partyId, over]
+  );
+  for (const v of victims.rows) {
+    await client.query(
+      'DELETE FROM party_members WHERE party_id = $1 AND user_id = $2 AND npc_id = $3 AND is_npc = true',
+      [partyId, v.user_id, v.npc_id]
+    );
+  }
+}
+
+async function createParty(userId) {
+  if (await getMyPartyId(userId)) throw partyError('PARTY_ALREADY_IN');
+  // Retry on the (unlikely) code collision.
+  let created = null;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = randomPartyCode();
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ins = await client.query(
+        'INSERT INTO parties (code, leader_id, created_at) VALUES ($1, $2, $3) RETURNING id, code',
+        [code, userId, Date.now()]
+      );
+      await client.query(
+        "INSERT INTO party_members (party_id, user_id, is_npc, npc_id, joined_at) VALUES ($1, $2, false, '', $3)",
+        [ins.rows[0].id, userId, Date.now()]
+      );
+      await client.query('COMMIT');
+      created = { id: ins.rows[0].id, code: ins.rows[0].code };
+      break;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      // Code collision -> try another code. Human-uniqueness violation means
+      // the player joined a party between our check and the insert.
+      if (e && e.code === '23505' && e.constraint === 'parties_code_key') continue;
+      if (e && e.code === '23505') throw partyError('PARTY_ALREADY_IN');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+  if (!created) throw partyError('PARTY_CODE_COLLISION');
+  await syncPartyNpcs(userId); // attach the founder's NPC allies
+  return created;
+}
+
+async function joinPartyByCode(userId, rawCode) {
+  const code = String(rawCode || '').trim().toUpperCase();
+  if (!PARTY_CODE_RE.test(code)) throw partyError('PARTY_NOT_FOUND');
+  if (await getMyPartyId(userId)) throw partyError('PARTY_ALREADY_IN');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Lock the party row so two simultaneous joins can't exceed the cap.
+    const p = await client.query('SELECT id FROM parties WHERE code = $1 FOR UPDATE', [code]);
+    if (!p.rows.length) throw partyError('PARTY_NOT_FOUND');
+    const partyId = p.rows[0].id;
+    const cnt = await client.query(
+      'SELECT COUNT(*) AS n FROM party_members WHERE party_id = $1 AND is_npc = false',
+      [partyId]
+    );
+    if (Number(cnt.rows[0].n) >= PARTY_MAX_HUMANS) throw partyError('PARTY_FULL');
+    await client.query(
+      "INSERT INTO party_members (party_id, user_id, is_npc, npc_id, joined_at) VALUES ($1, $2, false, '', $3)",
+      [partyId, userId, Date.now()]
+    );
+    // Humans take priority: bump the oldest NPC rows to make room.
+    await trimNpcRows(client, partyId);
+    await client.query('COMMIT');
+    return { id: partyId, code };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    if (e && e.code === '23505') throw partyError('PARTY_ALREADY_IN');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/** Removes the member's human row AND their NPC rows; promotes/deletes as needed. */
+async function removePartyMember(client, partyId, userId) {
+  await client.query(
+    'DELETE FROM party_members WHERE party_id = $1 AND user_id = $2',
+    [partyId, userId]
+  );
+  const p = await client.query('SELECT leader_id FROM parties WHERE id = $1', [partyId]);
+  if (!p.rows.length) return { disbanded: true };
+  const remaining = await client.query(
+    'SELECT user_id FROM party_members WHERE party_id = $1 AND is_npc = false ORDER BY joined_at ASC',
+    [partyId]
+  );
+  if (!remaining.rows.length) {
+    await client.query('DELETE FROM parties WHERE id = $1', [partyId]);
+    return { disbanded: true };
+  }
+  if (Number(p.rows[0].leader_id) === Number(userId)) {
+    await client.query('UPDATE parties SET leader_id = $1 WHERE id = $2', [remaining.rows[0].user_id, partyId]);
+  }
+  return { disbanded: false };
+}
+
+async function leaveParty(userId) {
+  const partyId = await getMyPartyId(userId);
+  if (!partyId) throw partyError('PARTY_NOT_IN');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM parties WHERE id = $1 FOR UPDATE', [partyId]);
+    const res = await removePartyMember(client, partyId, userId);
+    await client.query('COMMIT');
+    return res;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function kickPartyMember(leaderId, targetUserId) {
+  const partyId = await getMyPartyId(leaderId);
+  if (!partyId) throw partyError('PARTY_NOT_IN');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM parties WHERE id = $1 FOR UPDATE', [partyId]);
+    const p = await client.query('SELECT leader_id FROM parties WHERE id = $1', [partyId]);
+    if (!p.rows.length || Number(p.rows[0].leader_id) !== Number(leaderId)) {
+      throw partyError('PARTY_NOT_LEADER');
+    }
+    if (Number(targetUserId) === Number(leaderId)) throw partyError('PARTY_CANNOT_KICK_SELF');
+    const mem = await client.query(
+      'SELECT 1 FROM party_members WHERE party_id = $1 AND user_id = $2 AND is_npc = false',
+      [partyId, targetUserId]
+    );
+    if (!mem.rows.length) throw partyError('PARTY_TARGET_NOT_IN');
+    const res = await removePartyMember(client, partyId, Number(targetUserId));
+    await client.query('COMMIT');
+    return res;
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+async function disbandParty(leaderId) {
+  const partyId = await getMyPartyId(leaderId);
+  if (!partyId) throw partyError('PARTY_NOT_IN');
+  const { rowCount } = await pool.query(
+    'DELETE FROM parties WHERE id = $1 AND leader_id = $2',
+    [partyId, leaderId]
+  );
+  if (!rowCount) throw partyError('PARTY_NOT_LEADER');
+  return { disbanded: true };
+}
+
+/**
+ * Full party view for a member. Humans and NPC allies are FLAT rows in
+ * members[]: humans carry isNpc:false + server-read stats, NPC allies carry
+ * isNpc:true + npcId + owner fields (name/level read live from the owner's
+ * save blob). `online` = save updated within PARTY_ONLINE_MS. Bonuses are
+ * computed server-side from DB truth — the client never supplies them:
+ * +8% XP / +5% gold per other online human, +4% XP per own active NPC ally.
+ */
+async function getPartyView(userId) {
+  const partyId = await getMyPartyId(userId);
+  if (!partyId) return null;
+  const p = await pool.query('SELECT id, code, leader_id FROM parties WHERE id = $1', [partyId]);
+  if (!p.rows.length) return null;
+  const party = p.rows[0];
+  const { rows } = await pool.query(
+    `SELECT m.user_id, m.is_npc, m.npc_id, m.joined_at, u.username,
+            ps.level, ps.stage, ps.updated_at, ps.state_json
+     FROM party_members m
+     JOIN users u ON u.id = m.user_id
+     LEFT JOIN player_state ps ON ps.user_id = m.user_id
+     WHERE m.party_id = $1
+     ORDER BY m.joined_at ASC`,
+    [partyId]
+  );
+  const now = Date.now();
+  const members = rows.map(r => {
+    let blob = {};
+    try { blob = JSON.parse(r.state_json || '{}'); } catch { /* use defaults */ }
+    const online = Number(r.updated_at) > now - PARTY_ONLINE_MS;
+    if (!r.is_npc) {
+      return {
+        isNpc: false,
+        userId: r.user_id,
+        username: r.username,
+        level: Number(r.level) || 1,
+        stage: Number(r.stage) || 1,
+        playerClass: blob.playerClass || null,
+        race: blob.race || null,
+        country: blob.country || null,
+        activeTitle: blob.activeTitle || null,
+        online,
+        isLeader: Number(r.user_id) === Number(party.leader_id),
+      };
+    }
+    const owned = Array.isArray(blob.party) ? blob.party : [];
+    const n = owned.find(x => String(x.id) === String(r.npc_id));
+    return {
+      isNpc: true,
+      npcId: r.npc_id,
+      ownerUserId: r.user_id,
+      ownerUsername: r.username,
+      name: (n && n.name) || 'Ally',
+      emoji: (n && n.emoji) || '\u{1F6E1}️',
+      level: (n && Number(n.level)) || 1,
+      online,
+    };
+  });
+  const onlineOtherHumans = members.filter(
+    m => !m.isNpc && m.online && Number(m.userId) !== Number(userId)
+  ).length;
+  const activeNpcs = members.filter(
+    m => m.isNpc && Number(m.ownerUserId) === Number(userId)
+  ).length;
+  const bonuses = {
+    onlineOtherHumans,
+    activeNpcs,
+    xpPct: onlineOtherHumans * 8 + activeNpcs * 4,
+    goldPct: onlineOtherHumans * 5,
+  };
+  const leader = members.find(m => !m.isNpc && m.isLeader);
+  return {
+    id: party.id,
+    code: party.code,
+    leaderId: Number(party.leader_id),
+    leaderUsername: leader ? leader.username : null,
+    members,
+    bonuses,
+  };
+}
+
 function guildError(code) {
   const err = new Error(code);
   err.code = code;
@@ -877,6 +1230,26 @@ module.exports = {
   getMyInvites,
   acceptGuildInvite,
   declineGuildInvite,
+  // multiplayer parties
+  createParty,
+  getMyPartyId,
+  joinPartyByCode,
+  leaveParty,
+  kickPartyMember,
+  disbandParty,
+  getPartyView,
+  syncPartyNpcs,
+  PARTY_MAX_HUMANS,
+  PARTY_MAX_SLOTS,
+  PARTY_ONLINE_MS,
+  // friends / presence
+  sendFriendRequest,
+  respondFriendRequest,
+  getFriendshipData,
+  getFriendProfiles,
+  removeFriend,
+  friendshipStatus,
+  touchLastActive,
 };
 
 // ---------- guilds ----------
@@ -1082,4 +1455,158 @@ async function buyVendorItem(guildId, username, itemId) {
     await setMemberTitle(username, item.name);
   }
   return { ok: true, item };
+}
+// ---------- friends & presence ----------
+function friendError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
+
+/** Canonical pair key: lowercased "a|b" of the alphabetically sorted pair. */
+function pairKey(a, b) {
+  const x = String(a).toLowerCase();
+  const y = String(b).toLowerCase();
+  return x < y ? `${x}|${y}` : `${y}|${x}`;
+}
+
+/**
+ * Create a pending friend request from `requester` to `addressee`.
+ * Throws errors with .code: FRIEND_SELF | FRIEND_NOT_FOUND | FRIEND_EXISTS
+ * (FRIEND_EXISTS also covers the reverse-direction pending request).
+ */
+async function sendFriendRequest(requester, addressee) {
+  if (String(requester).toLowerCase() === String(addressee).toLowerCase()) {
+    throw friendError('FRIEND_SELF');
+  }
+  const target = await getUserByUsername(addressee);
+  if (!target) throw friendError('FRIEND_NOT_FOUND');
+  const now = Date.now();
+  try {
+    await pool.query(
+      `INSERT INTO friendships (requester, addressee, pair_key, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'pending', $4, $4)`,
+      [requester, target.username, pairKey(requester, target.username), now]
+    );
+  } catch (e) {
+    if (e.code === '23505') throw friendError('FRIEND_EXISTS');
+    throw e;
+  }
+  return { username: target.username };
+}
+
+/**
+ * Respond to a pending request. `addressee` is the player answering; the
+ * pending request must have been sent TO them BY `requester`.
+ * Throws errors with .code: FRIEND_NO_REQUEST
+ */
+async function respondFriendRequest(addressee, requester, accept) {
+  const { rows } = await pool.query(
+    'SELECT * FROM friendships WHERE pair_key = $1 AND status = $2',
+    [pairKey(requester, addressee), 'pending']
+  );
+  const row = rows[0] || null;
+  // Only the request's addressee may accept/decline it.
+  if (!row || row.addressee.toLowerCase() !== String(addressee).toLowerCase()) {
+    throw friendError('FRIEND_NO_REQUEST');
+  }
+  if (accept) {
+    await pool.query(
+      'UPDATE friendships SET status = $1, updated_at = $2 WHERE id = $3',
+      ['accepted', Date.now(), row.id]
+    );
+  } else {
+    await pool.query('DELETE FROM friendships WHERE id = $1', [row.id]);
+  }
+  return { username: row.requester };
+}
+
+/**
+ * All friendships touching `username`, split into accepted friends,
+ * incoming pending requests, and outgoing pending requests.
+ * Returns { friends: [username], incoming: [username], outgoing: [username] }.
+ */
+async function getFriendshipData(username) {
+  const { rows } = await pool.query(
+    `SELECT requester, addressee, status FROM friendships
+     WHERE LOWER(requester) = LOWER($1) OR LOWER(addressee) = LOWER($1)`,
+    [username]
+  );
+  const me = String(username).toLowerCase();
+  const friends = [];
+  const incoming = [];
+  const outgoing = [];
+  for (const r of rows) {
+    const other = String(r.requester).toLowerCase() === me ? r.addressee : r.requester;
+    if (r.status === 'accepted') friends.push(other);
+    else if (String(r.addressee).toLowerCase() === me) incoming.push(r.requester);
+    else outgoing.push(r.addressee);
+  }
+  return { friends, incoming, outgoing };
+}
+
+/** Lightweight profile cards for a friend list. */
+async function getFriendProfiles(usernames) {
+  if (!usernames.length) return [];
+  const conds = usernames.map((_, i) => `LOWER(u.username) = LOWER($${i + 1})`);
+  const { rows } = await pool.query(
+    `SELECT u.username, u.last_active, ps.level, ps.stage, ps.state_json
+     FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
+     WHERE ${conds.join(' OR ')}`,
+    usernames
+  );
+  return rows.map((r) => {
+    let playerClass = null;
+    let race = null;
+    try {
+      const blob = JSON.parse(r.state_json || '{}');
+      if (blob && typeof blob.playerClass === 'string') playerClass = blob.playerClass;
+      if (blob && typeof blob.race === 'string') race = blob.race;
+    } catch { /* leave null */ }
+    return {
+      username: r.username,
+      level: r.level == null ? 1 : r.level,
+      stage: r.stage == null ? 1 : r.stage,
+      playerClass,
+      race,
+      lastActive: Number(r.last_active) || 0,
+    };
+  });
+}
+
+/**
+ * Remove a friendship (or pending request) between two players, either direction.
+ * Throws errors with .code: FRIEND_NOT_FOUND
+ */
+async function removeFriend(username, other) {
+  const { rowCount } = await pool.query(
+    'DELETE FROM friendships WHERE pair_key = $1',
+    [pairKey(username, other)]
+  );
+  if (!rowCount) throw friendError('FRIEND_NOT_FOUND');
+}
+
+/** Relationship of `me` to `other`: 'self' | 'friends' | 'incoming' | 'outgoing' | 'none'. */
+async function friendshipStatus(me, other) {
+  if (String(me).toLowerCase() === String(other).toLowerCase()) return 'self';
+  const { rows } = await pool.query(
+    'SELECT requester, addressee, status FROM friendships WHERE pair_key = $1',
+    [pairKey(me, other)]
+  );
+  const r = rows[0];
+  if (!r) return 'none';
+  if (r.status === 'accepted') return 'friends';
+  return String(r.requester).toLowerCase() === String(me).toLowerCase() ? 'outgoing' : 'incoming';
+}
+
+/**
+ * Refresh a user's last_active, throttled to once per minute (the WHERE
+ * clause makes it a no-op read most of the time). Called from requireAuth.
+ */
+async function touchLastActive(userId) {
+  const now = Date.now();
+  await pool.query(
+    'UPDATE users SET last_active = $1 WHERE id = $2 AND last_active < $3',
+    [now, userId, now - 60000]
+  );
 }

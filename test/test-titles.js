@@ -41,7 +41,7 @@ const freshSave = () => ({});
     { id: 'galaxyforger',  ok: { forge: { crafts: 10 } },       bad: { forge: { crafts: 9 } } },
     { id: 'transcendent',  ok: { forge: { superCrafted: true } }, bad: { forge: { superCrafted: false } } },
     { id: 'ever-reborn',   ok: { rebirthCount: 100 },           bad: { rebirthCount: 99 } },
-    { id: 'true-capped',   ok: { level: 70, rebirthCount: 1 },  bad: { level: 70, rebirthCount: 0 } },
+    { id: 'true-capped',   ok: { level: 120, rebirthCount: 1 }, bad: { level: 120, rebirthCount: 0 } },
   ];
   const defs = Object.fromEntries(TITLES.map(t => [t.id, t]));
 
@@ -81,7 +81,7 @@ const freshSave = () => ({});
     const s = {
       mine: { maxDepth: 60, totalTaps: 5000, totalMined: 5000, pickaxe: 7 },
       forge: { crafts: 10, superCrafted: true },
-      rebirthCount: 100, level: 70, gold: 0, stats: {},
+      rebirthCount: 100, level: 120, gold: 0, stats: {},
     };
     const fresh = checkTitles(s);
     const ids = fresh.map(t => t.id);
