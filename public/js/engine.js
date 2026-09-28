@@ -337,17 +337,29 @@ const ENEMY_ICONS = {
 
 export const isBossStage = (stage) => stage % 10 === 0;
 
-export function enemyFor(stage) {
+// Balance: normal enemies are weaker (less HP, die faster) but still hit
+// hard; no single hit can ever one-shot (capped in enemyStrike). Boss
+// damage is tuned "around your level" when player stats are provided.
+export function enemyFor(stage, playerStats = null) {
   const boss = isBossStage(stage);
-  const hp = Math.round(18 * Math.pow(1.13, stage));
+  const hp = Math.round(18 * Math.pow(1.13, stage) * (boss ? 1 : 0.6));
   const atk = Math.round(4 * Math.pow(1.085, stage));
   const name = boss ? pick(BOSS_NAMES) : pick(ENEMY_NAMES);
+  let attack = boss ? Math.round(atk * 1.35) : atk;
+  if (boss && playerStats && playerStats.maxHp > 0) {
+    // Bosses hit around your level: after your defense, a clean hit lands
+    // between 15% and 30% of your max HP — threatening, never a one-shot.
+    const def = Math.max(0, playerStats.defense || 0);
+    const lo = def + playerStats.maxHp * 0.15;
+    const hi = def + playerStats.maxHp * 0.30;
+    attack = Math.max(1, Math.round(Math.min(Math.max(attack, lo), hi)));
+  }
   return {
     name,
     stage, boss,
     hp: boss ? Math.round(hp * 2.5) : hp,
     maxHp: boss ? Math.round(hp * 2.5) : hp,
-    attack: boss ? Math.round(atk * 1.35) : atk,
+    attack,
     emoji: ENEMY_ICONS[name] || '👹',
   };
 }
@@ -439,7 +451,10 @@ export function enemyStrike(stats, enemyAttack) {
   if (r < stats.dodge + stats.parry) {
     return { dmg: 0, dodged: false, parried: true, counter: Math.max(1, Math.round(stats.attack * 0.5)) };
   }
-  return { dmg: Math.max(1, Math.round(enemyAttack - stats.defense)), dodged: false, parried: false, counter: 0 };
+  let dmg = Math.max(1, Math.round(enemyAttack - stats.defense));
+  // One-shot guard: a single hit can never deal more than 60% of max HP.
+  if (stats.maxHp > 0) dmg = Math.min(dmg, Math.max(1, Math.ceil(stats.maxHp * 0.6)));
+  return { dmg, dodged: false, parried: false, counter: 0 };
 }
 
 // ---------------- Loot ----------------
