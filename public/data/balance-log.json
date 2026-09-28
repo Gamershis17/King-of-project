@@ -1,1 +1,58 @@
-[{"changes":[{"after":"1-30 unchanged (80 x 1.30^(L-1)); 31-60 use x1.35 exponent; 61-90 use x1.44 exponent, continuous at both kinks. Level 60 needs ~3.1x more XP than before, level 70 ~3.6x, level 90 ~4.7x.","before":"80 x 1.30^(L-1) for 1-60, then x1.42 exponent 61-90","note":"Targets the 30-70 climb players called too fast. Early game (1-30) untouched so new players still feel quick progress. Even with a full +40% party XP bonus, level 70 still takes ~2.5x longer than before.","system":"XP curve (levels 31+)"},{"after":"Up to +40% XP from parties: +8% per other online human, +4% per active NPC companion. Offline members give nothing.","before":"No parties (solo only)","note":"The v18 XP curve was steepened with this bonus active in the math, so parties speed you up without trivializing the climb.","system":"Party XP bonus"},{"after":"Capped at +40%","before":"Gear/stat XP bonuses capped at +50%","note":"Lowered to offset the new party XP bonus stacking on top.","system":"Gear XP bonus cap"},{"after":"90 — Rebirth now unlocks at 90. The steepened XP curve runs the full 1-90 range.","before":"70","note":"Rebirth still resets only level/XP and keeps all other progress.","system":"Level cap"}],"date":"2026-09-28","title":"Mega-update balance pass","version":"v18"}]
+[
+  {
+    "version": "v19",
+    "date": "2026-09-28",
+    "title": "Level cap 120 + endgame tuning",
+    "changes": [
+      {
+        "system": "Level cap",
+        "before": "90 — Rebirth unlocked at 90.",
+        "after": "120 — Rebirth now unlocks at 120. All gates (title check, rebirth, UI) follow MAX_LEVEL.",
+        "note": "Rebirth still resets only level/XP and keeps all other progress."
+      },
+      {
+        "system": "XP curve (levels 91-120)",
+        "before": "No levels above 90.",
+        "after": "Levels 91-120 continue from the level-90 value with a x1.47 exponent, continuous at 90. Level 100 costs ~3.48e15 XP, level 120 ~7.72e18 XP; level 120 is ~104,600x the level-90 cost. Total XP 1->120 is ~98,000x total 1->90, so the last 30 levels are a proper endgame grind.",
+        "note": "Levels 1-90 are unchanged. A raw x1.46-1.48 segment could never hit a 5-8x total target, so the new band is deliberately the steepest — the 91-120 climb stays honest even with the +40% party bonus."
+      },
+      {
+        "system": "Enemy/boss HP growth",
+        "before": "Enemy HP = 18 x 1.125^stage (x0.6 normal, x2.5 boss).",
+        "after": "Enemy HP = 18 x 1.115^stage (x0.6 normal, x2.5 boss).",
+        "note": "The flatter exponent cuts enemy HP ~9x at stage 250, ~15x at stage 300, and ~1,265x by stage 800 vs 1.125. Early game untouched (already one-taps), and the boss x2.5 multiplier plus incoming-damage auto-tuning (15-30% max HP hits, one-shot guard) still hold."
+      }
+    ]
+  },
+  {
+    "changes": [
+      {
+        "after": "1-30 unchanged (80 x 1.30^(L-1)); 31-60 use x1.35 exponent; 61-90 use x1.44 exponent, continuous at both kinks. Level 60 needs ~3.1x more XP than before, level 70 ~3.6x, level 90 ~4.7x.",
+        "before": "80 x 1.30^(L-1) for 1-60, then x1.42 exponent 61-90",
+        "note": "Targets the 30-70 climb players called too fast. Early game (1-30) untouched so new players still feel quick progress. Even with a full +40% party XP bonus, level 70 still takes ~2.5x longer than before.",
+        "system": "XP curve (levels 31+)"
+      },
+      {
+        "after": "Up to +40% XP from parties: +8% per other online human, +4% per active NPC companion. Offline members give nothing.",
+        "before": "No parties (solo only)",
+        "note": "The v18 XP curve was steepened with this bonus active in the math, so parties speed you up without trivializing the climb.",
+        "system": "Party XP bonus"
+      },
+      {
+        "after": "Capped at +40%",
+        "before": "Gear/stat XP bonuses capped at +50%",
+        "note": "Lowered to offset the new party XP bonus stacking on top.",
+        "system": "Gear XP bonus cap"
+      },
+      {
+        "after": "90 — Rebirth now unlocks at 90. The steepened XP curve runs the full 1-90 range.",
+        "before": "70",
+        "note": "Rebirth still resets only level/XP and keeps all other progress.",
+        "system": "Level cap"
+      }
+    ],
+    "date": "2026-09-28",
+    "title": "Mega-update balance pass",
+    "version": "v18"
+  }
+]

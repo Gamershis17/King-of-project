@@ -85,6 +85,9 @@ export const UI = {
     { id: 'ember-drift', name: 'Ember Drift', css: 'radial-gradient(circle at 50% 100%, #5e1f1a, #0d0505 75%)', animated: true },
     { id: 'void-tide',   name: 'Void Tide',   css: 'radial-gradient(circle at 50% 40%, #1d1040, #060310 72%)', animated: true },
     { id: 'throne-storm', name: 'Throne Storm', css: 'radial-gradient(circle at 50% 30%, #2a0d16, #080304 72%)', animated: true },
+    { id: 'inferno-flare', name: 'Inferno Flare', css: 'radial-gradient(circle at 50% 50%, #5e1f0d, #0d0503 72%)', animated: true },
+    { id: 'cinder-storm',  name: 'Cinder Storm',  css: 'radial-gradient(circle at 50% 50%, #4a1508, #0c0603 72%)', animated: true },
+    { id: 'phoenix-ash',   name: 'Phoenix Ash',   css: 'radial-gradient(circle at 50% 60%, #4a3208, #0d0a04 72%)', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -100,7 +103,8 @@ export const UI = {
     { id: 'royal-gold',  name: 'Royal Gold',  colors: ['#ffd63f', '#f59e0b', '#fff7cc'] },
   ],
   DEFAULT_ORB_COLORS: ['#a855f7', '#7c3aed', '#22d3ee'],
-  BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm'],
+  BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm',
+    'inferno-flare', 'cinder-storm', 'phoenix-ash'],
 
   // ---------------- init ----------------
   init() {
@@ -1299,6 +1303,55 @@ export const UI = {
       }
       B.flashAt = 0; B.flashUntil = 0; B.bolt = null;
       B.grad = this._vGrad(['#0c0408', '#220a12', '#0c0408']);
+    } else if (id === 'inferno-flare') {
+      // Swirling fire vortex: embers orbit a hot core, faster near the middle.
+      B.sprites.flare = ['#ff6b35', '#f7c548', '#ef4444', '#ff9f1c'].map((c) => this._glowSprite(c));
+      const cx = W / 2, cy = H / 2, maxR = Math.min(W, H) * 0.48;
+      B.cx = cx; B.cy = cy;
+      for (let i = 0; i < 52; i++) {
+        const rr = R(0.12, 1) * maxR;
+        B.parts.push({
+          ang: R(0, 6.28), r: rr,
+          // inner particles whirl faster (vortex feel)
+          va: R(0.5, 1.4) * (maxR / Math.max(rr, maxR * 0.12)) * 0.55,
+          s: R(3, 7) * dpr, si: (Math.random() * 4) | 0,
+          a: R(0.45, 0.95), ph: R(0, 6.28),
+        });
+      }
+      B.grad = this._vGrad(['#160704', '#33110a', '#160704']);
+    } else if (id === 'cinder-storm') {
+      // Wind-blown burning cinders streaking sideways with gusty jitter.
+      B.sprites.cinder = ['#ff8c42', '#ffd23f', '#ff3b3b'].map((c) => this._glowSprite(c));
+      for (let i = 0; i < 60; i++) {
+        B.parts.push({
+          x: R(0, W), y: R(0, H),
+          s: R(2, 5) * dpr, vx: R(60, 170) * dpr,
+          sway: R(14, 42) * dpr, ph: R(0, 6.28), fs: R(1.5, 3.5),
+          si: (Math.random() * 3) | 0, a: R(0.4, 0.9),
+        });
+      }
+      B.grad = this._vGrad(['#120603', '#2b0e05', '#120603']);
+    } else if (id === 'phoenix-ash') {
+      // Golden embers rise slowly; every few seconds one erupts in a soft
+      // glow burst that expands and fades.
+      B.sprites.ash = ['#ffd63f', '#f59e0b', '#fff7cc'].map((c) => this._glowSprite(c));
+      for (let i = 0; i < 38; i++) {
+        const e = this._newEmber(W, H, true);
+        e.s = Math.min(e.s, 4 * dpr);
+        e.vy = e.vy * 0.55;
+        e.si = (Math.random() * 3) | 0;
+        B.parts.push(e);
+      }
+      B.bursts = [];
+      for (let i = 0; i < 7; i++) {
+        B.bursts.push({
+          x: R(0.1, 0.9) * W, y: R(0.15, 0.85) * H,
+          r0: R(6, 14) * dpr, r1: R(46, 90) * dpr,
+          si: (Math.random() * 3) | 0,
+          t0: R(0, 5200), period: R(2600, 6200),
+        });
+      }
+      B.grad = this._vGrad(['#100b04', '#2b2008', '#100b04']);
     }
   },
   _drawBgFrame(t, isStatic) {
@@ -1424,6 +1477,65 @@ export const UI = {
           ctx.drawImage(B.sprites.shard[p.si], -d / 2, -d / 2, d, d);
           ctx.restore();
         }
+      }
+    } else if (B.scene === 'inferno-flare') {
+      // Swirling fire vortex: embers orbit a hot core, inner ones faster.
+      const cx = B.cx || W / 2, cy = B.cy || H / 2;
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.ang += p.va * B.dt;
+          if (p.ang > 6.2832) p.ang -= 6.2832;
+        }
+        const px = cx + Math.cos(p.ang) * p.r;
+        const py = cy + Math.sin(p.ang) * p.r * 0.82;
+        const flick = 0.8 + 0.2 * Math.sin(t / 130 + p.ph);
+        const d = p.s * 5.5 * flick;
+        ctx.globalAlpha = p.a * flick;
+        ctx.drawImage(B.sprites.flare[p.si], px - d / 2, py - d / 2, d, d);
+      }
+      // Hot core glow pulsing at the center.
+      const pulse = isStatic ? 0.5 : 0.5 + 0.18 * Math.sin(t / 900);
+      const cd = Math.min(W, H) * 0.34 * (1 + pulse * 0.2);
+      ctx.globalAlpha = 0.35 + pulse * 0.25;
+      ctx.drawImage(B.sprites.flare[1], cx - cd / 2, cy - cd / 2, cd, cd);
+    } else if (B.scene === 'cinder-storm') {
+      // Wind-blown burning cinders streaking sideways with gusty jitter.
+      for (const p of B.parts) {
+        if (!isStatic) {
+          const gust = 1 + 0.55 * Math.sin(t / 1700 + p.ph);
+          p.x += p.vx * gust * B.dt;
+          p.y += Math.cos(t / 900 * p.fs + p.ph) * p.sway * B.dt;
+          const m = p.s * 3;
+          if (p.x > W + m) { p.x = -m; p.y = Math.random() * H; }
+          else if (p.y < -m) p.y = H + m;
+          else if (p.y > H + m) p.y = -m;
+        }
+        const streak = isStatic ? 1 : 1 + 0.4 * Math.sin(t / 1700 + p.ph);
+        const d = p.s * 4.5;
+        ctx.globalAlpha = p.a;
+        ctx.drawImage(B.sprites.cinder[p.si], p.x - d * streak / 2, p.y - d / 2, d * streak, d);
+      }
+    } else if (B.scene === 'phoenix-ash') {
+      // Golden embers rise; every few seconds one erupts in a soft glow burst.
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.y -= p.vy * B.dt;
+          p.x += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * B.dt;
+          if (p.y < -12) Object.assign(p, this._newEmber(W, H, false), { si: (Math.random() * 3) | 0 });
+        }
+        const fade = Math.min(1, Math.max(0, (H - p.y) / (H * 0.3))) * Math.min(1, Math.max(0, (p.y + 12) / 60));
+        if (fade <= 0.02) continue;
+        const d = p.s * 5;
+        ctx.globalAlpha = p.a * fade;
+        ctx.drawImage(B.sprites.ash[p.si], p.x - d / 2, p.y - d / 2, d, d);
+      }
+      for (const b of B.bursts) {
+        let phase = ((t - b.t0) % b.period) / 1200; // 1.2s burst, rest quiet
+        if (phase < 0) phase += b.period / 1200;
+        if (phase >= 1) continue;
+        const rr = b.r0 + (b.r1 - b.r0) * phase;
+        ctx.globalAlpha = 0.5 * (1 - phase);
+        ctx.drawImage(B.sprites.ash[b.si], b.x - rr / 2, b.y - rr / 2, rr, rr);
       }
     }
     ctx.globalAlpha = 1;
