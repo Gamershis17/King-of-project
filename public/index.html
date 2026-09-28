@@ -18,10 +18,13 @@
 </head>
 <body>
 <canvas id="bg-canvas" aria-hidden="true"></canvas>
+<div id="ornate-texture" aria-hidden="true"></div>
 <div id="app">
 
   <!-- ============ AUTH ============ -->
   <section id="view-auth" class="view">
+    <div class="auth-frame" aria-hidden="true"><i class="fc tl"></i><i class="fc tr"></i><i class="fc bl"></i><i class="fc br"></i></div>
+    <div class="auth-smoke" aria-hidden="true"></div>
     <div class="auth-wrap auth-fantasy">
       <img class="logo-img" src="img/icon-shadow-crown.webp" alt="Throne of Shadows logo">
       <h1 class="game-title">THRONE OF SHADOWS</h1>
@@ -34,25 +37,25 @@
         <form id="login-form" class="auth-form" autocomplete="on">
           <input id="login-username" placeholder="Username" autocomplete="username" maxlength="20">
           <input id="login-password" type="password" placeholder="Password" autocomplete="current-password">
-          <button type="submit" class="btn gold">⚔️ Login</button>
+          <button type="submit" class="btn gold">Login</button>
         </form>
         <form id="register-form" class="auth-form hidden" autocomplete="on">
           <input id="reg-username" placeholder="Username (3–20, letters/numbers/_)" autocomplete="username" maxlength="20">
           <input id="reg-password" type="password" placeholder="Password (min 6 chars)" autocomplete="new-password">
           <input id="reg-password2" type="password" placeholder="Confirm password" autocomplete="new-password">
-          <button type="submit" class="btn gold">✨ Create hero</button>
+          <button type="submit" class="btn gold">Create hero</button>
         </form>
         <div id="auth-error" class="auth-error hidden"></div>
         <div class="guest-block">
           <div class="guest-divider"><span>or</span></div>
           <div id="guest-continue" class="hidden">
             <p class="muted small">Guest adventure found: <b id="guest-continue-name" class="gold-text"></b></p>
-            <button id="guest-continue-btn" class="btn wide" type="button">🎮 Continue as guest</button>
+            <button id="guest-continue-btn" class="btn wide" type="button">Continue as guest</button>
             <button id="guest-fresh-btn" class="btn ghost small" type="button">start over instead</button>
           </div>
           <div id="guest-start">
             <input id="guest-name" placeholder="Guest name (optional)" maxlength="16" autocomplete="off">
-            <button id="guest-play-btn" class="btn wide" type="button">🎮 Play as Guest</button>
+            <button id="guest-play-btn" class="btn wide" type="button">Play as Guest</button>
             <p class="muted small">No account needed. Progress saves on this device only.</p>
           </div>
         </div>
@@ -109,7 +112,7 @@
     <header id="hud">
       <div class="hud-row">
         <div class="hud-id">
-          <span id="hud-emoji">🛡️</span>
+          <span class="hud-avatar"><img id="hud-avatar-img" src="img/avatar-knight.webp" alt="" width="44" height="44" onerror="this.remove()"><span id="hud-emoji">🛡️</span></span>
           <div>
             <div id="hud-username">—</div>
             <div id="hud-sub"><span id="hud-role" class="role-badge">player</span><span id="hud-race" class="muted"></span></div>
