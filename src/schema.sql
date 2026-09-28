@@ -85,3 +85,22 @@ CREATE TABLE IF NOT EXISTS server_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- Friendships: player-to-player friend links. Usernames are case-insensitive;
+-- pair_key is the lowercased "a|b" of the alphabetically-sorted pair, so one
+-- row covers the friendship regardless of who requested or the name casing.
+CREATE TABLE IF NOT EXISTS friendships (
+  id SERIAL PRIMARY KEY,
+  requester TEXT NOT NULL,
+  addressee TEXT NOT NULL,
+  pair_key TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',   -- 'pending' | 'accepted'
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_uidx ON friendships (pair_key);
+
+-- Online presence: last authenticated activity (epoch ms). Refreshed at most
+-- once per minute per user (see touchLastActive in src/db.js); the friends
+-- list treats "active within 5 minutes" as online.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active BIGINT NOT NULL DEFAULT 0;

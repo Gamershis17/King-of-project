@@ -217,7 +217,12 @@
           <h2 style="margin:0">🏆 Leaderboard</h2>
           <button id="lb-refresh" class="btn small ghost">↻ Refresh</button>
         </div>
+        <div class="subtabs" id="ranks-subtabs" role="tablist" aria-label="Ranks views">
+          <button class="subtab active" data-subtab="board">🏆 Board</button>
+          <button class="subtab" data-subtab="friends">👥 Friends<span id="friend-req-badge" class="req-badge hidden"></span></button>
+        </div>
         <div class="lb-list" id="lb-body"></div>
+        <div id="friends-panel" class="hidden"></div>
       </section>
 
       <!-- GUILD -->

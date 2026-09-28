@@ -17,14 +17,16 @@
 
 const express = require('express');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { requireAuth, asyncHandler } = require('./auth');
-const { sanitizeStateBlob } = require('./validation');
+const { sanitizeStateBlob, validateUsername } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const {
   getStateRow,
   getUserById,
+  getUserByUsername,
   saveState,
   getLeaderboardRows,
   redeemGiftCode,
@@ -36,6 +38,12 @@ const {
   leaveGuild,
   getGoldCap,
   getSetting,
+  sendFriendRequest,
+  respondFriendRequest,
+  getFriendshipData,
+  getFriendProfiles,
+  removeFriend,
+  friendshipStatus,
 } = require('./db');
 
 const router = express.Router();
@@ -63,6 +71,181 @@ const redeemLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many code attempts. Try again in a minute.' },
 });
+// Friend-action spam protection.
+const friendLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: userKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many friend actions. Slow down a moment.' },
+});
+
+/**
+ * Server-side copy of the client game engine (public/js/engine.js is pure
+ * logic with no DOM access). Loaded once as an .mjs module so inspect and
+ * compare power ratings use the exact same computeStats formula as the client.
+ */
+let _enginePromise = null;
+function serverEngine() {
+  if (!_enginePromise) {
+    _enginePromise = (async () => {
+      const src = fs.readFileSync(
+        path.join(__dirname, '..', 'public', 'js', 'engine.js'),
+        'utf8'
+      );
+      const tmp = path.join(os.tmpdir(), 'kop-engine-srv.mjs');
+      fs.writeFileSync(tmp, src);
+      return import(tmp);
+    })();
+  }
+  return _enginePromise;
+}
+
+/** Considered "online" for friends/inspect if active within the last 5 minutes. */
+const ONLINE_WINDOW_MS = 5 * 60 * 1000;
+
+const INSPECT_SLOTS = ['weapon', 'armor', 'helmet', 'boots', 'trinket'];
+
+function num0(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(0, Math.round(n)) : 0;
+}
+
+function num1(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : 0;
+}
+
+/**
+ * Build the public inspect payload for a username. Gameplay data only:
+ * never emails, password hashes, roles, currencies, or staff flags.
+ * Returns null when the player does not exist.
+ */
+async function buildInspect(targetUsername, viewerUsername) {
+  const user = await getUserByUsername(targetUsername);
+  if (!user) return null;
+  const row = await getStateRow(user.id);
+  const blob = row ? parseBlob(row.state_json) : defaultStateBlob();
+  // Defensive merge so computeStats never sees a half-shaped blob.
+  const def = defaultStateBlob();
+  const safe = {
+    ...def,
+    ...blob,
+    hero: { ...def.hero, ...(blob.hero || {}) },
+    stats: { ...(blob.stats || {}) },
+    raid: { ...(blob.raid || {}) },
+    pets: { ...(blob.pets || {}) },
+  };
+
+  const eng = await serverEngine();
+  let power = 0;
+  let stats = null;
+  try {
+    const cs = eng.computeStats(safe);
+    power = num0(cs.attack);
+    stats = {
+      attack: num0(cs.attack),
+      defense: num0(cs.defense),
+      maxHp: num0(cs.maxHp),
+      critChance: num1(cs.critChance),
+      critDamage: num1(cs.critDamage),
+      parry: num1(cs.parry),
+      dodge: num1(cs.dodge),
+      lifesteal: num1(cs.lifesteal),
+      attackSpeed: num1(cs.attackSpeed),
+      regen: num1(cs.regen),
+      goldBonus: num1(cs.goldBonus),
+      xpBonus: num1(cs.xpBonus),
+    };
+  } catch {
+    stats = {
+      attack: 0, defense: 0, maxHp: 1, critChance: 0, critDamage: 100,
+      parry: 0, dodge: 0, lifesteal: 0, attackSpeed: 1, regen: 0,
+      goldBonus: 0, xpBonus: 0,
+    };
+  }
+
+  const raceDef = eng.RACES[blob.race] || {};
+  const clsDef = eng.CLASSES[blob.playerClass] || {};
+  const specDef = eng.SPECS[blob.spec] || {};
+  const titleId = typeof blob.activeTitle === 'string' ? blob.activeTitle : null;
+
+  // Equipped gear: item cards only (name, rarity, enchant, stats).
+  const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
+  const gear = INSPECT_SLOTS.map((slot) => {
+    const id = blob.equipped && blob.equipped[slot];
+    const item = id ? inv.find((i) => i && i.id === id) : null;
+    if (!item) return { slot, item: null };
+    const itemStats = {};
+    if (item.stats && typeof item.stats === 'object') {
+      for (const [k, v] of Object.entries(item.stats)) {
+        if (Number.isFinite(v)) itemStats[k] = Math.round(v * 100) / 100;
+      }
+    }
+    return {
+      slot,
+      item: {
+        name: String(item.name || 'Unknown item'),
+        rarity: String(item.rarity || 'common'),
+        enchant: Math.max(0, Math.floor(Number(item.enchant) || 0)),
+        stats: itemStats,
+      },
+    };
+  });
+
+  // Active pets only.
+  const pets = [];
+  const coll = Array.isArray(safe.pets.collection) ? safe.pets.collection : [];
+  const activeUids = new Set(
+    [safe.pets.activeUid, safe.pets.secondActiveUid].filter((u) => typeof u === 'string' && u)
+  );
+  for (const p of coll) {
+    if (!p || !activeUids.has(p.uid)) continue;
+    const sp = (eng.PET_SPECIES && eng.PET_SPECIES[p.species]) || {};
+    pets.push({
+      name: sp.name || 'Pet',
+      emoji: sp.emoji || '🐾',
+      level: Math.max(1, Math.floor(Number(p.level) || 1)),
+      rarity: sp.rarity || 'common',
+    });
+  }
+
+  const guildRow = await getMyGuild(user.username);
+  const lastActive = Number(user.last_active) || 0;
+
+  let relation = 'none';
+  if (viewerUsername) {
+    try {
+      relation = await friendshipStatus(viewerUsername, user.username);
+    } catch { /* leave 'none' */ }
+  }
+
+  return {
+    username: user.username,
+    level: row ? row.level : 1,
+    stage: row ? row.stage : 1,
+    race: { id: blob.race || null, name: raceDef.name || null, emoji: raceDef.emoji || null },
+    playerClass: { id: blob.playerClass || null, name: clsDef.name || null, emoji: clsDef.emoji || null },
+    spec: { id: blob.spec || null, name: specDef.name || null, emoji: specDef.emoji || null },
+    title: titleId ? eng.titleName(titleId) : null,
+    titleId,
+    badge: typeof blob.badge === 'string' ? blob.badge : null,
+    country: typeof blob.country === 'string' ? blob.country : null,
+    power,
+    bestRaidWave: Math.max(0, Math.floor(Number((blob.raid && blob.raid.best) || 0))),
+    kills: Math.max(0, Math.floor(Number((blob.stats && blob.stats.kills) || 0))),
+    bossesKilled: row ? row.bosses_killed : 0,
+    rebirthCount: row ? row.rebirth_count : 0,
+    guild: guildRow ? { name: guildRow.name, tag: guildRow.tag } : null,
+    gear,
+    stats,
+    pets,
+    online: Date.now() - lastActive < ONLINE_WINDOW_MS,
+    lastActive,
+    relation,
+  };
+}
 
 // ---------- server status ----------
 // Public. Lets the client show a proper maintenance screen instead of
@@ -267,6 +450,117 @@ router.get(
       };
     });
     res.json({ entries });
+  })
+);
+
+// ---------- player inspect (public) ----------
+// Full gameplay character sheet for any existing player. Privacy: gameplay
+// data only — no currencies, roles, or account details.
+router.get(
+  '/player/:username/inspect',
+  asyncHandler(async (req, res) => {
+    const raw = req.params.username;
+    if (typeof raw !== 'string' || !/^[A-Za-z0-9_]{3,20}$/.test(raw)) {
+      return res.status(400).json({ error: 'Invalid username.' });
+    }
+    let viewer = null;
+    try {
+      const viewerId = req.session && req.session.userId;
+      if (viewerId) {
+        const vu = await getUserById(viewerId);
+        viewer = vu ? vu.username : null;
+      }
+    } catch { /* anonymous inspect */ }
+    const data = await buildInspect(raw, viewer);
+    if (!data) return res.status(404).json({ error: 'Player not found.' });
+    res.json(data);
+  })
+);
+
+// ---------- friends ----------
+router.post(
+  '/friends/request',
+  requireAuth,
+  friendLimiter,
+  asyncHandler(async (req, res) => {
+    const target = req.body && req.body.username;
+    const usernameError = validateUsername(target);
+    if (usernameError) return res.status(400).json({ error: usernameError });
+    try {
+      const r = await sendFriendRequest(req.user.username, target.trim());
+      res.json({ ok: true, username: r.username });
+    } catch (err) {
+      if (err.code === 'FRIEND_SELF') {
+        return res.status(400).json({ error: "You can't add yourself as a friend." });
+      }
+      if (err.code === 'FRIEND_NOT_FOUND') {
+        return res.status(404).json({ error: 'Player not found. Check the exact username.' });
+      }
+      if (err.code === 'FRIEND_EXISTS') {
+        return res.status(409).json({ error: 'Already friends, or a request is already pending.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.post(
+  '/friends/respond',
+  requireAuth,
+  friendLimiter,
+  asyncHandler(async (req, res) => {
+    const { username, accept } = req.body || {};
+    const usernameError = validateUsername(username);
+    if (usernameError) return res.status(400).json({ error: usernameError });
+    try {
+      const r = await respondFriendRequest(req.user.username, username.trim(), accept === true);
+      res.json({ ok: true, accepted: accept === true, username: r.username });
+    } catch (err) {
+      if (err.code === 'FRIEND_NO_REQUEST') {
+        return res.status(404).json({ error: 'No pending friend request from that player.' });
+      }
+      throw err;
+    }
+  })
+);
+
+router.get(
+  '/friends',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const data = await getFriendshipData(req.user.username);
+    const friends = await getFriendProfiles(data.friends);
+    const now = Date.now();
+    res.json({
+      ok: true,
+      friends: friends.map((f) => ({
+        ...f,
+        online: now - (Number(f.lastActive) || 0) < ONLINE_WINDOW_MS,
+      })),
+      incoming: data.incoming,
+      outgoing: data.outgoing,
+    });
+  })
+);
+
+router.delete(
+  '/friends/:username',
+  requireAuth,
+  friendLimiter,
+  asyncHandler(async (req, res) => {
+    const raw = req.params.username;
+    if (typeof raw !== 'string' || !/^[A-Za-z0-9_]{3,20}$/.test(raw)) {
+      return res.status(400).json({ error: 'Invalid username.' });
+    }
+    try {
+      await removeFriend(req.user.username, raw);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === 'FRIEND_NOT_FOUND') {
+        return res.status(404).json({ error: 'No friendship with that player.' });
+      }
+      throw err;
+    }
   })
 );
 

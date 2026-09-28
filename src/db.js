@@ -366,6 +366,14 @@ module.exports = {
   joinGuild,
   leaveGuild,
   isInGuild,
+  // friends / presence
+  sendFriendRequest,
+  respondFriendRequest,
+  getFriendshipData,
+  getFriendProfiles,
+  removeFriend,
+  friendshipStatus,
+  touchLastActive,
 };
 
 // ---------- guilds ----------
@@ -515,4 +523,159 @@ async function isInGuild(username) {
     [username]
   );
   return rows.length > 0;
+}
+
+// ---------- friends & presence ----------
+function friendError(code) {
+  const err = new Error(code);
+  err.code = code;
+  return err;
+}
+
+/** Canonical pair key: lowercased "a|b" of the alphabetically sorted pair. */
+function pairKey(a, b) {
+  const x = String(a).toLowerCase();
+  const y = String(b).toLowerCase();
+  return x < y ? `${x}|${y}` : `${y}|${x}`;
+}
+
+/**
+ * Create a pending friend request from `requester` to `addressee`.
+ * Throws errors with .code: FRIEND_SELF | FRIEND_NOT_FOUND | FRIEND_EXISTS
+ * (FRIEND_EXISTS also covers the reverse-direction pending request).
+ */
+async function sendFriendRequest(requester, addressee) {
+  if (String(requester).toLowerCase() === String(addressee).toLowerCase()) {
+    throw friendError('FRIEND_SELF');
+  }
+  const target = await getUserByUsername(addressee);
+  if (!target) throw friendError('FRIEND_NOT_FOUND');
+  const now = Date.now();
+  try {
+    await pool.query(
+      `INSERT INTO friendships (requester, addressee, pair_key, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'pending', $4, $4)`,
+      [requester, target.username, pairKey(requester, target.username), now]
+    );
+  } catch (e) {
+    if (e.code === '23505') throw friendError('FRIEND_EXISTS');
+    throw e;
+  }
+  return { username: target.username };
+}
+
+/**
+ * Respond to a pending request. `addressee` is the player answering; the
+ * pending request must have been sent TO them BY `requester`.
+ * Throws errors with .code: FRIEND_NO_REQUEST
+ */
+async function respondFriendRequest(addressee, requester, accept) {
+  const { rows } = await pool.query(
+    'SELECT * FROM friendships WHERE pair_key = $1 AND status = $2',
+    [pairKey(requester, addressee), 'pending']
+  );
+  const row = rows[0] || null;
+  // Only the request's addressee may accept/decline it.
+  if (!row || row.addressee.toLowerCase() !== String(addressee).toLowerCase()) {
+    throw friendError('FRIEND_NO_REQUEST');
+  }
+  if (accept) {
+    await pool.query(
+      'UPDATE friendships SET status = $1, updated_at = $2 WHERE id = $3',
+      ['accepted', Date.now(), row.id]
+    );
+  } else {
+    await pool.query('DELETE FROM friendships WHERE id = $1', [row.id]);
+  }
+  return { username: row.requester };
+}
+
+/**
+ * All friendships touching `username`, split into accepted friends,
+ * incoming pending requests, and outgoing pending requests.
+ * Returns { friends: [username], incoming: [username], outgoing: [username] }.
+ */
+async function getFriendshipData(username) {
+  const { rows } = await pool.query(
+    `SELECT requester, addressee, status FROM friendships
+     WHERE LOWER(requester) = LOWER($1) OR LOWER(addressee) = LOWER($1)`,
+    [username]
+  );
+  const me = String(username).toLowerCase();
+  const friends = [];
+  const incoming = [];
+  const outgoing = [];
+  for (const r of rows) {
+    const other = String(r.requester).toLowerCase() === me ? r.addressee : r.requester;
+    if (r.status === 'accepted') friends.push(other);
+    else if (String(r.addressee).toLowerCase() === me) incoming.push(r.requester);
+    else outgoing.push(r.addressee);
+  }
+  return { friends, incoming, outgoing };
+}
+
+/** Lightweight profile cards for a friend list. */
+async function getFriendProfiles(usernames) {
+  if (!usernames.length) return [];
+  const conds = usernames.map((_, i) => `LOWER(u.username) = LOWER($${i + 1})`);
+  const { rows } = await pool.query(
+    `SELECT u.username, u.last_active, ps.level, ps.stage, ps.state_json
+     FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
+     WHERE ${conds.join(' OR ')}`,
+    usernames
+  );
+  return rows.map((r) => {
+    let playerClass = null;
+    let race = null;
+    try {
+      const blob = JSON.parse(r.state_json || '{}');
+      if (blob && typeof blob.playerClass === 'string') playerClass = blob.playerClass;
+      if (blob && typeof blob.race === 'string') race = blob.race;
+    } catch { /* leave null */ }
+    return {
+      username: r.username,
+      level: r.level == null ? 1 : r.level,
+      stage: r.stage == null ? 1 : r.stage,
+      playerClass,
+      race,
+      lastActive: Number(r.last_active) || 0,
+    };
+  });
+}
+
+/**
+ * Remove a friendship (or pending request) between two players, either direction.
+ * Throws errors with .code: FRIEND_NOT_FOUND
+ */
+async function removeFriend(username, other) {
+  const { rowCount } = await pool.query(
+    'DELETE FROM friendships WHERE pair_key = $1',
+    [pairKey(username, other)]
+  );
+  if (!rowCount) throw friendError('FRIEND_NOT_FOUND');
+}
+
+/** Relationship of `me` to `other`: 'self' | 'friends' | 'incoming' | 'outgoing' | 'none'. */
+async function friendshipStatus(me, other) {
+  if (String(me).toLowerCase() === String(other).toLowerCase()) return 'self';
+  const { rows } = await pool.query(
+    'SELECT requester, addressee, status FROM friendships WHERE pair_key = $1',
+    [pairKey(me, other)]
+  );
+  const r = rows[0];
+  if (!r) return 'none';
+  if (r.status === 'accepted') return 'friends';
+  return String(r.requester).toLowerCase() === String(me).toLowerCase() ? 'outgoing' : 'incoming';
+}
+
+/**
+ * Refresh a user's last_active, throttled to once per minute (the WHERE
+ * clause makes it a no-op read most of the time). Called from requireAuth.
+ */
+async function touchLastActive(userId) {
+  const now = Date.now();
+  await pool.query(
+    'UPDATE users SET last_active = $1 WHERE id = $2 AND last_active < $3',
+    [now, userId, now - 60000]
+  );
 }

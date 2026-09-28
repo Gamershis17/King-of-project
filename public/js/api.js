@@ -55,6 +55,15 @@ export const api = {
   // Leaderboard (no auth required)
   leaderboard: () => request('/api/leaderboard'),
 
+  // Player inspect (public gameplay profile)
+  inspectPlayer: (username) => request('/api/player/' + encodeURIComponent(username) + '/inspect'),
+
+  // Friends (auth required)
+  getFriends: () => request('/api/friends'),
+  friendRequest: (username) => post('/api/friends/request', { username }),
+  friendRespond: (username, accept) => post('/api/friends/respond', { username, accept }),
+  removeFriend: (username) => request('/api/friends/' + encodeURIComponent(username), { method: 'DELETE' }),
+
   // Gift codes
   redeem: (code) => post('/api/redeem', { code }),
 
