@@ -497,6 +497,8 @@ export function ensureState(raw) {
   if (typeof s.activeTitle !== 'string' || !s.activeTitle) s.activeTitle = s.titlesUnlocked[0];
   if (typeof s.badge !== 'string' || !BADGE_BY_ID[s.badge]) s.badge = null; // unknown badges cleared
   if (typeof s.country !== 'string' || !isValidCountry(s.country)) s.country = null;
+  // Guide-chain progress flags (e.g. tabs visited for the onboarding quests).
+  if (!s.guideTabs || typeof s.guideTabs !== 'object') s.guideTabs = {};
   // Custom button/background styles; unknown values reset to default.
   if (!BTN_STYLE_IDS.includes(s.btnStyle)) s.btnStyle = 'default';
   if (!BG_STYLE_IDS.includes(s.bgStyle)) s.bgStyle = 'default';
@@ -592,7 +594,7 @@ export const rebirthXpMult = (rebirthCount) =>
   Math.pow(1.35, Math.min(MAX_EFFECTIVE_REBIRTHS, Math.max(0, Math.floor(rebirthCount || 0))));
 export const xpForLevel = (level, rebirthCount = 0) =>
   Math.max(1, Math.round(xpForLevelBase(level) * rebirthXpMult(rebirthCount)));
-export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.12, stage)));
+export const xpForKill = (stage) => Math.max(1, Math.round(8 * Math.pow(1.12, stage)));
 // Deducts gold for a purchase. Returns false when the player can't afford
 // it. Infinite-gold perk holders never pay.
 export function spendGold(s, cost) {
@@ -772,11 +774,58 @@ export const STORY_QUEST_DEFS = [
     emoji: '👑', name: 'True Master',
     metric: 'mastery:any', kind: 'reach', target: 10,
     desc: (t) => `Reach Mastery ${t} on any skill` },
+  // ---------------- Guided onboarding chain ----------------
+  // One-time quests that introduce the game's systems one at a time, in the
+  // order a new player should meet them. Each step unlocks only after the
+  // previous one is claimed (see `requires` + storyQuestLockedReason).
+  { id: 'q-guide-1', group: 'guide',
+    emoji: '🗡️', name: 'First Blood',
+    metric: 'kills', kind: 'gain', target: 1,
+    desc: () => `Defeat 1 enemy (Battle tab)` },
+  { id: 'q-guide-2', group: 'guide', requires: 'q-guide-1',
+    emoji: '⛏️', name: 'Delve Deeper',
+    metric: 'mine', kind: 'gain', target: 10,
+    desc: (t) => `Mine ${t} ore (Mine tab)` },
+  { id: 'q-guide-3', group: 'guide', requires: 'q-guide-2',
+    emoji: '🐾', name: 'Loyal Companion',
+    metric: 'pets', kind: 'gain', target: 1,
+    desc: () => `Hatch or tame a pet (Party → Pets — try the cheap Stray Egg!)` },
+  { id: 'q-guide-4', group: 'guide', requires: 'q-guide-3',
+    emoji: '🔨', name: 'Forge Ahead',
+    metric: 'forge', kind: 'gain', target: 1,
+    desc: () => `Forge a Galaxy item or enchant any gear to +1 (Gear tab)` },
+  { id: 'q-guide-5', group: 'guide', requires: 'q-guide-4',
+    emoji: '🏰', name: 'Strength in Numbers',
+    metric: 'guild', kind: 'reach', target: 1,
+    desc: () => `Visit the Guilds tab (join one for perks!)` },
+  { id: 'q-guide-6', group: 'guide', requires: 'q-guide-5',
+    emoji: '👑', name: 'Make a Name',
+    metric: 'title', kind: 'reach', target: 1,
+    desc: () => `Equip a title (Titles tab)` },
+  { id: 'q-guide-7', group: 'guide', requires: 'q-guide-6',
+    emoji: '🌿', name: 'Specialize',
+    metric: 'profession', kind: 'reach', target: 1,
+    desc: () => `Invest a point in a profession (Settings → Professions)` },
+  { id: 'q-guide-8', group: 'guide', requires: 'q-guide-7',
+    emoji: '📜', name: 'Daily Grind',
+    metric: 'questsCompleted', kind: 'gain', target: 1,
+    desc: () => `Complete any daily or weekly quest — you're on your own now!` },
 ];
 
 export function storyQuestVisible(state, def) {
   if (def.group === 'class' && (!state || state.playerClass !== def.classId)) return false;
   return true;
+}
+
+// Sequential gating for the guided onboarding chain: a quest with
+// `requires` stays locked until the named quest is claimed.
+export function storyQuestLockedReason(state, def) {
+  if (!def || !def.requires) return null;
+  const prev = STORY_QUEST_DEFS.find((d) => d.id === def.requires);
+  const entry = (state && state.quests && Array.isArray(state.quests.story))
+    ? state.quests.story.find((e) => e.id === def.requires) : null;
+  if (entry && entry.claimed) return null;
+  return `Complete “${prev ? prev.name : def.requires}” first`;
 }
 
 // Creates missing story entries once (with baseline snapshots for 'gain'
@@ -821,6 +870,25 @@ function questMetric(state, metric) {
     case 'level': return state.level || 1;
     case 'raid': return (state.raid && state.raid.best) || 0;
     case 'fireballUses': return skillUses(state, 'fireball');
+    case 'mine': return ((state.mine || {}).totalMined) || 0;
+    case 'pets': return (state.pets && Array.isArray(state.pets.collection)) ? state.pets.collection.length : 0;
+    case 'guild': return (state.guideTabs && state.guideTabs.guild) ? 1 : 0;
+    case 'questsCompleted': return (state.stats && state.stats.questsCompleted) || 0;
+    case 'title': return (state.activeTitle && state.activeTitle !== 'wanderer') ? 1 : 0;
+    case 'profession': {
+      const prof = state.professions || {};
+      return Math.max(1, ...Object.values(prof).map((v) => Number(v) || 1)) > 1 ? 1 : 0;
+    }
+    case 'forge': {
+      const f = state.forge || {};
+      let n = (f.weapon ? 1 : 0) + (f.armor ? 1 : 0);
+      // Enchanting any gear to +1 also counts as "forging ahead".
+      const slots = state.equipped || {};
+      const inv = Array.isArray(state.inventory) ? state.inventory : [];
+      const items = [...Object.values(slots), ...inv];
+      if (items.some((it) => it && Number(it.enchant) > 0)) n += 1;
+      return n;
+    }
     default: return 0;
   }
 }
@@ -923,6 +991,8 @@ export function claimQuest(state, period, id, nowMs = Date.now()) {
   if (period === 'story') {
     const def = STORY_QUEST_DEFS.find((d) => d.id === id);
     if (!def || !storyQuestVisible(state, def)) return { ok: false };
+    // Guided chain: a step can't be claimed before its prerequisite.
+    if (storyQuestLockedReason(state, def)) return { ok: false };
   }
   entry.claimed = true;
   const rw = questRewardPreview(state, period);
@@ -934,27 +1004,65 @@ export function claimQuest(state, period, id, nowMs = Date.now()) {
   return { ok: true, rewards: rw, levels: xpRes.levels, skills: xpRes.skills };
 }
 
-// ---------------- Enemies ----------------
-const ENEMY_NAMES = [
-  'Gloomfang Wolf', 'Moss Troll', 'Cave Stalker', 'Ember Imp',
-  'Stone Sentinel', 'Plague Rat', 'Dark Acolyte', 'Ridgeback Boar',
-  'Frost Wisp', 'Sand Reaver', 'Bone Archer', 'Crimson Slime',
-  'Grave Hound', 'Thorn Lurker', 'Ash Serpent', 'Mire Shambler',
-  'Hollow Bat', 'Rune Scarab', 'Dusk Panther', 'Cinder Sprite',
+// ---------------- Worlds ----------------
+// Battle areas unlocked at stage thresholds. Each world has its own enemy
+// roster, boss roster, tagline, and ambient background scene. Enemy STATS
+// still scale purely with stage (see enemyFor) — worlds change who you fight
+// and the art direction, never the numbers (balance-neutral by design).
+const _E = (name, emoji) => ({ name, emoji });
+export const WORLDS = [
+  { id: 'gloomwood', name: 'Gloomwood', emoji: '🌲', minStage: 1,
+    bgScene: 'shadow-eyes', tagline: 'Where the dark first learned to hunt.',
+    enemies: [
+      _E('Gloomfang Wolf', '🐺'), _E('Moss Troll', '🧌'), _E('Cave Stalker', '🥷'),
+      _E('Ridgeback Boar', '🐗'), _E('Thorn Lurker', '🦔'), _E('Dusk Panther', '🐆'),
+      _E('Hollow Bat', '🦇'), _E('Plague Rat', '🐀'), _E('Frost Wisp', '👻'),
+      _E('Grave Hound', '🐕'),
+    ],
+    bosses: [ _E('Warlord Ghash', '👹'), _E('Broodmother Xix', '🕷️'),
+      _E('The Briar Tyrant', '🌳'), _E('Duskmaw the Render', '🐺'),
+      _E('The Hollow Druid', '🧙'), _E('Carrion Queen Vess', '🦅'),
+      _E('Thornback Colossus', '🦏'), _E('The Weeping Treant', '🌲') ] },
+  { id: 'ember-wastes', name: 'Ember Wastes', emoji: '🔥', minStage: 100,
+    bgScene: 'ember-drift', tagline: 'Ash falls like snow. Nothing here forgives.',
+    enemies: [
+      _E('Ember Imp', '👺'), _E('Cinder Sprite', '🔥'), _E('Ash Serpent', '🐍'),
+      _E('Crimson Slime', '🩸'), _E('Sand Reaver', '🦂'), _E('Rune Scarab', '🪲'),
+      _E('Stone Sentinel', '🗿'), _E('Mire Shambler', '🧟'), _E('Dark Acolyte', '🧙'),
+      _E('Bone Archer', '💀'),
+    ],
+    bosses: [ _E('Ancient Wyrm Vex', '🐉'), _E('Dreadlord Malachar', '😈'),
+      _E('The Cinder Matriarch', '🔥'), _E('Ashfall Behemoth', '🦣'),
+      _E('Pyrelord Ignix', '👺'), _E('The Obsidian Golem', '🗿'),
+      _E('Searwing Terror', '🦇'), _E('The Scorched Prophet', '🧙') ] },
+  { id: 'void-abyss', name: 'The Void Abyss', emoji: '🌀', minStage: 250,
+    bgScene: 'void-tide', tagline: 'Below the world, the dark dreams of you.',
+    enemies: [
+      _E('Void Stalker', '🌀'), _E('Abyss Maw', '👁️'), _E('Null Wraith', '🌫️'),
+      _E('Rift Horror', '🕳️'), _E('Umbral Knight', '⚔️'), _E('Nether Wisp', '💫'),
+      _E('Gloom Devourer', '🧛'), _E('Duskrend Hound', '🐕‍🦺'),
+    ],
+    bosses: [ _E('Voidlord Zerath', '🌌'), _E('The Starless One', '🌑'),
+      _E('Riftmother Nyx', '🕳️'), _E('The Unraveled King', '👑'),
+      _E('Duskmother Vhara', '🧛'), _E('The Silent Maw', '👁️'),
+      _E('Nulltide Leviathan', '🐋'), _E('The Fractured Saint', '💫') ] },
+  { id: 'throne-of-shadows', name: 'Throne of Shadows', emoji: '👑', minStage: 500,
+    bgScene: 'throne-storm', tagline: 'Kneel. The Throne is waiting.',
+    enemies: [
+      _E('Shadow Acolyte', '🌒'), _E('Throne Guard', '🛡️'), _E('Nightmare Spawn', '😱'),
+      _E('Umbral Assassin', '🎭'), _E('Dread Herald', '📯'), _E('Soul Reaver', '🪦'),
+      _E('Dread Leech', '🪱'), _E('Gloom Herald', '🌚'),
+    ],
+    bosses: [ _E('The Hollow King', '👑'), _E('The Shadow Sovereign', '🖤'),
+      _E('The Gloom Empress', '👸'), _E('Dread Inquisitor Morvain', '⚔️'),
+      _E('The Pale Chancellor', '🎭'), _E('Nightmare Herald Xhul', '😱'),
+      _E('The Thronebreaker', '🛡️'), _E('Umbral Pontiff Vexar', '🌚') ] },
 ];
-const BOSS_NAMES = [
-  'Warlord Ghash', 'The Hollow King', 'Broodmother Xix',
-  'Ancient Wyrm Vex', 'Dreadlord Malachar', 'The Starless One',
-];
-const ENEMY_ICONS = {
-  'Gloomfang Wolf': '🐺', 'Moss Troll': '🧌', 'Cave Stalker': '🥷', 'Ember Imp': '👺',
-  'Stone Sentinel': '🗿', 'Plague Rat': '🐀', 'Dark Acolyte': '🧙', 'Ridgeback Boar': '🐗',
-  'Frost Wisp': '👻', 'Sand Reaver': '🦂', 'Bone Archer': '💀', 'Crimson Slime': '🩸',
-  'Grave Hound': '🐕', 'Thorn Lurker': '🦔', 'Ash Serpent': '🐍', 'Mire Shambler': '🧟',
-  'Hollow Bat': '🦇', 'Rune Scarab': '🪲', 'Dusk Panther': '🐆', 'Cinder Sprite': '🔥',
-  'Warlord Ghash': '👹', 'The Hollow King': '👑', 'Broodmother Xix': '🕷️',
-  'Ancient Wyrm Vex': '🐉', 'Dreadlord Malachar': '😈', 'The Starless One': '🌑',
-};
+export function worldForStage(stage) {
+  let w = WORLDS[0];
+  for (const cand of WORLDS) if ((stage || 1) >= cand.minStage) w = cand;
+  return w;
+}
 
 export const isBossStage = (stage) => stage % 10 === 0;
 
@@ -963,9 +1071,15 @@ export const isBossStage = (stage) => stage % 10 === 0;
 // damage is tuned "around your level" when player stats are provided.
 export function enemyFor(stage, playerStats = null) {
   const boss = isBossStage(stage);
-  const hp = Math.round(18 * Math.pow(1.13, stage) * (boss ? 1 : 0.6));
+  const world = worldForStage(stage);
+  const hp = Math.round(18 * Math.pow(1.125, stage) * (boss ? 1 : 0.6));
   const atk = Math.round(4 * Math.pow(1.085, stage));
-  const name = boss ? pick(BOSS_NAMES) : pick(ENEMY_NAMES);
+  const roster = boss ? world.bosses : world.enemies;
+  // Boss identity is deterministic per stage: the announced boss and the
+  // spawned boss can never disagree, even when a death-respawn or a delayed
+  // spawn re-rolls the same stage. Normal enemies stay random for variety.
+  const roll = boss ? mulberry32(((stage * 2654435761) >>> 0))() : Math.random();
+  const foe = roster[Math.floor(roll * roster.length)] || { name: 'Shade', emoji: '👹' };
   let attack = boss ? Math.round(atk * 1.35) : atk;
   if (boss && playerStats && playerStats.maxHp > 0) {
     // Bosses hit around your level: after your defense, a clean hit lands
@@ -976,12 +1090,13 @@ export function enemyFor(stage, playerStats = null) {
     attack = Math.max(1, Math.round(Math.min(Math.max(attack, lo), hi)));
   }
   return {
-    name,
+    name: foe.name,
     stage, boss,
     hp: boss ? Math.round(hp * 2.5) : hp,
     maxHp: boss ? Math.round(hp * 2.5) : hp,
     attack,
-    emoji: ENEMY_ICONS[name] || '👹',
+    emoji: foe.emoji,
+    world: world.id,
   };
 }
 
@@ -1129,9 +1244,9 @@ const SUFFIX = {
   regen: 'of Renewal', goldBonus: 'of Greed', xpBonus: 'of Wisdom',
 };
 const STAT_GEN = {
-  attack:      (m, s) => Math.max(1, Math.round((2 + s * 0.9) * m)),
-  defense:     (m, s) => Math.max(1, Math.round((1 + s * 0.55) * m)),
-  maxHp:       (m, s) => Math.max(5, Math.round((12 + s * 5) * m)),
+  attack:      (m, s) => Math.max(1, Math.round((2 + s * 1.0) * m)),
+  defense:     (m, s) => Math.max(1, Math.round((1 + s * 0.6) * m)),
+  maxHp:       (m, s) => Math.max(5, Math.round((12 + s * 5.5) * m)),
   critChance:  (m) => round1(1 + m * 0.9),
   critDamage:  (m) => Math.round(4 + m * 6),
   parry:       (m) => round1(0.5 + m * 0.7),
@@ -1435,8 +1550,32 @@ export const PET_SPECIES = {
                  baseStats: { atk: 22, def: 5,  hp: 65  }, bond: { atk: 3, def: 1, hp: 12 } },
   tideturtle:  { name: 'Tide Turtle',  emoji: '🐢', rarity: 'legendary', weight: 5,  baseDmg: 38, growth: 1.19,
                  baseStats: { atk: 20, def: 12, hp: 120 }, bond: { atk: 1, def: 3, hp: 40 } },
+  // Mythic line — hatchable from Mythic Eggs (rarely from wild eggs). Stronger
+  // than anything below; priced to match (see EGG_TIERS).
+  stormdrake:   { name: 'Storm Drake',  emoji: '🐉', rarity: 'mythic',    weight: 2,   baseDmg: 46, growth: 1.20,
+                 flavor: 'A young drake — every wingbeat smells of ozone and war.', style: 'Majestic · soaring strikes',
+                 baseStats: { atk: 40, def: 10, hp: 100 }, bond: { atk: 3, def: 2, hp: 30 } },
+  prismhorn:    { name: 'Prismhorn',    emoji: '🦄', rarity: 'mythic',    weight: 1,   baseDmg: 52, growth: 1.21,
+                 flavor: 'Its horn refracts the last light of dying stars.', style: 'Radiant · piercing strikes',
+                 baseStats: { atk: 46, def: 12, hp: 110 }, bond: { atk: 4, def: 2, hp: 30 } },
+  // Shadow line — Throne of Shadows natives, hatchable from Shadow Eggs
+  // (rarely from wild eggs). Dark, loyal, and hungry for the light.
+  shadowwisp:   { name: 'Shadow Wisp',  emoji: '👻', rarity: 'shadow',    weight: 2,   baseDmg: 42, growth: 1.20,
+                 flavor: 'A whisper of the dark — it drinks the light around it.', style: 'Eerie · chilling strikes',
+                 baseStats: { atk: 30, def: 10, hp: 95  }, bond: { atk: 2, def: 2, hp: 30 } },
+  gloomstalker: { name: 'Gloomstalker', emoji: '🐈‍⬛', rarity: 'shadow',   weight: 1.5, baseDmg: 48, growth: 1.20,
+                 flavor: 'You never see it move. You only see what it leaves behind.', style: 'Silent · ruthless strikes',
+                 baseStats: { atk: 36, def: 9,  hp: 90  }, bond: { atk: 3, def: 1, hp: 25 } },
+  voidreaver:   { name: 'Void Reaver',  emoji: '💀', rarity: 'shadow',    weight: 1,   baseDmg: 56, growth: 1.21,
+                 flavor: 'It remembers every throne that fell — and how.', style: 'Dread · devastating strikes',
+                 baseStats: { atk: 44, def: 12, hp: 110 }, bond: { atk: 3, def: 2, hp: 35 } },
   // Hunter starter beasts (not hatchable from eggs — starterOnly). Note: 🐺 is
   // taken by the Gloomfang Wolf enemy, so the wolf-ish slot uses 🦁 Lion.
+  // Budget starter: the Ash Mouse is Stray-Egg-only (weight 0 keeps it out
+  // of the wild-egg pool) — a cheap first pet for brand-new players.
+  ashmouse:   { name: 'Ash Mouse',   emoji: '🐁', rarity: 'common',    weight: 0,  baseDmg: 5,  growth: 1.12,
+                 flavor: 'Small, scrappy, and first into the fray. Every legend starts somewhere.', style: 'Scrappy · eager starter',
+                 baseStats: { atk: 5,  def: 2,  hp: 35  }, bond: { atk: 1, def: 1, hp: 10 } },
   tiger: { name: 'Tiger', emoji: '🐯', rarity: 'common', weight: 0, baseDmg: 14, growth: 1.16,
            starterOnly: true, flavor: 'A fierce striker — hits hardest from the very first hunt.', style: 'Fierce · high base damage',
            baseStats: { atk: 14, def: 4, hp: 60 }, bond: { atk: 3, def: 1, hp: 15 } },
@@ -1459,18 +1598,25 @@ export const PET_HUNGER_DECAY_SEC = 300; // -1 hunger per 5 min of active play
 export const EGG_TIERS = {
   wild:    { name: 'Wild Egg',    emoji: '🥚', price: 0,
              desc: 'Dropped by bosses — hatches any companion species.', pool: null },
+  stray:   { name: 'Stray Egg',   emoji: '🐣', price: 500,
+             desc: 'Hatches an Ash Mouse — small, scrappy, and cheap. Every legend starts somewhere.', pool: ['ashmouse'] },
   common:  { name: 'Common Egg',  emoji: '🐣', price: 5000,
              desc: 'Guaranteed Cinder Pup — a loyal, balanced starter.', pool: ['cinderpup'] },
   glowing: { name: 'Glowing Egg', emoji: '✨', price: 25000,
              desc: 'Hatches a Frost Sprite or Storm Hawk.', pool: ['frostsprite', 'stormhawk'] },
   radiant: { name: 'Radiant Egg', emoji: '💎', price: 100000,
              desc: 'Hatches an Ember Fox or Tide Turtle.', pool: ['emberfox', 'tideturtle'] },
+  mythic:  { name: 'Mythic Egg',  emoji: '🌟', price: 250000,
+             desc: 'Hatches a Storm Drake or Prismhorn — stronger than any lesser pet.', pool: ['stormdrake', 'prismhorn'] },
+  shadow:  { name: 'Shadow Egg',  emoji: '🌑', price: 500000,
+             desc: 'Hatches a Shadow Wisp, Gloomstalker, or Void Reaver — children of the dark.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver'] },
 };
-export const SHOP_EGG_TIERS = ['common', 'glowing', 'radiant'];
+export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow'];
 
 export function defaultPets() {
-  return { collection: [], activeUid: null, eggs: 0,
-           shopEggs: { common: 0, glowing: 0, radiant: 0 } };
+  const shopEggs = {};
+  for (const t of SHOP_EGG_TIERS) shopEggs[t] = 0;
+  return { collection: [], activeUid: null, eggs: 0, shopEggs };
 }
 
 // Normalizes s.pets in place and returns it.
@@ -1606,6 +1752,58 @@ export function feedPet(s, petUid) {
   pet.hunger = Math.min(100, pet.hunger + 35);
   return { ok: true, cost };
 }
+
+// ---------------- Sell pets ----------------
+// Sell price scales with rarity and level: rarity base × (1 + 15% per level
+// past 1). Respects the gold cap via addGold. Species flagged unsellable
+// (GM-only / special pets) can never be sold. Selling the active (or second)
+// pet reassigns the slot to the first remaining pet, or clears it.
+const PET_SELL_BASE = {
+  common: 800, magic: 2000, rare: 5000, epic: 15000,
+  legendary: 40000, mythic: 80000, shadow: 120000,
+};
+export function petSellPrice(pet) {
+  const sp = petSpeciesOf(pet);
+  if (!sp || sp.unsellable) return 0;
+  const base = PET_SELL_BASE[sp.rarity] || 800;
+  const lv = Math.max(1, Math.floor(pet.level) || 1);
+  return Math.max(1, Math.round(base * (1 + 0.15 * (lv - 1))));
+}
+export function canSellPet(pet) {
+  const sp = petSpeciesOf(pet);
+  return !!(pet && sp && !sp.unsellable);
+}
+// Sells a pet for gold. Returns {ok, gold, name, reason}.
+export function sellPet(s, petUid) {
+  const p = ensurePets(s);
+  const idx = p.collection.findIndex(x => x.uid === petUid);
+  if (idx < 0) return { ok: false, reason: 'not-found' };
+  const pet = p.collection[idx];
+  if (!canSellPet(pet)) return { ok: false, reason: 'unsellable' };
+  const price = petSellPrice(pet);
+  const name = (petSpeciesOf(pet) || {}).name || 'Pet';
+  p.collection.splice(idx, 1);
+  if (p.activeUid === petUid) {
+    const next = p.collection[0] || null;
+    p.activeUid = next ? next.uid : null;
+  }
+  if (p.secondUid === petUid) {
+    const next = p.collection.find(x => x.uid !== p.activeUid) || null;
+    p.secondUid = next ? next.uid : null;
+  }
+  const gained = addGold(s, price);
+  return { ok: true, gold: gained, name, capped: gained < price };
+}
+
+// ---------------- Coming-soon teasers ----------------
+// Visible but unobtainable: Starlight pets and shadow demons are teased in
+// the Pet Shop as locked entries. NOT a Seasons system — just static teasers.
+export const PET_TEASERS = [
+  { id: 'starlight', name: 'Starlight pets', emoji: '🌠',
+    desc: 'Celestial companions wreathed in starlight. Arriving in a future update.' },
+  { id: 'shadow-demons', name: 'Shadow demons', emoji: '😈',
+    desc: 'True demons of the Throne — not yet ready to be tamed.' },
+];
 
 // A pet's own stats: base × growth^(level-1). Display only — bond is separate.
 export function petStats(pet) {

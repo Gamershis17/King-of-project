@@ -72,8 +72,8 @@ async function main() {
   });
 
   console.log('== kill xp nerf ==');
-  check('xpForKill uses 1.12 base', () => {
-    assert.strictEqual(E.xpForKill(1), Math.round(10 * 1.12));
+  check('xpForKill uses 8 x 1.12^stage (v13)', () => {
+    assert.strictEqual(E.xpForKill(1), Math.round(8 * 1.12));
   });
   check('xpForKill(148) nerfed below 1B (was ~9.6B)', () => {
     assert.ok(E.xpForKill(148) < 1e9, `got ${E.xpForKill(148)}`);

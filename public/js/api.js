@@ -54,6 +54,8 @@ export const api = {
 
   // Leaderboard (no auth required)
   leaderboard: () => request('/api/leaderboard'),
+  // Guild rankings (no auth required)
+  guildRankings: () => request('/api/guilds/rankings'),
 
   // Gift codes
   redeem: (code) => post('/api/redeem', { code }),

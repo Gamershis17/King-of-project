@@ -83,6 +83,8 @@ export const UI = {
     { id: 'shadow-eyes', name: 'Shadow Eyes', css: 'radial-gradient(circle at 50% 45%, #2a1540, #050308 70%)', animated: true },
     { id: 'orbs',        name: 'Orbs',        css: 'radial-gradient(circle at 30% 30%, #3b2a7a, #0a0812 75%)', animated: true },
     { id: 'ember-drift', name: 'Ember Drift', css: 'radial-gradient(circle at 50% 100%, #5e1f1a, #0d0505 75%)', animated: true },
+    { id: 'void-tide',   name: 'Void Tide',   css: 'radial-gradient(circle at 50% 40%, #1d1040, #060310 72%)', animated: true },
+    { id: 'throne-storm', name: 'Throne Storm', css: 'radial-gradient(circle at 50% 30%, #2a0d16, #080304 72%)', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -98,7 +100,7 @@ export const UI = {
     { id: 'royal-gold',  name: 'Royal Gold',  colors: ['#ffd63f', '#f59e0b', '#fff7cc'] },
   ],
   DEFAULT_ORB_COLORS: ['#a855f7', '#7c3aed', '#22d3ee'],
-  BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift'],
+  BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm'],
 
   // ---------------- init ----------------
   init() {
@@ -119,11 +121,11 @@ export const UI = {
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
-      'quest-daily', 'quest-weekly', 'quest-class', 'quest-mastery',
-      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
+      'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
+      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
       'stats-card', 'titles-list',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
-      'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-notif-level', 'set-notif-death',
+      'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
@@ -131,6 +133,7 @@ export const UI = {
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
       'mine-pickaxe', 'mine-stats',
+      'pause-pill',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
@@ -241,11 +244,40 @@ export const UI = {
       if (btn.dataset.action === 'set-second-pet' && h.onSetSecondPet) h.onSetSecondPet(btn.dataset.id);
       if (btn.dataset.action === 'remove-second-pet' && h.onRemoveSecondPet) h.onRemoveSecondPet();
       if (btn.dataset.action === 'buy-egg' && h.onBuyEgg) h.onBuyEgg(btn.dataset.tier);
+      // Sell pet: two-step confirm. First tap arms the button ("Tap again to
+      // confirm"); the second tap (within 6s) fires the sale.
+      if (btn.dataset.action === 'sell-pet' && h.onSellPet) {
+        if (btn.dataset.armed === '1') {
+          delete btn.dataset.armed;
+          btn.classList.remove('armed');
+          h.onSellPet(btn.dataset.id);
+        } else {
+          btn.dataset.armed = '1';
+          btn.classList.add('armed');
+          const label = btn.querySelector('.sell-label');
+          if (label) label.textContent = 'Tap again to confirm';
+          clearTimeout(btn._sellTimer);
+          btn._sellTimer = setTimeout(() => {
+            delete btn.dataset.armed;
+            btn.classList.remove('armed');
+            const l = btn.querySelector('.sell-label');
+            if (l && btn.isConnected) l.textContent = btn.dataset.sellText || 'Sell';
+          }, 6000);
+        }
+      }
     });
 
     // Ranks refresh
     listen('lb-refresh', 'click', () => {
       this.handlers.onTab && this.handlers.onTab('ranks', true);
+    });
+
+    // Leaderboard category pills (Heroes / Guilds)
+    listen('lb-cats', 'click', (e) => {
+      const btn = e.target.closest('button[data-lbcat]');
+      if (!btn || btn.disabled) return;
+      this.setRanksCategory(btn.dataset.lbcat);
+      this.handlers.onRanksCategory && this.handlers.onRanksCategory(btn.dataset.lbcat);
     });
 
     // Settings tab: delegated talent / profession buttons
@@ -312,6 +344,9 @@ export const UI = {
     // localStorage — app.js syncs the checkboxes via applyAudioPrefs().
     listen('set-sfx', 'change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
     listen('set-music', 'change', (e) => this.handlers.onMusic && this.handlers.onMusic(e.target.checked));
+    // Music track picker + world-follow toggle (Settings).
+    listen('set-music-track', 'change', (e) => this.handlers.onMusicTrack && this.handlers.onMusicTrack(e.target.value));
+    listen('set-follow-world', 'change', (e) => this.handlers.onFollowWorld && this.handlers.onFollowWorld(e.target.checked));
     // Notification toggles (Settings → Notifications): delegate to the app,
     // which persists them on the game state save.
     for (const cat of ['level', 'death', 'loot', 'quest']) {
@@ -371,7 +406,7 @@ export const UI = {
 
   showTab(name) {
     this.activeTab = name;
-    if (name !== 'quests') this._stopQuestCountdowns();
+    if (name !== 'quests') { this._stopQuestCountdowns(); this._stopQuestSync(); }
     // Leaving the inn by any route (e.g. tab bar) stops its glow loop;
     // enterInn() restarts it after switching to the inn tab.
     if (name !== 'inn') this.stopInnGlow();
@@ -521,9 +556,37 @@ export const UI = {
     }
   },
 
+  // Syncs the Settings music track picker + world-follow checkbox to the save.
+  syncMusicPrefs(p) {
+    const sel = this.els['set-music-track'];
+    if (sel) {
+      const names = (Audio.MUSIC_TRACK_NAMES) || {};
+      const ids = Audio.MUSIC_TRACKS || [];
+      sel.innerHTML = ids.map((id) => `<option value="${id}">${esc(names[id] || id)}</option>`).join('');
+      sel.value = (p && p.track) || ids[0] || '';
+    }
+    const fw = this.els['set-follow-world'];
+    if (fw) fw.checked = !p || p.followWorld !== false;
+  },
+
+  // ---------------- pause-while-browsing ----------------
+  // True while any full-screen modal (boss intro, changelog, confirms…)
+  // sits on top of the game. Null-safe: never throws during boot.
+  anyModalOpen() {
+    const root = this.els['modal-root'];
+    return !!(root && root.children && root.children.length);
+  },
+
+  // Shows/hides the global "PAUSED — world frozen" pill. Called by app.js
+  // on pause transitions only.
+  setPaused(on) {
+    const el = this.els['pause-pill'] || document.getElementById('pause-pill');
+    if (el) el.classList.toggle('hidden', !on);
+  },
+
   // ---------------- modals ----------------
   // buttons: [{label, cls, onClick(close)}]; returns close fn.
-  modal({ title, html, buttons, dismissable = true }) {
+  modal({ title, html, buttons, dismissable = true, onClose = null }) {
     const root = this.els['modal-root'];
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
@@ -534,7 +597,14 @@ export const UI = {
         <div class="modal-actions"></div>
       </div>`;
     const actions = overlay.querySelector('.modal-actions');
-    const close = () => overlay.remove();
+    // Every close path funnels through here so onClose always fires once.
+    let closed = false;
+    const close = () => {
+      if (closed) return;
+      closed = true;
+      overlay.remove();
+      if (onClose) { try { onClose(); } catch { /* ignore */ } }
+    };
     for (const b of (buttons || [{ label: 'OK' }])) {
       const btn = document.createElement('button');
       btn.className = 'btn ' + (b.cls || '');
@@ -563,7 +633,14 @@ export const UI = {
     });
   },
 
+  // Level-up popups never stack: if one is already showing, later level-ups
+  // queue up and display one at a time as each modal closes.
+  _levelUpOpen: false,
+  _levelUpQueue: [],
   levelUpModal(levels) {
+    if (!levels || !levels.length) return;
+    if (this._levelUpOpen) { this._levelUpQueue.push(levels.slice()); return; }
+    this._levelUpOpen = true;
     const last = levels[levels.length - 1];
     try { Audio.play('levelup'); } catch { /* ignore */ }
     this.modal({
@@ -571,6 +648,11 @@ export const UI = {
       html: `<p class="big">You reached <b>level ${last}</b>${levels.length > 1 ? ` <span class="muted">(+${levels.length - 1} more)</span>` : ''}!</p>
              <p class="muted">+3 Attack · +25 Max HP · +2 Defense per level<br>Hero healed for 25% max HP.</p>`,
       buttons: [{ label: 'Nice!', cls: 'gold' }],
+      onClose: () => {
+        this._levelUpOpen = false;
+        const next = this._levelUpQueue.shift();
+        if (next && next.length) this.levelUpModal(next);
+      },
     });
   },
 
@@ -821,13 +903,13 @@ export const UI = {
     const e = this.els;
     // A fresh enemy never inherits the previous one's hit/death animation.
     e['enemy-card'].classList.remove('modern-hit', 'modern-death');
-    const zone = Engine.zoneFor(enemy.stage);
+    const world = Engine.worldForStage(enemy.stage);
     e['enemy-sprite'].textContent = enemy.emoji;
     e['enemy-name'].textContent = enemy.name;
     // Raid waves show the wave counter instead of the stage.
     e['enemy-stage'].textContent = enemy.raidWave
       ? `🌀 Raid — Wave ${enemy.raidWave}`
-      : `Stage ${enemy.stage} · ${zone.emoji} ${zone.name}`;
+      : `Stage ${enemy.stage} · ${world.emoji} ${world.name}`;
     e['boss-badge'].classList.toggle('hidden', !enemy.boss);
     e['enemy-card'].classList.toggle('boss', !!enemy.boss);
     e['enemy-atk'].textContent = `⚔️ ${formatNum(enemy.attack)} attack`;
@@ -1065,6 +1147,41 @@ export const UI = {
       B.sprites.emb = ['#ff6b35', '#f7c548', '#ef4444'].map((c) => this._glowSprite(c));
       for (let i = 0; i < 55; i++) B.parts.push(this._newEmber(W, H, true));
       B.grad = this._vGrad(['#0d0505', '#200b08', '#0d0505']);
+    } else if (id === 'void-tide') {
+      // The Void Abyss: slow violet rift-wisps drifting sideways + faint stars.
+      B.sprites.rift = ['#7c3aed', '#4c1d95', '#a855f7'].map((c) => this._glowSprite(c));
+      B.stars = [];
+      for (let i = 0; i < 14; i++) {
+        B.parts.push({
+          x: R(0, W), y: R(0.05, 0.95) * H, r: R(50, 130) * dpr,
+          vx: R(-7, 7) * dpr, si: (Math.random() * 3) | 0,
+          ph: R(0, 6.28), ps: R(0.25, 0.6), a: R(0.10, 0.22),
+        });
+      }
+      for (let i = 0; i < 46; i++) {
+        B.stars.push({ x: R(0, W), y: R(0, H), r: R(0.6, 1.8) * dpr, ph: R(0, 6.28), ps: R(0.5, 1.4) });
+      }
+      B.grad = this._vGrad(['#08040f', '#150b2a', '#08040f']);
+    } else if (id === 'throne-storm') {
+      // Throne of Shadows: drifting shadow shards, rising violet embers,
+      // and an occasional lightning flicker across the dark.
+      B.sprites.shard = ['#dc2626', '#7c3aed', '#991b1b'].map((c) => this._glowSprite(c));
+      for (let i = 0; i < 24; i++) {
+        B.parts.push({
+          kind: 'shard',
+          x: R(0, W), y: R(0, H), r: R(18, 60) * dpr,
+          vx: R(-12, 12) * dpr, vy: R(-10, 4) * dpr,
+          si: (Math.random() * 3) | 0, rot: R(0, 6.28), vr: R(-0.4, 0.4),
+          ph: R(0, 6.28), ps: R(0.4, 1.0), a: R(0.08, 0.18),
+        });
+      }
+      for (let i = 0; i < 26; i++) {
+        const e = this._newEmber(W, H, true);
+        e.kind = 'ember'; e.a = Math.min(1, e.a * 0.8);
+        B.parts.push(e);
+      }
+      B.flashAt = 0; B.flashUntil = 0; B.bolt = null;
+      B.grad = this._vGrad(['#0c0408', '#220a12', '#0c0408']);
     }
   },
   _drawBgFrame(t, isStatic) {
@@ -1114,6 +1231,82 @@ export const UI = {
         const d = p.s * 5;
         ctx.globalAlpha = p.a * fade;
         ctx.drawImage(B.sprites.emb[p.si], p.x - d / 2, p.y - d / 2, d, d);
+      }
+    } else if (B.scene === 'void-tide') {
+      // Faint twinkling stars behind slow-drifting violet rifts.
+      for (const s of (B.stars || [])) {
+        const tw = 0.35 + 0.65 * Math.abs(Math.sin(t / 1000 * s.ps + s.ph));
+        ctx.globalAlpha = 0.5 * tw;
+        ctx.fillStyle = '#e9e4ff';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, 6.2832);
+        ctx.fill();
+      }
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.x += p.vx * B.dt;
+          const m = p.r * 2;
+          if (p.x < -m) p.x = W + m; else if (p.x > W + m) p.x = -m;
+        }
+        const breathe = 0.7 + 0.3 * Math.sin(t / 1000 * p.ps + p.ph);
+        const d = p.r * 2 * breathe;
+        ctx.globalAlpha = p.a * breathe;
+        ctx.drawImage(B.sprites.rift[p.si], p.x - d / 2, p.y - d / 2, d, d);
+      }
+    } else if (B.scene === 'throne-storm') {
+      // Lightning: every 7–14s a bolt cracks and the gloom flashes.
+      if (!isStatic) {
+        if (!B.flashAt || t >= B.flashAt) {
+          B.flashUntil = t + 260;
+          B.flashAt = t + 7000 + Math.random() * 7000;
+          const bx = Math.random() * W;
+          const segs = [];
+          let y = -20, x = bx;
+          while (y < H * 0.75) { y += 40 + Math.random() * 60; x += (Math.random() - 0.5) * 90; segs.push([x, y]); }
+          B.bolt = { x0: bx, segs };
+        }
+      }
+      if (B.bolt && t < B.flashUntil) {
+        const k = 1 - (t - (B.flashUntil - 260)) / 260; // 1 → 0 decay
+        ctx.globalAlpha = 0.10 * k;
+        ctx.fillStyle = '#c4b5fd';
+        ctx.fillRect(0, 0, W, H);
+        ctx.globalAlpha = 0.75 * k;
+        ctx.strokeStyle = '#e9d5ff';
+        ctx.lineWidth = 2.5 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(B.bolt.x0, -20);
+        for (const [sx, sy] of B.bolt.segs) ctx.lineTo(sx, sy);
+        ctx.stroke();
+      }
+      for (const p of B.parts) {
+        if (p.kind === 'ember') {
+          if (!isStatic) {
+            p.y -= p.vy * B.dt;
+            p.x += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * B.dt;
+            if (p.y < -12) Object.assign(p, this._newEmber(W, H, false), { kind: 'ember' });
+          }
+          const fade = Math.min(1, Math.max(0, (H - p.y) / (H * 0.3))) * Math.min(1, Math.max(0, (p.y + 12) / 60));
+          if (fade <= 0.02) continue;
+          const d = p.s * 5;
+          ctx.globalAlpha = p.a * fade;
+          ctx.drawImage(B.sprites.shard[p.si], p.x - d / 2, p.y - d / 2, d, d);
+        } else {
+          if (!isStatic) {
+            p.x += p.vx * B.dt; p.y += p.vy * B.dt; p.rot += p.vr * B.dt;
+            const m = p.r * 2;
+            if (p.x < -m) p.x = W + m; else if (p.x > W + m) p.x = -m;
+            if (p.y < -m) p.y = H + m; else if (p.y > H + m) p.y = -m;
+          }
+          const breathe = 0.75 + 0.25 * Math.sin(t / 1000 * p.ps + p.ph);
+          const d = p.r * 2 * breathe;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.rot);
+          ctx.globalAlpha = p.a * breathe;
+          ctx.drawImage(B.sprites.shard[p.si], -d / 2, -d / 2, d, d);
+          ctx.restore();
+        }
       }
     }
     ctx.globalAlpha = 1;
@@ -1254,10 +1447,16 @@ export const UI = {
   // ---------------- damage meter ----------------
   _meterKey: null,
 
-  // snapshot: {rows: [{key,label,dps,total,pct}], totalDps}
+  // snapshot: {rows: [{key,label,dps,total,pct}], totalDps, stale?}
   renderMeter(snapshot) {
     const rowsEl = this.els['meter-rows'];
     if (!rowsEl) return;
+    // Stale = showing the last fight's numbers (e.g. after a one-tap kill).
+    const liveEl = document.getElementById('meter-live');
+    if (liveEl) {
+      liveEl.classList.toggle('stale', !!snapshot.stale);
+      liveEl.innerHTML = snapshot.stale ? '⏮ LAST FIGHT' : '<span class="live-dot"></span>LIVE';
+    }
     const key = (snapshot.rows || []).map(r => r.key).join('|');
     if (key !== this._meterKey) {
       // fighter set changed (new fight) — rebuild rows
@@ -1687,13 +1886,13 @@ export const UI = {
       const status = entry.claimed
         ? '<span class="quest-tag claimed">✓ Claimed</span>'
         : complete ? '<span class="quest-tag ready">Ready!</span>' : '';
-      return `<div class="card quest-card">
+      return `<div class="card quest-card" data-qcard="${period}:${entry.id}">
         <div class="quest-top"><span>${def.emoji} <b>${esc(def.name)}</b></span>${status}</div>
         <div class="muted small">${esc(def.desc(target))}</div>
         ${lockedHint ? `<div class="muted small">🔒 ${esc(lockedHint)}</div>` : ''}
-        <div class="quest-bar"><div class="quest-fill" style="width:${pct}%"></div></div>
+        <div class="quest-bar"><div class="quest-fill" data-qfill style="width:${pct}%"></div></div>
         <div class="quest-meta">
-          <span class="muted small">${formatNum(Math.min(progress, target))} / ${formatNum(target)}</span>
+          <span class="muted small" data-qtxt>${formatNum(Math.min(progress, target))} / ${formatNum(target)}</span>
           <span class="muted small">💰${formatNum(rw.gold)} ⭐${rw.stars}</span>
         </div>
         ${entry.claimed ? '' : complete
@@ -1726,18 +1925,83 @@ export const UI = {
           const entry = (state.quests.story || []).find((e) => e.id === def.id);
           if (!entry) return '';
           const { progress, target, complete } = Engine.storyQuestProgress(state, entry);
-          const lockedHint = def.requiresSkill && !(state.skills || []).includes(def.requiresSkill)
+          const skillHint = def.requiresSkill && !(state.skills || []).includes(def.requiresSkill)
             ? `Requires ${Engine.SKILLS[def.requiresSkill].name} (Lv ${Engine.SKILLS[def.requiresSkill].unlockLevel})` : null;
+          const chainHint = Engine.storyQuestLockedReason(state, def);
+          const lockedHint = skillHint || chainHint;
           return cardHtml('story', entry, progress, target, complete, def, rw, lockedHint);
         }).join('');
     };
     renderList('daily', 'quest-daily', '☀️ Daily quests', 'quest-daily-cd');
     renderList('weekly', 'quest-weekly', '📅 Weekly quests', 'quest-weekly-cd');
+    renderStoryList('guide', 'quest-guide', '🧭 New Adventurer Guide', 'one-time · step by step');
     renderStoryList('class', 'quest-class', '🔮 Class questline', 'mages only · one-time');
     renderStoryList('mastery', 'quest-mastery', '🎯 Skill mastery', 'one-time');
     // Start (and immediately populate) the live reset countdowns now that
     // the header spans exist.
     this._startQuestCountdowns();
+    // Sync progress immediately on open (no stale "0 / N" flash) and keep it
+    // ticking while the tab is visible so counters never look frozen.
+    this._syncQuestProgress(state, true);
+    this._startQuestSync(state);
+  },
+
+  // Live quest progress sync. Recomputes every visible quest card's bar and
+  // counter in place (no re-render, no scroll jump) and toasts the moment a
+  // quest flips to complete. `seed` just records current state without
+  // toasting (used right after a fresh render).
+  _questSyncTimer: null,
+  _questSeenComplete: null,
+  _stateProvider: null,
+  setStateProvider(fn) { this._stateProvider = fn; },
+  _getState() { return this._stateProvider ? this._stateProvider() : null; },
+  _startQuestSync(state) {
+    this._stopQuestSync();
+    this._questSyncTimer = setInterval(() => {
+      if (this.activeTab !== 'quests') return;
+      const s = this._getState();
+      if (!s) return;
+      this._syncQuestProgress(s, false);
+    }, 2000);
+  },
+  _stopQuestSync() {
+    if (this._questSyncTimer) { clearInterval(this._questSyncTimer); this._questSyncTimer = null; }
+  },
+  _syncQuestProgress(state, seed) {
+    if (!this._questSeenComplete) this._questSeenComplete = new Set();
+    const seen = this._questSeenComplete;
+    const check = (period, entry, progress, target, complete, def) => {
+      const key = `${period}:${entry.id}`;
+      const card = document.querySelector(`[data-qcard="${CSS.escape(key)}"]`);
+      if (card) {
+        const pct = target > 0 ? Math.min(100, Math.round((progress / target) * 100)) : 0;
+        const fill = card.querySelector('[data-qfill]');
+        const txt = card.querySelector('[data-qtxt]');
+        if (fill) fill.style.width = pct + '%';
+        if (txt) txt.textContent = `${formatNum(Math.min(progress, target))} / ${formatNum(target)}`;
+      }
+      if (complete && !entry.claimed && !seen.has(key)) {
+        seen.add(key);
+        if (!seed && def) {
+          this.notify('quest', `📜 Quest complete: ${def.name} — claim your reward!`, 'success');
+          // Re-render so the Claim button appears without reopening the tab.
+          try { this.renderQuests(state); } catch { /* ignore */ }
+        }
+      }
+    };
+    Engine.ensureQuests(state);
+    Engine.ensureStoryQuests(state);
+    for (const period of ['daily', 'weekly']) {
+      const list = period === 'weekly' ? state.quests.weekly : state.quests.daily;
+      for (const entry of (list || [])) {
+        const { progress, target, complete, def } = Engine.questProgress(state, entry);
+        if (def) check(period, entry, progress, target, complete, def);
+      }
+    }
+    for (const entry of (state.quests.story || [])) {
+      const { progress, target, complete, def } = Engine.storyQuestProgress(state, entry);
+      if (def) check('story', entry, progress, target, complete, def);
+    }
   },
 
   // ---------------- party ----------------
@@ -1810,7 +2074,7 @@ export const UI = {
       return `
         <div class="shop-card">
           <div class="shop-emoji">${t.emoji}</div>
-          <div class="shop-name">${esc(t.name)}</div>
+          <div class="shop-name">${esc(t.name)}${tier === 'stray' ? ' <span class="quest-tag ready">STARTER</span>' : ''}</div>
           <div class="muted small shop-desc">${esc(t.desc)}</div>
           ${owned > 0 ? `<div class="shop-owned">You own: <b>${owned}</b></div>` : ''}
           <button class="btn small" data-action="buy-egg" data-tier="${tier}" ${afford ? '' : 'disabled'}>
@@ -1823,6 +2087,23 @@ export const UI = {
         <span class="muted small">guaranteed rarity — bosses can drop wild eggs too</span></div>
       <div class="shop-grid">${cards}</div>`;
     panel.appendChild(shop);
+
+    // --- Coming-soon teasers (visible, locked, not obtainable) ---
+    if (Engine.PET_TEASERS && Engine.PET_TEASERS.length) {
+      const teasers = document.createElement('div');
+      teasers.className = 'pet-teasers';
+      teasers.innerHTML = `
+        <div class="shop-head"><span class="shop-title">🔮 Coming Soon</span>
+          <span class="muted small">not yet obtainable</span></div>
+        <div class="shop-grid">` + Engine.PET_TEASERS.map(t => `
+          <div class="shop-card teaser-card">
+            <div class="shop-emoji teaser-emoji">${t.emoji}</div>
+            <div class="shop-name">${esc(t.name)}</div>
+            <div class="muted small shop-desc">${esc(t.desc)}</div>
+            <span class="teaser-badge">🔒 COMING SOON</span>
+          </div>`).join('') + `</div>`;
+      panel.appendChild(teasers);
+    }
 
     // --- Eggs ---
     const eggRow = document.createElement('div');
@@ -1882,6 +2163,11 @@ export const UI = {
       const secondBtn = !isHunter || isPrimary ? '' : isSecond
         ? `<button class="btn small ghost" data-action="remove-second-pet" data-id="${esc(pet.uid)}">Remove 2nd</button>`
         : `<button class="btn small ghost" data-action="set-second-pet" data-id="${esc(pet.uid)}">Set as 2nd</button>`;
+      const sellPrice = Engine.petSellPrice(pet);
+      const sellLabel = `Sell · 💰${formatNum(sellPrice)}`;
+      const sellBtn = Engine.canSellPet(pet)
+        ? `<button class="btn small ghost sell-btn" data-action="sell-pet" data-id="${esc(pet.uid)}" data-sell-text="${esc(sellLabel)}" title="Sell this pet for gold"><span class="sell-label">${esc(sellLabel)}</span></button>`
+        : `<span class="muted small" title="This pet is special and cannot be sold">🔒 unsellable</span>`;
       row.innerHTML = `
         <div class="pet-head"><span class="pet-emoji">${sp.emoji}</span>
           <div><div class="comp-name">${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></div>
@@ -1896,6 +2182,7 @@ export const UI = {
           <button class="btn small" data-action="feed-pet" data-id="${esc(pet.uid)}" ${pet.hunger >= 100 ? 'disabled' : ''}>🍖 Feed (💰${formatNum(cost)})</button>
           ${setActiveBtn}
           ${secondBtn}
+          ${sellBtn}
         </div>`;
       list.appendChild(row);
     }
@@ -1903,7 +2190,25 @@ export const UI = {
   },
 
   // ---------------- ranks ----------------
+  // Active leaderboard category: 'heroes' | 'guilds'. The active pill is
+  // synced whenever a category is rendered.
+  ranksCategory: 'heroes',
+  setRanksCategory(cat) {
+    this.ranksCategory = cat === 'guilds' ? 'guilds' : 'heroes';
+    const cats = this.els['lb-cats'];
+    if (cats) {
+      cats.querySelectorAll('button[data-lbcat]').forEach((b) => {
+        const active = b.dataset.lbcat === this.ranksCategory;
+        b.classList.toggle('active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+    }
+    return this.ranksCategory;
+  },
   renderRanks(entries, meUsername) {
+    this.setRanksCategory('heroes');
+    const note = this.els['lb-note'];
+    if (note) note.textContent = 'Top heroes by level, then stage, then boss kills.';
     const body = this.els['lb-body'];
     body.innerHTML = '';
     if (!entries.length) {
@@ -1927,6 +2232,8 @@ export const UI = {
         ? `<span class="lb-class" title="${esc(en.playerClass)}">${UI_CLASS_EMOJI[en.playerClass]}</span> ` : '';
       const specHtml = en.spec && UI_SPEC_EMOJI[en.spec]
         ? `<span class="lb-class" title="${esc(en.spec)}">${UI_SPEC_EMOJI[en.spec]}</span> ` : '';
+      const guildTag = en.guildTag
+        ? `<span class="lb-guildtag" title="Guild: ${esc(en.guildTag)}">[${esc(en.guildTag)}]</span> ` : '';
       const rankHtml = medals[i]
         ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}</div>`
         : `<div class="lb-rank">${i + 1}</div>`;
@@ -1934,7 +2241,7 @@ export const UI = {
         ${rankHtml}
         <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
         <div class="lb-identity">
-          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
           ${title}
         </div>
         <div class="lb-chips">
@@ -1943,6 +2250,41 @@ export const UI = {
           <span class="lb-chip"><b>⚔️</b>${formatNum(en.power || 0)}</span>
           <span class="lb-chip"><b>👑</b>${en.bossesKilled}</span>
           <span class="lb-chip"><b>🌀</b>${en.rebirth > 0 ? en.rebirth : '—'}</span>
+        </div>`;
+      body.appendChild(row);
+    });
+  },
+
+  // Guild leaderboard: ranks guilds by level, then total member power,
+  // then member count (see server getGuildRankings).
+  renderGuildRanks(guilds) {
+    this.setRanksCategory('guilds');
+    const note = this.els['lb-note'];
+    if (note) note.textContent = 'Guilds ranked by guild level → total member power → member count.';
+    const body = this.els['lb-body'];
+    body.innerHTML = '';
+    if (!guilds || !guilds.length) {
+      body.innerHTML = '<div class="lb-empty muted center">No guilds yet. Found one in the 🏰 Guild tab!</div>';
+      return;
+    }
+    const medals = ['🥇', '🥈', '🥉'];
+    guilds.forEach((g, i) => {
+      const row = document.createElement('div');
+      row.className = 'lb-row guild-row' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      const rankHtml = medals[i]
+        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}</div>`
+        : `<div class="lb-rank">${i + 1}</div>`;
+      row.innerHTML = `
+        ${rankHtml}
+        <div class="lb-avatar" aria-hidden="true">🏰</div>
+        <div class="lb-identity">
+          <div class="lb-name"><span class="lb-guildtag guild-row-tag">[${esc(g.tag)}]</span> ${esc(g.name)}</div>
+          <div class="lb-title">Lv ${g.level} guild · ${g.memberCount} member${g.memberCount === 1 ? '' : 's'}</div>
+        </div>
+        <div class="lb-chips">
+          <span class="lb-chip"><b>Lv</b>${g.level}</span>
+          <span class="lb-chip"><b>👥</b>${g.memberCount}</span>
+          <span class="lb-chip"><b>⚔️</b>${formatNum(g.totalPower || 0)}</span>
         </div>`;
       body.appendChild(row);
     });

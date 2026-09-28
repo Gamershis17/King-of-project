@@ -27,6 +27,7 @@ const {
   getUserById,
   saveState,
   getLeaderboardRows,
+  getGuildRankings,
   redeemGiftCode,
   createGuild,
   getGuildByName,
@@ -333,9 +334,21 @@ router.get(
         power,
         bossesKilled: r.bosses_killed,
         rebirth: r.rebirth_count,
+        guildTag: r.guild_tag || null,
       };
     });
     res.json({ entries });
+  })
+);
+
+// ---------- guild rankings (public) ----------
+// Ranks guilds by: level DESC, then total member power DESC, then member
+// count DESC. Served for the leaderboard "Guilds" category tab.
+router.get(
+  '/guilds/rankings',
+  asyncHandler(async (req, res) => {
+    const guilds = await getGuildRankings(50);
+    res.json({ guilds });
   })
 );
 

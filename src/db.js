@@ -168,14 +168,71 @@ async function saveState(userId, blob) {
 
 async function getLeaderboardRows(limit = 100) {
   const { rows } = await pool.query(
-    `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.rebirth_count, ps.state_json
+    `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.rebirth_count, ps.state_json,
+            g.tag AS guild_tag
      FROM player_state ps
      JOIN users u ON u.id = ps.user_id
+     LEFT JOIN guild_members gm ON LOWER(gm.username) = LOWER(u.username)
+     LEFT JOIN guilds g ON g.id = gm.guild_id
      ORDER BY ps.level DESC, ps.stage DESC, ps.bosses_killed DESC
      LIMIT $1`,
     [limit]
   );
   return rows;
+}
+
+/**
+ * Guild rankings for the leaderboard "Guilds" category.
+ * Ordering (documented for players in the UI caption):
+ *   1. Guild level (desc) — guilds level up through member activity XP.
+ *   2. Total member power (desc) — sum of each member's stamped hero power
+ *      from their latest save; inactive/unsaved members count as 0.
+ *   3. Member count (desc).
+ *   4. Oldest guild first (tiebreak for fully identical guilds).
+ * Power is summed in JS (parsing each member's state_json) rather than in
+ * SQL so the query stays portable and unit-testable.
+ */
+async function getGuildRankings(limit = 50) {
+  const { rows } = await pool.query(
+    `SELECT g.id, g.name, g.tag, g.level, g.xp,
+            gm.username AS member_username, ps.state_json
+     FROM guilds g
+     LEFT JOIN guild_members gm ON gm.guild_id = g.id
+     LEFT JOIN users u ON LOWER(u.username) = LOWER(gm.username)
+     LEFT JOIN player_state ps ON ps.user_id = u.id
+     ORDER BY g.id ASC`,
+    []
+  );
+  const byId = new Map();
+  for (const r of rows) {
+    let g = byId.get(r.id);
+    if (!g) {
+      g = {
+        id: r.id, name: r.name, tag: r.tag,
+        level: Number(r.level) || 1, xp: Number(r.xp) || 0,
+        memberCount: 0, totalPower: 0,
+      };
+      byId.set(r.id, g);
+    }
+    if (r.member_username != null) {
+      g.memberCount += 1;
+      let pw = 0;
+      if (r.state_json) {
+        try {
+          const b = JSON.parse(r.state_json);
+          if (b && Number.isFinite(b.power) && b.power >= 0) pw = Math.floor(b.power);
+        } catch { /* corrupt blob counts as 0 */ }
+      }
+      g.totalPower += pw;
+    }
+  }
+  return [...byId.values()]
+    .sort((a, b) =>
+      b.level - a.level ||
+      b.totalPower - a.totalPower ||
+      b.memberCount - a.memberCount ||
+      a.id - b.id)
+    .slice(0, Math.max(1, limit | 0));
 }
 
 // ---------- gift codes ----------
@@ -771,6 +828,7 @@ module.exports = {
   getStateRow,
   saveState,
   getLeaderboardRows,
+  getGuildRankings,
   getGiftCode,
   createGiftCode,
   incrementCodeUses,

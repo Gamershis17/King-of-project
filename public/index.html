@@ -132,6 +132,7 @@
       </div>
       <div class="hud-row save-row"><span id="save-indicator" class="save-ind">● saved</span></div>
     </header>
+    <div id="pause-pill" class="pause-pill hidden" role="status" aria-live="polite">⏸ <b>PAUSED</b><span class="pause-sub"> — world frozen</span></div>
 
     <main id="tab-content">
       <!-- BATTLE -->
@@ -167,11 +168,11 @@
           <div class="meter" id="meter-panel">
             <div class="meter-head">
               <span class="meter-title">DAMAGE METER</span>
-              <span class="live-pill"><span class="live-dot"></span>LIVE</span>
+              <span class="live-pill" id="meter-live"><span class="live-dot"></span>LIVE</span>
               <span class="total-dps" id="total-dps">0 DPS</span>
             </div>
             <div id="meter-rows"></div>
-            <div class="meter-foot">resets each fight &middot; updates every second</div>
+            <div class="meter-foot">shows last fight between kills &middot; updates every second</div>
           </div>
         </div>
 
@@ -232,6 +233,11 @@
           <h2 style="margin:0">🏆 Leaderboard</h2>
           <button id="lb-refresh" class="btn small ghost">↻ Refresh</button>
         </div>
+        <div class="lb-cats" id="lb-cats" role="tablist" aria-label="Leaderboard category">
+          <button class="lb-cat active" id="lb-cat-heroes" data-lbcat="heroes" role="tab" aria-selected="true">🦸 Heroes</button>
+          <button class="lb-cat" id="lb-cat-guilds" data-lbcat="guilds" role="tab" aria-selected="false">🏰 Guilds</button>
+        </div>
+        <div class="muted small lb-note" id="lb-note"></div>
         <div class="lb-list" id="lb-body"></div>
       </section>
 
@@ -251,6 +257,7 @@
         </div>
         <div id="quest-daily"></div>
         <div id="quest-weekly"></div>
+        <div id="quest-guide"></div>
         <div id="quest-class"></div>
         <div id="quest-mastery"></div>
       </section>
@@ -322,6 +329,11 @@
           <label class="setting"><input type="checkbox" id="set-motion"> Reduce motion</label>
           <label class="setting"><input type="checkbox" id="set-sfx"> Sound FX</label>
           <label class="setting"><input type="checkbox" id="set-music"> Music <span class="muted small">(ambient)</span></label>
+          <div class="setting-row" id="music-track-row">
+            <span class="setting-label">🎼 Music track</span>
+            <select id="set-music-track" class="country-select" aria-label="Music track"></select>
+          </div>
+          <label class="setting"><input type="checkbox" id="set-follow-world" checked> Worlds change the music <span class="muted small">(Void Hymn in deep worlds)</span></label>
           <div class="setting-row" style="margin-top:0.55rem">
             <span class="setting-label">🔔 Notifications</span>
           </div>

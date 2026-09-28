@@ -39,6 +39,8 @@ const App = {
   maintenanceMode: false,
   started: false,
   inInn: false, // AFK safe zone: session-only, resets to battle on load
+  _paused: false, // pause-while-browsing: world tick frozen, pill visible
+  _pauseStartedAt: 0, // wall-clock ms when the current pause began (0 = not paused)
   meter: null, // live damage meter: { startAt, fighters: {key: {label, total, samples:[{t,total}]}} }
 };
 
@@ -129,6 +131,7 @@ async function boot() {
     onLevelUpCompanion: doLevelUpCompanion,
     onHatchPet: doHatchPet,
     onFeedPet: doFeedPet,
+    onSellPet: doSellPet,
     onSetActivePet: doSetActivePet,
     onSetSecondPet: doSetSecondPet,
     onRemoveSecondPet: doRemoveSecondPet,
@@ -143,6 +146,7 @@ async function boot() {
     onSaveState: () => saveNow(),
     onExternalState: applyExternalState,
     onTab: onTabSwitch,
+    onRanksCategory: (cat) => { void loadRanks(cat); },
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
@@ -151,6 +155,8 @@ async function boot() {
     onOrbPalette: setOrbPalette,
     onSfx: setSfx,
     onMusic: setMusic,
+    onMusicTrack: setMusicTrack,
+    onFollowWorld: setFollowWorld,
     onNotifPref: (cat, val) => {
       const s = App.state;
       if (!s) return;
@@ -188,6 +194,8 @@ async function boot() {
   Audio.init(); // registers first-gesture unlock + button click ticks
   // Notification prefs live on the save; UI.notify() reads them through this.
   UI.setNotifPrefsProvider(() => (App.state && App.state.settings && App.state.settings.notif) || {});
+  // Quest live-sync reads state through this (avoids a bare global).
+  UI.setStateProvider(() => App.state);
 
   // Maintenance / reachability gate: check the server before anything else.
   // Retries briefly so a deploy/restart window shows as "updating", not dead.
@@ -487,7 +495,13 @@ function setBgStyle(id) {
 // SFX defaults ON; music defaults OFF (opt-in).
 function audioOf(s) {
   const a = s && s.audio;
-  return { sfx: !a || a.sfx !== false, music: !!(a && a.music) };
+  const track = (a && typeof a.track === 'string' && Audio.MUSIC_TRACKS.includes(a.track)) ? a.track : 'shadow-requiem';
+  return {
+    sfx: !a || a.sfx !== false,
+    music: !!(a && a.music),
+    track,
+    followWorld: !a || a.followWorld !== false, // default ON: worlds pick the music
+  };
 }
 function applyAudioPrefs() {
   const p = audioOf(App.state);
@@ -496,6 +510,7 @@ function applyAudioPrefs() {
   const musEl = document.getElementById('set-music');
   if (sfxEl) sfxEl.checked = p.sfx;
   if (musEl) musEl.checked = p.music;
+  UI.syncMusicPrefs(p);
 }
 function setSfx(on) {
   const s = App.state;
@@ -510,6 +525,35 @@ function setMusic(on) {
   s.audio = { ...audioOf(s), music: !!on };
   applyAudioPrefs();
   saveNow();
+}
+// Music track selection. Manual picks turn off world-follow so the player's
+// choice sticks; the follow-world toggle can re-enable it.
+function setMusicTrack(id) {
+  const s = App.state;
+  if (!s || !Audio.MUSIC_TRACKS.includes(id)) return;
+  s.audio = { ...audioOf(s), track: id, followWorld: false };
+  applyAudioPrefs();
+  saveNow();
+}
+function setFollowWorld(on) {
+  const s = App.state;
+  if (!s) return;
+  s.audio = { ...audioOf(s), followWorld: !!on };
+  if (on) applyWorldMusic();
+  applyAudioPrefs();
+  saveNow();
+}
+// Worlds pick the music: Void Abyss and Throne of Shadows get the Void Hymn,
+// earlier worlds keep the Shadow Requiem. Only when followWorld is on.
+function applyWorldMusic() {
+  const s = App.state;
+  if (!s || audioOf(s).followWorld === false) return;
+  const world = Engine.worldForStage(s.stage);
+  const track = (world.id === 'void-abyss' || world.id === 'throne-of-shadows') ? 'void-hymn' : 'shadow-requiem';
+  if (audioOf(s).track !== track) {
+    s.audio = { ...audioOf(s), track };
+    applyAudioPrefs();
+  }
 }
 
 function startGame() {
@@ -590,7 +634,9 @@ function spawnEnemy() {
   // revive downed companions on a fresh enemy
   for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
-  // reset the live damage meter for this fight
+  // reset the live damage meter for this fight — but keep the last fight's
+  // numbers around so one-tap kills show a real DPS instead of 0.
+  if (App.meter) App.lastMeter = meterSnapshot();
   App.meter = { startAt: Date.now(), fighters: {} };
   // zone change toast
   const zone = Engine.zoneFor(s.stage);
@@ -598,6 +644,14 @@ function spawnEnemy() {
     UI.toast(`${zone.emoji} Entered ${zone.name}`, 'info');
   }
   App.lastZone = zone.name;
+  // world change: announce the new world, its tagline, and follow its music
+  const world = Engine.worldForStage(s.stage);
+  if (App.lastWorld && App.lastWorld !== world.id) {
+    UI.toast(`${world.emoji} Entered ${world.name} — ${world.tagline}`, 'info', 6000);
+    UI.combatLog(`${world.emoji} Entered ${world.name} — ${world.tagline}`, 'zone');
+  }
+  App.lastWorld = world.id;
+  applyWorldMusic();
   UI.updateHeroPanel(s, Engine.computeStats(s), App);
   if (App.enemy.boss && App.lastBossModalStage !== s.stage) {
     App.lastBossModalStage = s.stage;
@@ -625,7 +679,14 @@ function meterHit(key, label, dmg) {
 // Returns {rows: [{key,label,dps,total,pct}], totalDps} for the meter UI.
 function meterSnapshot() {
   const m = App.meter;
-  if (!m) return { rows: [], totalDps: 0 };
+  if (!m || !Object.keys(m.fighters).length) {
+    // No samples yet (fresh fight, or a one-tap kill that ended before the
+    // meter ticked) — show the last fight's DPS instead of an empty 0.
+    if (App.lastMeter && App.lastMeter.rows && App.lastMeter.rows.length) {
+      return { rows: App.lastMeter.rows, totalDps: App.lastMeter.totalDps, stale: true };
+    }
+    return { rows: [], totalDps: 0 };
+  }
   const now = Date.now();
   const cutoff = now - METER_WINDOW_MS;
   const rows = [];
@@ -878,10 +939,65 @@ function respawn() {
   UI.updateHUD(s, App.user);
 }
 
+// ---------------- pause-while-browsing ----------------
+// Real-time combat must never punish the player for reading a menu.
+// The world freezes whenever the player is NOT actively watching the
+// battle tab: browsing the gear shop / settings / party / etc., any
+// full-screen modal (boss intro, changelog, confirms), the GM console,
+// or resting at the Shadowed Hearth (inn tab — its own branch in tick()
+// keeps the 2%/s rest-heal running while everything else stays frozen).
+function computePaused() {
+  if (!App.started) return false;
+  const appView = document.getElementById('view-app');
+  if (!appView || appView.classList.contains('hidden')) return true;
+  if (UI.anyModalOpen()) return true;
+  return UI.activeTab !== 'battle';
+}
+
+// Runs at the top of every tick; acts only on transitions so the pill and
+// wall-clock timers stay in sync. While paused, tick() returns before ANY
+// world system advances: no play-time, no regen, no mine trickle, no
+// hero/companion/pet strikes, no hunger decay, no enemy attacks, and the
+// death-respawn timer holds still.
+function updatePauseState() {
+  let paused = false;
+  try {
+    paused = computePaused();
+  } catch { paused = App._paused; }
+  if (paused === App._paused) return;
+  const now = Date.now();
+  if (paused) {
+    App._pauseStartedAt = now;
+  } else if (App._pauseStartedAt) {
+    // Resume: shift wall-clock timers forward by the frozen duration so a
+    // pause neither grants nor steals time — frenzy, skill cooldowns, the
+    // respawn timer, and the tap-combo window all freeze equally.
+    const d = now - App._pauseStartedAt;
+    if (d > 0) {
+      if (App.frenzyUntil > App._pauseStartedAt) App.frenzyUntil += d;
+      for (const k of Object.keys(App.skillCDs || {})) {
+        if (App.skillCDs[k] > App._pauseStartedAt) App.skillCDs[k] += d;
+      }
+      if (App.respawnAt > App._pauseStartedAt) App.respawnAt += d;
+      if (App.lastTapAt) App.lastTapAt += d;
+    }
+    App._pauseStartedAt = 0;
+  }
+  App._paused = paused;
+  try { UI.setPaused(paused); } catch { /* pill is cosmetic */ }
+}
+
 // ---------------- main tick ----------------
 function tick() {
   const s = App.state;
   if (!s || !App.enemy) return;
+  updatePauseState();
+
+  // Browsing a menu (or a modal on top of battle): the world is frozen —
+  // nothing below advances. The inn branch above is the one exception:
+  // the Hearth pauses combat but keeps its rest-heal.
+  if (App._paused && !App.inInn) return;
+
   const dt = TICK_MS / 1000;
   s.stats.playTimeSec += dt;
 
@@ -981,7 +1097,7 @@ function tick() {
 // ---------------- player actions ----------------
 function doTap() {
   const s = App.state;
-  if (!s || App.dead || s.mode !== 'clicker') return;
+  if (!s || App.dead || App._paused || s.mode !== 'clicker') return;
   const now = Date.now();
   // Combo: taps within the combo window keep it alive.
   if (now - App.lastTapAt < Engine.COMBO_WINDOW_MS) App.tapCombo += 1;
@@ -1069,7 +1185,7 @@ function doEnchant(id) {
 function useSkill(id) {
   const s = App.state;
   const def = Engine.SKILLS[id];
-  if (!s || App.dead || !def || !(s.skills || []).includes(id)) return;
+  if (!s || App.dead || App._paused || !def || !(s.skills || []).includes(id)) return;
   const now = Date.now();
   if (now < (App.skillCDs[id] || 0)) return;
   App.skillCDs[id] = now + def.cdMs;
@@ -1361,6 +1477,28 @@ function doBuyEgg(tier) {
   saveNow();
 }
 
+function doSellPet(petUid) {
+  const s = App.state;
+  if (!s) return;
+  const p = Engine.ensurePets(s);
+  const pet = p.collection.find(x => x.uid === petUid);
+  const sp = pet && Engine.petSpeciesOf(pet);
+  if (!pet || !sp) return;
+  if (!Engine.canSellPet(pet)) {
+    UI.toast('That pet is special — it cannot be sold.', 'error');
+    return;
+  }
+  const res = Engine.sellPet(s, petUid);
+  if (!res.ok) {
+    UI.toast(res.reason === 'unsellable' ? 'That pet is special — it cannot be sold.' : 'Could not sell that pet.', 'error');
+    return;
+  }
+  UI.toast(`💰 Sold ${sp.emoji} ${res.name} for 💰${formatNum(res.gold)} gold${res.capped ? ' (gold cap reached)' : ''}.`, 'success');
+  UI.combatLog(`💰 Sold ${sp.emoji} ${res.name} for 💰${formatNum(res.gold)}.`, 'loot');
+  UI.renderParty(s);
+  saveNow();
+}
+
 function doSetSecondPet(petUid) {
   const s = App.state;
   if (!s || s.playerClass !== 'hunter') return;
@@ -1545,6 +1683,12 @@ function mountGuild() {
   const el = document.getElementById('guild-section');
   if (!el || guildMounted) return;
   guildMounted = true;
+  // Guide quest "Strength in Numbers": visiting the Guilds tab counts.
+  const s = App.state;
+  if (s) {
+    if (!s.guideTabs || typeof s.guideTabs !== 'object') s.guideTabs = {};
+    if (!s.guideTabs.guild) { s.guideTabs.guild = true; saveNow(); }
+  }
   if (isGuest()) {
     // Guilds are server-side: guests get the upgrade prompt instead of a 401.
     el.innerHTML = `<p class="muted small">🏰 Guilds need an account — create one and your guest progress comes with you.</p>
@@ -1587,18 +1731,41 @@ async function onTabSwitch(tab, force = false) {
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);
+    // Battle shows the current world's ambient background (the world scenes
+    // aren't in the user's style picker); leaving battle restores the saved
+    // background style below.
+    try {
+      const world = Engine.worldForStage(s.stage);
+      if (world && world.bgScene) UI.setBgScene(world.bgScene, bgSceneOpts(s));
+    } catch { /* keep saved background on error */ }
   } else if (tab === 'ranks') {
     await loadRanks();
+  }
+  // Non-battle tabs always honor the saved background style.
+  if (tab !== 'battle') {
+    try { UI.setBgScene(bgStyleOf(s), bgSceneOpts(s)); } catch { /* ignore */ }
   }
   void force;
 }
 
-async function loadRanks() {
-  try {
-    const { entries } = await api.leaderboard();
-    UI.renderRanks(entries || [], App.user ? App.user.username : null);
-  } catch (e) {
-    UI.toast('Could not load leaderboard.', 'error');
+async function loadRanks(forceCat) {
+  // forceCat: explicit category from the pill buttons; otherwise keep the
+  // currently displayed category (refresh preserves it).
+  const cat = forceCat || UI.ranksCategory || 'heroes';
+  if (cat === 'guilds') {
+    try {
+      const { guilds } = await api.guildRankings();
+      UI.renderGuildRanks(guilds || []);
+    } catch (e) {
+      UI.toast('Could not load guild rankings.', 'error');
+    }
+  } else {
+    try {
+      const { entries } = await api.leaderboard();
+      UI.renderRanks(entries || [], App.user ? App.user.username : null);
+    } catch (e) {
+      UI.toast('Could not load leaderboard.', 'error');
+    }
   }
 }
 

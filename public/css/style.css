@@ -60,6 +60,36 @@ h3 { font-size: 1rem; margin: 0 0 0.6rem; color: var(--gold); }
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Pause-while-browsing indicator: the world tick is frozen, nothing
+   advances (no enemy attacks, regen, cooldowns, or timers). */
+.pause-pill {
+  background: linear-gradient(180deg, #241b3d, #150f28);
+  border: 2px solid #000;
+  border-left: 4px solid var(--gold, #d4a017);
+  border-right: 4px solid var(--gold, #d4a017);
+  border-radius: 10px;
+  box-shadow: 0 4px 0 rgba(0,0,0,.55), 0 0 14px rgba(212,160,23,.25);
+  color: #ffe9a8;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.4rem 0.75rem;
+  margin: 0.35rem 0.6rem 0;
+  animation: pause-pulse 1.6s ease-in-out infinite;
+}
+.pause-pill b { color: #fff; letter-spacing: 0.14em; }
+.pause-pill .pause-sub { color: #b8a6d9; font-weight: 600; letter-spacing: 0.02em; }
+@keyframes pause-pulse {
+  0%, 100% { box-shadow: 0 4px 0 rgba(0,0,0,.55), 0 0 8px rgba(212,160,23,.18); }
+  50% { box-shadow: 0 4px 0 rgba(0,0,0,.55), 0 0 18px rgba(212,160,23,.45); }
+}
+body.reduce-motion .pause-pill { animation: none; }
+@media (max-width: 420px) {
+  .pause-pill { font-size: 0.75rem; }
+  .pause-pill .pause-sub { display: none; }
+}
 .muted { color: var(--muted); }
 .small { font-size: 0.8rem; }
 .center { text-align: center; }
@@ -489,6 +519,32 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .log-line.loot { color: #c9b8ff; }
 .log-line.level { color: var(--gold); }
 .log-line.death { color: var(--danger); }
+.log-line.zone { color: #c4b5fd; font-weight: 700; }
+
+/* Sell-pet two-step confirm: armed state turns the button danger-red. */
+.sell-btn.armed {
+  background: linear-gradient(180deg, #7f1d1d, #450a0a);
+  border-color: #ef4444; color: #fecaca;
+  animation: sell-pulse 0.8s ease-in-out infinite;
+}
+@keyframes sell-pulse {
+  0%, 100% { box-shadow: 0 4px 0 rgba(0,0,0,.55); }
+  50% { box-shadow: 0 4px 0 rgba(0,0,0,.55), 0 0 14px rgba(239,68,68,.55); }
+}
+body.reduce-motion .sell-btn.armed { animation: none; }
+
+/* Coming-soon teasers in the Pet Shop: visible, locked, unobtainable. */
+.pet-teasers { margin-top: 1rem; }
+.teaser-card {
+  opacity: 0.85; border-style: dashed;
+  background: linear-gradient(160deg, rgba(30,20,50,.6), rgba(12,8,24,.6));
+}
+.teaser-emoji { filter: grayscale(0.5) brightness(0.85); }
+.teaser-badge {
+  display: inline-block; margin-top: 0.45rem; font-size: 0.7rem; font-weight: 800;
+  letter-spacing: 0.06em; color: #c4b5fd;
+  border: 1px dashed rgba(196,181,253,.6); border-radius: 999px; padding: 0.2rem 0.6rem;
+}
 
 /* ---------- rarity ---------- */
 .r-common { --rc: #9aa0a6; }
@@ -576,7 +632,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
   display: flex; justify-content: space-between; align-items: center; gap: 0.6rem;
   background: var(--stone); border: 1px solid var(--stone2); border-radius: var(--radius); padding: 0.6rem 0.8rem;
 }
-.recruit-info { display: flex; gap: 0.6rem; align-items: center; }
+.recruit-info { display: flex; gap: 0.6rem; align-items: center; min-width: 0; }
 
 /* recruit tier badges */
 .tier-badge {
@@ -653,6 +709,21 @@ body.reduce-motion .shop-card:hover { transform: none; }
 /* ---------- ranks (leaderboard cards) ---------- */
 .lb-list { display: flex; flex-direction: column; gap: 0.55rem; max-width: 960px; margin: 0 auto; }
 .lb-empty { padding: 2rem 0; }
+/* Category pills: Heroes / Guilds */
+.lb-cats { display: flex; gap: 0.5rem; margin: 0.7rem auto 0.25rem; max-width: 960px; }
+.lb-cat {
+  flex: 1 1 0; padding: 0.55rem 0.8rem; border-radius: 0.6rem;
+  border: 2px solid #000; background: var(--stone); color: var(--text);
+  font-weight: 800; font-size: 0.95rem; cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0,0,0,.55); transition: transform .08s ease, box-shadow .08s ease;
+}
+.lb-cat:hover { transform: translateY(-2px); box-shadow: 0 6px 0 rgba(0,0,0,.55); }
+.lb-cat.active {
+  background: linear-gradient(180deg, rgba(240,180,41,.28), rgba(240,180,41,.10));
+  border-color: var(--gold-line-soft, rgba(240,180,41,.5));
+  color: var(--gold, #f0b429);
+}
+.lb-note { max-width: 960px; margin: 0 auto 0.4rem; }
 .lb-row {
   display: flex; align-items: center; gap: 0.7rem;
   background: var(--stone); border: 1px solid var(--stone2);
@@ -682,6 +753,14 @@ body.reduce-motion .shop-card:hover { transform: none; }
 .lb-title { font-size: 0.72rem; font-style: italic; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-badge { filter: drop-shadow(0 0 3px rgba(240,180,41,.6)); }
 .lb-class { margin-left: 0.15rem; }
+/* Guild tag shown beside a player's name on the hero leaderboard. */
+.lb-guildtag {
+  display: inline-block; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.02em;
+  color: var(--gold, #f0b429); background: rgba(240,180,41,.10);
+  border: 1px solid var(--gold-line-soft, rgba(240,180,41,.5)); border-radius: 0.35rem;
+  padding: 0.05rem 0.35rem; margin-right: 0.25rem; vertical-align: middle; white-space: nowrap;
+}
+.guild-row-tag { font-size: 0.85rem; margin-right: 0.35rem; }
 .lb-you {
   font-size: 0.65rem; font-weight: 800; color: #1a1206; background: var(--gold);
   border-radius: 0.3rem; padding: 0.1rem 0.35rem; margin-left: 0.35rem; vertical-align: middle;
@@ -957,6 +1036,8 @@ body.reduce-motion .combo-frenzy { animation: none; }
   white-space: nowrap;
 }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #51cf66; animation: pulse 1.2s infinite; }
+.live-pill.stale { color: #ffd43b; background: rgba(150,110,10,.25); }
+.live-pill.stale .live-dot { background: #ffd43b; animation: none; }
 .total-dps { margin-left: auto; font-size: 0.9rem; font-weight: 800; color: var(--gold); white-space: nowrap; }
 .meter-row { margin-bottom: 0.55rem; }
 .meter-row:last-child { margin-bottom: 0; }
@@ -1479,7 +1560,7 @@ body[data-uistyle="modern"] #view-auth .auth-card { animation: auth-card-in .65s
 /* ---- shimmering gold heading ---- */
 body[data-uistyle="modern"] #view-auth .game-title {
   background: linear-gradient(110deg, #9a7418 5%, #ffd23f 32%, #fff7cf 50%, #ffd23f 68%, #9a7418 95%);
-  background-size: 220% 100%;
+  background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -1490,7 +1571,10 @@ body[data-uistyle="modern"] #view-auth .game-title {
   filter: drop-shadow(0 2px 10px rgba(255,210,63,.30));
 }
 @keyframes auth-title-shimmer {
-  to { background-position: -220% 0; }
+  /* Shift exactly one tile (200% size -> 200% position = one full tile):
+     the loop point is pixel-identical, no jump. */
+  from { background-position: 0% 0; }
+  to { background-position: -200% 0; }
 }
 body[data-uistyle="modern"] #view-auth .tagline {
   letter-spacing: 0.18em;
@@ -1617,6 +1701,19 @@ body[data-uistyle="modern"] .lb-row.me-row {
 }
 body[data-uistyle="modern"] .lb-chip {
   background: rgba(255,255,255,.06); border-color: rgba(139,92,246,.25);
+}
+body[data-uistyle="modern"] .lb-cat {
+  border-radius: 14px; border: 1px solid transparent;
+  background:
+    linear-gradient(160deg, rgba(48,34,82,.82), rgba(22,14,38,.9)) padding-box,
+    linear-gradient(160deg, rgba(255,210,63,.35), rgba(139,92,246,.28) 45%, rgba(255,210,63,.12)) border-box;
+  box-shadow: 0 8px 26px rgba(0,0,0,.45);
+}
+body[data-uistyle="modern"] .lb-cat.active {
+  background:
+    linear-gradient(160deg, rgba(90,66,150,.9), rgba(38,24,70,.95)) padding-box,
+    linear-gradient(160deg, rgba(255,210,63,.7), rgba(240,180,41,.4) 50%, rgba(255,210,63,.25)) border-box;
+  color: #ffd97a;
 }
 
 /* ---- mode buttons & inputs ease ---- */
@@ -2669,14 +2766,24 @@ input:focus, select:focus {
 /* ---------- small phones: keep the header compact ---------- */
 @media (max-width: 480px) {
   .hud-avatar { width: 40px; height: 40px; }
-  #hud-username { font-size: 1rem; max-width: 30vw; }
-  .hud-currencies { gap: 0.55rem; font-size: 0.85rem; padding: 0.3rem 0.55rem; }
+  /* The identity row can't fit avatar + full username + currency plaque +
+     two 44px buttons in ~390px, so the plaque wraps to its own full-width
+     line. The username then gets all leftover room: full name visible,
+     no truncation, no overlap with the plaque. */
+  #hud .hud-row:first-child { flex-wrap: wrap; }
+  .hud-id { flex: 1 1 auto; min-width: 0; }
+  .hud-id > div { flex: 1 1 auto; min-width: 0; }
+  #hud-username { font-size: 1rem; max-width: 100%; }
+  .hud-currencies {
+    order: 5; flex: 1 1 100%; margin-left: 0; margin-top: 0.45rem;
+    justify-content: space-around; gap: 0.55rem; font-size: 0.85rem; padding: 0.3rem 0.55rem;
+  }
   .hud-row { gap: 0.55rem; }
-  /* never let the name/class block paint under the currency plaque;
-     on small phones the class/race line is hidden (full details in profile) */
-  .hud-id > div { min-width: 0; }
+  /* never let the name/class block paint under the currency plaque */
   #hud-sub { overflow: hidden; }
   #hud-race { display: none; }
+  /* belt-and-suspenders: header content must never cause sideways page scroll */
+  #hud { overflow-x: clip; }
 }
 
 /* ============================================================

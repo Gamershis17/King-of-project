@@ -24,16 +24,42 @@ const THROTTLE_MS = {
 const SFX_VOLUME = 0.22;   // master SFX gain
 const MUSIC_VOLUME = 0.10; // master music gain (subtle)
 
-// Dark-fantasy generative music: slow minor pad progression + sparse
-// pentatonic plucks. Am — F — Dm — E, 8s per chord.
-const CHORDS = [
-  [110.0, 130.81, 164.81],  // Am:  A2 C3 E3
-  [87.31, 110.0, 130.81],   // F:   F2 A2 C3
-  [73.42, 87.31, 110.0],    // Dm:  D2 F2 A2
-  [82.41, 103.83, 123.47],  // E:   E2 G#2 B2
-];
-const CHORD_SECS = 8;
-const PLUCK_SCALE = [220.0, 261.63, 293.66, 329.63, 392.0, 440.0]; // A minor pentatonic
+// Generative music tracks. Each track is a slow pad progression + sparse
+// plucks; the scheduler reads the active track so switching is seamless.
+// 'shadow-requiem' is the original dark-fantasy loop (Am — F — Dm — E).
+// 'void-hymn' is new: deeper, slower, written for the Void Abyss and the
+// Throne of Shadows (Dm — Bb — Gm — A, sub-bass weight).
+const TRACKS = {
+  'shadow-requiem': {
+    name: 'Shadow Requiem',
+    chords: [
+      [110.0, 130.81, 164.81],  // Am:  A2 C3 E3
+      [87.31, 110.0, 130.81],   // F:   F2 A2 C3
+      [73.42, 87.31, 110.0],    // Dm:  D2 F2 A2
+      [82.41, 103.83, 123.47],  // E:   E2 G#2 B2
+    ],
+    chordSecs: 8,
+    pluckScale: [220.0, 261.63, 293.66, 329.63, 392.0, 440.0], // A minor pentatonic
+    pluckGap: [2.5, 6.0],
+  },
+  'void-hymn': {
+    name: 'Void Hymn',
+    chords: [
+      [73.42, 87.31, 110.0],    // Dm:  D2 F2 A2
+      [58.27, 73.42, 87.31],    // Bb:  Bb1 D2 F2
+      [49.0, 58.27, 73.42],     // Gm:  G1 Bb1 D2 (deep)
+      [55.0, 65.41, 82.41],     // A:   A1 C2 E2
+    ],
+    chordSecs: 11,
+    pluckScale: [146.83, 174.61, 196.0, 220.0, 261.63], // D minor pentatonic, low
+    pluckGap: [4.0, 9.0],
+  },
+};
+export const MUSIC_TRACKS = Object.keys(TRACKS);
+export const MUSIC_TRACK_NAMES = Object.fromEntries(
+  Object.entries(TRACKS).map(([id, t]) => [id, t.name])
+);
+const DEFAULT_TRACK = 'shadow-requiem';
 
 export const Audio = {
   _ctx: null,
@@ -45,8 +71,9 @@ export const Audio = {
   _musicNext: 0,
   _musicChord: 0,
   _musicPluckAt: 0,
+  _musicTrackId: DEFAULT_TRACK,
   _inited: false,
-  prefs: { sfx: true, music: false },
+  prefs: { sfx: true, music: false, track: DEFAULT_TRACK },
 
   // ---- lifecycle -------------------------------------------------
 
@@ -103,10 +130,13 @@ export const Audio = {
   // Called by app.js whenever the player state loads or audio prefs change.
   sync(p) {
     try {
+      const track = TRACKS[p && p.track] ? p.track : DEFAULT_TRACK;
       this.prefs = {
         sfx: !p || p.sfx !== false,
         music: !!(p && p.music),
+        track,
       };
+      if (track !== this._musicTrackId) this._switchTrack(track);
       if (this._ctx) {
         if (this.prefs.music) this._startMusic();
         else this._stopMusic();
@@ -116,12 +146,28 @@ export const Audio = {
     } catch { /* ignore */ }
   },
 
+  // Switch the generative track (restarts the progression; keeps playing if
+  // music is on). Unknown ids fall back to the default track.
+  setTrack(id) {
+    const track = TRACKS[id] ? id : DEFAULT_TRACK;
+    this.prefs.track = track;
+    this._switchTrack(track);
+  },
+
+  _switchTrack(track) {
+    this._musicTrackId = track;
+    this._musicChord = 0;
+    if (this._ctx) this._musicPluckAt = this._ctx.currentTime + 2.5;
+  },
+
   get state() {
     return {
       unlocked: !!this._ctx,
       running: !!(this._ctx && this._ctx.state === 'running'),
       sfx: this.prefs.sfx,
       music: this.prefs.music,
+      track: this.prefs.track,
+      trackName: (TRACKS[this.prefs.track] || TRACKS[DEFAULT_TRACK]).name,
       musicPlaying: !!this._musicTimer,
       innAmbience: !!this._inn,
     };
@@ -428,24 +474,27 @@ export const Audio = {
     try {
       const ctx = this._ctx;
       if (!ctx || !this.prefs.music) return;
+      const track = TRACKS[this._musicTrackId] || TRACKS[DEFAULT_TRACK];
       const ahead = ctx.currentTime + 1.4;
       while (this._musicNext < ahead) {
-        this._playPad(this._musicChord % CHORDS.length, this._musicNext);
+        this._playPad(this._musicChord % track.chords.length, this._musicNext, track);
         this._musicChord++;
-        this._musicNext += CHORD_SECS;
+        this._musicNext += track.chordSecs;
       }
       if (this._musicPluckAt < ahead) {
-        const f = PLUCK_SCALE[Math.floor(Math.random() * PLUCK_SCALE.length)];
+        const scale = track.pluckScale;
+        const f = scale[Math.floor(Math.random() * scale.length)];
         this._pluck(f, this._musicPluckAt);
-        this._musicPluckAt += 2.5 + Math.random() * 3.5;
+        const [g0, g1] = track.pluckGap;
+        this._musicPluckAt += g0 + Math.random() * (g1 - g0);
       }
     } catch { /* ignore */ }
   },
 
-  _playPad(chordIdx, t0) {
+  _playPad(chordIdx, t0, track) {
     const ctx = this._ctx;
-    const freqs = CHORDS[chordIdx];
-    const dur = CHORD_SECS + 2; // overlap for crossfade
+    const freqs = track.chords[chordIdx];
+    const dur = track.chordSecs + 2; // overlap for crossfade
     const flt = ctx.createBiquadFilter();
     flt.type = 'lowpass';
     flt.frequency.setValueAtTime(420, t0);
@@ -485,6 +534,12 @@ export const Audio = {
     o.start(t0);
     o.stop(t0 + 1.6);
   },
+
+  // Track catalog, exposed on the Audio object so app.js/ui.js can read
+  // Audio.MUSIC_TRACKS / Audio.MUSIC_TRACK_NAMES without importing the
+  // named exports.
+  MUSIC_TRACKS,
+  MUSIC_TRACK_NAMES,
 };
 
 // Test hook (read-only-ish): lets headless validation confirm the audio
