@@ -3056,6 +3056,8 @@ body[data-uistyle="modern"] #view-auth .auth-fantasy .auth-tab.active{
 @media (max-width: 560px) {
   .forge-tier-row { grid-template-columns: repeat(2, 1fr); }
   .ore-grid { grid-template-columns: repeat(4, 1fr); }
+}
+/* ============================================================
    Social: leaderboard inspect + friends (ornate gold theme)
    ============================================================ */
 

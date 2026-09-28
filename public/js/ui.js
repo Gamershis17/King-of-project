@@ -304,8 +304,6 @@ export const UI = {
       this.setLbCategory(btn.dataset.by);
     });
 
-    });
-
     // Ranks: leaderboard rows are clickable → player inspect
     listen('lb-body', 'click', (e) => {
       const row = e.target.closest('.lb-row[data-username]');
