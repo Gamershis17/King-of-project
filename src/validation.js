@@ -16,6 +16,19 @@ function setGoldCap(cap) {
 }
 function getGoldCapValue() { return goldCap; }
 
+// Server-side mirror of the client XP curve in public/js/engine.js:
+// levels 1-60 use a 1.30 exponent, 61-70 continue from the kinked value with
+// a 1.42 exponent, and every rebirth multiplies requirements by 1.35^rebirths.
+// Keep in sync if the client formula ever changes.
+function xpForLevelServer(level, rebirthCount) {
+  const l = Math.max(1, Math.floor(Number(level) || 1));
+  const base = l <= 60
+    ? 80 * Math.pow(1.30, l - 1)
+    : 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+  const mult = Math.pow(1.35, Math.max(0, Math.floor(Number(rebirthCount) || 0)));
+  return Math.max(1, Math.round(base * mult));
+}
+
 // All roles recognized by the server, highest privilege first.
 const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'player'];
 
@@ -118,6 +131,10 @@ function sanitizeStateBlob(blob) {
   if (typeof blob.rebirthCount !== 'number') blob.rebirthCount = 0;
   if (!Array.isArray(blob.inventory)) blob.inventory = [];
   if (!Array.isArray(blob.codesRedeemed)) blob.codesRedeemed = [];
+  // Anti-spoof: never trust client-supplied xpNext — recompute it from
+  // level + rebirthCount so tampered saves can't grant cheap levels.
+  // Mirrors public/js/engine.js xpForLevel (kinked at 60, 1.35^rebirths).
+  blob.xpNext = xpForLevelServer(blob.level, blob.rebirthCount);
   // Mining + forge: keep legit saves passing. Ores are plain finite
   // non-negative counts (clamped); forged item stats are clamped to a
   // sane cap so tampered values can't smuggle Infinity-scale numbers.

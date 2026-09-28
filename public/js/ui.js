@@ -778,9 +778,11 @@ export const UI = {
     const showRebirth = state.level >= Engine.MAX_LEVEL;
     this.els['rebirth-box'].classList.toggle('hidden', !showRebirth);
     if (showRebirth) {
+      const nextMult = Engine.rebirthXpMult ? Engine.rebirthXpMult((state.rebirthCount || 0) + 1) : 1;
       this.els['rebirth-note'].innerHTML =
         `Return to <b class="gold-text">level 1</b> — everything else stays (stage, gold, gear, pets, titles).<br>` +
-        `<span class="muted">Rebirths so far: ${state.rebirthCount || 0}.</span>`;
+        `<span class="muted">Rebirths so far: ${state.rebirthCount || 0}. ` +
+        `Next climb: XP requirements ×${nextMult.toFixed(2)}.</span>`;
     }
     this.updateHeroPanel(state, Engine.computeStats(state), null);
   },

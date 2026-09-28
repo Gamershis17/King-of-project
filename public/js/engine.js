@@ -460,7 +460,7 @@ export function ensureState(raw) {
   }
   s.rebirthCount = Math.max(0, Math.floor(s.rebirthCount || 0));
   s.stage = Math.max(1, Math.floor(s.stage || 1));
-  s.xpNext = xpForLevel(s.level);
+  s.xpNext = xpForLevel(s.level, s.rebirthCount);
   s.hero.hp = clamp(s.hero.hp, 0, s.hero.maxHp);
   for (const c of s.party) {
     c.hp = clamp(c.hp, 0, c.maxHp);
@@ -480,8 +480,20 @@ export function ensureState(raw) {
 }
 
 // ---------------- XP / levels / gold ----------------
-export const xpForLevel = (level) => Math.max(1, Math.round(80 * Math.pow(1.30, level - 1)));
-export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.15, stage)));
+// XP curve: 1.30 exponent for levels 1-60, then a steeper 1.42 exponent for
+// 61-70. The value is continuous at the kink (level 60).
+const xpForLevelBase = (level) => {
+  const l = Math.max(1, Math.floor(level || 1));
+  if (l <= 60) return 80 * Math.pow(1.30, l - 1);
+  return 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+};
+// Rebirth scaling: every rebirth multiplies all XP requirements by
+// 1.35^rebirths, so repeated climbs stay meaningful instead of trivial.
+export const rebirthXpMult = (rebirthCount) =>
+  Math.pow(1.35, Math.max(0, Math.floor(rebirthCount || 0)));
+export const xpForLevel = (level, rebirthCount = 0) =>
+  Math.max(1, Math.round(xpForLevelBase(level) * rebirthXpMult(rebirthCount)));
+export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.12, stage)));
 // Deducts gold for a purchase. Returns false when the player can't afford
 // it. Infinite-gold perk holders never pay.
 export function spendGold(s, cost) {
@@ -571,8 +583,11 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
   const race = RACES[state.race] || {};
   const stats = computeStats(state);
   const rested = state.restedUntil && nowMs < state.restedUntil;
+  // Anti-power-creep: gear/stat XP bonuses are capped at +50% here.
+  // computeStats() still reports the true total so tooltips stay truthful.
+  const xpBonusPct = Math.min(50, stats.xpBonus || 0);
   const amount = Math.max(1, Math.round(
-    baseAmount * (race.xpMult || 1) * (1 + (stats.xpBonus || 0) / 100) * (rested ? 1.25 : 1)
+    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1)
   ));
   state.xp += amount;
   const levels = [];
@@ -583,7 +598,7 @@ export function gainXp(state, baseAmount, nowMs = Date.now()) {
     state.hero.attack += 3;
     state.hero.maxHp += 25;
     state.hero.defense += 2;
-    state.xpNext = xpForLevel(state.level);
+    state.xpNext = xpForLevel(state.level, state.rebirthCount);
     levels.push(state.level);
     if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
   }
@@ -1663,13 +1678,14 @@ export function companionStats(c) {
 
 // ---------------- Rebirth ----------------
 // Level >= MAX_LEVEL. Sets the hero back to level 1; everything else
-// (stage, gold, gear, pets, titles, styles) is kept. No stacking bonus.
+// (stage, gold, gear, pets, titles, styles) is kept. Each rebirth raises all
+// future XP requirements by x1.35 (stacking), so the climb stays meaningful.
 export function rebirth(state) {
   if ((state.level || 1) < MAX_LEVEL) return null;
   state.level = 1;
   state.xp = 0;
-  state.xpNext = xpForLevel(1);
   state.rebirthCount = (state.rebirthCount || 0) + 1;
+  state.xpNext = xpForLevel(1, state.rebirthCount);
   return ensureState(state);
 }
 
@@ -1905,7 +1921,7 @@ export function grantLevels(state, n) {
     granted += 1;
   }
   state.xp = 0;
-  state.xpNext = xpForLevel(state.level);
+  state.xpNext = xpForLevel(state.level, state.rebirthCount);
   const s2 = computeStats(state);
   state.hero.hp = s2.maxHp;
   return granted;

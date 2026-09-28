@@ -133,12 +133,17 @@ router.get(
 
 // ---------- grants ----------
 /**
- * Mirrors the client curve in public/js/engine.js:
- *   export const xpForLevel = (level) => Math.max(1, Math.round(80 * Math.pow(1.30, level - 1)));
+ * Mirrors the client curve in public/js/engine.js (kinked at 60, 1.35^rebirths):
+ *   xpForLevelBase: 1-60 -> 80*1.30^(l-1); 61-70 -> 80*1.30^59*1.42^(l-60)
+ *   xpForLevel(level, rebirthCount) = round(base * 1.35^rebirthCount)
  * Keep in sync if the client formula ever changes.
  */
-function xpForLevel(level) {
-  return Math.max(1, Math.round(80 * Math.pow(1.30, Math.max(1, level) - 1)));
+function xpForLevel(level, rebirthCount) {
+  const l = Math.max(1, Math.floor(Number(level) || 1));
+  const base = l <= 60
+    ? 80 * Math.pow(1.30, l - 1)
+    : 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+  return Math.max(1, Math.round(base * Math.pow(1.35, Math.max(0, Math.floor(Number(rebirthCount) || 0)))));
 }
 
 function ensureHero(blob) {
@@ -164,7 +169,7 @@ function applyLevelGrant(blob, n) {
     granted += 1;
   }
   blob.xp = 0;
-  blob.xpNext = xpForLevel(blob.level);
+  blob.xpNext = xpForLevel(blob.level, blob.rebirthCount);
   hero.hp = hero.maxHp;
   return granted;
 }
@@ -174,7 +179,7 @@ function applyXpGrant(blob, amount) {
   blob.level = Math.max(1, Math.floor(Number(blob.level) || 1));
   blob.xp = Math.max(0, Number(blob.xp) || 0) + amount;
   if (!Number.isFinite(Number(blob.xpNext)) || Number(blob.xpNext) < 1) {
-    blob.xpNext = xpForLevel(blob.level);
+    blob.xpNext = xpForLevel(blob.level, blob.rebirthCount);
   }
   const hero = ensureHero(blob);
   let guard = 0;
@@ -184,7 +189,7 @@ function applyXpGrant(blob, amount) {
     hero.attack = (Number(hero.attack) || 0) + 3;
     hero.maxHp = (Number(hero.maxHp) || 0) + 25;
     hero.defense = (Number(hero.defense) || 0) + 2;
-    blob.xpNext = xpForLevel(blob.level);
+    blob.xpNext = xpForLevel(blob.level, blob.rebirthCount);
     if (blob.level % 10 === 0 && blob.mastery && typeof blob.mastery === 'object') {
       blob.mastery.points = Math.max(0, Math.floor(Number(blob.mastery.points) || 0)) + 1;
     }
