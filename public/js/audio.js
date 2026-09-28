@@ -111,6 +111,8 @@ export const Audio = {
         if (this.prefs.music) this._startMusic();
         else this._stopMusic();
       }
+      // SFX off kills the inn ambience too.
+      if (!this.prefs.sfx) this.stopInnAmbience();
     } catch { /* ignore */ }
   },
 
@@ -121,6 +123,7 @@ export const Audio = {
       sfx: this.prefs.sfx,
       music: this.prefs.music,
       musicPlaying: !!this._musicTimer,
+      innAmbience: !!this._inn,
     };
   },
 
@@ -271,7 +274,127 @@ export const Audio = {
     this._noise({ dur: 0.22, vol: 0.35, type: 'highpass', f: 900, f2: 5200 });
   },
 
-  // ---- generative music ------------------------------------------
+  // ---- inn ambience (rain + tavern chatter + distant thunder) --------
+
+  _inn: null, // { gain, nodes:[], timers:[] } while resting at the inn
+
+  // Procedural tavern-at-night: steady filtered rain, abstract indistinct
+  // chatter (no intelligible speech), and occasional distant thunder.
+  // Plays only while inside the inn; obeys the SFX on/off setting.
+  startInnAmbience() {
+    try {
+      if (!this.prefs.sfx) return;
+      if (!this.unlock()) return;
+      const ctx = this._ctx;
+      if (!ctx || ctx.state !== 'running') return;
+      this.stopInnAmbience();
+      const master = ctx.createGain();
+      master.gain.value = 0;
+      master.connect(this._sfxGain);
+      // Rain: looped noise through a soft lowpass, gently swelling.
+      const rain = ctx.createBufferSource();
+      rain.buffer = this._getNoiseBuffer();
+      rain.loop = true;
+      const rf = ctx.createBiquadFilter();
+      rf.type = 'lowpass';
+      rf.frequency.value = 850;
+      const rg = ctx.createGain();
+      rg.gain.value = 0.09;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = 0.07;
+      const lfoG = ctx.createGain();
+      lfoG.gain.value = 0.025;
+      lfo.connect(lfoG);
+      lfoG.connect(rg.gain);
+      rain.connect(rf);
+      rf.connect(rg);
+      rg.connect(master);
+      rain.start();
+      lfo.start();
+      master.gain.setTargetAtTime(1, ctx.currentTime, 1.5); // fade in
+      const timers = [];
+      // Chatter: abstract babble bursts — bandpassed noise with a wandering
+      // formant, kept quiet and unintelligible.
+      const chatter = () => {
+        try {
+          if (this.prefs.sfx && this._inn) {
+            const n = 2 + Math.floor(Math.random() * 2);
+            for (let i = 0; i < n; i++) this._babble(ctx, master);
+          }
+        } catch { /* ignore */ }
+        if (this._inn) timers.push(setTimeout(chatter, 3000 + Math.random() * 5000));
+      };
+      timers.push(setTimeout(chatter, 1200));
+      // Thunder: distant low rumble every 20–60s.
+      const thunder = () => {
+        try {
+          if (this.prefs.sfx && this._inn) this._thunder(ctx, master);
+        } catch { /* ignore */ }
+        if (this._inn) timers.push(setTimeout(thunder, 20000 + Math.random() * 40000));
+      };
+      timers.push(setTimeout(thunder, 8000 + Math.random() * 12000));
+      this._inn = { gain: master, nodes: [rain, lfo], timers };
+    } catch { /* never break the game over ambience */ }
+  },
+
+  stopInnAmbience() {
+    try {
+      const inn = this._inn;
+      this._inn = null;
+      if (!inn) return;
+      inn.timers.forEach((t) => clearTimeout(t));
+      if (this._ctx) {
+        const t = this._ctx.currentTime;
+        try { inn.gain.gain.setTargetAtTime(0.0001, t, 0.4); } catch { /* ignore */ }
+        inn.nodes.forEach((n) => { try { n.stop(t + 1.5); } catch { /* ignore */ } });
+      }
+    } catch { /* ignore */ }
+  },
+
+  _babble(ctx, dest) {
+    const t0 = ctx.currentTime + Math.random() * 0.4;
+    const dur = 0.35 + Math.random() * 0.5;
+    const src = ctx.createBufferSource();
+    src.buffer = this._getNoiseBuffer();
+    src.loop = true;
+    src.playbackRate.value = 0.5 + Math.random() * 0.3;
+    const f = ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 2.5;
+    f.frequency.setValueAtTime(280 + Math.random() * 420, t0);
+    f.frequency.linearRampToValueAtTime(280 + Math.random() * 420, t0 + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.05 + Math.random() * 0.03, t0 + 0.08);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(dest);
+    src.start(t0);
+    src.stop(t0 + dur + 0.1);
+  },
+
+  _thunder(ctx, dest) {
+    const t0 = ctx.currentTime;
+    const dur = 2.2 + Math.random() * 1.6;
+    const src = ctx.createBufferSource();
+    src.buffer = this._getNoiseBuffer();
+    src.loop = true;
+    src.playbackRate.value = 0.25;
+    const f = ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(160, t0);
+    f.frequency.exponentialRampToValueAtTime(60, t0 + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.3, t0 + 0.35);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(dest);
+    src.start(t0);
+    src.stop(t0 + dur + 0.1);
+  },
 
   _startMusic() {
     if (this._musicTimer || !this._ctx) return;

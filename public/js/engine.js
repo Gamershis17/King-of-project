@@ -15,6 +15,16 @@ export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midn
 // character past this. Rebirth unlocks at MAX_LEVEL.
 export const MAX_LEVEL = 70;
 
+// ---------------- Inn (AFK safe zone) ----------------
+// Session-only rest state: while inside the inn combat is fully
+// suspended (no damage in or out) and the hero regenerates.
+// Pure functions — safe to unit-test in Node.
+export const INN_REGEN_PER_SEC = 0.02; // 2% of max HP per second
+export function innRegen(hp, maxHp, dt) {
+  if (!(hp < maxHp) || !(maxHp > 0) || !(dt > 0)) return hp;
+  return Math.min(maxHp, hp + maxHp * INN_REGEN_PER_SEC * dt);
+}
+
 // ---------------- Races ----------------
 export const RACES = {
   human:     { name: 'Human Vanguard', emoji: '🛡️', trait: 'Balanced: +10% XP gain',

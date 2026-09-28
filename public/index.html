@@ -120,6 +120,7 @@
           <div>⭐ <span id="hud-stars">0</span></div>
           <div>🗺️ <span id="hud-stage">1</span></div>
         </div>
+        <button id="inn-btn" class="btn inn-btn inn-top-btn" type="button" title="Rest at Inn — safe AFK" aria-label="Rest at Inn"><span class="inn-house">🏠</span></button>
       </div>
       <div class="hud-row">
         <div class="hud-level">Lv <span id="hud-level">1</span></div>
@@ -137,7 +138,6 @@
           <button class="mode-btn" data-mode="dungeon">🏰<span>Dungeon</span></button>
           <button class="mode-btn" data-mode="raid">🌀<span>Raid</span></button>
         </div>
-
         <div class="battle-main">
           <div class="enemy-card" id="enemy-card">
             <div class="enemy-top">
@@ -235,6 +235,21 @@
         <div id="quest-weekly"></div>
         <div id="quest-class"></div>
         <div id="quest-mastery"></div>
+      </section>
+
+      <!-- INN (AFK safe zone) -->
+      <section id="tab-inn" class="tab">
+        <div class="inn-scene">
+          <img class="inn-bg" src="img/inn-bg.webp" alt="Warm tavern interior on a stormy night">
+          <canvas id="inn-glow" aria-hidden="true"></canvas>
+          <div class="inn-panel">
+            <h2>🏠 The Shadowed Hearth</h2>
+            <p class="muted small">Safe from the storm — and everything else. Rest here as long as you like; nothing can hurt you.</p>
+            <div class="bar hp"><div class="fill" id="inn-hpfill"></div><span class="bar-text" id="inn-hptext"></span></div>
+            <div id="inn-status" class="inn-status">💤 Resting…</div>
+            <button id="leave-inn-btn" class="btn gold wide" type="button">⚔️ Leave Inn</button>
+          </div>
+        </div>
       </section>
 
       <!-- MORE -->
