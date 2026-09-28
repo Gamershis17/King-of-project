@@ -756,6 +756,8 @@ body.reduce-motion .shop-card:hover { transform: none; }
   display: flex; justify-content: space-between; align-items: center;
   background: var(--bg2); border: 1px solid var(--stone2); border-radius: 8px; padding: 0.45rem 0.7rem;
 }
+.name-row[data-username] { cursor: pointer; }
+.name-row[data-username]:hover { border-color: var(--gold); }
 
 /* ---------- mid-size screens ---------- */
 @media (min-width: 700px) {

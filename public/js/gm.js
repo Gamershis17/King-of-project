@@ -560,7 +560,7 @@ export const GM = {
         const { players = [] } = await api.gmPlayers(search, 50);
         if (!players.length) { list.innerHTML = '<p class="muted small">No players found.</p>'; return; }
         list.innerHTML = players.map(p => `
-          <div class="name-row"><span>${(CLASSES[p.playerClass] || {}).emoji || ''}${(SPECS[p.spec] || {}).emoji || ''} ${esc(p.username)}</span>
+          <div class="name-row" data-username="${esc(p.username)}" title="Set as target"><span>${(CLASSES[p.playerClass] || {}).emoji || ''}${(SPECS[p.spec] || {}).emoji || ''} ${esc(p.username)}</span>
             <span class="muted small">${esc(p.role)} · Lv ${p.level} · stage ${p.stage}</span></div>`).join('');
       } catch (e) {
         list.innerHTML = `<p class="error small">Couldn't load players.</p>`;
@@ -568,6 +568,19 @@ export const GM = {
     };
     on('gm-pl-search-btn', 'click', loadPlayers);
     if ($('gm-player-list')) loadPlayers();
+    // Clicking a player row picks them as the target for every action below.
+    // Guarded so re-renders never stack duplicate listeners.
+    const plList = $('gm-player-list');
+    if (plList && !plList.dataset.pickBound) {
+      plList.dataset.pickBound = '1';
+      plList.addEventListener('click', (e) => {
+        const row = e.target && e.target.closest ? e.target.closest('.name-row[data-username]') : null;
+        if (!row) return;
+        const t = $('gm-target-user');
+        if (t) t.value = row.dataset.username;
+        UI.toast(`Target: ${row.dataset.username}`, 'info');
+      });
+    }
 
     // ---- staff ----
     on('gm-admin-add', 'click', async () => {
