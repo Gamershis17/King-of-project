@@ -94,10 +94,15 @@ async function pollMaintenance() {
 // ---------------- boot ----------------
 async function boot() {
   // PWA: register the service worker if supported; a failure must never break the game.
+  // update() forces the version check on every load so a stale SW can never
+  // linger; the SW itself reloads tabs once when a new version activates.
   try {
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
+        navigator.serviceWorker
+          .register('/sw.js')
+          .then((reg) => { try { reg.update(); } catch (e) {} })
+          .catch(() => {});
       });
     }
   } catch (e) {}
