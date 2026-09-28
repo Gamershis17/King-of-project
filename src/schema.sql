@@ -15,6 +15,9 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE UNIQUE INDEX IF NOT EXISTS users_username_nocase_uidx ON users (LOWER(username));
 -- Migration for databases created before the banned column existed:
 ALTER TABLE users ADD COLUMN IF NOT EXISTS banned BOOLEAN NOT NULL DEFAULT FALSE;
+-- session_version: bumped by GM kick; sessions carrying an older version are
+-- destroyed on next request (see src/auth.js requireAuth).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS player_state (
   user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -28,12 +31,17 @@ CREATE TABLE IF NOT EXISTS player_state (
 
 CREATE TABLE IF NOT EXISTS gift_codes (
   code TEXT PRIMARY KEY,
-  gear_set TEXT NOT NULL,                 -- 'sovereign' | 'fateweaver' | 'warden'
+  gear_set TEXT NOT NULL,                 -- gear-set id, or 'none' for gold/star codes
+  reward_kind TEXT NOT NULL DEFAULT 'gear', -- 'gear' | 'gold' | 'stars'
+  reward_amount INTEGER NOT NULL DEFAULT 0, -- gold/stars granted (0 for gear codes)
   max_uses INTEGER NOT NULL DEFAULT 1,
   uses INTEGER NOT NULL DEFAULT 0,
   created_by INTEGER REFERENCES users(id),
   created_at BIGINT NOT NULL
 );
+-- Migration for databases created before reward kinds existed:
+ALTER TABLE gift_codes ADD COLUMN IF NOT EXISTS reward_kind TEXT NOT NULL DEFAULT 'gear';
+ALTER TABLE gift_codes ADD COLUMN IF NOT EXISTS reward_amount INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS code_redemptions (
   code TEXT NOT NULL,

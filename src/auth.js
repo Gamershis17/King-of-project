@@ -69,6 +69,14 @@ async function requireAuth(req, res, next) {
       req.session.destroy(() => {});
       return res.status(403).json({ error: 'This account has been banned.' });
     }
+    const sessionVersion = Number(user.session_version) || 0;
+    if ((Number(req.session.sessionVersion) || 0) !== sessionVersion) {
+      // Kicked by staff (or sessions predate the version field mismatch):
+      // force a fresh login. Sessions minted before this feature shipped
+      // carry no version and the column defaults to 0, so they still match.
+      req.session.destroy(() => {});
+      return res.status(401).json({ error: 'Session expired. Please sign in again.' });
+    }
     req.user = user;
     next();
   } catch (err) {
@@ -112,6 +120,7 @@ router.post(
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: 'Session error.' });
       req.session.userId = user.id;
+      req.session.sessionVersion = Number(user.session_version) || 0;
       res.status(201).json({ user: publicUser(user) });
     });
   })
@@ -137,6 +146,7 @@ router.post(
     req.session.regenerate((err) => {
       if (err) return res.status(500).json({ error: 'Session error.' });
       req.session.userId = user.id;
+      req.session.sessionVersion = Number(user.session_version) || 0;
       res.json({ user: publicUser(user) });
     });
   })
@@ -152,12 +162,9 @@ router.post('/logout', (req, res) => {
 
 router.get(
   '/me',
+  requireAuth,
   asyncHandler(async (req, res) => {
-    const userId = req.session && req.session.userId;
-    if (!userId) return res.status(401).json({ error: 'Not signed in.' });
-    const user = await getUserById(userId);
-    if (!user) return res.status(401).json({ error: 'Not signed in.' });
-    res.json({ user: publicUser(user) });
+    res.json({ user: publicUser(req.user) });
   })
 );
 

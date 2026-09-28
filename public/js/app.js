@@ -1221,17 +1221,26 @@ async function doRedeem() {
   if (!code) { UI.toast('Enter a gift code.', 'error'); return; }
   try {
     const res = await api.redeem(code);
-    // Server merged the set into saved state; save local progress first, then pull inventory.
+    // Server merged the reward into saved state; save local progress first,
+    // then pull the server-merged reward fields back in.
     await saveNow();
     const { state: srv } = await api.getState();
     const fresh = Engine.ensureState(srv);
-    // keep local live progress, take the server-merged inventory + redemptions
+    // keep local live progress, take the server-merged reward fields
     App.state.inventory = fresh.inventory;
+    App.state.gold = fresh.gold;
+    App.state.stars = fresh.stars;
     App.state.codesRedeemed = fresh.codesRedeemed;
     input.value = '';
     UI.renderGear(App.state);
     UI.renderMore(App.state, App.user);
-    UI.toast(`🎁 Redeemed! ${res.set ? '(' + res.set + ' set added)' : ''}`, 'success');
+    UI.updateHUD(App.state, App.user);
+    const reward = res.reward || { kind: 'gear', amount: 0 };
+    let msg;
+    if (reward.kind === 'gold') msg = `🎁 Redeemed: +💰${formatNum(reward.amount)} gold!`;
+    else if (reward.kind === 'stars') msg = `🎁 Redeemed: +⭐${formatNum(reward.amount)} stars!`;
+    else msg = `🎁 Redeemed! ${res.set ? '(' + res.set + ' set added)' : ''}`;
+    UI.toast(msg, 'success');
     saveNow();
   } catch (e) {
     UI.toast(e.message || 'Redeem failed.', 'error');

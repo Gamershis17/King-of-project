@@ -56,8 +56,19 @@ async function migrate() {
   await pool.query(sql);
   // Prestige -> Rebirth rename: old installs carry prestige_count.
   try {
-    await pool.query('ALTER TABLE player_state RENAME COLUMN rebirth_count TO rebirth_count');
+    await pool.query('ALTER TABLE player_state RENAME COLUMN prestige_count TO rebirth_count');
   } catch (e) { /* already renamed or fresh install */ }
+  // Kick support: users.session_version (see schema.sql IF NOT EXISTS guard).
+  try {
+    await pool.query('ALTER TABLE users ADD COLUMN session_version INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
+  // Gift-code reward kinds (see schema.sql IF NOT EXISTS guards).
+  try {
+    await pool.query("ALTER TABLE gift_codes ADD COLUMN reward_kind TEXT NOT NULL DEFAULT 'gear'");
+  } catch (e) { /* already exists */ }
+  try {
+    await pool.query('ALTER TABLE gift_codes ADD COLUMN reward_amount INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
 }
 
 async function closePool() {
@@ -92,6 +103,15 @@ async function createUserWithRole(username, passwordHash, role) {
 
 async function setUserRole(userId, role) {
   await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
+}
+
+/**
+ * Bump a user's session_version, invalidating all of their existing
+ * sessions. The next authenticated request carrying an older version is
+ * destroyed by requireAuth (see src/auth.js). Used by GM kick.
+ */
+async function bumpSessionVersion(userId) {
+  await pool.query('UPDATE users SET session_version = session_version + 1 WHERE id = $1', [userId]);
 }
 
 async function ownerExists() {
@@ -164,10 +184,10 @@ async function getGiftCode(code) {
   return rows[0] || null;
 }
 
-async function createGiftCode(code, gearSet, maxUses, createdBy) {
+async function createGiftCode(code, gearSet, maxUses, createdBy, rewardKind = 'gear', rewardAmount = 0) {
   await pool.query(
-    'INSERT INTO gift_codes (code, gear_set, max_uses, uses, created_by, created_at) VALUES ($1, $2, $3, 0, $4, $5)',
-    [code, gearSet, maxUses, createdBy, Date.now()]
+    'INSERT INTO gift_codes (code, gear_set, reward_kind, reward_amount, max_uses, uses, created_by, created_at) VALUES ($1, $2, $3, $4, $5, 0, $6, $7)',
+    [code, gearSet, rewardKind, rewardAmount, maxUses, createdBy, Date.now()]
   );
 }
 
@@ -177,7 +197,7 @@ async function incrementCodeUses(code) {
 
 async function listGiftCodes() {
   const { rows } = await pool.query(
-    'SELECT code, gear_set, max_uses, uses, created_at FROM gift_codes ORDER BY created_at DESC'
+    'SELECT code, gear_set, reward_kind, reward_amount, max_uses, uses, created_at FROM gift_codes ORDER BY created_at DESC'
   );
   return rows;
 }
@@ -217,7 +237,7 @@ function redeemError(code) {
  * player's blob (may throw to abort, e.g. invalid gear set config).
  * `defaultBlobFn()` supplies a fresh blob when the player has no saved row.
  *
- * Returns the gear_set id. Throws errors with .code:
+ * Returns the gift_codes row. Throws errors with .code:
  *   REDEEM_NOT_FOUND | REDEEM_EXHAUSTED | REDEEM_ALREADY
  */
 async function redeemGiftCode(code, userId, grantFn, defaultBlobFn) {
@@ -261,7 +281,7 @@ async function redeemGiftCode(code, userId, grantFn, defaultBlobFn) {
       [code, userId, Date.now()]
     );
     await client.query('COMMIT');
-    return giftCode.gear_set;
+    return giftCode;
   } catch (err) {
     try {
       await client.query('ROLLBACK');
@@ -319,6 +339,7 @@ module.exports = {
   createUser,
   createUserWithRole,
   setUserRole,
+  bumpSessionVersion,
   ownerExists,
   getPlayerCount,
   getUsernamesByRole,
