@@ -78,6 +78,21 @@ check('nameFx id list matches client list', () => {
   assert.deepStrictEqual(ids, ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch']);
 });
 
+console.log('== sanitizeStateBlob battleBg ==');
+check('keeps valid battleBg values', () => {
+  for (const v of ['world', 'mystyle', 'off']) {
+    const b = blob({ battleBg: v });
+    const r = sanitizeStateBlob(b);
+    assert.strictEqual(r.ok, true);
+    assert.strictEqual(b.battleBg, v);
+  }
+});
+check('strips malformed battleBg', () => {
+  const b = blob({ battleBg: 'hax\";alert(1)//' });
+  sanitizeStateBlob(b);
+  assert.strictEqual('battleBg' in b, false);
+});
+
 if (failures) {
   console.error(`\n${failures} failure(s)`);
   process.exit(1);

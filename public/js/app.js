@@ -217,6 +217,7 @@ async function boot() {
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
+    onBattleBg: setBattleBg,
     onNameColor: setNameColor,
     onNameFx: setNameFx,
     onEyeColor: setEyeColor,
@@ -516,6 +517,7 @@ function applyCustomStyles() {
   const bg = bgStyleOf(App.state);
   document.body.dataset.bgstyle = bg;
   UI.syncCustomStyles(btnStyleOf(App.state), bg);
+  UI.syncBattleBg(battleBgOf(App.state));
   UI.syncNameStyle(nameColorOf(App.state), nameFxOf(App.state));
   UI.setBgScene(bg, bgSceneOpts(App.state));
   UI.renderBgAnimOpts(bg, App.state && App.state.settings);
@@ -557,6 +559,20 @@ function setBgStyle(id) {
   if (!s) return;
   s.bgStyle = BG_STYLE_IDS.includes(id) ? id : 'default';
   applyCustomStyles();
+  saveNow();
+}
+// Battle background choice (state.battleBg): 'world' (realm's ambient scene,
+// default), 'mystyle' (the background picked in Settings), or 'off' (plain
+// dark, no animated scene). Sanitized like bgStyle; tampered values fall back.
+const BATTLE_BG_IDS = ['world', 'mystyle', 'off'];
+function battleBgOf(s) {
+  return (s && BATTLE_BG_IDS.includes(s.battleBg)) ? s.battleBg : 'world';
+}
+function setBattleBg(id) {
+  const s = App.state;
+  if (!s) return;
+  s.battleBg = BATTLE_BG_IDS.includes(id) ? id : 'world';
+  UI.syncBattleBg(s.battleBg);
   saveNow();
 }
 // ---- player name styles (cosmetic; top-level on state like bgStyle) ----
@@ -1965,12 +1981,18 @@ async function onTabSwitch(tab, force = false) {
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);
-    // Battle shows the current world's ambient background (the world scenes
-    // aren't in the user's style picker); leaving battle restores the saved
-    // background style below.
+    // Battle background (Settings → ⚔️ Battle background): the current
+    // realm's animated scene (default), the player's picked background, or
+    // off (plain dark, no animated scene). Leaving battle restores the
+    // saved background style below.
     try {
-      const world = Engine.worldForStage(s.stage);
-      if (world && world.bgScene) UI.setBgScene(world.bgScene, bgSceneOpts(s));
+      const bbg = battleBgOf(s);
+      if (bbg === 'mystyle') UI.setBgScene(bgStyleOf(s), bgSceneOpts(s));
+      else if (bbg === 'off') UI.setBgScene('off', bgSceneOpts(s));
+      else {
+        const world = Engine.worldForStage(s.stage);
+        if (world && world.bgScene) UI.setBgScene(world.bgScene, bgSceneOpts(s));
+      }
     } catch { /* keep saved background on error */ }
   } else if (tab === 'ranks') {
     await loadRanks();
