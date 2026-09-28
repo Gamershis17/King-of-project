@@ -498,7 +498,7 @@ function setUiStyle(style) {
 // Unknown values normalize to 'default', which renders pixel-identical
 // to the uncustomized game.
 const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
-const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm', 'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon'];
+const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm', 'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon', 'nightsky', 'sunset', 'woods', 'water'];
 function btnStyleOf(s) {
   return (s && BTN_STYLE_IDS.includes(s.btnStyle)) ? s.btnStyle : 'default';
 }

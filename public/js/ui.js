@@ -91,6 +91,10 @@ export const UI = {
     { id: 'frostfall', name: 'Frostfall', css: 'radial-gradient(circle at 50% 30%, #1d3a5e, #060a12 72%)', animated: true },
     { id: 'starfall',  name: 'Starfall',  css: 'radial-gradient(circle at 50% 20%, #1a1440, #050310 72%)', animated: true },
     { id: 'bloodmoon', name: 'Blood Moon', css: 'radial-gradient(circle at 70% 25%, #5e1420, #0d0408 72%)', animated: true },
+    { id: 'nightsky', name: 'Night Sky', css: 'radial-gradient(circle at 75% 20%, #16224d, #04060f 72%)', animated: true },
+    { id: 'sunset',   name: 'Sunset',    css: 'radial-gradient(circle at 50% 70%, #c65a1e, #1a0b26 75%)', animated: true },
+    { id: 'woods',    name: 'Woods',     css: 'radial-gradient(circle at 50% 80%, #16301f, #060a08 75%)', animated: true },
+    { id: 'water',    name: 'Water',     css: 'radial-gradient(circle at 50% 30%, #12324d, #050a12 72%)', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -107,7 +111,8 @@ export const UI = {
   ],
   DEFAULT_ORB_COLORS: ['#a855f7', '#7c3aed', '#22d3ee'],
   BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm',
-    'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon'],
+    'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon',
+    'nightsky', 'sunset', 'woods', 'water'],
 
   // ---------------- init ----------------
   init() {
@@ -1544,6 +1549,106 @@ export const UI = {
         B.parts.push(e);
       }
       B.grad = this._vGrad(['#12060a', '#2b0d14', '#12060a']);
+    } else if (id === 'nightsky') {
+      // Night Sky: crescent moon, twinkling stars, slow-drifting night clouds.
+      B.sprites.moon = this._glowSprite('#e8edff');
+      B.sprites.cloud = ['#1a2340', '#232f55', '#141b33'].map((c) => this._glowSprite(c));
+      B.nightMoon = { x: W * 0.76, y: H * 0.22, r: Math.min(W, H) * 0.055 };
+      B.stars = [];
+      for (let i = 0; i < 100; i++) {
+        B.stars.push({ x: R(0, W), y: R(0, H), r: R(0.6, 2) * dpr, ph: R(0, 6.28), ps: R(0.4, 1.2) });
+      }
+      for (let i = 0; i < 8; i++) {
+        B.parts.push({
+          x: R(0, W), y: R(0.05, 0.6) * H, r: R(70, 150) * dpr,
+          vx: R(-8, 8) * dpr, si: (Math.random() * 3) | 0,
+          ph: R(0, 6.28), ps: R(0.2, 0.5), a: R(0.12, 0.24),
+        });
+      }
+      B.grad = this._vGrad(['#04060f', '#0c1430', '#04060f']);
+    } else if (id === 'sunset') {
+      // Sunset: a low glowing sun on a warm horizon, tinted drifting
+      // clouds, and distant birds crossing the sky.
+      B.sprites.sun = this._glowSprite('#ffb347');
+      B.sprites.scloud = ['#ff9f5e', '#e05a4e', '#c65a1e'].map((c) => this._glowSprite(c));
+      B.sun = { x: W * 0.5, y: H * 0.60, r: Math.min(W, H) * 0.062 };
+      for (let i = 0; i < 10; i++) {
+        B.parts.push({
+          kind: 'cloud',
+          x: R(0, W), y: R(0.1, 0.7) * H, r: R(70, 160) * dpr,
+          vx: R(6, 18) * dpr, si: (Math.random() * 3) | 0,
+          ph: R(0, 6.28), ps: R(0.2, 0.5), a: R(0.14, 0.26),
+        });
+      }
+      for (let i = 0; i < 6; i++) {
+        B.parts.push({
+          kind: 'bird',
+          x: R(0, W), y: R(0.12, 0.42) * H, s: R(7, 12) * dpr,
+          vx: R(-26, -12) * dpr, ph: R(0, 6.28), fs: R(4, 7),
+        });
+      }
+      B.grad = this._vGrad(['#1a0b26', '#5e1f2e', '#c65a1e']);
+    } else if (id === 'woods') {
+      // Woods: layered pine silhouettes, wandering fireflies, low mist.
+      B.sprites.fly = ['#d9f99d', '#bef264', '#fde68a'].map((c) => this._glowSprite(c));
+      B.sprites.mist = ['#3f4a42', '#2c352c'].map((c) => this._glowSprite(c));
+      const layerCols = ['#0a1410', '#0d1a12', '#122417'];
+      B.trees = [];
+      for (let l = 0; l < 3; l++) {
+        const n = 9 - l * 2, baseH = H * (0.34 - l * 0.05);
+        for (let i = 0; i < n; i++) {
+          B.trees.push({
+            x: (i + R(0.1, 0.9)) / n * W, w: R(50, 90) * dpr * (1 - l * 0.15),
+            h: baseH * R(0.75, 1.15), col: layerCols[l], layer: l,
+          });
+        }
+      }
+      for (let i = 0; i < 26; i++) {
+        B.parts.push({
+          kind: 'fly',
+          x: R(0, W), y: R(0.45, 0.95) * H, s: R(2, 4) * dpr,
+          si: (Math.random() * 3) | 0, ph: R(0, 6.28), ps: R(0.8, 1.8),
+          wx: R(10, 30) * dpr, wy: R(8, 22) * dpr, fs: R(0.5, 1.1), a: R(0.5, 0.9),
+        });
+      }
+      for (let i = 0; i < 6; i++) {
+        B.parts.push({
+          kind: 'mist',
+          x: R(0, W), y: R(0.68, 0.98) * H, r: R(90, 180) * dpr,
+          vx: R(-10, 10) * dpr, si: (Math.random() * 2) | 0,
+          ph: R(0, 6.28), ps: R(0.2, 0.5), a: R(0.10, 0.20),
+        });
+      }
+      B.grad = this._vGrad(['#060a08', '#0d1a12', '#060a08']);
+    } else if (id === 'water') {
+      // Water: a moonlit lake — shimmering reflection glints, slow wave
+      // lines, and mist on the surface.
+      B.sprites.wmoon = this._glowSprite('#cfe4ff');
+      B.sprites.wmist = ['#2a3a4d', '#1c2836'].map((c) => this._glowSprite(c));
+      B.waterMoon = { x: W * 0.5, y: H * 0.18, r: Math.min(W, H) * 0.048 };
+      for (let i = 0; i < 44; i++) {
+        B.parts.push({
+          kind: 'glint',
+          x: W * 0.5 + R(-0.22, 0.22) * W, y: R(0.36, 0.96) * H,
+          w: R(24, 80) * dpr, ph: R(0, 6.28), ps: R(0.6, 1.6), a: R(0.15, 0.45),
+        });
+      }
+      for (let i = 0; i < 7; i++) {
+        B.parts.push({
+          kind: 'wave',
+          y: R(0.34, 0.96) * H, vx: R(-9, 9) * dpr,
+          ph: R(0, 6.28), ps: R(0.4, 0.9), a: R(0.10, 0.22),
+        });
+      }
+      for (let i = 0; i < 5; i++) {
+        B.parts.push({
+          kind: 'wmist',
+          x: R(0, W), y: R(0.6, 0.95) * H, r: R(90, 170) * dpr,
+          vx: R(-8, 8) * dpr, si: (Math.random() * 2) | 0,
+          ph: R(0, 6.28), ps: R(0.2, 0.45), a: R(0.10, 0.18),
+        });
+      }
+      B.grad = this._vGrad(['#050a12', '#0d2233', '#050a12']);
     }
   },
   _drawBgFrame(t, isStatic) {
@@ -1818,6 +1923,145 @@ export const UI = {
           ctx.globalAlpha = p.a * fade;
           const ad = p.s * 5;
           ctx.drawImage(B.sprites.moon, p.x - ad / 2, p.y - ad / 2, ad, ad);
+        }
+      }
+    } else if (B.scene === 'nightsky') {
+      // Crescent moon, twinkling stars, drifting night clouds.
+      const m = B.nightMoon;
+      ctx.globalAlpha = 0.45;
+      ctx.drawImage(B.sprites.moon, m.x - m.r * 3, m.y - m.r * 3, m.r * 6, m.r * 6);
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = '#e8edff';
+      ctx.beginPath(); ctx.arc(m.x, m.y, m.r, 0, 6.2832); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#0a1230';
+      ctx.beginPath(); ctx.arc(m.x + m.r * 0.45, m.y - m.r * 0.25, m.r * 0.85, 0, 6.2832); ctx.fill();
+      for (const s of (B.stars || [])) {
+        const tw = 0.35 + 0.65 * Math.abs(Math.sin(t / 1000 * s.ps + s.ph));
+        ctx.globalAlpha = 0.55 * tw;
+        ctx.fillStyle = '#dfe8ff';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, 6.2832);
+        ctx.fill();
+      }
+      for (const p of B.parts) {
+        if (!isStatic) {
+          p.x += p.vx * B.dt;
+          const mm = p.r * 2;
+          if (p.x < -mm) p.x = W + mm; else if (p.x > W + mm) p.x = -mm;
+        }
+        const breathe = 0.7 + 0.3 * Math.sin(t / 1000 * p.ps + p.ph);
+        const cd = p.r * 2 * breathe;
+        ctx.globalAlpha = p.a * breathe;
+        ctx.drawImage(B.sprites.cloud[p.si], p.x - cd / 2, p.y - cd / 2, cd, cd);
+      }
+    } else if (B.scene === 'sunset') {
+      // Low sun with a warm pulse, tinted clouds, distant birds.
+      const sn = B.sun;
+      const pulse = 0.9 + 0.1 * Math.sin(t / 1400);
+      ctx.globalAlpha = 0.55 * pulse;
+      ctx.drawImage(B.sprites.sun, sn.x - sn.r * 3.4, sn.y - sn.r * 3.4, sn.r * 6.8, sn.r * 6.8);
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = '#ffd27a';
+      ctx.beginPath(); ctx.arc(sn.x, sn.y, sn.r, 0, 6.2832); ctx.fill();
+      for (const p of B.parts) {
+        if (p.kind === 'cloud') {
+          if (!isStatic) {
+            p.x += p.vx * B.dt;
+            const mm = p.r * 2;
+            if (p.x > W + mm) p.x = -mm;
+          }
+          const breathe = 0.7 + 0.3 * Math.sin(t / 1000 * p.ps + p.ph);
+          const cd = p.r * 2 * breathe;
+          ctx.globalAlpha = p.a * breathe;
+          ctx.drawImage(B.sprites.scloud[p.si], p.x - cd / 2, p.y - cd / 2, cd, cd);
+        } else {
+          if (!isStatic) {
+            p.x += p.vx * B.dt;
+            if (p.x < -30) { p.x = W + 30; p.y = Math.random() * H * 0.3 + H * 0.12; }
+          }
+          const flap = Math.sin(t / 1000 * p.fs + p.ph) * p.s * 0.5;
+          ctx.globalAlpha = 0.75;
+          ctx.strokeStyle = '#2a1420';
+          ctx.lineWidth = 2 * dpr;
+          ctx.beginPath();
+          ctx.moveTo(p.x - p.s, p.y - flap);
+          ctx.lineTo(p.x, p.y);
+          ctx.lineTo(p.x + p.s, p.y - flap);
+          ctx.stroke();
+        }
+      }
+    } else if (B.scene === 'woods') {
+      // Layered pine silhouettes (back to front), wandering fireflies, mist.
+      for (const tr of (B.trees || [])) {
+        const base = H + 4, top = base - tr.h, hw = tr.w / 2;
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = tr.col;
+        ctx.fillRect(tr.x - tr.w * 0.06, base - tr.h * 0.22, tr.w * 0.12, tr.h * 0.22);
+        for (let ti = 0; ti < 3; ti++) {
+          const ty = top + ti * tr.h * 0.26, twd = hw * (1 - ti * 0.24);
+          ctx.beginPath();
+          ctx.moveTo(tr.x - twd, ty + tr.h * 0.30);
+          ctx.lineTo(tr.x, ty);
+          ctx.lineTo(tr.x + twd, ty + tr.h * 0.30);
+          ctx.closePath(); ctx.fill();
+        }
+      }
+      for (const p of B.parts) {
+        if (p.kind === 'fly') {
+          const fx = p.x + Math.sin(t / 1000 * p.fs + p.ph) * p.wx;
+          const fy = p.y + Math.cos(t / 1000 * p.fs * 0.8 + p.ph) * p.wy;
+          const tw = 0.4 + 0.6 * Math.abs(Math.sin(t / 1000 * p.ps + p.ph));
+          const fd = p.s * 5 * tw;
+          ctx.globalAlpha = p.a * tw;
+          ctx.drawImage(B.sprites.fly[p.si], fx - fd / 2, fy - fd / 2, fd, fd);
+        } else {
+          if (!isStatic) {
+            p.x += p.vx * B.dt;
+            const mm = p.r * 2;
+            if (p.x < -mm) p.x = W + mm; else if (p.x > W + mm) p.x = -mm;
+          }
+          const breathe = 0.7 + 0.3 * Math.sin(t / 1000 * p.ps + p.ph);
+          const md = p.r * 2 * breathe;
+          ctx.globalAlpha = p.a * breathe;
+          ctx.drawImage(B.sprites.mist[p.si], p.x - md / 2, p.y - md / 2, md, md);
+        }
+      }
+    } else if (B.scene === 'water') {
+      // Moonlit lake: glowing moon, shimmering reflection, slow waves, mist.
+      const wm = B.waterMoon;
+      ctx.globalAlpha = 0.5;
+      ctx.drawImage(B.sprites.wmoon, wm.x - wm.r * 3, wm.y - wm.r * 3, wm.r * 6, wm.r * 6);
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = '#e6f0ff';
+      ctx.beginPath(); ctx.arc(wm.x, wm.y, wm.r, 0, 6.2832); ctx.fill();
+      for (const p of B.parts) {
+        if (p.kind === 'glint') {
+          const tw = 0.3 + 0.7 * Math.abs(Math.sin(t / 1000 * p.ps + p.ph));
+          ctx.globalAlpha = p.a * tw;
+          ctx.fillStyle = '#bcd7ff';
+          ctx.fillRect(p.x - p.w / 2, p.y, p.w, 2.2 * dpr);
+        } else if (p.kind === 'wave') {
+          const off = Math.sin(t / 1000 * p.ps + p.ph) * 14 * dpr;
+          ctx.globalAlpha = p.a;
+          ctx.strokeStyle = '#3d5a76';
+          ctx.lineWidth = 1.6 * dpr;
+          ctx.beginPath();
+          for (let wx = -20; wx <= W + 20; wx += 40 * dpr) {
+            const wy = p.y + Math.sin((wx + off) / (90 * dpr) + p.ph) * 5 * dpr;
+            if (wx === -20) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+          }
+          ctx.stroke();
+        } else {
+          if (!isStatic) {
+            p.x += p.vx * B.dt;
+            const mm = p.r * 2;
+            if (p.x < -mm) p.x = W + mm; else if (p.x > W + mm) p.x = -mm;
+          }
+          const breathe = 0.7 + 0.3 * Math.sin(t / 1000 * p.ps + p.ph);
+          const md = p.r * 2 * breathe;
+          ctx.globalAlpha = p.a * breathe;
+          ctx.drawImage(B.sprites.wmist[p.si], p.x - md / 2, p.y - md / 2, md, md);
         }
       }
     }
