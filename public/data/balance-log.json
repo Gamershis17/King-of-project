@@ -1,6 +1,19 @@
 [
   {
     "date": "2026-09-28",
+    "title": "Starter gold for new players",
+    "version": "v17",
+    "changes": [
+      {
+        "system": "Starting gold",
+        "before": "New heroes (guest and registered) started with 0 gold",
+        "after": "New heroes start with 500 gold — exactly the Stray Egg price, so the first pet is buyable immediately",
+        "note": "Existing saves untouched. No trading or guild bank exists, so starter gold can't be funneled between accounts."
+      }
+    ]
+  },
+  {
+    "date": "2026-09-28",
     "title": "Gold cap raised to 999Qi",
     "version": "v16",
     "changes": [

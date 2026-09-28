@@ -441,7 +441,7 @@ export function defaultState(race) {
     race: race || null,
     mode: 'clicker',
     level: 1, xp: 0, xpNext: xpForLevel(1),
-    gold: 0, stars: 0,
+    gold: 500, stars: 0,
     stage: 1, bossesKilled: 0,
     rebirthCount: 0,
     hero: {
