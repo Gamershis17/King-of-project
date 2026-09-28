@@ -1,9 +1,10 @@
 'use strict';
 /**
  * Nerf-batch unit tests (no server, no DOM).
- * Covers Stream 1: kinked XP curve, rebirth scaling, kill-XP nerf,
- * +40% xpBonus clamp in gainXp (was 50%, lowered in v15 for party bonus),
- * server-side xpNext anti-spoof, and the v15 level cap raise 70 -> 90.
+ * Covers Stream 1: v18 three-segment XP curve (kinks at 30 and 60),
+ * rebirth scaling, kill-XP formula, +40% xpBonus clamp in gainXp
+ * (lowered from 50% for the party bonus), server-side xpNext anti-spoof,
+ * the level cap 90, and the fresh v18 balance log JSON.
  *
  * Run: node test/nerf.js
  */
@@ -24,26 +25,43 @@ async function main() {
   const E = await import('../public/js/engine.js');
   const V = require('../src/validation.js');
 
-  console.log('== xp curve (kink at 60) ==');
+  console.log('== xp curve (v18: kinks at 30 and 60) ==');
+  const oldCurve = (l) => l <= 60
+    ? 80 * Math.pow(1.30, l - 1)
+    : 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
   check('xpForLevel(1) = 80', () => {
     assert.strictEqual(E.xpForLevel(1, 0), 80);
   });
-  check('curve unchanged at/below kink: L60 matches old 1.30 formula', () => {
-    assert.strictEqual(E.xpForLevel(60, 0), Math.round(80 * Math.pow(1.30, 59)));
+  check('curve unchanged 1-30: L30 matches old 1.30 formula', () => {
+    assert.strictEqual(E.xpForLevel(30, 0), Math.round(80 * Math.pow(1.30, 29)));
   });
-  check('kink is continuous: L61 / L60 ~= 1.42', () => {
-    const r = E.xpForLevel(61, 0) / E.xpForLevel(60, 0);
-    assert.ok(r > 1.415 && r < 1.425, `ratio ${r}`);
+  check('first kink continuous at 30; growth shifts 1.30 -> 1.35', () => {
+    const r30 = E.xpForLevel(30, 0), r31 = E.xpForLevel(31, 0);
+    assert.strictEqual(r30, Math.round(oldCurve(30)));
+    const g = r31 / r30;
+    assert.ok(g > 1.34 && g < 1.36, `30->31 growth ${g}`);
   });
-  check('level 70 much steeper than the old curve', () => {
-    const old70 = Math.round(80 * Math.pow(1.30, 69));
-    assert.ok(E.xpForLevel(70, 0) > old70 * 1.5,
-      `new ${E.xpForLevel(70, 0)} vs old ${old70}`);
+  check('second kink continuous at 60; growth shifts 1.35 -> 1.44', () => {
+    const r60 = E.xpForLevel(60, 0), r61 = E.xpForLevel(61, 0);
+    const g = r61 / r60;
+    assert.ok(g > 1.43 && g < 1.45, `60->61 growth ${g}`);
   });
-  check('total XP 1->70 nerfed (old ~19.4B)', () => {
+  check('v18 nerf ratios vs old curve (within 1%)', () => {
+    const expected = { 40: 1.46, 50: 2.13, 55: 2.57, 60: 3.10, 70: 3.57, 90: 4.72 };
+    for (const [L, want] of Object.entries(expected)) {
+      const got = E.xpForLevel(Number(L), 0) / oldCurve(Number(L));
+      assert.ok(Math.abs(got - want) / want < 0.01, `L${L} ratio ${got} vs ${want}`);
+    }
+  });
+  check('level 70 ~3.5x steeper than the old curve', () => {
+    const old70 = Math.round(oldCurve(70));
+    const r = E.xpForLevel(70, 0) / old70;
+    assert.ok(r > 3.4 && r < 3.7, `L70 ratio ${r}`);
+  });
+  check('total XP 1->90 nerfed to ~167.8T (old ~37.25T)', () => {
     let total = 0;
-    for (let L = 1; L <= 69; L++) total += E.xpForLevel(L, 0);
-    assert.ok(total > 30e9 && total < 40e9, `total ${total}`);
+    for (let L = 1; L <= 89; L++) total += E.xpForLevel(L, 0);
+    assert.ok(total > 167e12 && total < 168.5e12, `total ${total}`);
   });
 
   console.log('== rebirth scaling ==');
@@ -73,8 +91,8 @@ async function main() {
   });
 
   console.log('== kill xp nerf ==');
-  check('xpForKill uses 8 x 1.12^stage (v13)', () => {
-    assert.strictEqual(E.xpForKill(1), Math.round(8 * 1.12));
+  check('xpForKill uses 10 x 1.12^stage (party branch)', () => {
+    assert.strictEqual(E.xpForKill(1), Math.round(10 * 1.12));
   });
   check('xpForKill(148) nerfed below 1B (was ~9.6B)', () => {
     assert.ok(E.xpForKill(148) < 1e9, `got ${E.xpForKill(148)}`);
@@ -118,17 +136,17 @@ async function main() {
   check('MAX_LEVEL is 90', () => {
     assert.strictEqual(E.MAX_LEVEL, 90, `MAX_LEVEL ${E.MAX_LEVEL}`);
   });
-  check('xpForLevel continues 1.42 exponent through 61-90 (no new kink)', () => {
+  check('xpForLevel uses the 1.44 exponent through 61-90', () => {
     // continuous at 60->61 and smooth growth after
     const r60 = E.xpForLevel(60, 0), r61 = E.xpForLevel(61, 0);
     assert.ok(r61 > r60 && r61 < r60 * 1.5, `60->61 ${r60} -> ${r61}`);
     const ratio = E.xpForLevel(90, 0) / E.xpForLevel(89, 0);
-    assert.ok(ratio > 1.41 && ratio < 1.43, `89->90 ratio ${ratio}`);
+    assert.ok(ratio > 1.43 && ratio < 1.45, `89->90 ratio ${ratio}`);
   });
-  check('total XP 1->90 is ~37.25T (up from ~33.93B for 1->70)', () => {
+  check('total XP 1->90 is ~167.84T (old pre-v18 ~37.25T)', () => {
     let total = 0;
     for (let L = 1; L <= 89; L++) total += E.xpForLevel(L, 0);
-    assert.ok(total > 37e12 && total < 37.5e12, `total ${total}`);
+    assert.ok(total > 167e12 && total < 168.5e12, `total ${total}`);
   });
   check('rebirth still available at 90 and resets to 1', () => {
     const s = E.ensureState({ race: 'orc', level: 90, xp: 0 });

@@ -133,16 +133,23 @@ router.get(
 
 // ---------- grants ----------
 /**
- * Mirrors the client curve in public/js/engine.js (kinked at 60, 1.35^rebirths):
- *   xpForLevelBase: 1-60 -> 80*1.30^(l-1); 61-90 -> 80*1.30^59*1.42^(l-60)
+ * Mirrors the client curve in public/js/engine.js (v18 nerf: kinks at 30 and
+ * 60, 1.35^rebirths):
+ *   xpForLevelBase: 1-30 -> 80*1.30^(l-1); 31-60 -> V30*1.35^(l-30);
+ *                   61-90 -> V60*1.44^(l-60)
+ *                 (V30 = 80*1.30^29, V60 = V30*1.35^30; continuous at both kinks)
  *   xpForLevel(level, rebirthCount) = round(base * 1.35^rebirthCount)
  * Keep in sync if the client formula ever changes.
  */
+const GM_XP_V30 = 80 * Math.pow(1.30, 29);
+const GM_XP_V60 = GM_XP_V30 * Math.pow(1.35, 30);
 function xpForLevel(level, rebirthCount) {
   const l = Math.max(1, Math.floor(Number(level) || 1));
-  const base = l <= 60
+  const base = l <= 30
     ? 80 * Math.pow(1.30, l - 1)
-    : 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+    : l <= 60
+    ? GM_XP_V30 * Math.pow(1.35, l - 30)
+    : GM_XP_V60 * Math.pow(1.44, l - 60);
   return Math.max(1, Math.round(base * Math.pow(1.35, Math.max(0, Math.floor(Number(rebirthCount) || 0)))));
 }
 

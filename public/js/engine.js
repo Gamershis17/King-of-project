@@ -582,12 +582,23 @@ export function ensureState(raw) {
 }
 
 // ---------------- XP / levels / gold ----------------
-// XP curve: 1.30 exponent for levels 1-60, then a steeper 1.42 exponent for
-// 61-90. The value is continuous at the kink (level 60).
+// XP curve (v18 mega-update nerf): three segments, continuous at both kinks.
+//   Levels 1-30:  80 * 1.30^(l-1) — unchanged; early game stays snappy for
+//                 new players.
+//   Levels 31-60: V30 * 1.35^(l-30), where V30 = 80 * 1.30^29 (the level-30
+//                 value), so the curve is continuous at 30.
+//   Levels 61-90: V60 * 1.44^(l-60), where V60 = V30 * 1.35^30 (the level-60
+//                 value), so the curve is continuous at 60.
+// Versus the old curve: level 40 ~1.46x, 50 ~2.13x, 60 ~3.10x, 70 ~3.57x,
+// 90 ~4.72x. The steepening was sized with the +40% party XP bonus in the
+// math, so even a full party still climbs ~2.5x slower at level 70.
+const XP_V30 = 80 * Math.pow(1.30, 29); // value at the first kink (level 30)
+const XP_V60 = XP_V30 * Math.pow(1.35, 30); // value at the second kink (level 60)
 const xpForLevelBase = (level) => {
   const l = Math.max(1, Math.floor(level || 1));
-  if (l <= 60) return 80 * Math.pow(1.30, l - 1);
-  return 80 * Math.pow(1.30, 59) * Math.pow(1.42, l - 60);
+  if (l <= 30) return 80 * Math.pow(1.30, l - 1);
+  if (l <= 60) return XP_V30 * Math.pow(1.35, l - 30);
+  return XP_V60 * Math.pow(1.44, l - 60);
 };
 // Rebirth scaling: every rebirth multiplies all XP requirements by
 // 1.35^rebirths, so repeated climbs stay meaningful instead of trivial.
