@@ -1,5 +1,18 @@
 [
   {
+    "date": "2026-09-28",
+    "title": "Gold cap raised to 999Qi",
+    "version": "v16",
+    "changes": [
+      {
+        "system": "Gold cap",
+        "before": "9Q (9,000,000,000,000,000) — top players were capped out and couldn't earn more",
+        "after": "999Qi (999,000,000,000,000,000,000) — about 111,000× more headroom",
+        "note": "Number display now supports the Qi (quintillion) suffix. Server, client, and save validation all use the new cap."
+      }
+    ]
+  },
+  {
     "version": "v15",
     "title": "Polish patch v15 — player feedback round",
     "date": "2026-09-28",
