@@ -60,7 +60,7 @@ const SETTINGS_KEY = 'rpg-idle-settings';
 export const UI = {
   handlers: {},
   els: {},
-  settings: { damageNumbers: true, reduceMotion: false },
+  settings: { damageNumbers: true, reduceMotion: false, performanceMode: false },
   activeTab: 'battle',
 
   // Player customization presets (Settings → Buttons / Background).
@@ -112,6 +112,17 @@ export const UI = {
     // app.js overrides from state.uiStyle once the player is loaded.
     if (!document.body.dataset.uistyle) document.body.dataset.uistyle = 'modern';
     document.body.classList.toggle('reduce-motion', !!this.settings.reduceMotion);
+    document.body.classList.toggle('perf', !!this.settings.performanceMode);
+    // OS reduced-motion auto-enables the visual parts of Performance mode
+    // even when the toggle is off (body.os-reduced shares the perf CSS).
+    const osReduced = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    document.body.classList.toggle('os-reduced', !!osReduced());
+    try {
+      matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (e) => {
+        document.body.classList.toggle('os-reduced', !!e.matches);
+        if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
+      });
+    } catch { /* older browsers: static check above is enough */ }
 
     const ids = [
       'hud-emoji', 'hud-username', 'hud-role', 'hud-race', 'hud-gold', 'hud-stars',
@@ -127,7 +138,7 @@ export const UI = {
       'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
       'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
-      'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
+      'set-dmgnums', 'set-motion', 'set-perf', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
@@ -408,6 +419,11 @@ export const UI = {
       // Re-render the ambient scene (animated vs. static frame).
       if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
     });
+    if (this.els['set-perf']) this.els['set-perf'].checked = !!this.settings.performanceMode;
+    listen('set-perf', 'change', (e) => {
+      this.saveSetting('performanceMode', e.target.checked);
+      this.applyPerfMode();
+    });
     // Audio prefs live on the game state (per player / guest save), not in
     // localStorage — app.js syncs the checkboxes via applyAudioPrefs().
     listen('set-sfx', 'change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
@@ -445,6 +461,24 @@ export const UI = {
   saveSetting(key, val) {
     this.settings[key] = val;
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(this.settings)); } catch { /* ignore */ }
+  },
+
+  // Performance mode (anti-lag): visual-only. Game logic/tick rate untouched.
+  // Applies the body.perf class (flattened CSS) and re-renders the ambient
+  // background as a single static frame (no rAF loop) via _bgReduced().
+  applyPerfMode() {
+    const on = !!this.settings.performanceMode;
+    document.body.classList.toggle('perf', on);
+    this._dmgAcc = null;
+    // Re-render the ambient scene (animated loop vs. static frame).
+    if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
+  },
+
+  // True when the perf visuals should apply: user toggle OR the OS
+  // prefers-reduced-motion setting (which auto-enables the visual parts).
+  _perfVisual() {
+    return !!this.settings.performanceMode ||
+      (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   },
 
   // ---------------- views & tabs ----------------
@@ -1061,7 +1095,7 @@ export const UI = {
     }
   },
 
-  floatText(text, kind = 'dmg') {
+  floatText(text, kind = 'dmg', raw = null) {
     // Battle SFX ride on the same dispatch as the damage numbers, so every
     // hit/crit/hurt/dodge/parry/skill tick gets its sound from one place.
     // (Plays even when damage numbers are hidden — the setting is visual.)
@@ -1071,6 +1105,18 @@ export const UI = {
     } catch { /* audio must never break rendering */ }
     if (!this.settings.damageNumbers && (kind === 'dmg' || kind === 'crit')) return;
     const layer = this.els['float-layer'];
+    const perf = this._perfVisual();
+    // Perf mode: merge rapid plain-damage ticks into one rolling number so a
+    // flurry of hits costs a single DOM node instead of dozens.
+    if (perf && kind === 'dmg' && typeof raw === 'number' && isFinite(raw)) {
+      const now = performance.now();
+      const acc = this._dmgAcc;
+      if (acc && acc.el.isConnected && now - acc.t < 220) {
+        acc.total += raw; acc.t = now; acc.n++;
+        acc.el.textContent = formatNum(acc.total);
+        return;
+      }
+    }
     const el = document.createElement('div');
     el.className = 'float-txt float-' + kind;
     el.textContent = text;
@@ -1078,7 +1124,10 @@ export const UI = {
     el.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
     layer.appendChild(el);
     setTimeout(() => el.remove(), 1100);
-    while (layer.children.length > 12) layer.firstChild.remove();
+    while (layer.children.length > (perf ? 8 : 12)) layer.firstChild.remove();
+    if (perf && kind === 'dmg' && typeof raw === 'number' && isFinite(raw)) {
+      this._dmgAcc = { el, t: performance.now(), total: raw, n: 1 };
+    }
   },
 
   // ---------------- modern theme animation hooks ----------------
@@ -1149,7 +1198,7 @@ export const UI = {
     });
   },
   _bgReduced() {
-    return !!this.settings.reduceMotion ||
+    return !!this.settings.reduceMotion || !!this.settings.performanceMode ||
       (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
   },
   _glowSprite(color) {

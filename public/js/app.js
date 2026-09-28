@@ -805,7 +805,7 @@ function damageEnemy(dmg, prefix, sourceLabel) {
   enemy.hp -= dmg;
   UI.enemyHitFlash();
   const isCrit = String(prefix).includes('CRIT');
-  UI.floatText(`${prefix}${formatNum(dmg)}`, isCrit ? 'crit' : 'dmg');
+  UI.floatText(`${prefix}${formatNum(dmg)}`, isCrit ? 'crit' : 'dmg', dmg);
   if (enemy.hp <= 0) onKillEnemy();
 }
 
