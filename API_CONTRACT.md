@@ -126,7 +126,7 @@ All JSON. Session cookie auth. `GET /api/auth/me` returns `{ user: { username, r
 - `POST /api/state` `{state: <blob>}` → 200 `{ok:true}`. Server sanity-checks: must be object, < 1MB JSON, numeric fields finite; clamps `level, stage` to >= 1, clamps absurd values (level ≤ 100000, stage ≤ 100000, gold/stars ≤ 1e15). Updates indexed columns from blob (`level`, `stage`, `bossesKilled`, `prestigeCount`) for the leaderboard.
 
 ### Leaderboard
-- `GET /api/leaderboard` → 200 `{ entries: [{username, race, level, stage, bossesKilled, prestige}] }`, top 100 ordered by level DESC, stage DESC, bossesKilled DESC. No auth required.
+- `GET /api/leaderboard?by=<category>` → 200 `{ entries: [...], by }`, top 100. Category allowlist: `level` (default), `stage`, `bosses`, `kills`, `depth`, `titles`, `rebirths`; unknown values → 400. Indexed categories sort in SQL; `kills`/`depth`/`titles` are extracted server-side from stored `state_json` and sorted in JS. Each entry: `{username, race, title, badge, country, playerClass, spec, level, stage, power, bossesKilled, rebirth, kills, depth, titles}`. No auth required.
 
 ### Gift codes
 - `POST /api/redeem` `{code}` → 200 `{ok:true, set: <gear set id>}` | 400/404/409 (invalid, exhausted, already redeemed). Grants the full gear set into the player's inventory (server merges into `state_json.inventory` and saves).

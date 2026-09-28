@@ -173,6 +173,8 @@ async function boot() {
     onTitlesList: () => {
       if (App.state) UI.showTitlesModal(App.state);
     },
+    onLbCategory: (by) => { loadRanks(by); },
+    onLbFilter: () => { loadRanks(); },
     onCountry: (code) => {
       const s = App.state;
       if (!s) return;
@@ -1588,10 +1590,11 @@ async function onTabSwitch(tab, force = false) {
   void force;
 }
 
-async function loadRanks() {
+async function loadRanks(by) {
+  const cat = by || UI.lbCategory || 'level';
   try {
-    const { entries } = await api.leaderboard();
-    UI.renderRanks(entries || [], App.user ? App.user.username : null);
+    const { entries } = await api.leaderboard(cat);
+    UI.renderRanks(entries || [], App.user ? App.user.username : null, cat);
   } catch (e) {
     UI.toast('Could not load leaderboard.', 'error');
   }

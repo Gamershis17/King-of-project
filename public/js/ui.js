@@ -120,7 +120,7 @@ export const UI = {
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'quest-daily', 'quest-weekly', 'quest-class', 'quest-mastery',
-      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
+      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-filters', 'profile-card',
       'stats-card', 'titles-list',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-notif-level', 'set-notif-death',
@@ -246,6 +246,18 @@ export const UI = {
     // Ranks refresh
     listen('lb-refresh', 'click', () => {
       this.handlers.onTab && this.handlers.onTab('ranks', true);
+    });
+
+    // Ranks: category pills + All/Friends filter (delegated, null-safe)
+    listen('lb-cats', 'click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('button.lb-cat') : null;
+      if (!btn || !btn.dataset || !btn.dataset.by) return;
+      this.setLbCategory(btn.dataset.by);
+    });
+    listen('lb-filters', 'click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('button.lb-filter') : null;
+      if (!btn || !btn.dataset || !btn.dataset.filter) return;
+      this.setLbFilter(btn.dataset.filter);
     });
 
     // Settings tab: delegated talent / profession buttons
@@ -1903,8 +1915,46 @@ export const UI = {
   },
 
   // ---------------- ranks ----------------
-  renderRanks(entries, meUsername) {
+  // Leaderboard categories: label, chip icon and how to read the value off
+  // an entry. Guild tag is optional — the server doesn't send one yet, so the
+  // row renders it only when present (forward-compatible, never crashes).
+  LB_CATS: {
+    level:    { emoji: '🎖️', label: 'Level',    fmt: (en) => en.level },
+    stage:    { emoji: '🗺️', label: 'Stage',    fmt: (en) => en.stage },
+    bosses:   { emoji: '👑', label: 'Bosses',   fmt: (en) => formatNum(en.bossesKilled) },
+    kills:    { emoji: '⚔️', label: 'Kills',    fmt: (en) => formatNum(en.kills || 0) },
+    depth:    { emoji: '⛏️', label: 'Depth',    fmt: (en) => (en.depth || 0) },
+    titles:   { emoji: '🏵️', label: 'Titles',   fmt: (en) => (en.titles || 0) },
+    rebirths: { emoji: '🌀', label: 'Rebirths', fmt: (en) => (en.rebirth > 0 ? en.rebirth : '—') },
+  },
+  lbCategory: 'level',
+  lbFilter: 'all',
+
+  setLbCategory(by) {
+    if (!this.LB_CATS[by]) return;
+    this.lbCategory = by;
+    $$('#lb-cats .lb-cat').forEach(b => b.classList.toggle('active', b.dataset.by === by));
+    if (this.lbFilter === 'friends') { this.renderFriendsSoon(); return; }
+    if (this.handlers.onLbCategory) this.handlers.onLbCategory(by);
+  },
+
+  setLbFilter(f) {
+    this.lbFilter = f;
+    $$('#lb-filters .lb-filter').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+    if (f === 'friends') { this.renderFriendsSoon(); return; }
+    if (this.handlers.onLbFilter) this.handlers.onLbFilter();
+  },
+
+  renderFriendsSoon() {
     const body = this.els['lb-body'];
+    if (!body) return;
+    body.innerHTML = '<div class="lb-empty muted center">👥 Friend rankings are coming soon.<br>The friends system isn\'t live yet — check back later!</div>';
+  },
+
+  renderRanks(entries, meUsername, by) {
+    const body = this.els['lb-body'];
+    if (!body) return;
+    const cat = this.LB_CATS[by] || this.LB_CATS[this.lbCategory] || this.LB_CATS.level;
     body.innerHTML = '';
     if (!entries.length) {
       body.innerHTML = '<div class="lb-empty muted center">No heroes yet.</div>';
@@ -1927,6 +1977,7 @@ export const UI = {
         ? `<span class="lb-class" title="${esc(en.playerClass)}">${UI_CLASS_EMOJI[en.playerClass]}</span> ` : '';
       const specHtml = en.spec && UI_SPEC_EMOJI[en.spec]
         ? `<span class="lb-class" title="${esc(en.spec)}">${UI_SPEC_EMOJI[en.spec]}</span> ` : '';
+      const guildHtml = en.guildTag ? `<span class="lb-guild" title="Guild">[${esc(en.guildTag)}]</span> ` : '';
       const rankHtml = medals[i]
         ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}</div>`
         : `<div class="lb-rank">${i + 1}</div>`;
@@ -1934,10 +1985,11 @@ export const UI = {
         ${rankHtml}
         <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
         <div class="lb-identity">
-          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildHtml}${esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
           ${title}
         </div>
         <div class="lb-chips">
+          <span class="lb-chip lb-chip-cat"><b>${cat.emoji}</b>${cat.fmt(en)}</span>
           <span class="lb-chip"><b>Lv</b>${en.level}</span>
           <span class="lb-chip"><b>Stage</b>${en.stage}</span>
           <span class="lb-chip"><b>⚔️</b>${formatNum(en.power || 0)}</span>

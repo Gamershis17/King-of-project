@@ -166,12 +166,23 @@ async function saveState(userId, blob) {
   await upsertState(pool, userId, blob);
 }
 
-async function getLeaderboardRows(limit = 100) {
+// Fixed ORDER BY fragments for leaderboard categories. Keys are validated
+// against LB_CATEGORIES in gameApi.js before reaching here — never
+// interpolate raw user input into SQL.
+const LB_ORDERS = {
+  level: 'ps.level DESC, ps.stage DESC, ps.bosses_killed DESC',
+  stage: 'ps.stage DESC, ps.level DESC, ps.bosses_killed DESC',
+  bosses: 'ps.bosses_killed DESC, ps.level DESC, ps.stage DESC',
+  rebirths: 'ps.rebirth_count DESC, ps.level DESC, ps.stage DESC',
+};
+
+async function getLeaderboardRows(limit = 100, orderKey = 'level') {
+  const order = LB_ORDERS[orderKey] || LB_ORDERS.level;
   const { rows } = await pool.query(
     `SELECT u.username, ps.level, ps.stage, ps.bosses_killed, ps.rebirth_count, ps.state_json
      FROM player_state ps
      JOIN users u ON u.id = ps.user_id
-     ORDER BY ps.level DESC, ps.stage DESC, ps.bosses_killed DESC
+     ORDER BY ${order}
      LIMIT $1`,
     [limit]
   );

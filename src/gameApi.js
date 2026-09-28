@@ -223,10 +223,23 @@ router.get(
 // Engine.SPECS; engine.js is ESM so the lists are duplicated here for the CJS server).
 const VALID_CLASSES = new Set(['hunter', 'warrior', 'mage', 'assassin']);
 const VALID_SPECS = new Set(['tank', 'dps', 'healer', 'classic']);
+// Ranking categories. Indexed columns sort in SQL; blob-derived stats
+// (kills, depth, titles) are extracted from server-stored state_json and
+// sorted in JS. Unknown keys are rejected with 400.
+const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths'];
+const LB_INDEXED = new Set(['level', 'stage', 'bosses', 'rebirths']);
+const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles' };
 router.get(
   '/leaderboard',
   asyncHandler(async (req, res) => {
-    const rows = await getLeaderboardRows(100);
+    const by = typeof req.query.by === 'string' ? req.query.by : 'level';
+    if (!LB_CATEGORIES.includes(by)) {
+      return res.status(400).json({ error: 'Unknown leaderboard category.' });
+    }
+    // Blob-derived categories need a wider pool since SQL can't sort them.
+    const rows = LB_INDEXED.has(by)
+      ? await getLeaderboardRows(100, by)
+      : await getLeaderboardRows(300, 'level');
     const entries = rows.map((r) => {
       let race = null;
       let title = null;
@@ -235,6 +248,9 @@ router.get(
       let playerClass = null;
       let spec = null;
       let power = 0;
+      let kills = 0;
+      let depth = 0;
+      let titles = 0;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
@@ -248,6 +264,13 @@ router.get(
           spec = blob.spec;
         }
         if (blob && Number.isFinite(blob.power) && blob.power >= 0) power = Math.floor(blob.power);
+        if (blob && blob.stats && Number.isFinite(blob.stats.kills) && blob.stats.kills >= 0) {
+          kills = Math.floor(blob.stats.kills);
+        }
+        if (blob && blob.mine && Number.isFinite(blob.mine.maxDepth) && blob.mine.maxDepth >= 0) {
+          depth = Math.floor(blob.mine.maxDepth);
+        }
+        if (blob && Array.isArray(blob.titlesUnlocked)) titles = blob.titlesUnlocked.length;
       } catch {
         // leave race/title/badge/country/playerClass/spec null
       }
@@ -264,9 +287,17 @@ router.get(
         power,
         bossesKilled: r.bosses_killed,
         rebirth: r.rebirth_count,
+        kills,
+        depth,
+        titles,
       };
     });
-    res.json({ entries });
+    if (!LB_INDEXED.has(by)) {
+      const key = LB_BLOB_SORT_KEY[by];
+      entries.sort((a, b) => (b[key] || 0) - (a[key] || 0) || b.level - a.level);
+      entries.length = Math.min(entries.length, 100);
+    }
+    res.json({ entries, by });
   })
 );
 
