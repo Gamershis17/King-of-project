@@ -126,7 +126,7 @@ All JSON. Session cookie auth. `GET /api/auth/me` returns `{ user: { username, r
 - `POST /api/state` `{state: <blob>}` → 200 `{ok:true}`. Server sanity-checks: must be object, < 1MB JSON, numeric fields finite; clamps `level, stage` to >= 1, clamps absurd values (level ≤ 100000, stage ≤ 100000, gold/stars ≤ 1e15). Updates indexed columns from blob (`level`, `stage`, `bossesKilled`, `prestigeCount`) for the leaderboard.
 
 ### Leaderboard
-- `GET /api/leaderboard` → 200 `{ entries: [{username, race, level, stage, bossesKilled, prestige}] }`, top 100 ordered by level DESC, stage DESC, bossesKilled DESC. No auth required. Each entry also carries `guildTag` (the player's guild tag, or null when guildless).
+- `GET /api/leaderboard` → 200 `{ entries: [...], by }`, top 100. `?by=<category>` selects the ranking: `level` (default), `stage`, `bosses`, `kills`, `depth`, `titles`, `rebirths`; unknown values → 400. Indexed categories sort in SQL; `kills`/`depth`/`titles` are extracted server-side from stored `state_json` and sorted in JS. Each entry: `{username, race, title, badge, country, playerClass, spec, level, stage, power, bossesKilled, rebirth, guildTag, kills, depth, titles}` (`guildTag` is the player's guild tag, or null when guildless). No auth required.
 - `GET /api/guilds/rankings` → 200 `{ guilds: [{id, name, tag, level, xp, memberCount, totalPower}] }`, top 50 guilds ordered by guild level DESC, then total member power DESC, then member count DESC. No auth required. Powers the leaderboard "Guilds" category.
 
 ### Gift codes

@@ -53,7 +53,7 @@ export const api = {
   },
 
   // Leaderboard (no auth required)
-  leaderboard: () => request('/api/leaderboard'),
+  leaderboard: (by) => request('/api/leaderboard' + (by && by !== 'level' ? '?by=' + encodeURIComponent(by) : '')),
   // Guild rankings (no auth required)
   guildRankings: () => request('/api/guilds/rankings'),
 

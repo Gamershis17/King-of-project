@@ -122,7 +122,7 @@ export const UI = {
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
-      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
+      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'lb-filters', 'profile-card',
       'stats-card', 'titles-list',
       'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
@@ -293,6 +293,19 @@ export const UI = {
       if (!btn || btn.disabled) return;
       this.setRanksCategory(btn.dataset.lbcat);
       this.handlers.onRanksCategory && this.handlers.onRanksCategory(btn.dataset.lbcat);
+    });
+
+    // Ranks: ranking pills + All/Friends filter (delegated, null-safe).
+    // Ranking pills use data-by so they never collide with the Heroes/Guilds pills above.
+    listen('lb-cats', 'click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('button[data-by]') : null;
+      if (!btn || !btn.dataset || !btn.dataset.by) return;
+      this.setLbCategory(btn.dataset.by);
+    });
+    listen('lb-filters', 'click', (e) => {
+      const btn = e.target && e.target.closest ? e.target.closest('button.lb-filter') : null;
+      if (!btn || !btn.dataset || !btn.dataset.filter) return;
+      this.setLbFilter(btn.dataset.filter);
     });
 
     // Settings tab: delegated talent / profession buttons
@@ -2331,13 +2344,55 @@ export const UI = {
         b.setAttribute('aria-selected', active ? 'true' : 'false');
       });
     }
+    // Ranking pills + All/Friends filter are hero-specific: hide them on the Guilds view.
+    const heroOnly = this.ranksCategory === 'heroes';
+    $$('#lb-cats button[data-by]').forEach((b) => b.classList.toggle('hidden', !heroOnly));
+    const filters = this.els['lb-filters'];
+    if (filters) filters.classList.toggle('hidden', !heroOnly);
     return this.ranksCategory;
   },
-  renderRanks(entries, meUsername) {
-    this.setRanksCategory('heroes');
-    const note = this.els['lb-note'];
-    if (note) note.textContent = 'Top heroes by level, then stage, then boss kills.';
+  // Leaderboard ranking categories: label, chip icon and how to read the value off
+  // an entry. Guild tag renders only when the server sends one (never crashes).
+  LB_CATS: {
+    level:    { emoji: '🎖️', label: 'Level',    fmt: (en) => en.level },
+    stage:    { emoji: '🗺️', label: 'Stage',    fmt: (en) => en.stage },
+    bosses:   { emoji: '👑', label: 'Bosses',   fmt: (en) => formatNum(en.bossesKilled) },
+    kills:    { emoji: '⚔️', label: 'Kills',    fmt: (en) => formatNum(en.kills || 0) },
+    depth:    { emoji: '⛏️', label: 'Depth',    fmt: (en) => (en.depth || 0) },
+    titles:   { emoji: '🏵️', label: 'Titles',   fmt: (en) => (en.titles || 0) },
+    rebirths: { emoji: '🌀', label: 'Rebirths', fmt: (en) => (en.rebirth > 0 ? en.rebirth : '—') },
+  },
+  lbCategory: 'level',
+  lbFilter: 'all',
+
+  setLbCategory(by) {
+    if (!this.LB_CATS[by]) return;
+    this.lbCategory = by;
+    $$('#lb-cats button[data-by]').forEach(b => b.classList.toggle('active', b.dataset.by === by));
+    if (this.lbFilter === 'friends') { this.renderFriendsSoon(); return; }
+    if (this.handlers.onLbCategory) this.handlers.onLbCategory(by);
+  },
+
+  setLbFilter(f) {
+    this.lbFilter = f;
+    $$('#lb-filters .lb-filter').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+    if (f === 'friends') { this.renderFriendsSoon(); return; }
+    if (this.handlers.onLbFilter) this.handlers.onLbFilter();
+  },
+
+  renderFriendsSoon() {
     const body = this.els['lb-body'];
+    if (!body) return;
+    body.innerHTML = '<div class="lb-empty muted center">👥 Friend rankings are coming soon.<br>The friends system isn\'t live yet — check back later!</div>';
+  },
+
+  renderRanks(entries, meUsername, by) {
+    this.setRanksCategory('heroes');
+    const cat = this.LB_CATS[by] || this.LB_CATS[this.lbCategory] || this.LB_CATS.level;
+    const note = this.els['lb-note'];
+    if (note) note.textContent = `Top heroes by ${cat.label.toLowerCase()}.`;
+    const body = this.els['lb-body'];
+    if (!body) return;
     body.innerHTML = '';
     if (!entries.length) {
       body.innerHTML = '<div class="lb-empty muted center">No heroes yet.</div>';
@@ -2373,6 +2428,7 @@ export const UI = {
           ${title}
         </div>
         <div class="lb-chips">
+          <span class="lb-chip lb-chip-cat"><b>${cat.emoji}</b>${cat.fmt(en)}</span>
           <span class="lb-chip"><b>Lv</b>${en.level}</span>
           <span class="lb-chip"><b>Stage</b>${en.stage}</span>
           <span class="lb-chip"><b>⚔️</b>${formatNum(en.power || 0)}</span>

@@ -154,7 +154,7 @@ async function boot() {
     onSaveState: () => saveNow(),
     onExternalState: applyExternalState,
     onTab: onTabSwitch,
-    onRanksCategory: (cat) => { void loadRanks(cat); },
+    onRanksCategory: () => { void loadRanks(); },
     onUiStyle: setUiStyle,
     onBtnStyle: setBtnStyle,
     onBgStyle: setBgStyle,
@@ -187,6 +187,8 @@ async function boot() {
     onTitlesList: () => {
       if (App.state) UI.showTitlesModal(App.state);
     },
+    onLbCategory: () => { loadRanks(); },
+    onLbFilter: () => { loadRanks(); },
     onCountry: (code) => {
       const s = App.state;
       if (!s) return;
@@ -1894,10 +1896,9 @@ async function onTabSwitch(tab, force = false) {
   void force;
 }
 
-async function loadRanks(forceCat) {
-  // forceCat: explicit category from the pill buttons; otherwise keep the
-  // currently displayed category (refresh preserves it).
-  const cat = forceCat || UI.ranksCategory || 'heroes';
+async function loadRanks() {
+  // Guilds category (server-ranked by guild level → member power → count).
+  const cat = UI.ranksCategory || 'heroes';
   if (cat === 'guilds') {
     try {
       const { guilds } = await api.guildRankings();
@@ -1905,13 +1906,16 @@ async function loadRanks(forceCat) {
     } catch (e) {
       UI.toast('Could not load guild rankings.', 'error');
     }
-  } else {
-    try {
-      const { entries } = await api.leaderboard();
-      UI.renderRanks(entries || [], App.user ? App.user.username : null);
-    } catch (e) {
-      UI.toast('Could not load leaderboard.', 'error');
-    }
+    return;
+  }
+  // Heroes: 7 ranking pills (?by=) + All/Friends filter.
+  const by = UI.lbCategory || 'level';
+  if (UI.lbFilter === 'friends') { UI.renderFriendsSoon(); return; }
+  try {
+    const { entries } = await api.leaderboard(by);
+    UI.renderRanks(entries || [], App.user ? App.user.username : null, by);
+  } catch (e) {
+    UI.toast('Could not load leaderboard.', 'error');
   }
 }
 
