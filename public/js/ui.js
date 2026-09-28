@@ -464,6 +464,7 @@ export const UI = {
 
     // Custom button / background pickers (Settings)
     this._renderStylePickers();
+    this._renderBattleBgPicker();
     this._renderNameStylePickers();
 
     // Ambient animated background canvas (null-safe: hidden if absent)
@@ -1192,6 +1193,38 @@ export const UI = {
     };
     mark('btn-style-picker', btnStyle || 'default');
     mark('bg-style-picker', bgStyle || 'default');
+  },
+
+  // ---------------- battle background ----------------
+  // Which scene plays behind battle: the current realm's ambient scene,
+  // the player's own picked background, or a plain dark backdrop.
+  BATTLE_BG: [
+    { id: 'world', icon: '🌍', name: 'Realm scene', desc: 'Battle shows your current realm\u2019s animated background.' },
+    { id: 'mystyle', icon: '🖼️', name: 'My background', desc: 'Battle uses the background you picked in Settings.' },
+    { id: 'off', icon: '🌑', name: 'Off', desc: 'Plain dark background, no animation.' },
+  ],
+  // Builds the Settings battle-background option cards.
+  _renderBattleBgPicker() {
+    const el = document.getElementById('battle-bg-picker');
+    if (!el) return;
+    el.innerHTML = this.BATTLE_BG.map((o) =>
+      `<button type="button" class="opt-card" role="radio" data-bbg="${o.id}" aria-label="${o.name}: ${o.desc}">` +
+      `<span class="oico">${o.icon}</span><span class="otxt"><span class="oname">${o.name}</span>` +
+      `<span class="odesc">${o.desc}</span></span></button>`
+    ).join('');
+    el.querySelectorAll('.opt-card').forEach((b) => {
+      b.addEventListener('click', () => { if (this.handlers.onBattleBg) this.handlers.onBattleBg(b.dataset.bbg); });
+    });
+  },
+  // Marks the active battle-background card.
+  syncBattleBg(cur) {
+    const el = document.getElementById('battle-bg-picker');
+    if (!el) return;
+    el.querySelectorAll('.opt-card').forEach((b) => {
+      const on = b.dataset.bbg === cur;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    });
   },
 
   // ---------------- player name styles ----------------

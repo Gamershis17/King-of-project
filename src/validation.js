@@ -142,6 +142,8 @@ function sanitizeStateBlob(blob) {
   // blobs can't smuggle junk (rendering escapes everything anyway).
   if (blob.nameColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(blob.nameColor))) delete blob.nameColor;
   if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch'].includes(blob.nameFx)) delete blob.nameFx;
+  // Battle background is cosmetic: keep only a known value.
+  if (blob.battleBg !== undefined && !['world', 'mystyle', 'off'].includes(blob.battleBg)) delete blob.battleBg;
   if (typeof blob.bossesKilled !== 'number') blob.bossesKilled = 0;
   if (typeof blob.rebirthCount !== 'number') blob.rebirthCount = 0;
   if (!Array.isArray(blob.inventory)) blob.inventory = [];
