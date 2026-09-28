@@ -456,6 +456,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .skill-row .skill-btn .skill-cd { font-size: 0.65rem; color: var(--muted); font-weight: 400; min-height: 0.8rem; }
 .skill-btn.locked { filter: grayscale(0.95); opacity: 0.75; }
 .skill-btn .lv-tag { font-size: 0.6rem; font-weight: 700; color: var(--gold); background: rgba(0,0,0,.45); border: 1px solid var(--gold2); border-radius: 999px; padding: 0.05rem 0.4rem; white-space: nowrap; }
+.skill-btn .mastery-badge { font-size: 0.6rem; font-weight: 700; color: #c4b5fd; background: rgba(0,0,0,.45); border: 1px solid #8b5cf6; border-radius: 999px; padding: 0.05rem 0.4rem; white-space: nowrap; }
 .skill-btn.cooling { filter: brightness(0.72); }
 
 /* Quest board */

@@ -1035,14 +1035,20 @@ function useSkill(id) {
   if (now < (App.skillCDs[id] || 0)) return;
   App.skillCDs[id] = now + def.cdMs;
   s.stats.taps += 1;
+  // Skill mastery: track the cast, apply +2% effectiveness per mastery level.
+  const mast = Engine.recordSkillUse(s, id) || { level: 0, leveledUp: false };
+  const mMult = 1 + mast.level * Engine.MASTERY_PCT_PER_LEVEL;
+  if (mast.leveledUp) {
+    UI.toast(`🎯 ${def.name} Mastery ${mast.level}! +${Math.round(mast.level * Engine.MASTERY_PCT_PER_LEVEL * 100)}% effectiveness`, 'success');
+  }
   const stats = Engine.computeStats(s);
   if (id === 'heal') {
-    const amount = Math.round(stats.maxHp * (def.healPct / 100));
+    const amount = Math.round(stats.maxHp * (def.healPct / 100) * mMult);
     s.hero.hp = Math.min(stats.maxHp, s.hero.hp + amount);
     UI.floatText(`+${formatNum(amount)}`, 'heal');
     UI.combatLog(`💚 Heal restored ${formatNum(amount)} HP.`, 'heal');
   } else {
-    let mult = def.mult || 1;
+    let mult = (def.mult || 1) * mMult;
     if (id === 'execute' && App.enemy && App.enemy.maxHp > 0) {
       const frac = App.enemy.hp / App.enemy.maxHp;
       mult = frac < def.threshold ? def.mult : def.executeMult;

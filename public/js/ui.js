@@ -119,7 +119,7 @@ export const UI = {
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
-      'quest-daily', 'quest-weekly',
+      'quest-daily', 'quest-weekly', 'quest-class', 'quest-mastery',
       'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'profile-card',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-sfx', 'set-music', 'set-notif-level', 'set-notif-death',
@@ -647,9 +647,13 @@ export const UI = {
       else b.dataset.locked = '1';
       b.disabled = !unlocked;
       b.title = unlocked ? def.desc : `Unlocks at level ${def.unlockLevel}`;
+      const mast = unlocked ? Engine.skillMastery(state, id) : null;
+      const mastBadge = mast
+        ? `<span class="mastery-badge" title="Mastery ${mast.level}: +${Math.round(mast.pct * 100)}% effectiveness · ${mast.uses}/${mast.nextAt} casts to next level">M${mast.level}</span>`
+        : '';
       b.innerHTML = `<span class="sk-emoji">${def.emoji}</span>` +
         `<span class="sk-name">${esc(def.name)}</span>` +
-        (unlocked ? '' : `<span class="lv-tag">🔒 Lv ${def.unlockLevel}</span>`) +
+        (unlocked ? mastBadge : `<span class="lv-tag">🔒 Lv ${def.unlockLevel}</span>`) +
         `<span class="skill-cd"></span>`;
       row.appendChild(b);
     }
@@ -717,6 +721,13 @@ export const UI = {
         btn.classList.toggle('cooling', remain > 0);
         const cd = btn.querySelector('.skill-cd');
         if (cd) cd.textContent = remain > 0 ? `(${(remain / 1000).toFixed(0)}s)` : '';
+        // Keep the mastery badge fresh as casts accumulate.
+        const mb = btn.querySelector('.mastery-badge');
+        if (mb && state) {
+          const m = Engine.skillMastery(state, btn.dataset.skill);
+          mb.textContent = `M${m.level}`;
+          mb.title = `Mastery ${m.level}: +${Math.round(m.pct * 100)}% effectiveness · ${m.uses}/${m.nextAt} casts to next level`;
+        }
       });
     }
     this.updateHUD(state, battle ? battle.user : null);
@@ -1371,6 +1382,26 @@ export const UI = {
 
   renderQuests(state) {
     Engine.ensureQuests(state);
+    Engine.ensureStoryQuests(state);
+    const cardHtml = (period, entry, progress, target, complete, def, rw, lockedHint) => {
+      const pct = target > 0 ? Math.min(100, Math.round((progress / target) * 100)) : 0;
+      const status = entry.claimed
+        ? '<span class="quest-tag claimed">✓ Claimed</span>'
+        : complete ? '<span class="quest-tag ready">Ready!</span>' : '';
+      return `<div class="card quest-card">
+        <div class="quest-top"><span>${def.emoji} <b>${esc(def.name)}</b></span>${status}</div>
+        <div class="muted small">${esc(def.desc(target))}</div>
+        ${lockedHint ? `<div class="muted small">🔒 ${esc(lockedHint)}</div>` : ''}
+        <div class="quest-bar"><div class="quest-fill" style="width:${pct}%"></div></div>
+        <div class="quest-meta">
+          <span class="muted small">${formatNum(Math.min(progress, target))} / ${formatNum(target)}</span>
+          <span class="muted small">💰${formatNum(rw.gold)} ⭐${rw.stars}</span>
+        </div>
+        ${entry.claimed ? '' : complete
+          ? `<button class="btn small gold wide" data-claim="${period}:${entry.id}">🎁 Claim reward</button>`
+          : ''}
+      </div>`;
+    };
     const renderList = (period, elId, title, cdId) => {
       const el = this.els[elId];
       if (!el) return;
@@ -1378,27 +1409,33 @@ export const UI = {
       el.innerHTML = `<div class="quest-head-row"><h3 class="quest-head">${title}</h3><span class="muted small" id="${cdId}"></span></div>` + (list || []).map((entry) => {
         const { progress, target, complete, def } = Engine.questProgress(state, entry);
         if (!def) return '';
-        const pct = target > 0 ? Math.min(100, Math.round((progress / target) * 100)) : 0;
         const rw = Engine.questRewardPreview(state, period);
-        const status = entry.claimed
-          ? '<span class="quest-tag claimed">✓ Claimed</span>'
-          : complete ? '<span class="quest-tag ready">Ready!</span>' : '';
-        return `<div class="card quest-card">
-          <div class="quest-top"><span>${def.emoji} <b>${esc(def.name)}</b></span>${status}</div>
-          <div class="muted small">${esc(def.desc(target))}</div>
-          <div class="quest-bar"><div class="quest-fill" style="width:${pct}%"></div></div>
-          <div class="quest-meta">
-            <span class="muted small">${formatNum(Math.min(progress, target))} / ${formatNum(target)}</span>
-            <span class="muted small">💰${formatNum(rw.gold)} ⭐${rw.stars}</span>
-          </div>
-          ${entry.claimed ? '' : complete
-            ? `<button class="btn small gold wide" data-claim="${period}:${entry.id}">🎁 Claim reward</button>`
-            : ''}
-        </div>`;
+        return cardHtml(period, entry, progress, target, complete, def, rw, null);
       }).join('');
+    };
+    // One-time story sections (class questline + mastery track). The class
+    // section is hidden entirely for non-mage players.
+    const renderStoryList = (group, elId, title, sub) => {
+      const el = this.els[elId];
+      if (!el) return;
+      const defs = Engine.STORY_QUEST_DEFS.filter((d) => d.group === group && Engine.storyQuestVisible(state, d));
+      if (!defs.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
+      el.style.display = '';
+      const rw = Engine.questRewardPreview(state, 'story');
+      el.innerHTML = `<div class="quest-head-row"><h3 class="quest-head">${title}</h3><span class="muted small">${sub}</span></div>` +
+        defs.map((def) => {
+          const entry = (state.quests.story || []).find((e) => e.id === def.id);
+          if (!entry) return '';
+          const { progress, target, complete } = Engine.storyQuestProgress(state, entry);
+          const lockedHint = def.requiresSkill && !(state.skills || []).includes(def.requiresSkill)
+            ? `Requires ${Engine.SKILLS[def.requiresSkill].name} (Lv ${Engine.SKILLS[def.requiresSkill].unlockLevel})` : null;
+          return cardHtml('story', entry, progress, target, complete, def, rw, lockedHint);
+        }).join('');
     };
     renderList('daily', 'quest-daily', '☀️ Daily quests', 'quest-daily-cd');
     renderList('weekly', 'quest-weekly', '📅 Weekly quests', 'quest-weekly-cd');
+    renderStoryList('class', 'quest-class', '🔮 Class questline', 'mages only · one-time');
+    renderStoryList('mastery', 'quest-mastery', '🎯 Skill mastery', 'one-time');
     // Start (and immediately populate) the live reset countdowns now that
     // the header spans exist.
     this._startQuestCountdowns();

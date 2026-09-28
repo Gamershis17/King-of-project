@@ -227,11 +227,17 @@ export function ensureState(raw) {
   for (const id of SKILL_ORDER) {
     if (s.level >= SKILLS[id].unlockLevel && !s.skills.includes(id)) s.skills.push(id);
   }
+  // Old saves: skill-use counters for the mastery track (default 0 casts).
+  if (!s.skillUses || typeof s.skillUses !== 'object') s.skillUses = {};
+  for (const id of SKILL_ORDER) {
+    if (!Number.isFinite(Number(s.skillUses[id]))) s.skillUses[id] = 0;
+  }
   // Old saves: normalize enchant levels on inventory items (0–10 ints).
   for (const it of s.inventory) {
     it.enchant = Math.max(0, Math.min(ENCHANT_MAX, Math.floor(Number(it.enchant) || 0)));
   }
   ensureQuests(s); // backfill the quest board on old saves
+  ensureStoryQuests(s); // backfill one-time class + mastery quests
   if (!Array.isArray(s.codesRedeemed)) s.codesRedeemed = [];
   if (!Array.isArray(s.companions)) s.companions = [];
   if (!['clicker', 'auto', 'dungeon'].includes(s.mode)) s.mode = 'clicker';
@@ -322,6 +328,37 @@ export const SKILLS = {
 };
 export const SKILL_ORDER = ['power-strike', 'fireball', 'heal', 'execute'];
 
+// ---------------- Skill mastery ----------------
+// Each active skill tracks lifetime casts in state.skillUses[id].
+// Mastery level = min(10, floor(uses / 25)); each level grants +2%
+// effectiveness (damage for strikes, healing for Heal).
+export const MASTERY_USES_PER_LEVEL = 25;
+export const MASTERY_MAX_LEVEL = 10;
+export const MASTERY_PCT_PER_LEVEL = 0.02;
+
+export function skillUses(state, id) {
+  const m = state && state.skillUses;
+  return (m && Number.isFinite(Number(m[id]))) ? Math.max(0, Math.floor(Number(m[id]))) : 0;
+}
+export function skillMastery(state, id) {
+  const uses = skillUses(state, id);
+  const level = Math.min(MASTERY_MAX_LEVEL, Math.floor(uses / MASTERY_USES_PER_LEVEL));
+  return {
+    uses,
+    level,
+    pct: level * MASTERY_PCT_PER_LEVEL,
+    nextAt: (level + 1) * MASTERY_USES_PER_LEVEL,
+  };
+}
+export function recordSkillUse(state, id) {
+  if (!state || !SKILLS[id]) return null;
+  if (!state.skillUses || typeof state.skillUses !== 'object') state.skillUses = {};
+  const before = skillMastery(state, id).level;
+  state.skillUses[id] = skillUses(state, id) + 1;
+  const after = skillMastery(state, id);
+  return { ...after, leveledUp: after.level > before };
+}
+
 export function gainXp(state, baseAmount, nowMs = Date.now()) {
   const race = RACES[state.race] || {};
   const stats = computeStats(state);
@@ -383,7 +420,76 @@ export const QUEST_DEFS = [
     target: (s) => Math.max(10, ((s.raid && s.raid.best) || 0) + 5), desc: (t) => `Reach raid wave ${t}` },
 ];
 
+// ---------------- One-time story quests ----------------
+// Class questlines + the skill-mastery track. Unlike dailies/weeklies these
+// never roll: each entry is created once (baseline snapshot at first sight)
+// and stays until claimed. Class quests are only visible to that class.
+export const STORY_QUEST_DEFS = [
+  { id: 'q-mage-1', group: 'class', classId: 'mage', requiresSkill: 'fireball',
+    emoji: '🔥', name: 'Spark of the Arcane',
+    metric: 'fireballUses', kind: 'gain', target: 25,
+    desc: (t) => `Cast Fireball ${t} times` },
+  { id: 'q-mage-2', group: 'class', classId: 'mage',
+    emoji: '⚔️', name: 'Battle Mage',
+    metric: 'kills', kind: 'gain', target: 200,
+    desc: (t) => `Defeat ${t} enemies as a mage` },
+  { id: 'q-mage-3', group: 'class', classId: 'mage',
+    emoji: '🔮', name: "Archmage's Trial",
+    metric: 'level', kind: 'reach', target: 30,
+    desc: (t) => `Reach level ${t} as a mage` },
+  { id: 'q-mast-1', group: 'mastery',
+    emoji: '🎯', name: "Novice's Focus",
+    metric: 'mastery:power-strike', kind: 'reach', target: 2,
+    desc: (t) => `Reach Power Strike Mastery ${t}` },
+  { id: 'q-mast-2', group: 'mastery',
+    emoji: '🌟', name: 'Seasoned Caster',
+    metric: 'mastery:any', kind: 'reach', target: 5,
+    desc: (t) => `Reach Mastery ${t} on any skill` },
+  { id: 'q-mast-3', group: 'mastery',
+    emoji: '👑', name: 'True Master',
+    metric: 'mastery:any', kind: 'reach', target: 10,
+    desc: (t) => `Reach Mastery ${t} on any skill` },
+];
+
+export function storyQuestVisible(state, def) {
+  if (def.group === 'class' && (!state || state.playerClass !== def.classId)) return false;
+  return true;
+}
+
+// Creates missing story entries once (with baseline snapshots for 'gain'
+// quests so prior progress never double-counts). Safe to call often.
+export function ensureStoryQuests(state, nowMs = Date.now()) {
+  ensureQuests(state, nowMs);
+  const q = state.quests;
+  if (!Array.isArray(q.story)) q.story = [];
+  for (const def of STORY_QUEST_DEFS) {
+    if (!q.story.find((e) => e.id === def.id)) {
+      q.story.push({
+        id: def.id,
+        target: def.target,
+        base: questMetric(state, def.metric),
+        claimed: false,
+      });
+    }
+  }
+  return q.story;
+}
+
+export function storyQuestProgress(state, entry) {
+  const def = STORY_QUEST_DEFS.find((d) => d.id === entry.id);
+  if (!def) return { progress: 0, target: 1, complete: false, def: null };
+  const cur = questMetric(state, def.metric);
+  const progress = def.kind === 'reach' ? cur : Math.max(0, cur - (entry.base || 0));
+  return { progress, target: entry.target, complete: progress >= entry.target, def };
+}
+
 function questMetric(state, metric) {
+  // Mastery metrics: 'mastery:<skill-id>' or 'mastery:any' (best skill level).
+  if (typeof metric === 'string' && metric.startsWith('mastery:')) {
+    const which = metric.slice('mastery:'.length);
+    if (which === 'any') return Math.max(0, ...SKILL_ORDER.map((id) => skillMastery(state, id).level));
+    return skillMastery(state, which).level;
+  }
   switch (metric) {
     case 'taps': return (state.stats && state.stats.taps) || 0;
     case 'kills': return (state.stats && state.stats.kills) || 0;
@@ -391,6 +497,7 @@ function questMetric(state, metric) {
     case 'stage': return state.stage || 1;
     case 'level': return state.level || 1;
     case 'raid': return (state.raid && state.raid.best) || 0;
+    case 'fireballUses': return skillUses(state, 'fireball');
     default: return 0;
   }
 }
@@ -472,15 +579,28 @@ export function questRewardPreview(state, period) {
   if (period === 'weekly') {
     return { gold: 10000 * L, stars: 40, xp: Math.round(xpForLevel(L) * 1.5) };
   }
+  if (period === 'story') {
+    return { gold: 5000 * L, stars: 20, xp: Math.round(xpForLevel(L) * 0.75) };
+  }
   return { gold: 2000 * L, stars: 8, xp: Math.round(xpForLevel(L) * 0.3) };
 }
 
 export function claimQuest(state, period, id, nowMs = Date.now()) {
   ensureQuests(state, nowMs);
-  const list = period === 'weekly' ? state.quests.weekly : state.quests.daily;
+  ensureStoryQuests(state, nowMs);
+  const list = period === 'weekly' ? state.quests.weekly
+    : period === 'story' ? state.quests.story
+    : state.quests.daily;
   const entry = (list || []).find((e) => e.id === id);
   if (!entry || entry.claimed) return { ok: false };
-  if (!questProgress(state, entry).complete) return { ok: false };
+  const prog = period === 'story' ? storyQuestProgress(state, entry) : questProgress(state, entry);
+  if (!prog.complete) return { ok: false };
+  // Defense in depth: class quests can't be claimed by another class even if
+  // a crafted client sends the id.
+  if (period === 'story') {
+    const def = STORY_QUEST_DEFS.find((d) => d.id === id);
+    if (!def || !storyQuestVisible(state, def)) return { ok: false };
+  }
   entry.claimed = true;
   const rw = questRewardPreview(state, period);
   addGold(state, rw.gold);
