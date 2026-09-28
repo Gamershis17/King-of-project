@@ -314,7 +314,13 @@ router.get('/status', asyncHandler(async (req, res) => {
     maintenance = /^(1|true|yes)$/i.test(String(process.env.MAINTENANCE_MODE || ''));
     message = process.env.MAINTENANCE_MESSAGE || null;
   }
-  res.json({ ok: true, maintenance, message });
+  res.json({
+    ok: true,
+    maintenance,
+    message,
+    // Deploy marker: Render injects RENDER_GIT_COMMIT for git-backed deploys.
+    commit: process.env.RENDER_GIT_COMMIT || null,
+  });
 }));
 
 // ---------- changelog ----------
