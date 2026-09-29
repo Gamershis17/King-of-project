@@ -739,9 +739,7 @@ export const UI = {
       </button>`;
     this.modal({
       title: 'Follow Throne of Shadows',
-      html: row('discord', 'Discord', 'Chat with the community', true, 'social-discord')
-        + row('youtube', 'YouTube', 'Coming soon', false)
-        + row('tiktok', 'TikTok', 'Coming soon', false),
+      html: row('discord', 'Discord', 'Chat with the community', true, 'social-discord'),
       buttons: [{ label: 'Close' }],
     });
     const dBtn = document.getElementById('social-discord');
