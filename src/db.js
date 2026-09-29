@@ -50,6 +50,30 @@ pool.on('error', (err) => {
   console.error('[db] unexpected pool error:', err.message);
 });
 
+// Valid name-effect ids (mirrors UI.NAME_FX and validation.js).
+const NAME_FX_IDS = new Set([
+  'none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy',
+  'ice', 'lightning', 'shadow', 'glitch',
+]);
+
+/**
+ * Extract a player's public name style from a parsed state blob.
+ * Returns { nameColor, nameFx } with validated values; safe defaults
+ * (null / 'none') when the blob has none. Used everywhere another
+ * player's name is served so the client can render their style.
+ */
+function nameStyleOf(blob) {
+  const out = { nameColor: null, nameFx: 'none' };
+  if (!blob || typeof blob !== 'object') return out;
+  if (typeof blob.nameColor === 'string' && /^#[0-9a-fA-F]{6}$/.test(blob.nameColor)) {
+    out.nameColor = blob.nameColor;
+  }
+  if (typeof blob.nameFx === 'string' && NAME_FX_IDS.has(blob.nameFx)) {
+    out.nameFx = blob.nameFx;
+  }
+  return out;
+}
+
 /** Create tables/indexes if missing. Safe to run on every boot. */
 async function migrate() {
   const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
@@ -832,6 +856,7 @@ async function getPartyView(userId) {
     try { blob = JSON.parse(r.state_json || '{}'); } catch { /* use defaults */ }
     const online = Number(r.updated_at) > now - PARTY_ONLINE_MS;
     if (!r.is_npc) {
+      const style = nameStyleOf(blob);
       return {
         isNpc: false,
         userId: r.user_id,
@@ -842,6 +867,8 @@ async function getPartyView(userId) {
         race: blob.race || null,
         country: blob.country || null,
         activeTitle: blob.activeTitle || null,
+        nameColor: style.nameColor,
+        nameFx: style.nameFx,
         online,
         isLeader: Number(r.user_id) === Number(party.leader_id),
       };
@@ -969,11 +996,16 @@ async function getGuildRoster(guildId) {
   return rows.map((r) => {
     let playerClass = null;
     let spec = null;
+    let nameColor = null;
+    let nameFx = 'none';
     if (r.state_json) {
       try {
         const s = JSON.parse(r.state_json);
         playerClass = s.playerClass || null;
         spec = s.spec || null;
+        const style = nameStyleOf(s);
+        nameColor = style.nameColor;
+        nameFx = style.nameFx;
       } catch { /* ignore corrupt blob */ }
     }
     return {
@@ -985,6 +1017,8 @@ async function getGuildRoster(guildId) {
       stage: r.stage == null ? null : Number(r.stage),
       playerClass,
       spec,
+      nameColor,
+      nameFx,
       lastActive: r.last_active == null ? null : Number(r.last_active),
     };
   });
@@ -1199,6 +1233,7 @@ module.exports = {
   getGuildByName,
   getMyGuild,
   getGuildRoster,
+  nameStyleOf,
   joinGuild,
   leaveGuild,
   isInGuild,
@@ -1279,11 +1314,32 @@ async function deleteGuildChat(guildId, messageId) {
 
 async function getGuildChat(guildId, afterId = 0, limit = 100) {
   const { rows } = await pool.query(
-    `SELECT id, username, message, created_at FROM guild_chat
-     WHERE guild_id = $1 AND id > $2 ORDER BY id ASC LIMIT $3`,
+    `SELECT c.id, c.username, c.message, c.created_at, ps.state_json
+     FROM guild_chat c
+     LEFT JOIN users u ON LOWER(u.username) = LOWER(c.username)
+     LEFT JOIN player_state ps ON ps.user_id = u.id
+     WHERE c.guild_id = $1 AND c.id > $2 ORDER BY c.id ASC LIMIT $3`,
     [guildId, Math.max(0, Math.floor(afterId || 0)), Math.min(100, Math.max(1, limit || 100))]
   );
-  return rows;
+  return rows.map((r) => {
+    let nameColor = null;
+    let nameFx = 'none';
+    if (r.state_json) {
+      try {
+        const style = nameStyleOf(JSON.parse(r.state_json));
+        nameColor = style.nameColor;
+        nameFx = style.nameFx;
+      } catch { /* ignore corrupt blob */ }
+    }
+    return {
+      id: r.id,
+      username: r.username,
+      message: r.message,
+      created_at: r.created_at,
+      nameColor,
+      nameFx,
+    };
+  });
 }
 
 // ---------- news ----------
@@ -1558,10 +1614,17 @@ async function getFriendProfiles(usernames) {
   return rows.map((r) => {
     let playerClass = null;
     let race = null;
+    let nameColor = null;
+    let nameFx = 'none';
+    let title = null;
     try {
       const blob = JSON.parse(r.state_json || '{}');
       if (blob && typeof blob.playerClass === 'string') playerClass = blob.playerClass;
       if (blob && typeof blob.race === 'string') race = blob.race;
+      if (blob && typeof blob.activeTitle === 'string') title = blob.activeTitle;
+      const style = nameStyleOf(blob);
+      nameColor = style.nameColor;
+      nameFx = style.nameFx;
     } catch { /* leave null */ }
     return {
       username: r.username,
@@ -1569,6 +1632,9 @@ async function getFriendProfiles(usernames) {
       stage: r.stage == null ? 1 : r.stage,
       playerClass,
       race,
+      nameColor,
+      nameFx,
+      title,
       lastActive: Number(r.last_active) || 0,
     };
   });

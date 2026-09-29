@@ -2132,7 +2132,13 @@ body[data-bgstyle="bloodmoon"] #bg-canvas,
 body[data-bgstyle="nightsky"] #bg-canvas,
 body[data-bgstyle="sunset"] #bg-canvas,
 body[data-bgstyle="woods"] #bg-canvas,
-body[data-bgstyle="water"] #bg-canvas { display: block; }
+body[data-bgstyle="water"] #bg-canvas,
+body[data-bgstyle="autumn-dusk"] #bg-canvas,
+body[data-bgstyle="winter-night"] #bg-canvas,
+body[data-bgstyle="hallows-eve"] #bg-canvas,
+body[data-bgstyle="new-year"] #bg-canvas,
+body[data-bgstyle="summer-tide"] #bg-canvas,
+body[data-bgstyle="spring-bloom"] #bg-canvas { display: block; }
 body[data-bgstyle="shadow-eyes"] { --bg: #050308; background-image: none; }
 body[data-bgstyle="orbs"] { --bg: #0a0812; background-image: none; }
 body[data-bgstyle="ember-drift"] { --bg: #0d0505; background-image: none; }
@@ -2148,6 +2154,12 @@ body[data-bgstyle="nightsky"] { --bg: #04060f; background-image: none; }
 body[data-bgstyle="sunset"] { --bg: #1a0b26; background-image: none; }
 body[data-bgstyle="woods"] { --bg: #060a08; background-image: none; }
 body[data-bgstyle="water"] { --bg: #050a12; background-image: none; }
+body[data-bgstyle="autumn-dusk"] { --bg: #140b06; background-image: none; }
+body[data-bgstyle="winter-night"] { --bg: #060c14; background-image: none; }
+body[data-bgstyle="hallows-eve"] { --bg: #12060f; background-image: none; }
+body[data-bgstyle="new-year"] { --bg: #0d0a04; background-image: none; }
+body[data-bgstyle="summer-tide"] { --bg: #061014; background-image: none; }
+body[data-bgstyle="spring-bloom"] { --bg: #0a120c; background-image: none; }
 body[data-bgstyle="shadow-eyes"]::before, body[data-bgstyle="shadow-eyes"]::after,
 body[data-bgstyle="orbs"]::before, body[data-bgstyle="orbs"]::after,
 body[data-bgstyle="ember-drift"]::before, body[data-bgstyle="ember-drift"]::after,
@@ -2162,7 +2174,13 @@ body[data-bgstyle="bloodmoon"]::before, body[data-bgstyle="bloodmoon"]::after,
 body[data-bgstyle="nightsky"]::before, body[data-bgstyle="nightsky"]::after,
 body[data-bgstyle="sunset"]::before, body[data-bgstyle="sunset"]::after,
 body[data-bgstyle="woods"]::before, body[data-bgstyle="woods"]::after,
-body[data-bgstyle="water"]::before, body[data-bgstyle="water"]::after {
+body[data-bgstyle="water"]::before, body[data-bgstyle="water"]::after,
+body[data-bgstyle="autumn-dusk"]::before, body[data-bgstyle="autumn-dusk"]::after,
+body[data-bgstyle="winter-night"]::before, body[data-bgstyle="winter-night"]::after,
+body[data-bgstyle="hallows-eve"]::before, body[data-bgstyle="hallows-eve"]::after,
+body[data-bgstyle="new-year"]::before, body[data-bgstyle="new-year"]::after,
+body[data-bgstyle="summer-tide"]::before, body[data-bgstyle="summer-tide"]::after,
+body[data-bgstyle="spring-bloom"]::before, body[data-bgstyle="spring-bloom"]::after {
   display: none;
 }
 /* Scene option controls (Settings → Background) */
@@ -3108,6 +3126,10 @@ input:focus, select:focus {
    ORNATE THEME — auth / menu screen (Throne of Shadows reference)
    ============================================================ */
 #view-auth{position:relative;overflow:hidden;background:radial-gradient(120% 90% at 50% 0%,#0d0b12 0%,#060509 55%,#030204 100%)}
+/* Photo-backed scenes: the canvas paints the artwork behind everything, so
+   the auth view yields its own gradient. The auth card keeps its dark panel. */
+body[data-bgphoto="1"] #view-auth{background:transparent}
+body[data-bgphoto="1"] #view-auth .auth-smoke{display:none}
 /* violet smoke wisps drifting behind the menu */
 .auth-smoke{position:fixed;inset:-15%;z-index:1;pointer-events:none;opacity:.55;filter:blur(34px);
   background:
@@ -3354,6 +3376,7 @@ body[data-uistyle="modern"] #view-auth .auth-fantasy .auth-tab.active{
 }
 .friend-row.req { border-color: var(--gold); }
 .friend-name { font-weight: 700; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-title { font-size: 0.75rem; font-style: italic; color: var(--gold); white-space: nowrap; }
 .friend-actions { display: flex; gap: 0.35rem; margin-left: auto; flex-shrink: 0; }
 .online-dot {
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;

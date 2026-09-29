@@ -98,6 +98,12 @@ export const UI = {
     { id: 'sunset',   name: 'Sunset',    css: "url('img/bg/sunset.jpg') center/cover",   photo: 'img/bg/sunset.jpg',   animated: true },
     { id: 'woods',    name: 'Woods',     css: "url('img/bg/woods.jpg') center/cover",     photo: 'img/bg/woods.jpg',     animated: true },
     { id: 'water',    name: 'Water',     css: "url('img/bg/water.jpg') center/cover",     photo: 'img/bg/water.jpg',     animated: true },
+    { id: 'autumn-dusk',  name: '🍂 Autumn Dusk', css: "url('img/bg/autumn-dusk.jpg') center/cover", photo: 'img/bg/autumn-dusk.jpg', animated: true },
+    { id: 'winter-night', name: '❄️ Winter Night', css: "url('img/bg/winter-night.jpg') center/cover", photo: 'img/bg/winter-night.jpg', animated: true },
+    { id: 'hallows-eve',  name: '🎃 Hallow\'s Eve', css: "url('img/bg/hallows-eve.jpg') center/cover", photo: 'img/bg/hallows-eve.jpg', animated: true },
+    { id: 'new-year',     name: '🎆 New Year', css: "url('img/bg/new-year.jpg') center/cover", photo: 'img/bg/new-year.jpg', animated: true },
+    { id: 'summer-tide',  name: '☀️ Summer Tide', css: "url('img/bg/summer-tide.jpg') center/cover", photo: 'img/bg/summer-tide.jpg', animated: true },
+    { id: 'spring-bloom', name: '🌸 Spring Bloom', css: "url('img/bg/spring-bloom.jpg') center/cover", photo: 'img/bg/spring-bloom.jpg', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -115,7 +121,8 @@ export const UI = {
   DEFAULT_ORB_COLORS: ['#a855f7', '#7c3aed', '#22d3ee'],
   BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm',
     'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon',
-    'nightsky', 'sunset', 'woods', 'water'],
+    'nightsky', 'sunset', 'woods', 'water',
+    'autumn-dusk', 'winter-night', 'hallows-eve', 'new-year', 'summer-tide', 'spring-bloom'],
 
   // ---------------- init ----------------
   init() {
@@ -1279,9 +1286,10 @@ export const UI = {
 
   // ---------------- player name styles ----------------
   // Cosmetic name colors + animated text effects. Stored top-level on
-  // state as nameColor (hex) / nameFx (id); other players' styles are
-  // NOT served by the leaderboard API, so only the local player's own
-  // name ever renders with these.
+  // state as nameColor (hex) / nameFx (id). The server also serves other
+  // players' styles on leaderboard entries, party/guild rosters, guild
+  // chat, friends, and inspect payloads, so their names render styled
+  // everywhere — pass the entry object straight into nameHtml.
   NAME_COLOR_DEFAULT: '#ffd76a',
   NAME_COLORS: [
     { id: '#ffd76a', name: 'Gold' },
@@ -1366,7 +1374,9 @@ export const UI = {
     if (!cv) return;
     this._bg = { cv, ctx: cv.getContext('2d'), scene: null, parts: [], sprites: {}, raf: 0, last: 0, dt: 0, grad: null, opts: {} };
     const fit = () => {
-      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      // Cap backing-store resolution at 1.5x: at 2x a 4K screen pushes 4x
+      // the pixels per frame for soft glow sprites nobody can tell apart.
+      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
       cv.width = Math.max(2, Math.floor(innerWidth * dpr));
       cv.height = Math.max(2, Math.floor(innerHeight * dpr));
       this._bg.dpr = dpr;
@@ -1423,6 +1433,7 @@ export const UI = {
     const W = B.cv.width, H = B.cv.height, dpr = B.dpr || 1;
     const R = (a, b) => a + Math.random() * (b - a);
     B.scene = id; B.parts = []; B.sprites = {}; B.grad = null;
+    B.seasonCfg = null;
     B.photoImg = null;
     const _st = (this.BG_STYLES || []).find((s) => s.id === id);
     if (_st && _st.photo) { const _im = new Image(); _im.src = _st.photo; B.photoImg = _im; }
@@ -1694,7 +1705,39 @@ export const UI = {
         });
       }
       B.grad = this._vGrad(['#050a12', '#0d2233', '#050a12']);
+    } else if (id === 'autumn-dusk' || id === 'winter-night' || id === 'hallows-eve' ||
+               id === 'new-year' || id === 'summer-tide' || id === 'spring-bloom') {
+      // Seasonal scenes: themed drifting motes over a dark seasonal gradient.
+      // dir: 'down' falls (leaves/snow/petals), 'up' rises (embers/sparkles),
+      // 'drift' floats sideways (pollen/bubbles).
+      const cfg = {
+        'autumn-dusk': { colors: ['#ea8228', '#b43c14', '#f7c548'], grad: ['#140b06', '#2a1408', '#140b06'], dir: 'down', n: 46, spd: [26, 60], sway: [26, 60], size: [2.5, 5.5] },
+        'winter-night': { colors: ['#e0f2fe', '#7dd3fc', '#ffffff'], grad: ['#060c14', '#0e2233', '#060c14'], dir: 'down', n: 70, spd: [18, 42], sway: [14, 34], size: [1.6, 3.6] },
+        'hallows-eve': { colors: ['#a855f7', '#f97316', '#7c3aed'], grad: ['#12060f', '#241031', '#12060f'], dir: 'up', n: 50, spd: [14, 34], sway: [8, 26], size: [2, 5] },
+        'new-year': { colors: ['#ffd63f', '#fff7cc', '#f59e0b'], grad: ['#0d0a04', '#241a08', '#0d0a04'], dir: 'up', n: 55, spd: [30, 70], sway: [6, 18], size: [1.8, 4.2] },
+        'summer-tide': { colors: ['#2dd4bf', '#38bdf8', '#a5f3fc'], grad: ['#061014', '#0c2a30', '#061014'], dir: 'drift', n: 40, spd: [8, 20], sway: [10, 26], size: [2, 4.5] },
+        'spring-bloom': { colors: ['#4ade80', '#f472b6', '#fbcfe8'], grad: ['#0a120c', '#142a1a', '#0a120c'], dir: 'down', n: 48, spd: [20, 46], sway: [30, 70], size: [2.2, 5] },
+      }[id];
+      B.sprites.season = cfg.colors.map((c) => this._glowSprite(c));
+      B.seasonCfg = cfg;
+      for (let i = 0; i < cfg.n; i++) B.parts.push(this._newSeasonal(W, H, true, cfg));
+      B.grad = this._vGrad(cfg.grad);
     }
+  },
+  _newSeasonal(W, H, anywhere, cfg) {
+    const R = (a, b) => a + Math.random() * (b - a);
+    const dpr = (this._bg && this._bg.dpr) || 1;
+    return {
+      x: R(0, W),
+      y: anywhere ? R(0, H) : (cfg.dir === 'down' ? -R(0, 40) : H + R(0, 40)),
+      s: R(cfg.size[0], cfg.size[1]) * dpr,
+      vy: R(cfg.spd[0], cfg.spd[1]) * dpr,
+      vx: cfg.dir === 'drift' ? R(cfg.spd[0], cfg.spd[1]) * dpr * (Math.random() < 0.5 ? -1 : 1) : 0,
+      sway: R(cfg.sway[0], cfg.sway[1]) * dpr,
+      ph: R(0, 6.28), fs: R(0.6, 1.6),
+      si: (Math.random() * cfg.colors.length) | 0,
+      a: R(0.45, 0.95),
+    };
   },
   // Photorealistic scenes: slow Ken Burns drift over the generated art,
   // with a soft vignette so game UI stays readable. Static when isStatic.
@@ -2133,6 +2176,35 @@ export const UI = {
         }
       }
     }
+    // Seasonal scenes: themed motes (leaves, snow, embers, sparkles,
+    // pollen, petals) drifting over the scene. Runs as its own `if` (not
+    // else-if) so the motes layer on top of the painted backdrop photo.
+    if (B.seasonCfg) {
+      const cfg = B.seasonCfg;
+      for (const p of B.parts) {
+        if (!isStatic) {
+          if (cfg.dir === 'down') p.y += p.vy * B.dt;
+          else if (cfg.dir === 'up') p.y -= p.vy * B.dt;
+          else { p.x += p.vx * B.dt; p.y += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * 0.4 * B.dt; }
+          p.x += Math.sin(t / 1000 * p.fs + p.ph) * p.sway * B.dt;
+          const m = 20 * dpr;
+          if (cfg.dir === 'drift') {
+            if (p.x < -m) { p.x = W + m; } else if (p.x > W + m) { p.x = -m; }
+          } else {
+            const outY = cfg.dir === 'down' ? p.y > H + m : p.y < -m;
+            if (outY || p.x < -m || p.x > W + m) Object.assign(p, this._newSeasonal(W, H, false, cfg));
+          }
+        }
+        const edge = cfg.dir === 'down'
+          ? Math.min(1, Math.max(0, (H - p.y) / (H * 0.25))) * Math.min(1, Math.max(0, (p.y + 20) / 80))
+          : Math.min(1, Math.max(0, (H - p.y) / (H * 0.3))) * Math.min(1, Math.max(0, (p.y + 12) / 60));
+        if (edge <= 0.02) continue;
+        const tw = 0.75 + 0.25 * Math.sin(t / 1000 * p.fs * 1.7 + p.ph);
+        const d = p.s * 5;
+        ctx.globalAlpha = p.a * edge * tw;
+        ctx.drawImage(B.sprites.season[p.si], p.x - d / 2, p.y - d / 2, d, d);
+      }
+    }
     ctx.globalAlpha = 1;
   },
   _startBgLoop() {
@@ -2140,13 +2212,42 @@ export const UI = {
     const B = this._bg;
     if (!B || !B.scene) return;
     B.last = performance.now();
+    // Ambient background is throttled to 30fps: drifting particles look
+    // identical at half the frame rate, and it halves the fill cost of the
+    // full-viewport canvas. B.dt carries the accumulated time so motion
+    // speed stays correct. Also feeds the FPS watchdog below.
+    let acc = 0;
     const step = (now) => {
       B.raf = requestAnimationFrame(step);
-      B.dt = Math.min(0.05, Math.max(0, (now - B.last) / 1000));
+      const rawDt = Math.min(0.25, Math.max(0, (now - B.last) / 1000));
       B.last = now;
+      this._bgFpsWatch(rawDt);
+      acc += rawDt;
+      if (acc < 1 / 30) return;
+      B.dt = Math.min(0.06, acc);
+      acc = 0;
       this._drawBgFrame(now, false);
     };
     B.raf = requestAnimationFrame(step);
+  },
+  // Watches real frame pacing: if the main thread sustains under ~40fps for
+  // a while, suggest Performance mode once (it freezes the bg to a static
+  // frame). Never auto-enables — the player decides.
+  _bgFpsWatch(dt) {
+    if (this.settings.performanceMode || this._perfSuggested) return;
+    const fps = dt > 0 ? 1 / dt : 60;
+    this._fpsEma = this._fpsEma == null ? fps : this._fpsEma * 0.95 + fps * 0.05;
+    const now = performance.now();
+    if (this._fpsEma < 40) {
+      if (!this._fpsLowSince) this._fpsLowSince = now;
+      else if (now - this._fpsLowSince > 5000) {
+        this._perfSuggested = true;
+        this._fpsLowSince = 0;
+        this.toast('Low FPS detected — try Performance mode in Settings for a smoother game.', 'info', 6000);
+      }
+    } else {
+      this._fpsLowSince = 0;
+    }
   },
   _stopBgLoop() {
     if (this._bg && this._bg.raf) { cancelAnimationFrame(this._bg.raf); this._bg.raf = 0; }
@@ -2907,14 +3008,15 @@ export const UI = {
       const crown = m.isLeader ? ' 👑' : '';
       const flag = (Engine.countryFlag && Engine.countryFlag(m.country)) || '';
       const title = m.activeTitle ? `<div class="mp-title">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
-      const kick = (isLeader && String(m.username) !== me)
+      const mIsMe = String(m.username) === me;
+      const kick = (isLeader && !mIsMe)
         ? `<button class="btn small ghost icon-btn" data-action="mp-kick" data-id="${m.userId}" title="Kick ${esc(m.username)}">✕</button>`
         : '';
       slots.push(`
         <div class="mp-member">
           <div class="mp-avatar">${race.emoji || '🛡️'}</div>
           <div class="mp-info">
-            <div class="mp-name">${dot} ${String(m.username) === me ? this.nameHtml(m.username, state) : esc(m.username)}${flag ? ' ' + flag : ''}${crown}</div>
+            <div class="mp-name">${dot} ${this.nameHtml(m.username, mIsMe ? state : m)}${flag ? ' ' + flag : ''}${crown}</div>
             ${title}
             <div class="muted small">Lv ${m.level} · Stage ${m.stage}${cls.name ? ' · ' + esc(cls.name) : ''}${m.online ? '' : ' · offline'}</div>
           </div>
@@ -3207,7 +3309,7 @@ export const UI = {
         ${rankHtml}
         <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
         <div class="lb-identity">
-          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${isMe ? this.nameHtml(en.username, meState) : esc(en.username)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${this.nameHtml(en.username, isMe ? meState : en)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
           ${title}
         </div>
         <div class="lb-chips">
@@ -3280,20 +3382,20 @@ export const UI = {
     const incoming = (data.incoming || []).map((u) => `
       <div class="friend-row req">
         ${onlineDot(false)}
-        <span class="friend-name">${esc(u)}</span>
+        <span class="friend-name">${this.nameHtml(u.username, u)}${u.title ? ` <span class="friend-title">👑 ${esc(Engine.titleName(u.title))}</span>` : ''}</span>
         <span class="muted small">wants to be friends</span>
         <span class="friend-actions">
-          <button class="btn small gold" data-friend="accept" data-username="${esc(u)}">✓ Accept</button>
-          <button class="btn small ghost" data-friend="decline" data-username="${esc(u)}">✕</button>
+          <button class="btn small gold" data-friend="accept" data-username="${esc(u.username)}">✓ Accept</button>
+          <button class="btn small ghost" data-friend="decline" data-username="${esc(u.username)}">✕</button>
         </span>
       </div>`).join('');
     const outgoing = (data.outgoing || []).map((u) => `
       <div class="friend-row req">
         ${onlineDot(false)}
-        <span class="friend-name">${esc(u)}</span>
+        <span class="friend-name">${this.nameHtml(u.username, u)}${u.title ? ` <span class="friend-title">👑 ${esc(Engine.titleName(u.title))}</span>` : ''}</span>
         <span class="muted small">request sent</span>
         <span class="friend-actions">
-          <button class="btn small ghost" data-friend="cancel" data-username="${esc(u)}">Cancel</button>
+          <button class="btn small ghost" data-friend="cancel" data-username="${esc(u.username)}">Cancel</button>
         </span>
       </div>`).join('');
     const sorted = (data.friends || []).slice().sort((a, b) => Number(!!b.online) - Number(!!a.online));
@@ -3302,7 +3404,7 @@ export const UI = {
       return `
       <div class="friend-row" data-username="${esc(f.username)}">
         ${onlineDot(!!f.online)}
-        <span class="friend-name">${cls}${esc(f.username)}</span>
+        <span class="friend-name">${cls}${this.nameHtml(f.username, f)}${f.title ? ` <span class="friend-title">👑 ${esc(Engine.titleName(f.title))}</span>` : ''}</span>
         <span class="muted small">Lv ${f.level} · Stage ${f.stage}</span>
         <span class="friend-actions">
           <button class="btn small" data-friend="inspect" data-username="${esc(f.username)}">🔍</button>
@@ -3473,7 +3575,7 @@ export const UI = {
         <div class="inspect-head">
           <div class="inspect-avatar">${raceEmoji}</div>
           <div class="inspect-id">
-            <div class="inspect-name">${d.relation === 'self' ? this.nameHtml(d.username, meState) : esc(d.username)}</div>
+            <div class="inspect-name">${this.nameHtml(d.username, d.relation === 'self' ? meState : d)}</div>
             <div class="inspect-lv">⚔️ Lv ${d.level}</div>
             <div class="inspect-class">${esc(clsLine || '—')}</div>
             ${d.title ? `<div class="inspect-title">👑 ${esc(d.title)}</div>` : ''}
@@ -3569,10 +3671,10 @@ export const UI = {
         </div>`;
     }).join('');
     box.innerHTML = `
-      <h4 class="inspect-h">⚖️ You vs ${esc(them.username)}</h4>
+      <h4 class="inspect-h">⚖️ You vs ${this.nameHtml(them.username, them)}</h4>
       <div class="compare-head compare-row">
         <span class="compare-label"></span><span class="compare-you"><b>You</b></span>
-        <span class="compare-them"><b>${esc(them.username)}</b></span><span class="compare-delta"></span>
+        <span class="compare-them"><b>${this.nameHtml(them.username, them)}</b></span><span class="compare-delta"></span>
       </div>${html}`;
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   },

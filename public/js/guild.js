@@ -585,7 +585,7 @@ export function renderGuildSection(container, api, myState) {
     };
     const msgHtml = (m) => `
       <div class="guild-msg">
-        <span class="who">${esc(m.username)}</span><span class="txt">${esc(m.message)}</span><span class="when">${esc(timeAgo(m.created_at))}</span>${canModChat ? `<button class="guild-msgdel" data-del="${Number(m.id) || 0}" title="Delete message" aria-label="Delete message">✕</button>` : ''}
+        <span class="who">${UI.nameHtml(m.username, m)}</span><span class="txt">${esc(m.message)}</span><span class="when">${esc(timeAgo(m.created_at))}</span>${canModChat ? `<button class="guild-msgdel" data-del="${Number(m.id) || 0}" title="Delete message" aria-label="Delete message">✕</button>` : ''}
       </div>`;
 
     async function poll() {
@@ -697,7 +697,7 @@ export function renderGuildSection(container, api, myState) {
         <div class="guild-member">
           <div class="avatar">🛡️</div>
           <div class="minfo">
-            <div class="mname"><span class="online-dot ${online ? 'on' : 'off'}" title="${online ? 'Online' : 'Offline'}"></span>${isMe ? UI.nameHtml(m.username, myState) : esc(m.username)}${m.title ? ` <span class="mtitle">${esc(m.title)}</span>` : ''}</div>
+            <div class="mname"><span class="online-dot ${online ? 'on' : 'off'}" title="${online ? 'Online' : 'Offline'}"></span>${UI.nameHtml(m.username, isMe ? myState : m)}${m.title ? ` <span class="mtitle">${esc(m.title)}</span>` : ''}</div>
             <div class="msub">Lv ${m.level == null ? '—' : m.level} · ${esc(classLabel(m.playerClass, m.spec))} · Stage ${m.stage == null ? '—' : m.stage}${m.lastActive ? ` · ${online ? 'online now' : 'last seen ' + esc(timeAgo(m.lastActive))}` : ''}</div>
           </div>
           ${rankPill(mRank)}

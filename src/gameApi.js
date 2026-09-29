@@ -36,6 +36,7 @@ const {
   getMyGuild,
   addGuildNews,
   getGuildRoster,
+  nameStyleOf,
   joinGuild,
   leaveGuild,
   getGoldCap,
@@ -215,6 +216,7 @@ async function buildInspect(targetUsername, viewerUsername) {
   const clsDef = eng.CLASSES[blob.playerClass] || {};
   const specDef = eng.SPECS[blob.spec] || {};
   const titleId = typeof blob.activeTitle === 'string' ? blob.activeTitle : null;
+  const nameStyle = nameStyleOf(blob);
 
   // Equipped gear: item cards only (name, rarity, enchant, stats).
   const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
@@ -268,6 +270,8 @@ async function buildInspect(targetUsername, viewerUsername) {
 
   return {
     username: user.username,
+    nameColor: nameStyle.nameColor,
+    nameFx: nameStyle.nameFx,
     level: row ? row.level : 1,
     stage: row ? row.stage : 1,
     race: { id: blob.race || null, name: raceDef.name || null, emoji: raceDef.emoji || null },
@@ -531,6 +535,8 @@ router.get(
       let country = null;
       let playerClass = null;
       let spec = null;
+      let nameColor = null;
+      let nameFx = 'none';
       let power = 0;
       let kills = 0;
       let depth = 0;
@@ -541,6 +547,9 @@ router.get(
         if (blob && typeof blob.activeTitle === 'string') title = blob.activeTitle;
         if (blob && typeof blob.badge === 'string') badge = blob.badge;
         if (blob && typeof blob.country === 'string') country = blob.country;
+        const style = nameStyleOf(blob);
+        nameColor = style.nameColor;
+        nameFx = style.nameFx;
         if (blob && typeof blob.playerClass === 'string' && VALID_CLASSES.has(blob.playerClass)) {
           playerClass = blob.playerClass;
         }
@@ -566,6 +575,8 @@ router.get(
         country,
         playerClass,
         spec,
+        nameColor,
+        nameFx,
         level: r.level,
         stage: r.stage,
         power,
@@ -681,8 +692,8 @@ router.get(
         ...f,
         online: now - (Number(f.lastActive) || 0) < ONLINE_WINDOW_MS,
       })),
-      incoming: data.incoming,
-      outgoing: data.outgoing,
+      incoming: await getFriendProfiles(data.incoming || []),
+      outgoing: await getFriendProfiles(data.outgoing || []),
     });
   })
 );
@@ -1059,7 +1070,15 @@ router.post(
       }
     } catch { /* mute check is best-effort; never block chat on a read error */ }
     const msg = await addGuildChat(ctx.guild.id, req.user.username, raw);
-    res.json({ ok: true, message: { id: msg.id, username: req.user.username, message: raw, created_at: msg.created_at } });
+    let nameColor = null;
+    let nameFx = 'none';
+    try {
+      const srow = await getStateRow(req.user.id);
+      const style = nameStyleOf(srow ? parseBlob(srow.state_json) : null);
+      nameColor = style.nameColor;
+      nameFx = style.nameFx;
+    } catch { /* style is best-effort; never block chat on a read error */ }
+    res.json({ ok: true, message: { id: msg.id, username: req.user.username, message: raw, created_at: msg.created_at, nameColor, nameFx } });
   })
 );
 

@@ -505,7 +505,7 @@ function setUiStyle(style) {
 // Unknown values normalize to 'default', which renders pixel-identical
 // to the uncustomized game.
 const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
-const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm', 'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon', 'nightsky', 'sunset', 'woods', 'water'];
+const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm', 'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon', 'nightsky', 'sunset', 'woods', 'water', 'autumn-dusk', 'winter-night', 'hallows-eve', 'new-year', 'summer-tide', 'spring-bloom'];
 function btnStyleOf(s) {
   return (s && BTN_STYLE_IDS.includes(s.btnStyle)) ? s.btnStyle : 'default';
 }
@@ -523,6 +523,12 @@ function applyCustomStyles() {
   document.body.dataset.btnstyle = btnStyleOf(App.state);
   const bg = bgStyleOf(App.state);
   document.body.dataset.bgstyle = bg;
+  // Photo-backed scenes (painted seasonal art, starfall, …) show through the
+  // login screen: the canvas carries the painting, so the auth view's own
+  // opaque gradient would just hide it. The auth card keeps its dark panel.
+  const st = (UI.BG_STYLES || []).find((s) => s.id === bg);
+  if (st && st.photo) document.body.dataset.bgphoto = '1';
+  else delete document.body.dataset.bgphoto;
   UI.syncCustomStyles(btnStyleOf(App.state), bg);
   UI.syncBattleBg(battleBgOf(App.state));
   UI.syncNameStyle(nameColorOf(App.state), nameFxOf(App.state));
