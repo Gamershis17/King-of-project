@@ -29,6 +29,7 @@
  *   GET  /api/broadcasts/latest (public) — newest announcement
  *   GET  /api/gm/players      (owner|admin|moderator) — player list w/ search
  *   POST /api/gm/reset-player (owner|admin) — wipe a player's save
+ *   POST /api/gm/delete-account (owner only) — permanently delete an account
  *   POST /api/roles           (owner only)
  *   POST /api/gm/inventory      (gm|owner) — full inventory listing
  *   POST /api/gm/remove-item    (gm|owner) — remove one inventory item
@@ -466,7 +467,7 @@ router.post(
 );
 
 // ---------- server settings (owner only) ----------
-// Owner-tunable tunables. Currently: goldCap (max player gold, default 999Qi).
+// Owner-tunable tunables. Currently: goldCap (max player gold, default 999Dc).
 // The client fetches the live value from GET /api/settings at boot.
 router.post(
   '/gm/settings',
@@ -893,6 +894,54 @@ router.post(
     await persistMergedState(target.id, fresh);
     await logAudit(req, 'reset-player', target.username, 'save wiped to fresh');
     res.json({ ok: true, state: selfState(req, target, fresh) });
+  })
+);
+
+// ---------- delete account (owner only) ----------
+// Permanently deletes a player account and its data: the users row
+// (player_state, party rows/memberships cascade), guild membership, guild
+// invites, friendships, and code redemptions. Gift codes the target created
+// are kept but detached (created_by → NULL). Blocked when the target owns a
+// guild — transfer or disband it first — and never on self or the owner role.
+router.post(
+  '/gm/delete-account',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (target.id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot delete your own account.' });
+    }
+    if (target.role === 'owner') {
+      return res.status(403).json({ error: 'The owner account cannot be deleted.' });
+    }
+    const owned = await pool.query(
+      'SELECT name FROM guilds WHERE LOWER(owner_username) = LOWER($1) LIMIT 1',
+      [target.username]
+    );
+    if (owned.rows.length) {
+      return res.status(400).json({
+        error: `Target owns guild "${owned.rows[0].name}" — transfer or disband it first.`,
+      });
+    }
+    const uname = target.username;
+    await pool.query('DELETE FROM guild_members WHERE LOWER(username) = LOWER($1)', [uname]);
+    await pool.query(
+      'DELETE FROM guild_invites WHERE LOWER(username) = LOWER($1) OR LOWER(invited_by) = LOWER($1)',
+      [uname]
+    );
+    await pool.query(
+      'DELETE FROM friendships WHERE LOWER(requester) = LOWER($1) OR LOWER(addressee) = LOWER($1)',
+      [uname]
+    );
+    await pool.query('DELETE FROM code_redemptions WHERE user_id = $1', [target.id]);
+    await pool.query('UPDATE gift_codes SET created_by = NULL WHERE created_by = $1', [target.id]);
+    // parties led by the target disband via ON DELETE CASCADE; their
+    // party_members rows cascade as well. Their sessions die with the row.
+    await pool.query('DELETE FROM users WHERE id = $1', [target.id]);
+    await logAudit(req, 'delete-account', uname, 'account permanently deleted');
+    res.json({ ok: true, username: uname });
   })
 );
 

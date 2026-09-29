@@ -114,6 +114,7 @@ export const api = {
   gmBan: (username) => post('/api/gm/ban', { username }),
   gmUnban: (username) => post('/api/gm/unban', { username }),
   gmResetPlayer: (username) => post('/api/gm/reset-player', { username }),
+  gmDeleteAccount: (username) => post('/api/gm/delete-account', { username }),
   // Moderation (owner|admin|moderator)
   gmBroadcast: (message) => post('/api/gm/broadcast', { message }),
   gmPlayers: (search, limit) =>
