@@ -75,7 +75,16 @@ check('nameColor regex matches client validation', () => {
 });
 check('nameFx id list matches client list', () => {
   const ids = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight'];
-  assert.deepStrictEqual(ids, ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight']);
+  // Read the real client-side whitelist from public/js/app.js (setNameFx
+  // validates against it) so a missed update fails the test instead of
+  // silently falling back to 'none' in the game.
+  const fs = require('fs');
+  const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
+  const m = src.match(/const NAME_FX_IDS = \[([^\]]*)\]/);
+  assert.ok(m, 'NAME_FX_IDS not found in public/js/app.js');
+  const clientIds = m[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+  assert.deepStrictEqual(clientIds, ids, 'app.js NAME_FX_IDS is out of sync');
 });
 
 console.log('== sanitizeStateBlob battleBg ==');
