@@ -63,7 +63,7 @@ const SETTINGS_KEY = 'rpg-idle-settings';
 export const UI = {
   handlers: {},
   els: {},
-  settings: { damageNumbers: true, reduceMotion: false, performanceMode: false },
+  settings: { damageNumbers: true, reduceMotion: false, performanceMode: false, bgFps: 30, bgHd: false },
   activeTab: 'battle',
 
   // Player customization presets (Settings → Buttons / Background).
@@ -486,6 +486,30 @@ export const UI = {
     }
     this.setUiStyleSeg(document.body.dataset.uistyle === 'classic' ? 'classic' : 'modern');
 
+    // Background frame-rate segmented control (Settings → 30/60 FPS).
+    const fpsSeg = document.getElementById('bg-fps-seg');
+    if (fpsSeg) {
+      fpsSeg.querySelectorAll('button').forEach((b) => {
+        b.addEventListener('click', () => {
+          this.saveSetting('bgFps', b.dataset.bgfps === '60' ? 60 : 30);
+          this._syncBgQualitySegs();
+        });
+      });
+    }
+    // Background detail segmented control (Settings → SD/HD backing resolution).
+    const hdSeg = document.getElementById('bg-hd-seg');
+    if (hdSeg) {
+      hdSeg.querySelectorAll('button').forEach((b) => {
+        b.addEventListener('click', () => {
+          this.saveSetting('bgHd', b.dataset.bghd === '1');
+          this._syncBgQualitySegs();
+          // Re-fit the canvas so the new DPR cap takes effect immediately.
+          if (this._bg && this._bg.fit) this._bg.fit();
+        });
+      });
+    }
+    this._syncBgQualitySegs();
+
     // Custom button / background pickers (Settings)
     this._renderStylePickers();
     this._renderBattleBgPicker();
@@ -749,14 +773,12 @@ export const UI = {
     this.modal({
       title: 'Follow Throne of Shadows',
       html: row('discord', 'Discord', 'Chat with the community', true, 'social-discord')
-        + row('youtube', 'YouTube', '@ThroneofShadows-q9f', true, 'social-youtube')
         + row('tiktok', 'TikTok', '@throneofshadowsofficial', true, 'social-tiktok'),
       buttons: [{ label: 'Close' }],
     });
     const dBtn = document.getElementById('social-discord');
     if (dBtn) dBtn.addEventListener('click', () => { openDiscord(); });
-    const yBtn = document.getElementById('social-youtube');
-    if (yBtn) yBtn.addEventListener('click', () => { try { window.open(YOUTUBE_URL, '_blank', 'noopener'); } catch (e) {} });
+    // YouTube row hidden for now (re-add with YOUTUBE_URL when the channel is ready).
     const tBtn = document.getElementById('social-tiktok');
     if (tBtn) tBtn.addEventListener('click', () => { try { window.open(TIKTOK_URL, '_blank', 'noopener'); } catch (e) {} });
     const root = document.getElementById('modal-root');
@@ -1224,6 +1246,22 @@ export const UI = {
     seg.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.uistyle === cur));
   },
 
+  // Marks the active Background frame-rate / detail buttons in Settings.
+  _syncBgQualitySegs() {
+    const fps = this._bgFpsTarget();
+    const seg = document.getElementById('bg-fps-seg');
+    if (seg) seg.querySelectorAll('button').forEach((b) =>
+      b.classList.toggle('active', (b.dataset.bgfps === '60') === (fps === 60)));
+    const hd = document.getElementById('bg-hd-seg');
+    if (hd) hd.querySelectorAll('button').forEach((b) =>
+      b.classList.toggle('active', (b.dataset.bghd === '1') === !!this.settings.bgHd));
+  },
+
+  // Background frame-rate target: 60 only when explicitly chosen, else 30.
+  _bgFpsTarget() {
+    return this.settings.bgFps === 60 ? 60 : 30;
+  },
+
   // Builds the Settings swatch pickers for button/background styles.
   _renderStylePickers() {
     const mk = (list, elId, handler) => {
@@ -1312,6 +1350,18 @@ export const UI = {
     { id: 'lightning', name: '⚡ Lightning' },
     { id: 'shadow', name: '🌑 Shadow' },
     { id: 'glitch', name: '👾 Glitch' },
+    { id: 'falling-leaves', name: '🍂 Falling Leaves' },
+    { id: 'harvest-ember', name: '🌾 Harvest Ember' },
+    { id: 'autumn-mist', name: '🌫️ Autumn Mist' },
+    { id: 'snowfall', name: '❄️ Snowfall' },
+    { id: 'aurora', name: '🌠 Aurora' },
+    { id: 'frostbite', name: '🧊 Frostbite' },
+    { id: 'tidal', name: '🌊 Tidal' },
+    { id: 'sunscorched', name: '☀️ Sunscorched' },
+    { id: 'wildfire', name: '🔥 Wildfire' },
+    { id: 'fireworks', name: '🎆 Fireworks' },
+    { id: 'champagne', name: '🍾 Champagne' },
+    { id: 'midnight', name: '🌃 Midnight' },
   ],
   // Rarest titles: these cycle rainbow in the Titles tab / profile.
   RAINBOW_TITLES: ['ever-reborn', 'true-capped', 'worldforger'],
@@ -1374,15 +1424,19 @@ export const UI = {
     if (!cv) return;
     this._bg = { cv, ctx: cv.getContext('2d'), scene: null, parts: [], sprites: {}, raf: 0, last: 0, dt: 0, grad: null, opts: {} };
     const fit = () => {
-      // Cap backing-store resolution at 1.5x: at 2x a 4K screen pushes 4x
-      // the pixels per frame for soft glow sprites nobody can tell apart.
-      const dpr = Math.min(1.5, window.devicePixelRatio || 1);
+      // Backing-store resolution cap comes from Settings detail (SD/HD):
+      // SD caps at 1.5x — at 2x a 4K screen pushes 4x the pixels per frame
+      // for soft glow sprites nobody can tell apart. HD raises the cap to
+      // 2x for visibly sharper scenes on retina/4K displays (costs fill rate).
+      const cap = this.settings.bgHd ? 2 : 1.5;
+      const dpr = Math.min(cap, window.devicePixelRatio || 1);
       cv.width = Math.max(2, Math.floor(innerWidth * dpr));
       cv.height = Math.max(2, Math.floor(innerHeight * dpr));
       this._bg.dpr = dpr;
       this._bg.grad = null;
       if (this._bg.scene) this._buildBgScene(this._bg.scene, this._bg.opts);
     };
+    this._bg.fit = fit; // re-run when the SD/HD setting changes
     addEventListener('resize', fit);
     fit();
     document.addEventListener('visibilitychange', () => {
@@ -2212,10 +2266,10 @@ export const UI = {
     const B = this._bg;
     if (!B || !B.scene) return;
     B.last = performance.now();
-    // Ambient background is throttled to 30fps: drifting particles look
-    // identical at half the frame rate, and it halves the fill cost of the
-    // full-viewport canvas. B.dt carries the accumulated time so motion
-    // speed stays correct. Also feeds the FPS watchdog below.
+    // Ambient background frame rate comes from Settings (30/60 FPS): drifting
+    // particles look identical at half the frame rate, and 30 halves the fill
+    // cost of the full-viewport canvas. B.dt carries the accumulated time so
+    // motion speed stays correct at either rate. Also feeds the FPS watchdog.
     let acc = 0;
     const step = (now) => {
       B.raf = requestAnimationFrame(step);
@@ -2223,7 +2277,7 @@ export const UI = {
       B.last = now;
       this._bgFpsWatch(rawDt);
       acc += rawDt;
-      if (acc < 1 / 30) return;
+      if (acc < 1 / this._bgFpsTarget()) return;
       B.dt = Math.min(0.06, acc);
       acc = 0;
       this._drawBgFrame(now, false);

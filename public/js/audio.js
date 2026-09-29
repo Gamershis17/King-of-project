@@ -29,6 +29,12 @@ const MUSIC_VOLUME = 0.10; // master music gain (subtle)
 // 'shadow-requiem' is the original dark-fantasy loop (Am — F — Dm — E).
 // 'void-hymn' is new: deeper, slower, written for the Void Abyss and the
 // Throne of Shadows (Dm — Bb — Gm — A, sub-bass weight).
+// 'ember-tavern' is warm and lively: a fireside I–V–vi–IV in C for the Inn
+// and safe zones (C — G — Am — F).
+// 'war-horns' is driving battle music: fast Em — C — D — Bm with urgent,
+// dense horn-like plucks.
+// 'frostfall' is cold and sparse: a slow winter progression with distant,
+// crystalline high plucks like ice in the air.
 const TRACKS = {
   'shadow-requiem': {
     name: 'Shadow Requiem',
@@ -53,6 +59,42 @@ const TRACKS = {
     chordSecs: 11,
     pluckScale: [146.83, 174.61, 196.0, 220.0, 261.63], // D minor pentatonic, low
     pluckGap: [4.0, 9.0],
+  },
+  'ember-tavern': {
+    name: 'Ember Tavern',
+    chords: [
+      [98.0, 130.81, 164.81],   // C:   G2 C3 E3
+      [98.0, 123.47, 146.83],   // G:   G2 B2 D3
+      [110.0, 130.81, 164.81],  // Am:  A2 C3 E3
+      [87.31, 110.0, 130.81],   // F:   F2 A2 C3
+    ],
+    chordSecs: 7,
+    pluckScale: [261.63, 293.66, 329.63, 392.0, 440.0, 523.25], // C major pentatonic
+    pluckGap: [2.0, 5.0],
+  },
+  'war-horns': {
+    name: 'War Horns',
+    chords: [
+      [82.41, 98.0, 123.47],    // Em:  E2 G2 B2
+      [65.41, 82.41, 98.0],     // C:   C2 E2 G2
+      [73.42, 92.5, 110.0],     // D:   D2 F#2 A2
+      [61.74, 73.42, 92.5],     // Bm:  B1 D2 F#2
+    ],
+    chordSecs: 5,
+    pluckScale: [329.63, 392.0, 440.0, 493.88, 587.33, 659.25], // E minor pentatonic, high
+    pluckGap: [1.2, 3.0],
+  },
+  'frostfall': {
+    name: 'Frostfall',
+    chords: [
+      [110.0, 130.81, 164.81],  // Am:  A2 C3 E3
+      [87.31, 110.0, 130.81],   // F:   F2 A2 C3
+      [98.0, 130.81, 164.81],   // C:   G2 C3 E3
+      [82.41, 98.0, 123.47],    // Em:  E2 G2 B2
+    ],
+    chordSecs: 12,
+    pluckScale: [523.25, 587.33, 659.25, 783.99, 880.0], // high, icy
+    pluckGap: [5.0, 11.0],
   },
 };
 export const MUSIC_TRACKS = Object.keys(TRACKS);

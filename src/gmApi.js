@@ -658,7 +658,7 @@ router.post(
 
 // ---------- name style ----------
 // Sets a player's name color / effect directly.
-const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch'];
+const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight'];
 router.post(
   '/gm/name-style',
   gmOrOwner,

@@ -363,6 +363,20 @@
           <label class="setting"><input type="checkbox" id="set-sfx"> Sound FX</label>
           <label class="setting"><input type="checkbox" id="set-music"> Music <span class="muted small">(ambient)</span></label>
           <label class="setting"><input type="checkbox" id="set-perf"> Performance mode <span class="muted small">(anti-lag)</span></label>
+          <div class="setting-row">
+            <span class="setting-label">🎬 Background frame rate</span>
+            <div class="seg-control" id="bg-fps-seg" role="group" aria-label="Background frame rate">
+              <button type="button" data-bgfps="30">30 FPS</button>
+              <button type="button" data-bgfps="60">60 FPS</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">🖼️ Background detail</span>
+            <div class="seg-control" id="bg-hd-seg" role="group" aria-label="Background detail">
+              <button type="button" data-bghd="0">SD</button>
+              <button type="button" data-bghd="1">HD</button>
+            </div>
+          </div>
           <div class="setting-row" id="music-track-row">
             <span class="setting-label">🎼 Music track</span>
             <select id="set-music-track" class="country-select" aria-label="Music track"></select>
