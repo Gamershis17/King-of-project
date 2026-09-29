@@ -2861,6 +2861,7 @@ input:focus, select:focus {
   outline-offset: -1px;
 }
 
+
 /* ---------- modal & toast ---------- */
 .modal {
   background: linear-gradient(180deg, #241d3a, #141021);
@@ -3540,3 +3541,14 @@ body:is(.perf, .os-reduced) .title-rainbow { animation: none !important; }
   background: #1a1426; border: 2px solid #000; border-radius: 10px;
   box-shadow: 0 3px 0 #000; cursor: pointer;
 }
+
+/* ---------- Discord buttons (kept last: must beat the ornate auth-theme rules) ---------- */
+.btn.discord-btn { background: #5865F2; border: 2px solid #000; box-shadow: 0 4px 0 #000; }
+.btn.discord-btn svg { width: 1.15rem; height: 1.15rem; fill: #fff; display: block; }
+.btn.discord-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #000; background: #4752c4; }
+.btn.discord-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }
+#view-auth .btn.discord-big { display: flex; align-items: center; justify-content: center; gap: 0.6rem; width: 100%; margin-top: 0.9rem; min-height: 0; padding: 0.8rem 1rem; background: #5865F2; color: #fff; border: 2px solid #000; border-radius: 12px; font-weight: 800; font-size: 1.02rem; font-family: inherit; letter-spacing: normal; text-shadow: none; box-shadow: 0 4px 0 #000; cursor: pointer; }
+#view-auth .btn.discord-big svg { width: 1.5rem; height: 1.5rem; fill: #fff; flex: 0 0 auto; }
+#view-auth .btn.discord-big span { color: #fff; }
+#view-auth .btn.discord-big:hover { transform: translateY(-2px); color: #fff; border-color: #000; background: #4752c4; box-shadow: 0 6px 0 #000; }
+#view-auth .btn.discord-big:active { transform: translateY(2px); box-shadow: 0 1px 0 #000; }

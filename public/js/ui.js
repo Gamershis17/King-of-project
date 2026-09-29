@@ -29,6 +29,7 @@ export function esc(s) {
 // render exactly as before.
 const UI_CLASS_EMOJI = { hunter: '🏹', warrior: '⚔️', mage: '🔮', assassin: '🌙' };
 const UI_SPEC_EMOJI = { tank: '🛡️', dps: '⚔️', healer: '💚', classic: '📜' };
+const DISCORD_URL = 'https://discord.gg/mMeUhKBh6j'; // community Discord server invite
 
 export function formatNum(n) {
   n = Math.floor(Number(n) || 0);
@@ -155,7 +156,7 @@ export const UI = {
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge',
       'balance-log-btn', 'balance-log-badge', 'balance-log-hud', 'balance-log-badge-hud',
-      'friends-hud', 'friend-req-badge-hud',
+      'friends-hud', 'friend-req-badge-hud', 'discord-hud', 'discord-login',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
       'mine-pickaxe', 'mine-stats',
@@ -381,6 +382,11 @@ export const UI = {
     if (this.els['modal-root']) this.els['modal-root'].addEventListener('keydown', friendKey);
     // HUD friends button (top bar 👥 icon).
     listen('friends-hud', 'click', () => { this.openFriendsModal(); });
+
+    // Discord buttons — open the community server invite in a new tab.
+    const openDiscord = () => { try { window.open(DISCORD_URL, '_blank', 'noopener'); } catch (e) {} };
+    listen('discord-hud', 'click', openDiscord);
+    listen('discord-login', 'click', openDiscord);
 
     // Settings tab: delegated talent / profession buttons
     listen('tab-settings', 'click', (e) => {
