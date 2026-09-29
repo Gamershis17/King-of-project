@@ -22,6 +22,7 @@ const {
   closePool,
   getUserByUsername,
   createUserWithRole,
+  setUserRole,
   ownerExists,
   refreshGoldCap,
 } = require('./src/db');
@@ -111,19 +112,38 @@ app.use((err, req, res, next) => {
 });
 
 // --- owner seeding ---
+// Runs on every boot. Safe to re-run: once ANY owner exists it becomes a
+// no-op, so OWNER_USERNAME can never be used to hijack an account later.
 async function seedOwnerIfNeeded() {
   if (await ownerExists()) {
     return { seeded: false, reason: 'owner already exists' };
   }
-  const username = process.env.OWNER_USERNAME;
+  const username = (process.env.OWNER_USERNAME || '').trim();
+  if (!username) {
+    return { seeded: false, reason: 'OWNER_USERNAME not set' };
+  }
+  // Case 1: the account is already registered (e.g. the owner has been
+  // playing as a regular player). Promote it — no password needed.
+  const existing = await getUserByUsername(username);
+  if (existing) {
+    if (existing.role !== 'owner') {
+      await setUserRole(existing.id, 'owner');
+    }
+    console.log(`[owner] promoted existing account "${existing.username}" to owner`);
+    return { seeded: true, promoted: true, username: existing.username };
+  }
+  // Case 2: fresh database — create the owner account (needs a password).
   const password = process.env.OWNER_PASSWORD;
-  if (!username || !password) {
-    return { seeded: false, reason: 'OWNER_USERNAME/OWNER_PASSWORD not set' };
+  if (!password) {
+    return {
+      seeded: false,
+      reason: `OWNER_USERNAME "${username}" is not registered yet and OWNER_PASSWORD is not set`,
+    };
   }
   const hash = bcrypt.hashSync(password, 10);
-  await createUserWithRole(username.trim(), hash, 'owner');
+  await createUserWithRole(username, hash, 'owner');
   // NEVER log the password — only the username.
-  return { seeded: true, username: username.trim() };
+  return { seeded: true, username };
 }
 
 async function main() {
@@ -143,7 +163,7 @@ async function main() {
     console.log(
       `  Owner:       ${
         ownerResult.seeded
-          ? `seeded as "${ownerResult.username}"`
+          ? `${ownerResult.promoted ? 'promoted' : 'seeded'} as "${ownerResult.username}"`
           : `not seeded (${ownerResult.reason})`
       }`
     );

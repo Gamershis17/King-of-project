@@ -13,6 +13,8 @@ const {
   getUserByUsername,
   getUserById,
   createUser,
+  setUserRole,
+  ownerExists,
   touchLastActive,
 } = require('./db');
 const { validateUsername, validatePassword } = require('./validation');
@@ -125,6 +127,20 @@ router.post(
 
     const passwordHash = bcrypt.hashSync(password, BCRYPT_ROUNDS);
     const user = await createUser(cleanUsername, passwordHash);
+
+    // Owner bootstrap: if no owner exists yet and this is the configured
+    // owner account, promote it now. Covers fresh databases where the env
+    // var was set before the owner registered.
+    const ownerUsername = (process.env.OWNER_USERNAME || '').trim().toLowerCase();
+    if (
+      ownerUsername &&
+      cleanUsername.toLowerCase() === ownerUsername &&
+      !(await ownerExists())
+    ) {
+      await setUserRole(user.id, 'owner');
+      user.role = 'owner';
+      console.log(`[owner] promoted new account "${user.username}" to owner at registration`);
+    }
 
     // Fresh session id on register, same as login (session fixation).
     req.session.regenerate((err) => {
