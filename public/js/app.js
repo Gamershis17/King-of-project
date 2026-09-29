@@ -388,9 +388,16 @@ async function enterAppWithState(user, raw, lastSeenAt) {
   App.user = user;
 
   // Server gold cap (owner-adjustable); failure keeps the built-in default.
+  // Also picks up the active server event buff (double XP/gold weekends).
   try {
     const sj = await api.getSettings();
     if (sj && Number.isFinite(sj.goldCap)) Engine.setGoldCap(sj.goldCap);
+    if (sj && sj.eventBuff) Engine.setEventBuff(sj.eventBuff);
+    const __ev = Engine.eventBuff();
+    if (__ev) {
+      const ends = new Date(__ev.endsAt).toLocaleString();
+      setTimeout(() => UI.toast(`🎉 ${__ev.label}: ${__ev.xpMult}x XP + ${__ev.goldMult}x gold until ${ends}`, 'success'), 2500);
+    }
   } catch { /* offline-tolerant */ }
 
   let state = Engine.ensureState(raw);
@@ -892,6 +899,7 @@ function onKillEnemy() {
 
   const pb = partyBonus();
   let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0) + pb.goldPct);
+  gold = Math.floor(gold * Engine.eventGoldMult());
   if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
   const addedGold = Engine.addGold(s, gold);
   Audio.play('coin');
@@ -905,7 +913,7 @@ function onKillEnemy() {
     UI.combatLog(`👹 Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'boss');
     UI.toast(`Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'success');
   }
-  const killXp = Engine.xpForKill(stage);
+  const killXp = Math.floor(Engine.xpForKill(stage) * Engine.eventXpMult());
   const xpRes = Engine.gainXp(s, killXp, Date.now(), pb.xpPct);
   // The active pet earns 15% of the kill's XP.
   const petXpRes = Engine.gainPetXp(s, Math.floor(killXp * 0.15));

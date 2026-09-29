@@ -34,6 +34,707 @@ export const GM = {
     this.render();
   },
 
+  bind(root) {
+    const $ = (id) => root.querySelector('#' + id);
+    // Cards render per role tier; elements for other tiers are absent.
+    const on = (id, evt, fn) => { const el = $(id); if (el) el.addEventListener(evt, fn); };
+    const isGm = canGm(this.me.role);
+
+    // Quick-jump chips in the sticky target bar: smooth-scroll to each section.
+    root.querySelectorAll('[data-goto]').forEach((chip) => {
+      chip.addEventListener('click', () => {
+        const el = document.getElementById(chip.dataset.goto);
+        if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      });
+    });
+
+    // ---- single target player for every action ----
+    const needTarget = () => {
+      const el = $('gm-target-user');
+      const u = el ? el.value.trim() : '';
+      if (!u) { UI.toast('Pick a target player above first.', 'error'); return null; }
+      return u;
+    };
+    on('gm-target-clear', 'click', () => {
+      $('gm-target-user').value = '';
+      const info = $('gm-target-info');
+      if (info) info.textContent = 'Every action below applies to this player. It stays filled until you clear it.';
+      const dz = $('gm-dossier');
+      if (dz) { dz.innerHTML = ''; dz.classList.add('hidden'); }
+    });
+
+    // ---- action log: every console action lands here with its exact result,
+    // so a failure is never a mystery (shows the real server error text). ----
+    const logAction = (ok, text) => {
+      const list = $('gm-log');
+      if (!list) return;
+      const empty = $('gm-log-empty');
+      if (empty) empty.remove();
+      const time = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = 'gm-log-row ' + (ok ? 'ok' : 'err');
+      const msg = document.createElement('span');
+      msg.textContent = (ok ? '✅ ' : '❌ ') + text;
+      const t = document.createElement('span');
+      t.className = 'gm-log-time';
+      t.textContent = time;
+      div.appendChild(t);
+      div.appendChild(msg);
+      list.prepend(div);
+      while (list.children.length > 30) list.lastChild.remove();
+    };
+
+    // ---- staff audit log (server-side, survives restarts) ----
+    const loadAudit = async () => {
+      const list = $('gm-audit-list');
+      if (!list) return;
+      list.innerHTML = '<p class="muted small">Loading…</p>';
+      try {
+        const { entries = [] } = await api.gmAudit();
+        if (!entries.length) { list.innerHTML = '<p class="muted small">No staff actions recorded yet.</p>'; return; }
+        list.innerHTML = entries.map(e => {
+          const t = new Date(e.ts).toLocaleString();
+          return `<div class="gm-log-row"><span class="gm-log-time">${esc(t)}</span><span><b>${esc(e.actor)}</b> <span class="muted">(${esc(e.actorRole)})</span> · ${esc(e.action)} → <b>${esc(e.target)}</b>${e.detail ? ' · ' + esc(e.detail) : ''}</span></div>`;
+        }).join('');
+      } catch (err) {
+        list.innerHTML = `<p class="error small">Couldn't load audit log.</p>`;
+      }
+    };
+    on('gm-audit-refresh', 'click', loadAudit);
+    if ($('gm-audit-list')) loadAudit();
+
+    // Runs a console action: disables the button with a spinner while the
+    // request is in flight, then logs + toasts the exact outcome.
+    // fn returns a success message, null to bail silently (already toasted).
+    const runAction = async (btnId, label, fn) => {
+      const el = $(btnId);
+      const orig = el ? el.innerHTML : '';
+      if (el) { el.disabled = true; el.innerHTML = '⏳ …'; }
+      const t0 = Date.now();
+      try {
+        const msg = await fn();
+        if (msg == null) return false;
+        logAction(true, `${label}: ${msg} (${Date.now() - t0}ms)`);
+        UI.toast(msg, 'success');
+        // The staff audit log refreshes itself so you see the action recorded.
+        if ($('gm-audit-list')) loadAudit();
+        return true;
+      } catch (e) {
+        const errMsg = (e && e.message) || 'Failed.';
+        logAction(false, `${label}: ${errMsg}`);
+        UI.toast(`${label} failed: ${errMsg}`, 'error');
+        return false;
+      } finally {
+        if (el) { el.disabled = false; el.innerHTML = orig; }
+      }
+    };
+
+    // ---- target lookup: verify the name resolves before acting on it ----
+    on('gm-target-lookup', 'click', () => runAction('gm-target-lookup', 'Lookup', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const { players = [] } = await api.gmPlayers(username, 5);
+      const p = players.find(x => x.username.toLowerCase() === username.toLowerCase()) || players[0];
+      if (!p) throw new Error(`No player found matching "${username}".`);
+      const cls = (CLASSES[p.playerClass] || {}).name || p.playerClass || '';
+      const info = `${p.username} — Lv ${p.level} ${cls} · stage ${p.stage} · ${p.role}`;
+      const infoEl = $('gm-target-info');
+      if (infoEl) infoEl.textContent = '✅ ' + info;
+      return info;
+    }));
+
+    // ---- dossier: read-only full view of the target player's account ----
+    const renderDossier = (d) => {
+      const el = $('gm-dossier');
+      if (!el) return;
+      const row = (k, v) => `<div class="gm-dossier-row"><span class="muted">${esc(k)}</span><b>${v}</b></div>`;
+      const equipped = Object.entries(d.equipped || {}).map(([s, n]) => `${esc(s)}: ${esc(n)}`).join('<br>') || '—';
+      const inv = (d.inventorySample || []).map(esc).join('<br>') || '—';
+      const muteNote = d.muted ? ` 🔇 muted` : '';
+      el.innerHTML = `
+        <h4 class="gm-sub" style="margin-top:0.8rem">📋 Dossier — ${esc(d.username)}${muteNote}</h4>
+        <div class="gm-dossier-grid">
+          <div>${row('Role', esc(d.role))}${row('Class', esc(d.playerClass + ' / ' + d.spec))}${row('Level', d.level + ' · ' + formatNum(d.xp) + '/' + formatNum(d.xpNext) + ' XP')}${row('Stage', d.stage)}${row('Rebirths', d.rebirthCount)}${row('Banned', d.banned ? 'yes' : 'no')}</div>
+          <div>${row('💰 Gold', formatNum(d.gold))}${row('⭐ Stars', formatNum(d.stars))}${row('❤️ HP', formatNum(d.hero.hp) + '/' + formatNum(d.hero.maxHp))}${row('⚔️ Attack', formatNum(d.hero.attack))}${row('🛡️ Defense', formatNum(d.hero.defense))}${row('👑 Title', esc(d.activeTitle) + ' (' + d.titlesUnlocked + ' unlocked)')}${row('🏅 Badge', esc(d.badge))}</div>
+          <div>${row('🎒 Inventory', d.inventoryCount + ' items')}${row('🐾 Pets', d.pets.eggs + ' eggs · ' + d.pets.active + ' active')}${row('⛏️ Mine', 'depth ' + d.mine.depth + ' · pickaxe ' + d.mine.pickaxe)}${row('🔥 Forge', d.forge.crafts + ' crafts')}${row('💀 Kills', formatNum(d.kills) + ' · ' + formatNum(d.bossesKilled) + ' bosses')}${row('🎨 Name style', esc(String(d.nameStyle.color || 'default')) + ' / ' + esc(d.nameStyle.fx))}</div>
+        </div>
+        <div class="gm-dossier-row"><span class="muted">Equipped</span><b>${equipped}</b></div>
+        <div class="gm-dossier-row"><span class="muted">Recent items</span><b>${inv}</b></div>`;
+      el.classList.remove('hidden');
+    };
+
+    on('gm-target-dossier', 'click', () => runAction('gm-target-dossier', 'Dossier', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const res = await api.gmInspect(username);
+      renderDossier(res.dossier);
+      return `📋 Dossier loaded for ${res.dossier.username}.`;
+    }));
+
+    // The client hot-reloads its live game state after a self-targeted
+    // command so the change shows up immediately instead of on next login.
+    const hotReloadIfSelf = async (username, res) => {
+      if (res && res.state && this.me &&
+          username.toLowerCase() === String(this.me.username).toLowerCase() &&
+          UI.handlers.onExternalState) {
+        UI.handlers.onExternalState(res.state);
+      }
+    };
+
+    // ---- grant kind UI sync ----
+    const kindSel = $('gm-grant-kind');
+    if (kindSel) {
+      const amountLabel = $('gm-grant-amount-label');
+      const amountInput = $('gm-grant-amount');
+      const syncKindUI = () => {
+        const kind = kindSel.value;
+        const isGear = kind === 'gear';
+        const isOre = kind === 'ore';
+        const isPickaxe = kind === 'pickaxe';
+        $('gm-grant-amount-wrap').classList.toggle('hidden', isGear || isPickaxe);
+        $('gm-grant-set-wrap').classList.toggle('hidden', !isGear);
+        $('gm-grant-ore-wrap').classList.toggle('hidden', !isOre);
+        $('gm-grant-pickaxe-wrap').classList.toggle('hidden', !isPickaxe);
+        if (kind === 'gold') { amountLabel.textContent = 'Amount (1–1000000)'; amountInput.max = '1000000'; }
+        else if (kind === 'levels') { amountLabel.textContent = 'Levels (1–100)'; amountInput.max = '100'; }
+        else if (kind === 'xp') { amountLabel.textContent = 'XP (1–1000000)'; amountInput.max = '1000000'; }
+        else if (kind === 'ore') { amountLabel.textContent = 'Ore (1–1000000000)'; amountInput.max = '1000000000'; }
+        else { amountLabel.textContent = 'Amount (1–100000)'; amountInput.max = '100000'; }
+      };
+      kindSel.addEventListener('change', syncKindUI);
+      syncKindUI();
+    }
+
+    // ---- currency / gear grant ----
+    // No pre-save of the operator's state here: grants merge server-side into
+    // the TARGET's row, so saving our own state first only stalls the button
+    // on slow connections.
+    on('gm-grant-btn', 'click', () => runAction('gm-grant-btn', 'Grant', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const kind = kindSel.value;
+      let res = null;
+      let summary = '';
+      const num = (id) => Math.floor(Number($(id).value));
+      if (kind === 'stars') {
+        const amount = num('gm-grant-amount');
+        if (!Number.isFinite(amount) || amount < 1 || amount > 100000) throw new Error('Amount must be 1–100000.');
+        res = await api.gmGrant(username, 'stars', { amount });
+        summary = `Granted ⭐${formatNum(amount)} to ${username}.`;
+      } else if (kind === 'gold') {
+        const amount = num('gm-grant-amount');
+        if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) throw new Error('Amount must be 1–1000000.');
+        res = await api.gmGrant(username, 'gold', { amount });
+        summary = `Granted 💰${formatNum(amount)} to ${username}.`;
+      } else if (kind === 'levels') {
+        const amount = num('gm-grant-amount');
+        if (!Number.isFinite(amount) || amount < 1 || amount > 100) throw new Error('Levels must be 1–100.');
+        res = await api.gmGrant(username, 'levels', { amount });
+        summary = `Granted ⬆️${amount} levels to ${username}.`;
+      } else if (kind === 'xp') {
+        const amount = num('gm-grant-amount');
+        if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) throw new Error('XP must be 1–1000000.');
+        res = await api.gmGrant(username, 'xp', { amount });
+        summary = `Granted ✨${formatNum(amount)} XP to ${username}.`;
+      } else if (kind === 'ore') {
+        const amount = num('gm-grant-amount');
+        if (!Number.isFinite(amount) || amount < 1 || amount > 1000000000) throw new Error('Ore amount must be 1–1000000000.');
+        const ore = $('gm-grant-ore').value;
+        res = await api.gmGrant(username, 'ore', { ore, amount });
+        summary = `Granted ⛏️${formatNum(amount)} ${ore} to ${username}.`;
+      } else if (kind === 'pickaxe') {
+        const tier = num('gm-grant-pickaxe');
+        if (!Number.isFinite(tier) || tier < 0 || tier > 7) throw new Error('Pickaxe tier must be 0–7.');
+        res = await api.gmGrant(username, 'pickaxe', { tier });
+        summary = `Set ${username}'s pickaxe to tier ${tier}.`;
+      } else {
+        const set = $('gm-grant-set').value;
+        res = await api.gmGrant(username, 'gear', { set });
+        summary = `Granted ${PRIVILEGED_SETS[set].name} to ${username}.`;
+      }
+      await hotReloadIfSelf(username, res);
+      return summary;
+    }));
+
+    // ---- title / badge (gm) ----
+    on('gm-grant-title-btn', 'click', () => runAction('gm-grant-title-btn', 'Grant title', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const titleId = $('gm-grant-title').value;
+      const res = await api.gmGrantTitle(username, titleId);
+      const t = TITLES.find(x => x.id === titleId);
+      await hotReloadIfSelf(username, res);
+      return `👑 Granted title "${t ? t.name : titleId}" to ${username}.`;
+    }));
+
+    on('gm-grant-badge-btn', 'click', () => runAction('gm-grant-badge-btn', 'Set badge', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const badge = $('gm-grant-badge').value;
+      const res = await api.gmSetBadge(username, badge);
+      const b = BADGES.find(x => x.id === badge);
+      await hotReloadIfSelf(username, res);
+      return badge ? `${b.emoji} Set badge "${b.name}" on ${username}.` : `Badge cleared for ${username}.`;
+    }));
+
+    // ---- pet eggs (gm) ----
+    on('gm-grant-pet-btn', 'click', () => runAction('gm-grant-pet-btn', 'Grant pet eggs', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const amount = Math.floor(Number($('gm-grant-pet-amount').value));
+      if (!Number.isFinite(amount) || amount < 1 || amount > 99) throw new Error('Egg amount must be 1–99.');
+      const res = await api.gmGrantPet(username, amount);
+      await hotReloadIfSelf(username, res);
+      return `🐾 Granted ${amount} pet egg${amount === 1 ? '' : 's'} to ${username} (now ${res.eggs}).`;
+    }));
+
+    // ---- rebirth count (gm) ----
+    on('gm-set-rebirth-btn', 'click', () => runAction('gm-set-rebirth-btn', 'Set rebirths', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const count = Math.floor(Number($('gm-set-rebirth-count').value));
+      if (!Number.isFinite(count) || count < 0 || count > 999) throw new Error('Rebirth count must be 0–999.');
+      const res = await api.gmSetRebirth(username, count);
+      await hotReloadIfSelf(username, res);
+      return `🔄 ${username}'s rebirth count set to ${count}.`;
+    }));
+
+    // ---- set level / set gold (gm) ----
+    on('gm-set-level-btn', 'click', () => runAction('gm-set-level-btn', 'Set level', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const level = Math.floor(Number($('gm-set-level').value));
+      if (!Number.isFinite(level) || level < 1 || level > 120) throw new Error('Level must be 1–120.');
+      const res = await api.gmSetLevel(username, level);
+      await hotReloadIfSelf(username, res);
+      return `⬆️ ${username} is now level ${level}.`;
+    }));
+
+    on('gm-set-gold-btn', 'click', () => runAction('gm-set-gold-btn', 'Set gold', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const amount = Math.floor(Number($('gm-set-gold').value));
+      if (!Number.isFinite(amount) || amount < 0) throw new Error('Gold must be 0 or more.');
+      const res = await api.gmSetGold(username, amount);
+      await hotReloadIfSelf(username, res);
+      return `💰 ${username}'s gold set to ${formatNum(amount)}.`;
+    }));
+
+    on('gm-set-xp-btn', 'click', () => runAction('gm-set-xp-btn', 'Set XP', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const amount = Math.floor(Number($('gm-set-xp').value));
+      if (!Number.isFinite(amount) || amount < 0) throw new Error('XP must be 0 or more.');
+      const res = await api.gmSetXp(username, amount);
+      await hotReloadIfSelf(username, res);
+      return `✨ ${username}'s XP set to ${formatNum(amount)}.`;
+    }));
+
+    // ---- grant single item / name style ----
+    on('gm-grant-item-btn', 'click', () => runAction('gm-grant-item-btn', 'Grant item', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const set = $('gm-grant-item-set').value;
+      const slot = $('gm-grant-item-slot').value;
+      const res = await api.gmGrantItem(username, set, slot);
+      await hotReloadIfSelf(username, res);
+      return `🎁 Granted ${res.item || (set + ' ' + slot)} to ${username}.`;
+    }));
+
+    on('gm-name-style-btn', 'click', () => runAction('gm-name-style-btn', 'Set name style', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const color = $('gm-name-color').value.trim();
+      const fx = $('gm-name-fx').value;
+      if (color && !/^#[0-9a-fA-F]{6}$/.test(color)) throw new Error('Color must be a hex like #ff8800, or empty to clear.');
+      const res = await api.gmNameStyle(username, color, fx);
+      await hotReloadIfSelf(username, res);
+      return `🎨 ${username}'s name style updated.`;
+    }));
+
+    // ---- player section (role-appropriate endpoints) ----
+    // GMs use the gm-tier routes; admins use the admin-tier mirrors.
+    const stageApi = isGm ? api.gmSetStage : api.gmStage;
+    const resetApi = isGm ? api.gmReset : api.gmResetPlayer;
+
+    on('gm-player-stage-btn', 'click', () => runAction('gm-player-stage-btn', 'Set stage', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const stage = Math.floor(Number($('gm-player-stage').value));
+      if (!Number.isFinite(stage) || stage < 1 || stage > 10000) throw new Error('Stage must be 1–10000.');
+      const res = await stageApi(username, stage);
+      await hotReloadIfSelf(username, res);
+      return `🗺️ ${username} moved to stage ${stage}.`;
+    }));
+
+    on('gm-player-title-btn', 'click', () => runAction('gm-player-title-btn', 'Grant title', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const title = $('gm-player-title').value;
+      const res = await api.gmTitle(username, title);
+      const t = TITLES.find(x => x.id === title);
+      await hotReloadIfSelf(username, res);
+      return `👑 Granted title "${t ? t.name : title}" to ${username}.`;
+    }));
+
+    on('gm-player-heal-btn', 'click', () => runAction('gm-player-heal-btn', 'Heal', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const res = await api.gmHeal(username);
+      await hotReloadIfSelf(username, res);
+      return `💚 ${username} healed.`;
+    }));
+
+    const confirmDestructive = (title, html, confirmLabel) =>
+      UI.confirm(title, html, confirmLabel);
+
+    on('gm-player-ban-btn', 'click', async () => {
+      const username = needTarget();
+      if (!username) return;
+      const ok = await confirmDestructive('🔨 Ban player?',
+        `<p>Ban <b>${esc(username)}</b> from logging in?</p><p class="muted">They stay banned until unbanned.</p>`, 'Ban');
+      if (!ok) return;
+      runAction('gm-player-ban-btn', 'Ban', async () => {
+        await api.gmBan(username);
+        return `🔨 ${username} banned.`;
+      });
+    });
+
+    on('gm-player-unban-btn', 'click', () => runAction('gm-player-unban-btn', 'Unban', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      await api.gmUnban(username);
+      return `🔓 ${username} unbanned.`;
+    }));
+
+    on('gm-player-kick-btn', 'click', async () => {
+      const username = needTarget();
+      if (!username) return;
+      const ok = await confirmDestructive('👢 Kick player?',
+        `<p>Force <b>${esc(username)}</b> to sign in again right now?</p><p class="muted">Unlike a ban, they can log straight back in.</p>`, 'Kick');
+      if (!ok) return;
+      runAction('gm-player-kick-btn', 'Kick', async () => {
+        await api.gmKick(username);
+        return `👢 ${username} kicked.`;
+      });
+    });
+
+    on('gm-player-mute-btn', 'click', () => runAction('gm-player-mute-btn', 'Mute', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const minutes = Math.floor(Number($('gm-player-mute-mins').value));
+      if (!Number.isFinite(minutes) || minutes < 1 || minutes > 10080) throw new Error('Minutes must be 1–10080.');
+      const res = await api.gmMute(username, minutes);
+      return `🔇 ${username} muted from guild chat for ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+    }));
+
+    on('gm-player-unmute-btn', 'click', () => runAction('gm-player-unmute-btn', 'Unmute', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      await api.gmMute(username, 0);
+      return `🔈 ${username} unmuted.`;
+    }));
+
+    on('gm-player-reset-btn', 'click', async () => {
+      const username = needTarget();
+      if (!username) return;
+      const ok = await confirmDestructive('♻️ Reset player?',
+        `<p>Wipe <b>${esc(username)}</b>'s progress back to a fresh hero?</p><p class="muted">Keeps their account and role. This cannot be undone.</p>`, 'Reset player');
+      if (!ok) return;
+      runAction('gm-player-reset-btn', 'Reset player', async () => {
+        const res = await resetApi(username);
+        await hotReloadIfSelf(username, res);
+        return `♻️ ${username}'s progress was reset.`;
+      });
+    });
+
+    // ---- gift codes ----
+    const codeKindSel = $('gm-code-kind');
+    if (codeKindSel) {
+      const syncCodeUI = () => {
+        const kind = codeKindSel.value;
+        const isGear = kind === 'gear';
+        $('gm-code-set-wrap').classList.toggle('hidden', !isGear);
+        $('gm-code-amount-wrap').classList.toggle('hidden', isGear);
+        if (!isGear) {
+          $('gm-code-amount-label').textContent = kind === 'gold' ? 'Gold amount (1–1T)' : 'Star amount (1–100000)';
+        }
+      };
+      codeKindSel.addEventListener('change', syncCodeUI);
+      syncCodeUI();
+    }
+
+    on('gm-code-create', 'click', () => runAction('gm-code-create', 'Create code', async () => {
+      const maxUses = Math.floor(Number($('gm-code-uses').value)) || 1;
+      const rewardKind = codeKindSel.value;
+      const opts = { maxUses };
+      if (rewardKind === 'gear') {
+        opts.set = $('gm-code-set').value;
+      } else {
+        const amount = Math.floor(Number($('gm-code-amount').value));
+        if (!Number.isFinite(amount) || amount < 1) throw new Error('Enter a reward amount of at least 1.');
+        opts.amount = amount;
+      }
+      const { code, rewardKind: kind, rewardAmount, set } = await api.gmCreateCode(rewardKind, opts);
+      const box = $('gm-new-code');
+      box.classList.remove('hidden');
+      box.innerHTML = `<span class="muted small">New code (${esc(describeReward(kind, rewardAmount, set))}, ${maxUses} uses):</span>
+                       <div class="code-big">${esc(code)}</div>`;
+      this.refreshCodes(root);
+      return `Gift code ${code} created.`;
+    }));
+
+    // ---- moderation (owner/admin/gm/moderator) ----
+    on('gm-bc-send', 'click', async () => {
+      const message = $('gm-bc-msg').value.trim();
+      if (!message) { UI.toast('Enter a broadcast message.', 'error'); return; }
+      const ok = await confirmDestructive('📣 Send broadcast?',
+        `<p>Send to <b>all players</b>:</p><p>"${esc(message)}"</p>`, 'Send');
+      if (!ok) return;
+      runAction('gm-bc-send', 'Broadcast', async () => {
+        await api.gmBroadcast(message);
+        $('gm-bc-msg').value = '';
+        return '📣 Broadcast sent.';
+      });
+    });
+
+    const loadPlayers = async () => {
+      const search = $('gm-pl-search').value.trim();
+      const list = $('gm-player-list');
+      list.innerHTML = '<p class="muted small">Loading…</p>';
+      try {
+        const { players = [] } = await api.gmPlayers(search, 50);
+        if (!players.length) { list.innerHTML = '<p class="muted small">No players found.</p>'; return; }
+        list.innerHTML = players.map(p => `
+          <div class="name-row" data-username="${esc(p.username)}" title="Set as target"><span>${(CLASSES[p.playerClass] || {}).emoji || ''}${(SPECS[p.spec] || {}).emoji || ''} ${esc(p.username)}</span>
+            <span class="muted small">${esc(p.role)} · Lv ${p.level} · stage ${p.stage}</span></div>`).join('');
+      } catch (e) {
+        list.innerHTML = `<p class="error small">Couldn't load players.</p>`;
+      }
+    };
+    on('gm-pl-search-btn', 'click', loadPlayers);
+    if ($('gm-player-list')) loadPlayers();
+    // Clicking a player row picks them as the target for every action below.
+    // Guarded so re-renders never stack duplicate listeners.
+    const plList = $('gm-player-list');
+    if (plList && !plList.dataset.pickBound) {
+      plList.dataset.pickBound = '1';
+      plList.addEventListener('click', (e) => {
+        const row = e.target && e.target.closest ? e.target.closest('.name-row[data-username]') : null;
+        if (!row) return;
+        const t = $('gm-target-user');
+        if (t) t.value = row.dataset.username;
+        UI.toast(`Target: ${row.dataset.username}`, 'info');
+      });
+    }
+
+    // ---- staff ----
+    on('gm-admin-add', 'click', () => runAction('gm-admin-add', 'Add admin', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      await api.gmRosterUpdate(username, 'add-admin');
+      this.refreshRoster(root);
+      return `${username} added as admin.`;
+    }));
+
+    on('gm-role-set', 'click', async () => {
+      const username = needTarget();
+      if (!username) return;
+      const role = $('gm-role-select').value;
+      const ok = await confirmDestructive('Set role',
+        `Set <b>${esc(username)}</b> to <b>${esc(role)}</b>?`, 'Set role');
+      if (!ok) return;
+      runAction('gm-role-set', 'Set role', async () => {
+        await api.setRole(username, role);
+        this.refreshRoster(root);
+        return `${username} is now ${role}.`;
+      });
+    });
+
+    // ---- server (owner only) ----
+    const refreshMaintStatus = async () => {
+      const el = $('gm-maint-status');
+      if (!el) return;
+      try {
+        const s = await api.status();
+        el.textContent = s.maintenance ? `ON${s.message ? ' — ' + s.message : ''}` : 'OFF';
+      } catch {
+        el.textContent = 'unknown';
+      }
+    };
+    refreshMaintStatus();
+
+    const setMaintenance = async (enabled) => {
+      const message = $('gm-maint-msg').value.trim();
+      const ok = await confirmDestructive(enabled ? '🛠️ Enable maintenance?' : 'Turn off maintenance?',
+        enabled
+          ? `<p>Put the game into maintenance mode? Players will see a maintenance screen${message ? `: "${esc(message)}"` : '.'}</p>`
+          : '<p>Take the game out of maintenance mode?</p>',
+        enabled ? 'Turn ON' : 'Turn OFF');
+      if (!ok) return;
+      runAction(enabled ? 'gm-maint-on' : 'gm-maint-off', 'Maintenance', async () => {
+        await api.gmMaintenance(enabled, message);
+        if (enabled) $('gm-maint-msg').value = '';
+        refreshMaintStatus();
+        return enabled ? '🛠️ Maintenance mode ON.' : 'Maintenance mode OFF.';
+      });
+    };
+    on('gm-maint-on', 'click', () => setMaintenance(true));
+    on('gm-maint-off', 'click', () => setMaintenance(false));
+
+    // ♾️ Infinite gold toggle (owner only). Hot-reloads the operator's own
+    // game state so the ∞ HUD appears immediately on a self-grant.
+    const infGoldToggle = async (enabled) => {
+      const username = needTarget();
+      if (!username) return;
+      const ok = await confirmDestructive(enabled ? 'Enable infinite gold' : 'Disable infinite gold',
+        enabled
+          ? `Give <b>${esc(username)}</b> infinite gold? Purchases will never deduct gold.`
+          : `Take infinite gold away from <b>${esc(username)}</b>?`,
+        enabled ? 'Enable ∞' : 'Disable');
+      if (!ok) return;
+      runAction(enabled ? 'gm-infgold-on' : 'gm-infgold-off', 'Infinite gold', async () => {
+        const res = await api.gmInfGold(username, enabled);
+        await hotReloadIfSelf(username, res);
+        return enabled ? `♾️ ${username} now has infinite gold.` : `Infinite gold removed from ${username}.`;
+      });
+    };
+    on('gm-infgold-on', 'click', () => infGoldToggle(true));
+    on('gm-infgold-off', 'click', () => infGoldToggle(false));
+
+    // ⚙️ Server settings: gold cap (owner only). Card only renders for owner.
+    if ($('gm-goldcap')) {
+      const capText = (cap) => `${formatNum(cap)} (${Math.round(cap / 1e12)}T)`;
+      api.getSettings().then(sj => {
+        if (sj && Number.isFinite(sj.goldCap)) {
+          $('gm-goldcap-current').textContent = capText(sj.goldCap);
+          $('gm-goldcap').placeholder = String(Math.round(sj.goldCap / 1e12));
+        }
+      }).catch(() => { /* leave the "…" placeholder */ });
+      on('gm-goldcap-save', 'click', () => runAction('gm-goldcap-save', 'Gold cap', async () => {
+        const t = Number($('gm-goldcap').value);
+        if (!Number.isFinite(t) || t < 1000) throw new Error('Enter a cap in trillions (min 1000T).');
+        const res = await api.gmSetSettings(t * 1e12);
+        $('gm-goldcap').value = '';
+        if (res && Number.isFinite(res.goldCap)) {
+          $('gm-goldcap-current').textContent = capText(res.goldCap);
+          $('gm-goldcap').placeholder = String(Math.round(res.goldCap / 1e12));
+        }
+        return `⚙️ Gold cap set to ${t}T.`;
+      }));
+    }
+
+
+
+    // ---- target inventory: browse, set enchant, remove items ----
+    const renderInventory = (items) => {
+      const list = $('gm-inv-list');
+      const count = $('gm-inv-count');
+      if (count) count.textContent = items.length ? `${items.length} item${items.length === 1 ? '' : 's'}` : '';
+      if (!items.length) { list.innerHTML = '<p class="muted small">Inventory is empty.</p>'; return; }
+      list.innerHTML = items.map(it => `
+        <div class="name-row" data-index="${it.index}">
+          <span>${esc(it.name)} <span class="muted small">[${esc(it.slot)}]${it.enchant ? ' +' + it.enchant : ''}</span></span>
+          <span class="row" style="gap:0.3rem">
+            <input type="number" min="0" max="10" value="${it.enchant}" data-ench-input style="width:3.2rem" title="Enchant 0–10">
+            <button class="btn small ghost" data-ench-set>✨</button>
+            <button class="btn small ghost danger" data-item-remove title="Remove item">✖</button>
+          </span>
+        </div>`).join('');
+    };
+    const loadInventory = async () => {
+      const username = needTarget();
+      if (!username) return;
+      const list = $('gm-inv-list');
+      list.innerHTML = '<p class="muted small">Loading…</p>';
+      try {
+        const { items = [] } = await api.gmInventory(username);
+        renderInventory(items);
+      } catch (e) {
+        list.innerHTML = `<p class="error small">${esc(e.message || 'Load failed.')}</p>`;
+      }
+    };
+    on('gm-inv-load', 'click', loadInventory);
+    const invList = $('gm-inv-list');
+    if (invList && !invList.dataset.invBound) {
+      invList.dataset.invBound = '1';
+      invList.addEventListener('click', async (e) => {
+        const row = e.target && e.target.closest ? e.target.closest('.name-row[data-index]') : null;
+        if (!row) return;
+        const index = Number(row.dataset.index);
+        const username = needTarget();
+        if (!username) return;
+        if (e.target.closest('[data-ench-set]')) {
+          const lv = Math.floor(Number(row.querySelector('[data-ench-input]').value));
+          if (!Number.isInteger(lv) || lv < 0 || lv > 10) { UI.toast('Enchant must be 0–10.', 'error'); return; }
+          runAction(null, 'Set enchant', async () => {
+            const res = await api.gmSetEnchant(username, { index }, lv);
+            await loadInventory();
+            return `✨ ${res.item} → +${lv}.`;
+          });
+        } else if (e.target.closest('[data-item-remove]')) {
+          const name = row.querySelector('span').textContent.trim();
+          const ok = await confirmDestructive('Remove item?',
+            `<p>Remove <b>${esc(name)}</b> from <b>${esc(username)}</b>'s inventory?</p><p class="muted">This cannot be undone.</p>`, 'Remove');
+          if (!ok) return;
+          runAction(null, 'Remove item', async () => {
+            const res = await api.gmRemoveItem(username, index);
+            await loadInventory();
+            return `🗑️ Removed ${res.removed} from ${username}.`;
+          });
+        }
+      });
+    }
+    on('gm-enchant-btn', 'click', () => runAction('gm-enchant-btn', 'Set enchant', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const slot = $('gm-enchant-slot').value;
+      const lv = Math.floor(Number($('gm-enchant-level').value));
+      if (!Number.isInteger(lv) || lv < 0 || lv > 10) throw new Error('Enchant must be 0–10.');
+      const res = await api.gmSetEnchant(username, { slot }, lv);
+      return `✨ ${username}'s equipped ${slot} (${res.item}) → +${lv}.`;
+    }));
+
+    // ---- quest re-roll ----
+    on('gm-quest-reset-btn', 'click', () => runAction('gm-quest-reset-btn', 'Re-roll quests', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const period = $('gm-quest-period').value;
+      await api.gmResetQuests(username, period);
+      return `🔁 ${username}'s ${period} quests re-rolled.`;
+    }));
+
+    // ---- server event buff ----
+    const refreshEventBuff = async () => {
+      const el = $('gm-ev-current');
+      if (!el) return;
+      try {
+        const sj = await api.getSettings();
+        const b = sj && sj.eventBuff;
+        el.textContent = b
+          ? `Active: ${b.label} — ${b.xpMult}x XP / ${b.goldMult}x gold until ${new Date(b.endsAt).toLocaleString()}`
+          : 'No event running.';
+      } catch { el.textContent = 'unknown'; }
+    };
+    refreshEventBuff();
+    on('gm-ev-start', 'click', () => runAction('gm-ev-start', 'Event buff', async () => {
+      const xpMult = Number($('gm-ev-xp').value);
+      const goldMult = Number($('gm-ev-gold').value);
+      const hours = Number($('gm-ev-hours').value);
+      const label = $('gm-ev-label').value.trim() || 'Event';
+      if (!(xpMult >= 1 && xpMult <= 10) || !(goldMult >= 1 && goldMult <= 10)) throw new Error('Multipliers must be 1–10.');
+      if (!(hours >= 1 && hours <= 168)) throw new Error('Hours must be 1–168 (use End event to clear).');
+      await api.gmEventBuff({ xpMult, goldMult, hours, label });
+      refreshEventBuff();
+      return `🎉 ${label}: ${xpMult}x XP / ${goldMult}x gold for ${hours}h.`;
+    }));
+    on('gm-ev-clear', 'click', () => runAction('gm-ev-clear', 'End event', async () => {
+      await api.gmEventBuff({ xpMult: 1, goldMult: 1, hours: 0 });
+      refreshEventBuff();
+      return '🛑 Event buff cleared.';
+    }));
+  },
+
   async render() {
     const root = document.getElementById('gm-content');
     root.innerHTML = '<p class="muted">Loading console…</p>';
@@ -81,14 +782,63 @@ export const GM = {
         <div class="row" style="align-items:flex-end">
           <label class="fld" style="flex:1"><span>🎯 Target player</span>
             <input id="gm-target-user" placeholder="player name" autocomplete="off"></label>
+          <button id="gm-target-lookup" class="btn small" title="Look up this player">🔍</button>
+          <button id="gm-target-dossier" class="btn small" title="View this player's full dossier">📋</button>
           <button id="gm-target-clear" class="btn small ghost">Clear</button>
         </div>
-        <p class="muted small" style="margin:0.25rem 0 0">Every action below applies to this player. It stays filled until you clear it.</p>
+        <p class="muted small" id="gm-target-info" style="margin:0.25rem 0 0">Every action below applies to this player. It stays filled until you clear it.</p>
+        <div id="gm-dossier" class="gm-dossier hidden"></div>
+        <div class="gm-jump">
+        ${gm ? '<button class="btn small ghost" data-goto="gm-sec-audit">📜 Audit</button>' : ''}
+        ${gm ? '<button class="btn small ghost" data-goto="gm-sec-event">🎉 Event</button>' : ''}
+        ${gm ? '<button class="btn small ghost" data-goto="gm-sec-grants">🎁 Grants</button>' : ''}
+        ${gm ? '<button class="btn small ghost" data-goto="gm-sec-inventory">🎒 Inventory</button>' : ''}
+        ${gm ? '<button class="btn small ghost" data-goto="gm-sec-values">🎚️ Values</button>' : ''}
+        ${'<button class="btn small ghost" data-goto="gm-sec-player">🛠️ Player</button>'}
+        ${gm ? '<button class="btn small ghost" data-goto="gm-sec-codes">🎟️ Codes</button>' : ''}
+        ${(mod || gm) ? '<button class="btn small ghost" data-goto="gm-sec-mod">📣 Mod</button>' : ''}
+        ${gm ? '<button class="btn small ghost" data-goto="gm-sec-staff">👥 Staff</button>' : ''}
+        ${isOwner ? '<button class="btn small ghost" data-goto="gm-sec-server">⚙️ Server</button>' : ''}
+        </div>
+      </div>
+
+      <div class="card"><h3>🧾 Action log</h3>
+        <div id="gm-log" class="gm-log"><p class="muted small" id="gm-log-empty">Nothing yet — every console action lands here with its exact result.</p></div>
       </div>
       ` : ''}
 
       ${gm ? `
-      <div class="card"><h3>🎁 Grants</h3>
+      <div class="card" id="gm-sec-audit"><h3>📜 Staff audit log</h3>
+        <p class="muted small">Server-side record of every staff action — survives restarts, so you can see what other GMs did.</p>
+        <div class="row">
+          <button id="gm-audit-refresh" class="btn small">🔄 Refresh</button>
+        </div>
+        <div id="gm-audit-list" class="gm-log"><p class="muted small">Tap Refresh to load.</p></div>
+      </div>
+      ` : ''}
+
+      ${gm ? `
+      <div class="card" id="gm-sec-event"><h3>🎉 Server event buff</h3>
+        <p class="muted small">Server-wide XP/gold multiplier — e.g. a double-XP weekend. Players see it when they log in.</p>
+        <div class="row">
+          <label class="fld"><span>Label</span>
+            <input id="gm-ev-label" placeholder="Double XP Weekend" maxlength="60" autocomplete="off"></label>
+          <label class="fld"><span>XP × (1–10)</span>
+            <input id="gm-ev-xp" type="number" min="1" max="10" step="0.5" value="2"></label>
+          <label class="fld"><span>Gold × (1–10)</span>
+            <input id="gm-ev-gold" type="number" min="1" max="10" step="0.5" value="2"></label>
+          <label class="fld"><span>Hours (0 = clear)</span>
+            <input id="gm-ev-hours" type="number" min="0" max="168" value="48"></label>
+        </div>
+        <div class="row" style="margin-top:0.6rem">
+          <button id="gm-ev-start" class="btn small gold">🚀 Start event</button>
+          <button id="gm-ev-clear" class="btn small">🛑 End event</button>
+          <span class="muted small" id="gm-ev-current"></span>
+        </div>
+      </div>
+
+      ${gm ? `
+      <div class="card" id="gm-sec-grants"><h3>🎁 Grants</h3>
         <h4 class="gm-sub">Currency &amp; gear</h4>
         <div class="row">
           <label class="fld"><span>Kind</span>
@@ -143,15 +893,91 @@ export const GM = {
           <label class="fld"><span>Pet eggs (1–99)</span>
             <input id="gm-grant-pet-amount" type="number" min="1" max="99" value="1"></label>
           <button id="gm-grant-pet-btn" class="btn small" style="align-self:flex-end">🐾 Grant eggs</button>
-          <label class="fld"><span>Rebirth count (0–999)</span>
-            <input id="gm-set-rebirth-count" type="number" min="0" max="999" value="0"></label>
-          <button id="gm-set-rebirth-btn" class="btn small" style="align-self:flex-end">🔄 Set rebirths</button>
+        </div>
+        <div class="row">
+          <label class="fld"><span>Single item — set</span><select id="gm-grant-item-set">${setOptions}</select></label>
+          <label class="fld"><span>Piece</span>
+            <select id="gm-grant-item-slot">
+              <option value="weapon">🗡️ Weapon</option>
+              <option value="armor">🛡️ Armor</option>
+              <option value="helmet">🪖 Helmet</option>
+              <option value="boots">🥾 Boots</option>
+              <option value="trinket">📿 Trinket</option>
+            </select></label>
+          <button id="gm-grant-item-btn" class="btn small" style="align-self:flex-end">🎁 Grant item</button>
+        </div>
+        <h4 class="gm-sub">Name style</h4>
+        <div class="row">
+          <label class="fld"><span>Color (hex, empty = clear)</span>
+            <input id="gm-name-color" placeholder="#ff8800" maxlength="7" autocomplete="off"></label>
+          <label class="fld"><span>Effect</span>
+            <select id="gm-name-fx">
+              <option value="none">None</option>
+              <option value="fire">🔥 Fire</option>
+              <option value="neon">💡 Neon</option>
+              <option value="rainbow">🌈 Rainbow</option>
+              <option value="shine">✨ Shine</option>
+              <option value="galaxy">🌌 Galaxy</option>
+              <option value="ice">🧊 Ice</option>
+              <option value="lightning">⚡ Lightning</option>
+              <option value="shadow">🌑 Shadow</option>
+              <option value="glitch">👾 Glitch</option>
+            </select></label>
+          <button id="gm-name-style-btn" class="btn small" style="align-self:flex-end">🎨 Set style</button>
         </div>
       </div>
       ` : ''}
 
+      ${gm ? `
+      <div class="card" id="gm-sec-inventory"><h3>🎒 Target inventory</h3>
+        <p class="muted small">Browse the target's full inventory, set enchant levels, or remove items.</p>
+        <div class="row">
+          <button id="gm-inv-load" class="btn small">🔄 Load inventory</button>
+          <span class="muted small" id="gm-inv-count"></span>
+        </div>
+        <div id="gm-inv-list" class="name-list"></div>
+        <h4 class="gm-sub">Set enchant (equipped item)</h4>
+        <div class="row">
+          <label class="fld"><span>Equipped slot</span>
+            <select id="gm-enchant-slot">
+              <option value="weapon">⚔️ Weapon</option>
+              <option value="armor">🛡️ Armor</option>
+              <option value="helmet">🪖 Helmet</option>
+              <option value="boots">🥾 Boots</option>
+              <option value="trinket">📿 Trinket</option>
+            </select></label>
+          <label class="fld"><span>Enchant level (0–10)</span>
+            <input id="gm-enchant-level" type="number" min="0" max="10" value="10"></label>
+          <button id="gm-enchant-btn" class="btn small" style="align-self:flex-end">✨ Set enchant</button>
+        </div>
+      </div>
+      ` : ''}
+
+      ${gm ? `
+      <div class="card" id="gm-sec-values"><h3>🎚️ Set values</h3>
+        <p class="muted small">Set a value directly on the target player (not added — replaced).</p>
+        <div class="row">
+          <label class="fld"><span>Level (1–120)</span>
+            <input id="gm-set-level" type="number" min="1" max="120" value="1"></label>
+          <button id="gm-set-level-btn" class="btn small" style="align-self:flex-end">⬆️ Set level</button>
+          <label class="fld"><span>Gold (exact)</span>
+            <input id="gm-set-gold" type="number" min="0" step="1" value="0"></label>
+          <button id="gm-set-gold-btn" class="btn small" style="align-self:flex-end">💰 Set gold</button>
+        </div>
+        <div class="row" style="margin-top:0.6rem">
+          <label class="fld"><span>Rebirth count (0–999)</span>
+            <input id="gm-set-rebirth-count" type="number" min="0" max="999" value="0"></label>
+          <button id="gm-set-rebirth-btn" class="btn small" style="align-self:flex-end">🔄 Set rebirths</button>
+          <label class="fld"><span>XP (exact)</span>
+            <input id="gm-set-xp" type="number" min="0" step="1" value="0"></label>
+          <button id="gm-set-xp-btn" class="btn small" style="align-self:flex-end">✨ Set XP</button>
+        </div>
+        <p class="muted small">Set level rebuilds the hero's base stats for that level and heals to full. Set gold to 0 to clear it.</p>
+      </div>
+      ` : ''}
+
       ${(gm || admin) ? `
-      <div class="card"><h3>🛠️ Player</h3>
+      <div class="card" id="gm-sec-player"><h3>🛠️ Player</h3>
         <div class="row">
           <label class="fld"><span>Set stage (1–10000)</span>
             <input id="gm-player-stage" type="number" min="1" max="10000" value="1"></label>
@@ -162,18 +988,32 @@ export const GM = {
         </div>
         <div class="row" style="margin-top:0.6rem">
           ${gm ? `<button id="gm-player-heal-btn" class="btn small">💚 Heal</button>` : ''}
-          ${admin ? `
           <button id="gm-player-ban-btn" class="btn small danger">🔨 Ban</button>
           <button id="gm-player-unban-btn" class="btn small">🔓 Unban</button>
-          <button id="gm-player-kick-btn" class="btn small danger">👢 Kick</button>` : ''}
+          <button id="gm-player-kick-btn" class="btn small danger">👢 Kick</button>
           <button id="gm-player-reset-btn" class="btn small danger">♻️ Reset player</button>
         </div>
-        <p class="muted small">${admin ? 'Banned players cannot log in. Kick force-logs them out immediately (they may sign back in). ' : ''}Reset wipes progress back to a fresh hero (keeps account &amp; role).</p>
+        <div class="row" style="margin-top:0.6rem">
+          <label class="fld"><span>Mute guild chat (minutes, 0 = unmute)</span>
+            <input id="gm-player-mute-mins" type="number" min="0" max="10080" value="60"></label>
+          <button id="gm-player-mute-btn" class="btn small" style="align-self:flex-end">🔇 Mute</button>
+          <button id="gm-player-unmute-btn" class="btn small" style="align-self:flex-end">🔈 Unmute</button>
+        </div>
+        <div class="row" style="margin-top:0.6rem">
+          <label class="fld"><span>Reset quests</span>
+            <select id="gm-quest-period">
+              <option value="both">📜 Daily + Weekly</option>
+              <option value="daily">📜 Daily only</option>
+              <option value="weekly">📜 Weekly only</option>
+            </select></label>
+          <button id="gm-quest-reset-btn" class="btn small" style="align-self:flex-end">🔁 Re-roll quests</button>
+        </div>
+        <p class="muted small">Banned players cannot log in. Kick force-logs them out immediately (they may sign back in). Mute blocks guild chat until it expires. Reset wipes progress back to a fresh hero (keeps account &amp; role). Quest re-roll unsticks broken daily/weekly sets.</p>
       </div>
       ` : ''}
 
       ${gm ? `
-      <div class="card"><h3>🎟️ Gift codes</h3>
+      <div class="card" id="gm-sec-codes"><h3>🎟️ Gift codes</h3>
         <div class="row">
           <label class="fld"><span>Reward</span>
             <select id="gm-code-kind">
@@ -192,8 +1032,8 @@ export const GM = {
       </div>
       ` : ''}
 
-      ${mod ? `
-      <div class="card"><h3>📣 Moderation</h3>
+      ${(mod || gm) ? `
+      <div class="card" id="gm-sec-mod"><h3>📣 Moderation</h3>
         <label class="fld"><span>Broadcast message (1–500 chars, seen by all players)</span>
           <input id="gm-bc-msg" placeholder="Announcement…" maxlength="500" autocomplete="off"></label>
         <button id="gm-bc-send" class="btn gold wide">Send broadcast</button>
@@ -206,8 +1046,10 @@ export const GM = {
       </div>
       ` : ''}
 
+      ` : ''}
+
       ${gm ? `
-      <div class="card"><h3>👥 Staff</h3>
+      <div class="card" id="gm-sec-staff"><h3>👥 Staff</h3>
         <h4 class="gm-sub">Admin roster</h4>
         <p class="muted small">Admins are entitled to the Warden Arsenal (in-game status, no console).</p>
         <div class="row">
@@ -232,7 +1074,7 @@ export const GM = {
       ` : ''}
 
       ${isOwner ? `
-      <div class="card"><h3>⚙️ Server <span class="muted small">(owner only)</span></h3>
+      <div class="card" id="gm-sec-server"><h3>⚙️ Server <span class="muted small">(owner only)</span></h3>
         <h4 class="gm-sub">Maintenance mode</h4>
         <div class="row">
           <label class="fld"><span>Message shown to players</span>
@@ -256,485 +1098,6 @@ export const GM = {
         </div>
         <p class="muted small">Player gold cap, in trillions (T). Current: <span id="gm-goldcap-current">…</span>. The infinite-gold perk bypasses it.</p>
       </div>` : ''}`;
-  },
-
-  bind(root) {
-    const $ = (id) => root.querySelector('#' + id);
-    // Cards render per role tier; elements for other tiers are absent.
-    const on = (id, evt, fn) => { const el = $(id); if (el) el.addEventListener(evt, fn); };
-    const isGm = canGm(this.me.role);
-
-    // ---- single target player for every action ----
-    const targetUser = () => {
-      const el = $('gm-target-user');
-      const u = el ? el.value.trim() : '';
-      if (!u) UI.toast('Pick a target player above first.', 'error');
-      return u;
-    };
-    on('gm-target-clear', 'click', () => { $('gm-target-user').value = ''; });
-
-    // The client hot-reloads its live game state after a self-targeted
-    // command so the change shows up immediately instead of on next login.
-    const hotReloadIfSelf = async (username, res) => {
-      if (res && res.state && this.me &&
-          username.toLowerCase() === String(this.me.username).toLowerCase() &&
-          UI.handlers.onExternalState) {
-        UI.handlers.onExternalState(res.state);
-      }
-    };
-
-    // ---- grant kind UI sync ----
-    const kindSel = $('gm-grant-kind');
-    if (kindSel) {
-      const amountLabel = $('gm-grant-amount-label');
-      const amountInput = $('gm-grant-amount');
-      const syncKindUI = () => {
-        const kind = kindSel.value;
-        const isGear = kind === 'gear';
-        const isOre = kind === 'ore';
-        const isPickaxe = kind === 'pickaxe';
-        $('gm-grant-amount-wrap').classList.toggle('hidden', isGear || isPickaxe);
-        $('gm-grant-set-wrap').classList.toggle('hidden', !isGear);
-        $('gm-grant-ore-wrap').classList.toggle('hidden', !isOre);
-        $('gm-grant-pickaxe-wrap').classList.toggle('hidden', !isPickaxe);
-        if (kind === 'gold') { amountLabel.textContent = 'Amount (1–1000000)'; amountInput.max = '1000000'; }
-        else if (kind === 'levels') { amountLabel.textContent = 'Levels (1–100)'; amountInput.max = '100'; }
-        else if (kind === 'xp') { amountLabel.textContent = 'XP (1–1000000)'; amountInput.max = '1000000'; }
-        else if (kind === 'ore') { amountLabel.textContent = 'Ore (1–1000000000)'; amountInput.max = '1000000000'; }
-        else { amountLabel.textContent = 'Amount (1–100000)'; amountInput.max = '100000'; }
-      };
-      kindSel.addEventListener('change', syncKindUI);
-      syncKindUI();
-    }
-
-    // ---- currency / gear grant ----
-    on('gm-grant-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const kind = kindSel.value;
-      try {
-        // Save the operator's live progress first so the grant applies on top of it,
-        // otherwise the next autosave would overwrite the grant with stale state.
-        try { if (UI.handlers.onSaveState) await UI.handlers.onSaveState(); } catch { /* ignore */ }
-        let res = null;
-        if (kind === 'stars') {
-          const amount = Math.floor(Number($('gm-grant-amount').value));
-          if (!Number.isFinite(amount) || amount < 1 || amount > 100000) {
-            return UI.toast('Amount must be 1–100000.', 'error');
-          }
-          res = await api.gmGrant(username, 'stars', { amount });
-          UI.toast(`Granted ⭐${formatNum(amount)} to ${username}.`, 'success');
-        } else if (kind === 'gold') {
-          const amount = Math.floor(Number($('gm-grant-amount').value));
-          if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) {
-            return UI.toast('Amount must be 1–1000000.', 'error');
-          }
-          res = await api.gmGrant(username, 'gold', { amount });
-          UI.toast(`Granted 💰${formatNum(amount)} to ${username}.`, 'success');
-        } else if (kind === 'levels') {
-          const amount = Math.floor(Number($('gm-grant-amount').value));
-          if (!Number.isFinite(amount) || amount < 1 || amount > 100) {
-            return UI.toast('Levels must be 1–100.', 'error');
-          }
-          res = await api.gmGrant(username, 'levels', { amount });
-          UI.toast(`Granted ⬆️${amount} levels to ${username}.`, 'success');
-        } else if (kind === 'xp') {
-          const amount = Math.floor(Number($('gm-grant-amount').value));
-          if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) {
-            return UI.toast('XP must be 1–1000000.', 'error');
-          }
-          res = await api.gmGrant(username, 'xp', { amount });
-          UI.toast(`Granted ✨${formatNum(amount)} XP to ${username}.`, 'success');
-        } else if (kind === 'ore') {
-          const amount = Math.floor(Number($('gm-grant-amount').value));
-          if (!Number.isFinite(amount) || amount < 1 || amount > 1000000000) {
-            return UI.toast('Ore amount must be 1–1000000000.', 'error');
-          }
-          const ore = $('gm-grant-ore').value;
-          res = await api.gmGrant(username, 'ore', { ore, amount });
-          UI.toast(`Granted ⛏️${formatNum(amount)} ${ore} to ${username}.`, 'success');
-        } else if (kind === 'pickaxe') {
-          const tier = Math.floor(Number($('gm-grant-pickaxe').value));
-          if (!Number.isFinite(tier) || tier < 0 || tier > 7) {
-            return UI.toast('Pickaxe tier must be 0–7.', 'error');
-          }
-          res = await api.gmGrant(username, 'pickaxe', { tier });
-          UI.toast(`Set ${username}'s pickaxe to tier ${tier}.`, 'success');
-        } else {
-          const set = $('gm-grant-set').value;
-          res = await api.gmGrant(username, 'gear', { set });
-          UI.toast(`Granted ${PRIVILEGED_SETS[set].name} to ${username}.`, 'success');
-        }
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Grant failed.', 'error');
-      }
-    });
-
-    // ---- title / badge (gm) ----
-    on('gm-grant-title-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const titleId = $('gm-grant-title').value;
-      try {
-        const res = await api.gmGrantTitle(username, titleId);
-        const t = TITLES.find(x => x.id === titleId);
-        UI.toast(`👑 Granted title "${t ? t.name : titleId}" to ${username}.`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Grant title failed.', 'error');
-      }
-    });
-
-    on('gm-grant-badge-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const badge = $('gm-grant-badge').value;
-      try {
-        const res = await api.gmSetBadge(username, badge);
-        const b = BADGES.find(x => x.id === badge);
-        UI.toast(badge ? `${b.emoji} Set badge "${b.name}" on ${username}.` : `Badge cleared for ${username}.`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Set badge failed.', 'error');
-      }
-    });
-
-    // ---- pet eggs (gm) ----
-    on('gm-grant-pet-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const amount = Math.floor(Number($('gm-grant-pet-amount').value));
-      if (!Number.isFinite(amount) || amount < 1 || amount > 99) {
-        return UI.toast('Egg amount must be 1–99.', 'error');
-      }
-      try {
-        const res = await api.gmGrantPet(username, amount);
-        UI.toast(`🐾 Granted ${amount} pet egg${amount === 1 ? '' : 's'} to ${username} (now ${res.eggs}).`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Grant pet eggs failed.', 'error');
-      }
-    });
-
-    // ---- rebirth count (gm) ----
-    on('gm-set-rebirth-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const count = Math.floor(Number($('gm-set-rebirth-count').value));
-      if (!Number.isFinite(count) || count < 0 || count > 999) {
-        return UI.toast('Rebirth count must be 0–999.', 'error');
-      }
-      try {
-        const res = await api.gmSetRebirth(username, count);
-        UI.toast(`🔄 ${username}'s rebirth count set to ${count}.`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Set rebirth count failed.', 'error');
-      }
-    });
-
-    // ---- player section (role-appropriate endpoints) ----
-    // GMs use the gm-tier routes; admins use the admin-tier mirrors.
-    const stageApi = isGm ? api.gmSetStage : api.gmStage;
-    const resetApi = isGm ? api.gmReset : api.gmResetPlayer;
-
-    on('gm-player-stage-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const stage = Math.floor(Number($('gm-player-stage').value));
-      if (!Number.isFinite(stage) || stage < 1 || stage > 10000) {
-        return UI.toast('Stage must be 1–10000.', 'error');
-      }
-      try {
-        const res = await stageApi(username, stage);
-        UI.toast(`🗺️ ${username} moved to stage ${stage}.`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Set stage failed.', 'error');
-      }
-    });
-
-    on('gm-player-title-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const title = $('gm-player-title').value;
-      try {
-        const res = await api.gmTitle(username, title);
-        const t = TITLES.find(x => x.id === title);
-        UI.toast(`👑 Granted title "${t ? t.name : title}" to ${username}.`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Grant title failed.', 'error');
-      }
-    });
-
-    on('gm-player-heal-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      try {
-        const res = await api.gmHeal(username);
-        UI.toast(`💚 ${username} healed.`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Heal failed.', 'error');
-      }
-    });
-
-    const confirmDestructive = (title, html, confirmLabel) =>
-      UI.confirm(title, html, confirmLabel);
-
-    on('gm-player-ban-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const ok = await confirmDestructive('🔨 Ban player?',
-        `<p>Ban <b>${esc(username)}</b> from logging in?</p><p class="muted">They stay banned until unbanned.</p>`, 'Ban');
-      if (!ok) return;
-      try {
-        await api.gmBan(username);
-        UI.toast(`🔨 ${username} banned.`, 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Ban failed.', 'error');
-      }
-    });
-
-    on('gm-player-unban-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      try {
-        await api.gmUnban(username);
-        UI.toast(`🔓 ${username} unbanned.`, 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Unban failed.', 'error');
-      }
-    });
-
-    on('gm-player-kick-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const ok = await confirmDestructive('👢 Kick player?',
-        `<p>Force <b>${esc(username)}</b> to sign in again right now?</p><p class="muted">Unlike a ban, they can log straight back in.</p>`, 'Kick');
-      if (!ok) return;
-      try {
-        await api.gmKick(username);
-        UI.toast(`👢 ${username} kicked.`, 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Kick failed.', 'error');
-      }
-    });
-
-    on('gm-player-reset-btn', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const ok = await confirmDestructive('♻️ Reset player?',
-        `<p>Wipe <b>${esc(username)}</b>'s progress back to a fresh hero?</p><p class="muted">Keeps their account and role. This cannot be undone.</p>`, 'Reset player');
-      if (!ok) return;
-      try {
-        const res = await resetApi(username);
-        UI.toast(`♻️ ${username}'s progress was reset.`, 'success');
-        await hotReloadIfSelf(username, res);
-      } catch (e) {
-        UI.toast(e.message || 'Reset failed.', 'error');
-      }
-    });
-
-    // ---- gift codes ----
-    const codeKindSel = $('gm-code-kind');
-    if (codeKindSel) {
-      const syncCodeUI = () => {
-        const kind = codeKindSel.value;
-        const isGear = kind === 'gear';
-        $('gm-code-set-wrap').classList.toggle('hidden', !isGear);
-        $('gm-code-amount-wrap').classList.toggle('hidden', isGear);
-        if (!isGear) {
-          $('gm-code-amount-label').textContent = kind === 'gold' ? 'Gold amount (1–1T)' : 'Star amount (1–100000)';
-        }
-      };
-      codeKindSel.addEventListener('change', syncCodeUI);
-      syncCodeUI();
-    }
-
-    on('gm-code-create', 'click', async () => {
-      const maxUses = Math.floor(Number($('gm-code-uses').value)) || 1;
-      const rewardKind = codeKindSel.value;
-      const opts = { maxUses };
-      if (rewardKind === 'gear') {
-        opts.set = $('gm-code-set').value;
-      } else {
-        const amount = Math.floor(Number($('gm-code-amount').value));
-        if (!Number.isFinite(amount) || amount < 1) {
-          return UI.toast('Enter a reward amount of at least 1.', 'error');
-        }
-        opts.amount = amount;
-      }
-      try {
-        const { code, rewardKind: kind, rewardAmount, set } = await api.gmCreateCode(rewardKind, opts);
-        const box = $('gm-new-code');
-        box.classList.remove('hidden');
-        box.innerHTML = `<span class="muted small">New code (${esc(describeReward(kind, rewardAmount, set))}, ${maxUses} uses):</span>
-                         <div class="code-big">${esc(code)}</div>`;
-        this.refreshCodes(root);
-        UI.toast('Gift code created.', 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Could not create code.', 'error');
-      }
-    });
-
-    // ---- moderation (owner/admin/gm/moderator) ----
-    on('gm-bc-send', 'click', async () => {
-      const message = $('gm-bc-msg').value.trim();
-      if (!message) return UI.toast('Enter a broadcast message.', 'error');
-      const ok = await confirmDestructive('📣 Send broadcast?',
-        `<p>Send to <b>all players</b>:</p><p>"${esc(message)}"</p>`, 'Send');
-      if (!ok) return;
-      try {
-        await api.gmBroadcast(message);
-        $('gm-bc-msg').value = '';
-        UI.toast('📣 Broadcast sent.', 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Broadcast failed.', 'error');
-      }
-    });
-
-    const loadPlayers = async () => {
-      const search = $('gm-pl-search').value.trim();
-      const list = $('gm-player-list');
-      list.innerHTML = '<p class="muted small">Loading…</p>';
-      try {
-        const { players = [] } = await api.gmPlayers(search, 50);
-        if (!players.length) { list.innerHTML = '<p class="muted small">No players found.</p>'; return; }
-        list.innerHTML = players.map(p => `
-          <div class="name-row" data-username="${esc(p.username)}" title="Set as target"><span>${(CLASSES[p.playerClass] || {}).emoji || ''}${(SPECS[p.spec] || {}).emoji || ''} ${esc(p.username)}</span>
-            <span class="muted small">${esc(p.role)} · Lv ${p.level} · stage ${p.stage}</span></div>`).join('');
-      } catch (e) {
-        list.innerHTML = `<p class="error small">Couldn't load players.</p>`;
-      }
-    };
-    on('gm-pl-search-btn', 'click', loadPlayers);
-    if ($('gm-player-list')) loadPlayers();
-    // Clicking a player row picks them as the target for every action below.
-    // Guarded so re-renders never stack duplicate listeners.
-    const plList = $('gm-player-list');
-    if (plList && !plList.dataset.pickBound) {
-      plList.dataset.pickBound = '1';
-      plList.addEventListener('click', (e) => {
-        const row = e.target && e.target.closest ? e.target.closest('.name-row[data-username]') : null;
-        if (!row) return;
-        const t = $('gm-target-user');
-        if (t) t.value = row.dataset.username;
-        UI.toast(`Target: ${row.dataset.username}`, 'info');
-      });
-    }
-
-    // ---- staff ----
-    on('gm-admin-add', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      try {
-        await api.gmRosterUpdate(username, 'add-admin');
-        this.refreshRoster(root);
-        UI.toast(`${username} added as admin.`, 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Roster update failed.', 'error');
-      }
-    });
-
-    on('gm-role-set', 'click', async () => {
-      const username = targetUser();
-      if (!username) return;
-      const role = $('gm-role-select').value;
-      const ok = await confirmDestructive('Set role',
-        `Set <b>${esc(username)}</b> to <b>${esc(role)}</b>?`, 'Set role');
-      if (!ok) return;
-      try {
-        await api.setRole(username, role);
-        this.refreshRoster(root);
-        UI.toast(`${username} is now ${role}.`, 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Role change failed.', 'error');
-      }
-    });
-
-    // ---- server (owner only) ----
-    const refreshMaintStatus = async () => {
-      const el = $('gm-maint-status');
-      if (!el) return;
-      try {
-        const s = await api.status();
-        el.textContent = s.maintenance ? `ON${s.message ? ' — ' + s.message : ''}` : 'OFF';
-      } catch {
-        el.textContent = 'unknown';
-      }
-    };
-    refreshMaintStatus();
-
-    const setMaintenance = async (enabled) => {
-      const message = $('gm-maint-msg').value.trim();
-      const ok = await confirmDestructive(enabled ? '🛠️ Enable maintenance?' : 'Turn off maintenance?',
-        enabled
-          ? `<p>Put the game into maintenance mode? Players will see a maintenance screen${message ? `: "${esc(message)}"` : '.'}</p>`
-          : '<p>Take the game out of maintenance mode?</p>',
-        enabled ? 'Turn ON' : 'Turn OFF');
-      if (!ok) return;
-      try {
-        await api.gmMaintenance(enabled, message);
-        if (enabled) $('gm-maint-msg').value = '';
-        refreshMaintStatus();
-        UI.toast(enabled ? '🛠️ Maintenance mode ON.' : 'Maintenance mode OFF.', 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Maintenance update failed.', 'error');
-      }
-    };
-    on('gm-maint-on', 'click', () => setMaintenance(true));
-    on('gm-maint-off', 'click', () => setMaintenance(false));
-
-    // ♾️ Infinite gold toggle (owner only). Hot-reloads the operator's own
-    // game state so the ∞ HUD appears immediately on a self-grant.
-    const infGoldToggle = async (enabled) => {
-      const username = targetUser();
-      if (!username) return;
-      const ok = await confirmDestructive(enabled ? 'Enable infinite gold' : 'Disable infinite gold',
-        enabled
-          ? `Give <b>${esc(username)}</b> infinite gold? Purchases will never deduct gold.`
-          : `Take infinite gold away from <b>${esc(username)}</b>?`,
-        enabled ? 'Enable ∞' : 'Disable');
-      if (!ok) return;
-      try {
-        const res = await api.gmInfGold(username, enabled);
-        await hotReloadIfSelf(username, res);
-        UI.toast(enabled ? `♾️ ${username} now has infinite gold.` : `Infinite gold removed from ${username}.`, 'success');
-      } catch (e) {
-        UI.toast(e.message || 'Infinite-gold update failed.', 'error');
-      }
-    };
-    on('gm-infgold-on', 'click', () => infGoldToggle(true));
-    on('gm-infgold-off', 'click', () => infGoldToggle(false));
-
-    // ⚙️ Server settings: gold cap (owner only). Card only renders for owner.
-    if ($('gm-goldcap')) {
-      const capText = (cap) => `${formatNum(cap)} (${Math.round(cap / 1e12)}T)`;
-      api.getSettings().then(sj => {
-        if (sj && Number.isFinite(sj.goldCap)) {
-          $('gm-goldcap-current').textContent = capText(sj.goldCap);
-          $('gm-goldcap').placeholder = String(Math.round(sj.goldCap / 1e12));
-        }
-      }).catch(() => { /* leave the "…" placeholder */ });
-      on('gm-goldcap-save', 'click', async () => {
-        const t = Number($('gm-goldcap').value);
-        if (!Number.isFinite(t) || t < 1000) return UI.toast('Enter a cap in trillions (min 1000T).', 'error');
-        try {
-          const res = await api.gmSetSettings(t * 1e12);
-          $('gm-goldcap').value = '';
-          if (res && Number.isFinite(res.goldCap)) {
-            $('gm-goldcap-current').textContent = capText(res.goldCap);
-            $('gm-goldcap').placeholder = String(Math.round(res.goldCap / 1e12));
-          }
-          UI.toast(`⚙️ Gold cap set to ${t}T.`, 'success');
-        } catch (e) {
-          UI.toast(e.message || 'Settings update failed.', 'error');
-        }
-      });
-    }
   },
 
   async refreshCodes(root) {
