@@ -448,6 +448,18 @@ export const GM = {
       });
     });
 
+    on('gm-player-delete-btn', 'click', async () => {
+      const username = needTarget();
+      if (!username) return;
+      const ok = await confirmDestructive('🗑️ Delete account?',
+        `<p>Permanently delete <b>${esc(username)}</b>'s account and all of their data?</p><p class="muted">They vanish from the leaderboard, guilds, and parties. This cannot be undone.</p>`, 'Delete account');
+      if (!ok) return;
+      runAction('gm-player-delete-btn', 'Delete account', async () => {
+        await api.gmDeleteAccount(username);
+        return `🗑️ ${username}'s account was deleted.`;
+      });
+    });
+
     // ---- gift codes ----
     const codeKindSel = $('gm-code-kind');
     if (codeKindSel) {
@@ -992,6 +1004,7 @@ export const GM = {
           <button id="gm-player-unban-btn" class="btn small">🔓 Unban</button>
           <button id="gm-player-kick-btn" class="btn small danger">👢 Kick</button>
           <button id="gm-player-reset-btn" class="btn small danger">♻️ Reset player</button>
+          ${isOwner ? `<button id="gm-player-delete-btn" class="btn small danger">🗑️ Delete account</button>` : ''}
         </div>
         <div class="row" style="margin-top:0.6rem">
           <label class="fld"><span>Mute guild chat (minutes, 0 = unmute)</span>

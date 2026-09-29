@@ -36,7 +36,7 @@ const TIKTOK_URL = 'https://www.tiktok.com/@throneofshadowsofficial'; // officia
 export function formatNum(n) {
   n = Math.floor(Number(n) || 0);
   if (n < 1000) return String(n);
-  const units = ['K', 'M', 'B', 'T', 'Q', 'Qi'];
+  const units = ['K', 'M', 'B', 'T', 'Q', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
   let u = -1, v = n;
   while (v >= 1000 && u < units.length - 1) { v /= 1000; u++; }
   return (v >= 100 ? v.toFixed(0) : v.toFixed(1)) + units[u];

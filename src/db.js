@@ -366,7 +366,7 @@ async function redeemGiftCode(code, userId, grantFn, defaultBlobFn) {
 // Owner-tunable key/value settings (e.g. gold_cap). The gold cap is cached
 // in-process and invalidated on write; refreshGoldCap() pushes it into the
 // validation module so state saves clamp gold to the live value.
-const DEFAULT_GOLD_CAP = 9.99e20; // 999Qi
+const DEFAULT_GOLD_CAP = 9.99e35; // 999Dc
 let goldCapCache = null;
 
 async function getSetting(key) {

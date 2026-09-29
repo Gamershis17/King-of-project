@@ -626,9 +626,9 @@ export function spendGold(s, cost) {
   return true;
 }
 
-// Server gold cap (owner-adjustable, default 999Qi). The client refreshes it
+// Server gold cap (owner-adjustable, default 999Dc). The client refreshes it
 // from GET /api/settings at boot via setGoldCap().
-let GOLD_CAP = 9.99e20; // 999Qi
+let GOLD_CAP = 9.99e35; // 999Dc
 export function setGoldCap(cap) {
   if (Number.isFinite(cap) && cap >= 1e12) GOLD_CAP = cap;
 }
