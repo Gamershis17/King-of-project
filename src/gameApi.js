@@ -481,11 +481,24 @@ router.post(
 );
 
 // ---------- public settings ----------
-// Tunables the client needs at boot (currently just the gold cap).
+// Tunables the client needs at boot: gold cap + the active server event buff
+// (set via POST /api/gm/event-buff; expired buffs are cleared lazily here).
 router.get(
   '/settings',
   asyncHandler(async (req, res) => {
-    res.json({ ok: true, goldCap: await getGoldCap() });
+    let eventBuff = null;
+    try {
+      const raw = await getSetting('event_buff');
+      if (raw) {
+        const b = JSON.parse(raw);
+        if (b && b.endsAt > Date.now()) {
+          eventBuff = { xpMult: b.xpMult, goldMult: b.goldMult, endsAt: b.endsAt, label: b.label, setBy: b.setBy };
+        } else if (b) {
+          await setSetting('event_buff', '');
+        }
+      }
+    } catch (e) { /* no buff */ }
+    res.json({ ok: true, goldCap: await getGoldCap(), eventBuff });
   })
 );
 
@@ -1036,6 +1049,15 @@ router.post(
     const raw = req.body && typeof req.body.message === 'string' ? req.body.message.trim() : '';
     if (!raw) return res.status(400).json({ error: 'Message is empty.' });
     if (raw.length > 500) return res.status(400).json({ error: 'Message is too long (max 500 characters).' });
+    // GM mute check: muted players cannot post to guild chat until the mute expires.
+    try {
+      const srow = await getStateRow(req.user.id);
+      const sblob = srow ? parseBlob(srow.state_json) : null;
+      if (sblob && sblob.chatMutedUntil && sblob.chatMutedUntil > Date.now()) {
+        const mins = Math.ceil((sblob.chatMutedUntil - Date.now()) / 60000);
+        return res.status(403).json({ error: `You are muted from guild chat for another ${mins} minute(s).` });
+      }
+    } catch { /* mute check is best-effort; never block chat on a read error */ }
     const msg = await addGuildChat(ctx.guild.id, req.user.username, raw);
     res.json({ ok: true, message: { id: msg.id, username: req.user.username, message: raw, created_at: msg.created_at } });
   })

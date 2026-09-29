@@ -31,7 +31,7 @@ const UI_CLASS_EMOJI = { hunter: '🏹', warrior: '⚔️', mage: '🔮', assass
 const UI_SPEC_EMOJI = { tank: '🛡️', dps: '⚔️', healer: '💚', classic: '📜' };
 const DISCORD_URL = 'https://discord.gg/mMeUhKBh6j'; // community Discord server invite
 const YOUTUBE_URL = 'https://www.youtube.com/@ThroneofShadows-q9f'; // official YouTube channel
-const TIKTOK_URL = 'https://www.tiktok.com/@amber.lambert1'; // official TikTok
+const TIKTOK_URL = 'https://www.tiktok.com/@throneofshadowsofficial'; // official TikTok
 
 export function formatNum(n) {
   n = Math.floor(Number(n) || 0);
@@ -743,7 +743,7 @@ export const UI = {
       title: 'Follow Throne of Shadows',
       html: row('discord', 'Discord', 'Chat with the community', true, 'social-discord')
         + row('youtube', 'YouTube', '@ThroneofShadows-q9f', true, 'social-youtube')
-        + row('tiktok', 'TikTok', '@amber.lambert1', true, 'social-tiktok'),
+        + row('tiktok', 'TikTok', '@throneofshadowsofficial', true, 'social-tiktok'),
       buttons: [{ label: 'Close' }],
     });
     const dBtn = document.getElementById('social-discord');
@@ -2836,7 +2836,7 @@ export const UI = {
   // Server-side invite-code party. mp is the GET /api/party view (or null).
   // ctx: { username, isGuest, ownNpcCount }. Self is matched by username
   // (the client knows its own; no id exposure needed for this).
-  renderMpParty(mp, ctx) {
+  renderMpParty(mp, ctx, state) {
     const card = this.els['mp-party-card'];
     if (!card) return;
     const joinCard = this.els['mp-join-card'];
@@ -2939,7 +2939,7 @@ export const UI = {
   },
 
   renderParty(state, ctx) {
-    this.renderMpParty((ctx && ctx.mpParty) || null, ctx);
+    this.renderMpParty((ctx && ctx.mpParty) || null, ctx, state);
     const slots = this.els['party-slots'];
     slots.innerHTML = '';
     for (let i = 0; i < Engine.MAX_PARTY; i++) {

@@ -2879,13 +2879,180 @@ input:focus, select:focus {
   box-shadow: 0 0 0 1px #000, 0 8px 24px rgba(0, 0, 0, 0.55), 0 0 16px rgba(212, 160, 23, 0.15);
 }
 
-/* ---------- GM console ---------- */
-.gm-header {
+/* ---------- GM console: realistic deep-shadow revamp ---------- */
+#view-gm { padding-bottom: 2rem; }
+#view-gm .gm-header {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 190, 0.06) 0%, rgba(255, 236, 190, 0) 35%),
+    linear-gradient(180deg, #241c36 0%, #171122 70%, #100c1a 100%);
   border-bottom: 2px solid var(--gold-deep);
-  box-shadow: 0 1px 0 var(--gold-line-soft), 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 1px 0 rgba(212, 175, 55, 0.35), 0 10px 28px rgba(0, 0, 0, 0.6);
 }
-.gm-card { background: var(--panel-bg); border: 1px solid var(--gold-line-soft); }
-.gm-num { text-shadow: 0 0 12px rgba(255, 210, 63, 0.4); }
+#view-gm .gm-header h2 {
+  color: #f0cd72;
+  letter-spacing: 0.05em;
+  text-shadow: 0 1px 0 rgba(107, 78, 12, 0.9), 0 -1px 1px rgba(0, 0, 0, 0.9), 0 4px 8px rgba(0, 0, 0, 0.6);
+}
+#gm-content {
+  --gm-shadow-deep: 0 1px 0 rgba(0, 0, 0, 0.7), 0 14px 34px rgba(0, 0, 0, 0.55), 0 3px 8px rgba(0, 0, 0, 0.5);
+  --gm-sheen: inset 0 1px 0 rgba(255, 235, 190, 0.09), inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+/* Cards: layered metal-stone panels with a top sheen and deep drop shadow. */
+#gm-content .card {
+  position: relative;
+  background:
+    radial-gradient(circle at 10px 10px, rgba(255, 215, 130, 0.5) 0 2px, rgba(0, 0, 0, 0.6) 3px, transparent 4px),
+    radial-gradient(circle at calc(100% - 10px) 10px, rgba(255, 215, 130, 0.5) 0 2px, rgba(0, 0, 0, 0.6) 3px, transparent 4px),
+    radial-gradient(circle at 10px calc(100% - 10px), rgba(255, 215, 130, 0.5) 0 2px, rgba(0, 0, 0, 0.6) 3px, transparent 4px),
+    radial-gradient(circle at calc(100% - 10px) calc(100% - 10px), rgba(255, 215, 130, 0.5) 0 2px, rgba(0, 0, 0, 0.6) 3px, transparent 4px),
+    linear-gradient(180deg, rgba(255, 236, 190, 0.05) 0%, rgba(255, 236, 190, 0) 22%),
+    linear-gradient(180deg, #262033 0%, #1b1527 55%, #141020 100%);
+  border: 1px solid var(--gold-line-soft);
+  outline: 1px solid rgba(0, 0, 0, 0.85);
+  outline-offset: 3px;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1.1rem;
+  box-shadow: var(--gm-sheen), var(--gm-shadow-deep);
+}
+/* Runic section headers: flanking diamonds, engraved gold text. */
+#gm-content .card > h3 {
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.55rem;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.28);
+  font-size: 1.02rem;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #f0cd72;
+  text-shadow: 0 1px 0 rgba(107, 78, 12, 0.9), 0 -1px 1px rgba(0, 0, 0, 0.9), 0 3px 6px rgba(0, 0, 0, 0.65);
+}
+#gm-content .card > h3::before,
+#gm-content .card > h3::after {
+  content: '❖';
+  font-size: 0.7rem;
+  color: var(--gold);
+  opacity: 0.85;
+  text-shadow: 0 0 8px rgba(212, 175, 55, 0.6);
+}
+#gm-content .card > h3::after { margin-left: auto; }
+#gm-content .gm-sub {
+  margin: 0.9rem 0 0.45rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--muted);
+}
+/* Neat rows: even gaps, bottom-aligned controls. */
+#gm-content .row { gap: 0.6rem; align-items: flex-end; }
+#gm-content .row + .row { margin-top: 0.6rem; }
+#gm-content .fld { gap: 0.3rem; }
+#gm-content .fld > span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--muted);
+}
+/* Recessed input wells: dark, inset shadow, gold focus ring. */
+#gm-content input, #gm-content select {
+  background: linear-gradient(180deg, #0c0a13 0%, #14101e 100%);
+  border: 1px solid rgba(0, 0, 0, 0.9);
+  outline: 1px solid rgba(212, 175, 55, 0.22);
+  outline-offset: -1px;
+  border-radius: 9px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.75), inset 0 -1px 0 rgba(255, 235, 190, 0.05);
+  color: var(--ink);
+  min-height: 40px;
+}
+#gm-content input:focus, #gm-content select:focus {
+  outline: 1px solid var(--gold);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.75), 0 0 0 2px rgba(212, 175, 55, 0.25);
+}
+/* Console buttons: black outline, hard lower shadow, hover lift, press sink. */
+#gm-content .btn {
+  border: 1px solid #000;
+  border-radius: 10px;
+  box-shadow: 0 4px 0 #000, 0 10px 22px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+}
+#gm-content .btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 6px 0 #000, 0 16px 30px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+#gm-content .btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #000, 0 4px 10px rgba(0, 0, 0, 0.5), inset 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+#gm-content .btn.small { min-height: 38px; padding: 0.45rem 0.8rem; border-radius: 9px; }
+/* Stat tiles: deep-set with top sheen and heavy shadow. */
+#gm-content .gm-card {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 190, 0.07) 0%, rgba(255, 236, 190, 0) 40%),
+    linear-gradient(180deg, #2a2338 0%, #1a1428 100%);
+  border: 1px solid var(--gold-line-soft);
+  border-radius: 12px;
+  box-shadow: var(--gm-sheen), var(--gm-shadow-deep);
+  padding: 0.8rem 0.6rem;
+}
+#gm-content .gm-num { text-shadow: 0 0 12px rgba(255, 210, 63, 0.4), 0 2px 3px rgba(0, 0, 0, 0.7); }
+/* Target command bar: distinct etched panel. */
+#gm-content .gm-target {
+  background:
+    linear-gradient(180deg, rgba(255, 236, 190, 0.06) 0%, rgba(255, 236, 190, 0) 30%),
+    linear-gradient(180deg, #2b2140 0%, #1c1529 60%, #151020 100%);
+  border: 1px solid var(--gold-line);
+}
+/* Quick-jump nav inside the sticky target bar. */
+#gm-content .gm-jump {
+  display: flex; gap: 0.35rem; overflow-x: auto;
+  padding: 0.55rem 0.1rem 0.15rem; margin-top: 0.35rem;
+  border-top: 1px solid rgba(212, 175, 55, 0.16);
+  scrollbar-width: none;
+}
+#gm-content .gm-jump::-webkit-scrollbar { display: none; }
+#gm-content .gm-jump .btn { flex: 0 0 auto; }
+/* Action log: etched rows in a recessed well. */
+#gm-content .gm-log {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 0, 0, 0.9);
+  outline: 1px solid rgba(212, 175, 55, 0.18);
+  outline-offset: -1px;
+  border-radius: 10px;
+  box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.7);
+  padding: 0.5rem;
+  max-height: 220px;
+}
+#gm-content .gm-log-row {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-left: 3px solid var(--gold-line-soft);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+}
+#gm-content .gm-log-row.ok { border-left-color: #4caf50; }
+#gm-content .gm-log-row.err { border-left-color: #f44336; }
+/* Dossier: etched ledger panel. */
+#gm-content .gm-dossier {
+  background: linear-gradient(180deg, #100c18 0%, #0b0912 100%);
+  border: 1px solid rgba(0, 0, 0, 0.9);
+  outline: 1px solid var(--gold-line-soft);
+  outline-offset: -1px;
+  border-radius: 10px;
+  box-shadow: inset 0 3px 12px rgba(0, 0, 0, 0.75);
+}
+#gm-content .gm-dossier-row { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.22rem 0; border-bottom: 1px solid rgba(212, 175, 55, 0.1); }
+#gm-content .gm-dossier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.4rem 1.2rem; margin-bottom: 0.5rem; }
+#gm-content .gm-dossier-row > span { min-width: 118px; flex-shrink: 0; }
+#gm-content .gm-dossier-row > b { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+/* Small screens: keep the target-player controls on one tidy row. */
+@media (max-width: 520px) {
+  #gm-content .gm-target .row { flex-wrap: nowrap; }
+  #gm-content .gm-target .fld { min-width: 0; }
+  #gm-content .gm-target .btn { padding: 0.6rem 0.65rem; flex-shrink: 0; }
+}
 .code-big { border: 1px dashed var(--gold-line); }
 
 /* ---------- misc ---------- */

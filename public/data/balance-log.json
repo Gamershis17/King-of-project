@@ -1,5 +1,24 @@
 [
   {
+    "version": "v22",
+    "date": "2026-09-29",
+    "title": "XP bonus ceiling + GM console powers",
+    "changes": [
+      {
+        "system": "XP bonus stacking",
+        "before": "Gear XP capped at +40%, but the guild XP perk (up to +40%) and party XP bonus (up to +40%) multiplied on top — a fully geared, guilded party player could reach +120% XP.",
+        "after": "One +40% ceiling over gear + guild perk + party bonus combined. Tooltips still show true gear totals; the cap applies at gain time.",
+        "note": "Staff-run event buffs (double-XP weekends) still multiply on top — that's their purpose."
+      },
+      {
+        "system": "GM console",
+        "before": "Grants, set-values, dossier, mute, ban/kick; no record of what staff did.",
+        "after": "New: server-side staff audit log (survives restarts), full target inventory browser with per-item enchant set + removal, equipped-item enchant control, daily/weekly quest re-roll, and server-wide event buffs (1–10x XP/gold with expiry, announced to players at login). Every grant/ban/mute/kick is now audit-logged.",
+        "note": "GM powers only; normal players see nothing."
+      }
+    ]
+  },
+  {
     "version": "v21",
     "date": "2026-09-28",
     "title": "Photorealistic new backgrounds",

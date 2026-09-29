@@ -12,6 +12,8 @@
  *   POST /api/gm/settings    (owner) — update server tunables (gold_cap)
  *   POST /api/gm/maintenance (owner) — maintenance mode on/off + message
  *   POST /api/gm/set-stage    (gm|owner)
+ *   POST /api/gm/set-level    (gm|owner) — set a player's level (1-120)
+ *   POST /api/gm/set-gold     (gm|owner) — set a player's gold (absolute)
  *   POST /api/gm/heal         (gm|owner)
  *   POST /api/gm/reset        (gm|owner)
  *   GET  /api/gm/codes        (gm|owner)
@@ -28,6 +30,12 @@
  *   GET  /api/gm/players      (owner|admin|moderator) — player list w/ search
  *   POST /api/gm/reset-player (owner|admin) — wipe a player's save
  *   POST /api/roles           (owner only)
+ *   POST /api/gm/inventory      (gm|owner) — full inventory listing
+ *   POST /api/gm/remove-item    (gm|owner) — remove one inventory item
+ *   POST /api/gm/set-enchant    (gm|owner) — set enchant 0-10 on inventory/equipped item
+ *   POST /api/gm/reset-quests   (gm|owner) — force re-roll of daily/weekly quests
+ *   POST /api/gm/event-buff     (gm|owner) — server-wide XP/gold multiplier w/ expiry
+ *   GET  /api/gm/audit          (gm|owner) — server-side staff action log
  *
  * All database access is async (PostgreSQL).
  */
@@ -66,6 +74,8 @@ const ownerOnly = requireRole('owner');
 const requireMod = requireRole('owner', 'admin', 'gm', 'moderator');
 // Admin tier: player-management commands that don't grant power.
 const adminPlus = requireRole('owner', 'admin');
+// Owner + admin + GM: player-moderation tier (ban/kick/mute).
+const ownerAdminGm = requireRole('owner', 'admin', 'gm');
 
 // Announcement spam protection: broadcasts toast every active player, so
 // cap them at 5 per 10 minutes per staff member.
@@ -133,23 +143,28 @@ router.get(
 
 // ---------- grants ----------
 /**
- * Mirrors the client curve in public/js/engine.js (v18 nerf: kinks at 30 and
- * 60, 1.35^rebirths):
+ * Mirrors the client curve in public/js/engine.js (v19 mega-update: cap raised
+ * to 120; kinks at 30, 60 and 90, 1.35^rebirths):
  *   xpForLevelBase: 1-30 -> 80*1.30^(l-1); 31-60 -> V30*1.35^(l-30);
- *                   61-90 -> V60*1.44^(l-60)
- *                 (V30 = 80*1.30^29, V60 = V30*1.35^30; continuous at both kinks)
+ *                   61-90 -> V60*1.44^(l-60); 91-120 -> V90*1.47^(l-90)
+ *                 (V30 = 80*1.30^29, V60 = V30*1.35^30, V90 = V60*1.44^30;
+ *                  continuous at every kink)
  *   xpForLevel(level, rebirthCount) = round(base * 1.35^rebirthCount)
  * Keep in sync if the client formula ever changes.
  */
 const GM_XP_V30 = 80 * Math.pow(1.30, 29);
 const GM_XP_V60 = GM_XP_V30 * Math.pow(1.35, 30);
+const GM_XP_V90 = GM_XP_V60 * Math.pow(1.44, 30);
+const GM_MAX_LEVEL = 120;
 function xpForLevel(level, rebirthCount) {
   const l = Math.max(1, Math.floor(Number(level) || 1));
   const base = l <= 30
     ? 80 * Math.pow(1.30, l - 1)
     : l <= 60
     ? GM_XP_V30 * Math.pow(1.35, l - 30)
-    : GM_XP_V60 * Math.pow(1.44, l - 60);
+    : l <= 90
+    ? GM_XP_V60 * Math.pow(1.44, l - 60)
+    : GM_XP_V90 * Math.pow(1.47, l - 90);
   return Math.max(1, Math.round(base * Math.pow(1.35, Math.max(0, Math.floor(Number(rebirthCount) || 0)))));
 }
 
@@ -165,7 +180,7 @@ function applyLevelGrant(blob, n) {
   blob.level = Math.max(1, Math.floor(Number(blob.level) || 1));
   const hero = ensureHero(blob);
   let granted = 0;
-  for (let i = 0; i < n && blob.level < 90; i++) {
+  for (let i = 0; i < n && blob.level < GM_MAX_LEVEL; i++) {
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
     hero.maxHp = (Number(hero.maxHp) || 0) + 25;
@@ -190,7 +205,7 @@ function applyXpGrant(blob, amount) {
   }
   const hero = ensureHero(blob);
   let guard = 0;
-  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < 90) {
+  while (blob.xp >= blob.xpNext && guard++ < 10000 && blob.level < GM_MAX_LEVEL) {
     blob.xp -= blob.xpNext;
     blob.level += 1;
     hero.attack = (Number(hero.attack) || 0) + 3;
@@ -201,7 +216,7 @@ function applyXpGrant(blob, amount) {
       blob.mastery.points = Math.max(0, Math.floor(Number(blob.mastery.points) || 0)) + 1;
     }
   }
-  if (blob.level >= 90) blob.xp = 0; // cap reached: bank no XP past it
+  if (blob.level >= GM_MAX_LEVEL) blob.xp = 0; // cap reached: bank no XP past it
 }
 
 const GOLD_GRANT_MIN = 1;
@@ -230,6 +245,7 @@ router.post(
       // Infinite-gold perk holders bypass the cap; everyone else clamps to it.
       blob.gold = blob.infGold === true ? cur + amount : Math.min(await getGoldCap(), cur + amount);
       await persistMergedState(target.id, blob);
+      await logAudit(req, 'grant', target.username, `gold x${amount}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
@@ -242,6 +258,7 @@ router.post(
       const blob = await loadBlob(target.id);
       applyLevelGrant(blob, amount);
       await persistMergedState(target.id, blob);
+      await logAudit(req, 'grant', target.username, `levels x${amount}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
@@ -255,6 +272,7 @@ router.post(
       applyXpGrant(blob, amount);
       blob.xp = Math.min(1e15, blob.xp);
       await persistMergedState(target.id, blob);
+      await logAudit(req, 'grant', target.username, `xp x${amount}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
@@ -267,6 +285,7 @@ router.post(
       const blob = await loadBlob(target.id);
       blob.stars = Math.min(1e15, Math.max(0, Number(blob.stars) || 0) + amount);
       await persistMergedState(target.id, blob);
+      await logAudit(req, 'grant', target.username, `stars x${amount}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
@@ -282,6 +301,7 @@ router.post(
       if (!Array.isArray(blob.inventory)) blob.inventory = [];
       blob.inventory.push(...items);
       await persistMergedState(target.id, blob);
+      await logAudit(req, 'grant', target.username, `gear set ${set}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
@@ -300,6 +320,7 @@ router.post(
       if (!blob.mine.ores || typeof blob.mine.ores !== 'object') blob.mine.ores = {};
       blob.mine.ores[ore] = Math.min(1e12, Math.max(0, Math.floor(Number(blob.mine.ores[ore]) || 0)) + amount);
       await persistMergedState(target.id, blob);
+      await logAudit(req, 'grant', target.username, `ore ${ore} x${amount}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
@@ -312,6 +333,7 @@ router.post(
       if (!blob.mine || typeof blob.mine !== 'object') blob.mine = { depth: 1, ores: {} };
       blob.mine.pickaxe = Math.max(0, Math.min(7, tier));
       await persistMergedState(target.id, blob);
+      await logAudit(req, 'grant', target.username, `pickaxe tier ${tier}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });
     }
 
@@ -337,6 +359,7 @@ router.post(
     const id = titleId.trim();
     if (!blob.titlesUnlocked.includes(id)) blob.titlesUnlocked.push(id);
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'grant-title', target.username, id);
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
 );
@@ -361,6 +384,7 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.badge = id === '' ? null : id;
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'badge', target.username, id === '' ? 'cleared' : id);
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
 );
@@ -395,6 +419,7 @@ router.post(
     const pets = ensurePets(blob);
     pets.eggs = Math.min(9999, Math.max(0, Math.floor(pets.eggs)) + amount);
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'grant-pet', target.username, `eggs x${amount}`);
     res.json({ ok: true, eggs: pets.eggs, state: selfState(req, target, blob) });
   })
 );
@@ -417,6 +442,7 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.rebirthCount = count;
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-rebirth', target.username, `count → ${count}`);
     res.json({ ok: true, rebirthCount: count, state: selfState(req, target, blob) });
   })
 );
@@ -434,6 +460,7 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.infGold = enabled === true;
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'inf-gold', target.username, enabled === true ? 'enabled' : 'revoked');
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
 );
@@ -453,7 +480,9 @@ router.post(
       await setSetting('gold_cap', String(Math.floor(goldCap)));
     }
     await refreshGoldCap();
-    res.json({ ok: true, goldCap: await getGoldCap() });
+    const __newCap = await getGoldCap();
+    await logAudit(req, 'settings', '—', `goldCap → ${__newCap}`);
+    res.json({ ok: true, goldCap: __newCap });
   })
 );
 
@@ -472,6 +501,7 @@ router.post(
     const msg = typeof message === 'string' ? message.trim().slice(0, 500) : '';
     await setSetting('maintenance_mode', enabled ? '1' : '0');
     await setSetting('maintenance_message', msg);
+    await logAudit(req, 'maintenance', '—', enabled ? `ON: ${msg || 'no message'}` : 'OFF');
     res.json({ ok: true, maintenance: enabled, message: msg || null });
   })
 );
@@ -490,7 +520,217 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.stage = stage;
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-stage', target.username, `stage → ${stage}`);
     res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- set level (absolute) ----------
+// Sets the target's level directly. Hero base stats are recomputed
+// deterministically from the per-level formula (level 1 base 10 atk / 100 HP /
+// 2 def, +3/+25/+2 per level) because level gains are the only thing that ever
+// writes to hero.attack/maxHp/defense. Mastery points are left untouched.
+router.post(
+  '/gm/set-level',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, level } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!Number.isInteger(level) || level < 1 || level > GM_MAX_LEVEL) {
+      return res.status(400).json({ error: `level must be an integer between 1 and ${GM_MAX_LEVEL}.` });
+    }
+    const blob = await loadBlob(target.id);
+    const hero = ensureHero(blob);
+    hero.attack = 10 + 3 * (level - 1);
+    hero.maxHp = 100 + 25 * (level - 1);
+    hero.defense = 2 + 2 * (level - 1);
+    blob.level = level;
+    blob.xp = 0;
+    blob.rebirthCount = Math.max(0, Math.floor(Number(blob.rebirthCount) || 0));
+    blob.xpNext = xpForLevel(level, blob.rebirthCount);
+    hero.hp = hero.maxHp;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-level', target.username, `level → ${level}`);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- set gold (absolute) ----------
+// Sets the target's gold to an exact amount (0 clears it). Respects the
+// dynamic gold cap unless the target has the infinite-gold perk.
+router.post(
+  '/gm/set-gold',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, amount } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!Number.isInteger(amount) || amount < 0) {
+      return res.status(400).json({ error: 'amount must be a non-negative integer.' });
+    }
+    const blob = await loadBlob(target.id);
+    const cap = blob.infGold === true ? amount : await getGoldCap();
+    if (amount > cap) {
+      return res.status(400).json({ error: `amount exceeds the gold cap (${cap}).` });
+    }
+    blob.gold = amount;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-gold', target.username, `gold → ${amount}`);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- set xp ----------
+// Sets the player's EXACT xp then processes level-ups with the normal curve.
+router.post(
+  '/gm/set-xp',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, amount } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!Number.isInteger(amount) || amount < 0 || amount > 1e15) {
+      return res.status(400).json({ error: 'amount must be an integer between 0 and 1000000000000000.' });
+    }
+    const blob = await loadBlob(target.id);
+    blob.xp = 0;
+    blob.level = Math.max(1, Math.floor(Number(blob.level) || 1));
+    applyXpGrant(blob, amount);
+    blob.xp = Math.min(1e15, blob.xp);
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-xp', target.username, `xp → ${amount}`);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- grant single item ----------
+// Grants one gear piece (by slot) from a set instead of the full 5-piece set.
+const GRANT_ITEM_SLOTS = ['weapon', 'armor', 'helmet', 'boots', 'trinket'];
+router.post(
+  '/gm/grant-item',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, set, slot } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (typeof set !== 'string' || !isValidSetId(set)) {
+      return res.status(400).json({ error: 'Set must be one of sovereign, fateweaver, warden, voidwalker, dragonscale, gamemaster.' });
+    }
+    if (set === 'sovereign' && req.user.role !== 'owner') {
+      return res.status(403).json({ error: 'Only the owner may grant the sovereign set.' });
+    }
+    if (typeof slot !== 'string' || !GRANT_ITEM_SLOTS.includes(slot)) {
+      return res.status(400).json({ error: 'Slot must be one of weapon, armor, helmet, boots, trinket.' });
+    }
+    const piece = makeGearItems(set).find((p) => p.slot === slot);
+    if (!piece) return res.status(400).json({ error: 'That set has no piece for the requested slot.' });
+    const blob = await loadBlob(target.id);
+    if (!Array.isArray(blob.inventory)) blob.inventory = [];
+    blob.inventory.push(piece);
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'grant-item', target.username, `${piece.name} [${slot}]`);
+    res.json({ ok: true, item: piece.name, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- mute / unmute ----------
+// Timed guild-chat mute. minutes=0 (or omitted) clears the mute.
+router.post(
+  '/gm/mute',
+  ownerAdminGm,
+  asyncHandler(async (req, res) => {
+    const { username, minutes } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const mins = minutes === undefined || minutes === null ? 0 : minutes;
+    if (!Number.isInteger(mins) || mins < 0 || mins > 10080) {
+      return res.status(400).json({ error: 'minutes must be an integer between 0 and 10080 (7 days).' });
+    }
+    const blob = await loadBlob(target.id);
+    blob.chatMutedUntil = mins === 0 ? 0 : Date.now() + mins * 60000;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'mute', target.username, mins === 0 ? 'unmuted' : `${mins} min`);
+    res.json({ ok: true, mutedUntil: blob.chatMutedUntil, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- name style ----------
+// Sets a player's name color / effect directly.
+const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch'];
+router.post(
+  '/gm/name-style',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, color, fx } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (color !== undefined && color !== '' && !/^#[0-9a-fA-F]{6}$/.test(color)) {
+      return res.status(400).json({ error: 'color must be a hex like #ff8800, or empty to clear.' });
+    }
+    if (fx !== undefined && !NAME_FX_IDS.includes(fx)) {
+      return res.status(400).json({ error: 'fx must be one of ' + NAME_FX_IDS.join(', ') + '.' });
+    }
+    const blob = await loadBlob(target.id);
+    if (color !== undefined) blob.nameColor = color || null;
+    if (fx !== undefined) blob.nameFx = fx;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'name-style', target.username, `${color || 'cleared'} / ${fx || 'unchanged'}`);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- inspect (player dossier) ----------
+// Read-only full view of a player's account for GMs: identity, currencies,
+// hero, inventory + loadout, pets, mine, forge, titles. Never mutates.
+router.post(
+  '/gm/inspect',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const blob = await loadBlob(target.id);
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
+    const loadout = blob.loadout && typeof blob.loadout === 'object' ? blob.loadout : {};
+    const equipped = {};
+    for (const [slot, it] of Object.entries(loadout)) {
+      equipped[slot] = it && it.name ? it.name : String(it);
+    }
+    const pets = blob.pets && typeof blob.pets === 'object' ? blob.pets : {};
+    const mine = blob.mine && typeof blob.mine === 'object' ? blob.mine : {};
+    const forge = blob.forge && typeof blob.forge === 'object' ? blob.forge : {};
+    const titles = Array.isArray(blob.titles) ? blob.titles : (blob.titles && Array.isArray(blob.titles.unlocked) ? blob.titles.unlocked : []);
+    res.json({
+      ok: true,
+      dossier: {
+        username: target.username,
+        role: target.role,
+        level: num(blob.level), xp: num(blob.xp), xpNext: num(blob.xpNext),
+        gold: num(blob.gold), stars: num(blob.stars),
+        playerClass: blob.playerClass || '—', spec: blob.spec || '—',
+        stage: num(blob.stage), kills: num(blob.kills), bossesKilled: num(blob.bossesKilled),
+        rebirthCount: num(blob.rebirthCount),
+        hero: {
+          hp: num(blob.hero && blob.hero.hp), maxHp: num(blob.hero && blob.hero.maxHp),
+          attack: num(blob.hero && blob.hero.attack), defense: num(blob.hero && blob.hero.defense),
+        },
+        nameStyle: { color: blob.nameColor || null, fx: blob.nameFx || 'none' },
+        activeTitle: blob.activeTitle || '—',
+        titlesUnlocked: titles.length,
+        badge: (blob.badge && (blob.badge.emoji || blob.badge.name)) || '—',
+        inventoryCount: inv.length,
+        inventorySample: inv.slice(-10).map((i) => (i && i.name ? `${i.name} [${i.slot || '?'}]` : '?')),
+        equipped,
+        pets: { eggs: num(pets.eggs), active: Array.isArray(pets.active) ? pets.active.length : num(pets.activeCount) },
+        mine: { depth: num(mine.depth), pickaxe: mine.pickaxeTier || mine.pickaxe || 0, totalMined: num(mine.totalMined) },
+        forge: { crafts: num(forge.crafts) },
+        muted: !!(blob.chatMutedUntil && blob.chatMutedUntil > Date.now()),
+        mutedUntil: blob.chatMutedUntil || 0,
+        banned: !!target.banned,
+      },
+    });
   })
 );
 
@@ -520,6 +760,7 @@ router.post(
       }
     }
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'heal', target.username, '');
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
 );
@@ -537,6 +778,7 @@ router.post(
     if (!target) return res.status(404).json({ error: 'Target user not found.' });
     const fresh = defaultStateBlob();
     await persistMergedState(target.id, fresh);
+    await logAudit(req, 'reset-progress', target.username, 'save wiped to fresh');
     res.json({ ok: true, state: selfState(req, target, fresh) });
   })
 );
@@ -561,6 +803,7 @@ router.post(
     const id = title.trim();
     if (!blob.titlesUnlocked.includes(id)) blob.titlesUnlocked.push(id);
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'grant-title', target.username, id);
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
 );
@@ -579,35 +822,38 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.stage = stage;
     await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-stage', target.username, `stage → ${stage}`);
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
 );
 
-// ---------- ban / unban (admin+) ----------
+// ---------- ban / unban (gm+) ----------
 // STUB: the users table has no `banned` column and src/schema.sql is owned
 // by another agent, so enforcement at login is not possible yet. These
 // return 501 until the schema lands; the console UI marks them as pending.
 router.post(
   '/gm/ban',
-  adminPlus,
+  ownerAdminGm,
   asyncHandler(async (req, res) => {
     const { username } = req.body || {};
     const target = await resolveTarget(username);
     if (!target) return res.status(404).json({ error: 'Target user not found.' });
     if (target.role === 'owner') return res.status(403).json({ error: 'The owner cannot be banned.' });
     await pool.query('UPDATE users SET banned = TRUE WHERE id = $1', [target.id]);
+    await logAudit(req, 'ban', target.username, 'account banned');
     res.json({ ok: true, username: target.username, banned: true });
   })
 );
 
 router.post(
   '/gm/unban',
-  adminPlus,
+  ownerAdminGm,
   asyncHandler(async (req, res) => {
     const { username } = req.body || {};
     const target = await resolveTarget(username);
     if (!target) return res.status(404).json({ error: 'Target user not found.' });
     await pool.query('UPDATE users SET banned = FALSE WHERE id = $1', [target.id]);
+    await logAudit(req, 'unban', target.username, 'account unbanned');
     res.json({ ok: true, username: target.username, banned: false });
   })
 );
@@ -618,7 +864,7 @@ router.post(
 // session is destroyed. Unlike a ban, they can sign straight back in.
 router.post(
   '/gm/kick',
-  adminPlus,
+  ownerAdminGm,
   asyncHandler(async (req, res) => {
     const { username } = req.body || {};
     const target = await resolveTarget(username);
@@ -630,6 +876,7 @@ router.post(
       return res.status(400).json({ error: 'You cannot kick yourself.' });
     }
     await bumpSessionVersion(target.id);
+    await logAudit(req, 'kick', target.username, 'force-logged out');
     res.json({ ok: true, username: target.username, kicked: true });
   })
 );
@@ -644,6 +891,7 @@ router.post(
     if (!target) return res.status(404).json({ error: 'Target user not found.' });
     const fresh = defaultStateBlob();
     await persistMergedState(target.id, fresh);
+    await logAudit(req, 'reset-player', target.username, 'save wiped to fresh');
     res.json({ ok: true, state: selfState(req, target, fresh) });
   })
 );
@@ -661,6 +909,7 @@ router.post(
       return res.status(400).json({ error: 'message must be 1–500 characters.' });
     }
     const row = await addBroadcast(message.trim(), req.user.username);
+    await logAudit(req, 'broadcast', '—', message.trim().slice(0, 120));
     res.status(201).json({ ok: true, broadcast: row });
   })
 );
@@ -755,6 +1004,7 @@ router.post(
     }
     const code = await generateCode();
     await createGiftCode(code, gearSet, maxUses, req.user.id, rewardKind, rewardAmount);
+    await logAudit(req, 'gift-code', '—', `${code}: ${rewardKind}${rewardKind === 'gear' ? ' ' + gearSet : ' x' + rewardAmount} (${maxUses} uses)`);
     res.status(201).json({ code, rewardKind, rewardAmount, set: gearSet });
   })
 );
@@ -816,6 +1066,190 @@ router.post(
     }
     await setUserRole(target.id, role);
     res.json({ ok: true });
+  })
+);
+
+// ---------- GM audit log ----------
+// Server-side record of staff actions (who did what, to whom, when).
+// Stored in server_settings as JSON so it survives restarts; capped at 300.
+const AUDIT_MAX = 300;
+async function readAudit() {
+  try {
+    const raw = await getSetting('gm_audit');
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+async function logAudit(req, action, targetUsername, detail) {
+  try {
+    const entries = await readAudit();
+    entries.unshift({
+      ts: Date.now(),
+      actor: (req.user && req.user.username) || '?',
+      actorRole: (req.user && req.user.role) || '?',
+      action,
+      target: targetUsername || '—',
+      detail: detail === undefined || detail === null ? '' : String(detail).slice(0, 300),
+    });
+    await setSetting('gm_audit', JSON.stringify(entries.slice(0, AUDIT_MAX)));
+  } catch (e) { /* audit must never break the action itself */ }
+}
+
+// ---------- inventory browser + item removal ----------
+// Full inventory listing for a player (the dossier only shows a sample).
+router.post(
+  '/gm/inventory',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const blob = await loadBlob(target.id);
+    const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
+    const items = inv.map((it, i) => ({
+      index: i,
+      id: it && it.id ? String(it.id) : null,
+      name: it && it.name ? String(it.name) : '?',
+      slot: it && it.slot ? String(it.slot) : '?',
+      enchant: Math.max(0, Math.min(10, Math.floor(Number(it && it.enchant) || 0))),
+    }));
+    res.json({ ok: true, username: target.username, count: items.length, items });
+  })
+);
+
+// Remove one inventory item by index (e.g. duped/exploited gear).
+router.post(
+  '/gm/remove-item',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, index } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const blob = await loadBlob(target.id);
+    const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
+    const idx = Math.floor(Number(index));
+    if (!Number.isInteger(idx) || idx < 0 || idx >= inv.length) {
+      return res.status(400).json({ error: 'index out of range for this player\'s inventory.' });
+    }
+    const [removed] = inv.splice(idx, 1);
+    const removedName = removed && removed.name ? removed.name : '?';
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'remove-item', target.username, `${removedName} (index ${idx})`);
+    res.json({ ok: true, removed: removedName, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- set enchant level ----------
+// Sets enchant (0-10) on an inventory item (by index) or an equipped item
+// (by slot: weapon/armor/helmet/boots/trinket).
+const ENCHANT_SLOTS = ['weapon', 'armor', 'helmet', 'boots', 'trinket'];
+router.post(
+  '/gm/set-enchant',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, index, slot, level } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const lv = Math.floor(Number(level));
+    if (!Number.isInteger(lv) || lv < 0 || lv > 10) {
+      return res.status(400).json({ error: 'level must be an integer between 0 and 10.' });
+    }
+    const blob = await loadBlob(target.id);
+    let item = null;
+    let where = '';
+    if (typeof slot === 'string' && ENCHANT_SLOTS.includes(slot)) {
+      if (!blob.loadout || typeof blob.loadout !== 'object' || !blob.loadout[slot]) {
+        return res.status(400).json({ error: `No item equipped in the ${slot} slot.` });
+      }
+      item = blob.loadout[slot];
+      where = `equipped ${slot}`;
+    } else {
+      const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
+      const idx = Math.floor(Number(index));
+      if (!Number.isInteger(idx) || idx < 0 || idx >= inv.length) {
+        return res.status(400).json({ error: 'index out of range for this player\'s inventory.' });
+      }
+      item = inv[idx];
+      where = `inventory index ${idx}`;
+    }
+    if (!item || typeof item !== 'object') {
+      return res.status(400).json({ error: 'No item found at that location.' });
+    }
+    item.enchant = lv;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-enchant', target.username, `${item.name || '?'} (${where}) → +${lv}`);
+    res.json({ ok: true, item: item.name || '?', enchant: lv, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- reset quests ----------
+// Forces a player's daily/weekly quests to re-roll (unsticks broken sets).
+router.post(
+  '/gm/reset-quests',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, period } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const p = period === undefined || period === null ? 'both' : String(period);
+    if (!['daily', 'weekly', 'both'].includes(p)) {
+      return res.status(400).json({ error: 'period must be one of daily, weekly, both.' });
+    }
+    const blob = await loadBlob(target.id);
+    if (!blob.quests || typeof blob.quests !== 'object') blob.quests = {};
+    // Clearing the roll keys makes the client's ensureQuests() re-roll fresh
+    // sets on next tick; claimed flags live on the rolled entries, so they
+    // reset too.
+    if (p === 'daily' || p === 'both') { blob.quests.dailyKey = ''; blob.quests.daily = []; }
+    if (p === 'weekly' || p === 'both') { blob.quests.weeklyKey = ''; blob.quests.weekly = []; }
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'reset-quests', target.username, p);
+    res.json({ ok: true, period: p, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- server event buffs ----------
+// Server-wide XP/gold multiplier with an expiry (e.g. double-XP weekend).
+// The client picks it up from GET /api/settings at boot and applies it to
+// kill rewards + offline earnings. Owner + GM tier; every change is audited.
+router.post(
+  '/gm/event-buff',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { xpMult, goldMult, hours, label } = req.body || {};
+    const xm = Number(xpMult);
+    const gm = Number(goldMult);
+    const hrs = Number(hours);
+    if (!(xm >= 1 && xm <= 10) || !(gm >= 1 && gm <= 10)) {
+      return res.status(400).json({ error: 'xpMult and goldMult must each be between 1 and 10.' });
+    }
+    if (!(hrs >= 0 && hrs <= 168)) {
+      return res.status(400).json({ error: 'hours must be between 0 (clear) and 168 (7 days).' });
+    }
+    if (hrs === 0) {
+      await setSetting('event_buff', '');
+      await logAudit(req, 'event-buff', '—', 'cleared');
+      return res.json({ ok: true, cleared: true });
+    }
+    const buff = {
+      xpMult: xm,
+      goldMult: gm,
+      endsAt: Date.now() + Math.floor(hrs * 3600 * 1000),
+      label: typeof label === 'string' && label.trim() ? label.trim().slice(0, 60) : 'Event',
+      setBy: (req.user && req.user.username) || '?',
+    };
+    await setSetting('event_buff', JSON.stringify(buff));
+    await logAudit(req, 'event-buff', '—', `${buff.label}: ${xm}x XP / ${gm}x gold for ${hrs}h`);
+    res.json({ ok: true, buff });
+  })
+);
+
+router.get(
+  '/gm/audit',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const entries = await readAudit();
+    res.json({ ok: true, entries: entries.slice(0, 100) });
   })
 );
 

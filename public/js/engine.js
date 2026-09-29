@@ -634,6 +634,23 @@ export function setGoldCap(cap) {
 }
 export function goldCap() { return GOLD_CAP; }
 
+// Server event buff (double-XP weekend etc.), set by staff via
+// POST /api/gm/event-buff and refreshed from GET /api/settings at boot.
+let EVENT_BUFF = null;
+export function setEventBuff(buff) {
+  if (buff && buff.endsAt > Date.now() && buff.xpMult >= 1 && buff.goldMult >= 1) {
+    EVENT_BUFF = { xpMult: buff.xpMult, goldMult: buff.goldMult, endsAt: buff.endsAt, label: buff.label || 'Event' };
+  } else {
+    EVENT_BUFF = null;
+  }
+}
+export function eventBuff() {
+  if (EVENT_BUFF && EVENT_BUFF.endsAt <= Date.now()) EVENT_BUFF = null;
+  return EVENT_BUFF;
+}
+export function eventXpMult() { const b = eventBuff(); return b ? b.xpMult : 1; }
+export function eventGoldMult() { const b = eventBuff(); return b ? b.goldMult : 1; }
+
 // Adds gold, clamped to the server gold cap. The infinite-gold perk bypasses
 // the cap entirely. Returns the amount actually added.
 export function addGold(s, amount) {
@@ -706,17 +723,15 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
   const race = RACES[state.race] || {};
   const stats = computeStats(state);
   const rested = state.restedUntil && nowMs < state.restedUntil;
-  // Anti-power-creep: gear/stat XP bonuses are capped at +40% here (was 50%,
-  // lowered in v15 to offset the new multiplayer party XP bonus).
-  // computeStats() still reports the true total so tooltips stay truthful.
-  // Guild XP perk (+2%/guild level, max +40%) stacks on top of the gear cap.
-  const xpBonusPct = Math.min(40, stats.xpBonus || 0) + (GUILD_PERKS.xpPct || 0);
-  // Multiplayer party bonus (server-derived, passed in by the caller; 0 when
-  // solo/offline). Clamped so a tampered value can't blow up gains.
+  // Anti-power-creep: ONE +40% ceiling over gear + guild perk + party bonus
+  // combined (v20 — was additive up to +120%: 40% gear, 40% guild, 40% party).
+  // computeStats() still reports the true gear total so tooltips stay truthful.
+  const gearPct = Math.min(40, stats.xpBonus || 0);
+  const guildPct = Math.max(0, Math.min(40, GUILD_PERKS.xpPct || 0));
   const partyPct = Math.max(0, Math.min(40, Number(partyXpPct) || 0));
-  // v15: gear cap was 50%, lowered to 40% to offset the new multiplayer party XP bonus.
+  const xpBonusPct = Math.min(40, gearPct + guildPct + partyPct);
   const amount = Math.max(1, Math.round(
-    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1) * (1 + partyPct / 100)
+    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1)
   ));
   state.xp += amount;
   const levels = [];
@@ -2148,8 +2163,8 @@ export function offlineEarnings(state, lastSeenAt, nowMs) {
   const minutes = Math.floor(cappedMs / 60000);
   const kills = Math.max(1, Math.floor(minutes * 6)); // estimated kills/min
   const stats = computeStats(state);
-  const gold = kills * goldForKill(state.stage, stats.goldBonus + (stats.talentGoldPct || 0));
-  const xp = kills * xpForKill(state.stage); // gainXp applies race/gear mults
+  const gold = Math.floor(kills * goldForKill(state.stage, stats.goldBonus + (stats.talentGoldPct || 0)) * eventGoldMult());
+  const xp = Math.floor(kills * xpForKill(state.stage) * eventXpMult()); // gainXp applies race/gear mults
   return { minutes, kills, gold, xp, capped: elapsedMs > 8 * 3600 * 1000 };
 }
 
