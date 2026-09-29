@@ -30,6 +30,8 @@ export function esc(s) {
 const UI_CLASS_EMOJI = { hunter: '🏹', warrior: '⚔️', mage: '🔮', assassin: '🌙' };
 const UI_SPEC_EMOJI = { tank: '🛡️', dps: '⚔️', healer: '💚', classic: '📜' };
 const DISCORD_URL = 'https://discord.gg/mMeUhKBh6j'; // community Discord server invite
+const YOUTUBE_URL = 'https://www.youtube.com/@ThroneofShadows-q9f'; // official YouTube channel
+const TIKTOK_URL = 'https://www.tiktok.com/@amber.lambert1'; // official TikTok
 
 export function formatNum(n) {
   n = Math.floor(Number(n) || 0);
@@ -739,11 +741,17 @@ export const UI = {
       </button>`;
     this.modal({
       title: 'Follow Throne of Shadows',
-      html: row('discord', 'Discord', 'Chat with the community', true, 'social-discord'),
+      html: row('discord', 'Discord', 'Chat with the community', true, 'social-discord')
+        + row('youtube', 'YouTube', '@ThroneofShadows-q9f', true, 'social-youtube')
+        + row('tiktok', 'TikTok', '@amber.lambert1', true, 'social-tiktok'),
       buttons: [{ label: 'Close' }],
     });
     const dBtn = document.getElementById('social-discord');
     if (dBtn) dBtn.addEventListener('click', () => { openDiscord(); });
+    const yBtn = document.getElementById('social-youtube');
+    if (yBtn) yBtn.addEventListener('click', () => { try { window.open(YOUTUBE_URL, '_blank', 'noopener'); } catch (e) {} });
+    const tBtn = document.getElementById('social-tiktok');
+    if (tBtn) tBtn.addEventListener('click', () => { try { window.open(TIKTOK_URL, '_blank', 'noopener'); } catch (e) {} });
     const root = document.getElementById('modal-root');
     if (root) root.querySelectorAll('.social-row.soon').forEach((b) => {
       b.addEventListener('click', () => { this.toast(`${b.dataset.name} is coming soon!`); });
