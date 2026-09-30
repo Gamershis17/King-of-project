@@ -140,6 +140,7 @@ All JSON. Session cookie auth. `GET /api/auth/me` returns `{ user: { username, r
 - `GET /api/gm/roster` → `{admins:[usernames], gms:[usernames]}`.
 - `POST /api/gm/roster` `{username, action: 'add-admin'|'remove-admin'}` → `{ok:true}`.
 - `POST /api/roles` `{username, role: 'gm'|'admin'|'player'}` — owner only.
+- `POST /api/gm/clear-guild-chat` `{username}` — owner/admin/gm only. Wipes the message history of the target player's guild (guild itself untouched). → `{ok:true, removed}`.
 
 ## Player state blob schema (client ↔ server)
 
