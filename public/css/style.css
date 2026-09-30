@@ -4048,3 +4048,33 @@ body:is(.perf, .os-reduced) .title-rainbow { animation: none !important; }
 .social-go { background: #5865F2; color: #fff; font-weight: 800; font-size: 0.8rem; padding: 0.35rem 0.8rem; border-radius: 999px; border: 2px solid #000; box-shadow: 0 3px 0 #000; }
 .social-soon-tag { font-size: 0.75rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; }
 
+
+/* character sheet (paper-doll) */
+.hero-panel { cursor: pointer; }
+.char-sheet { position: relative; }
+.paper-doll { display: flex; gap: 10px; justify-content: center; align-items: stretch; margin-bottom: 6px; }
+.paper-col { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.paper-slot { width: 78px; border: 2px solid var(--rc, #5a5148); border-radius: 10px; background: #141009; padding: 8px 4px; text-align: center; cursor: pointer; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.paper-slot.empty { border-style: dashed; border-color: #4a4238; opacity: .65; cursor: default; }
+.paper-emoji { font-size: 28px; line-height: 1.25; }
+.paper-slot-label { font-size: 10px; color: #9a8f7d; }
+.paper-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 148px; padding: 0 4px; }
+.paper-portrait { width: 84px; height: 84px; border-radius: 50%; border: 3px solid #c9a227; background: radial-gradient(circle at 35% 30%, #4a3b22, #141009); display: flex; align-items: center; justify-content: center; font-size: 42px; }
+.paper-name { color: #e8c96a; font-size: 17px; font-weight: bold; }
+.paper-sub { font-size: 12px; color: #9a8f7d; }
+.paper-hpbar { width: 132px; height: 10px; border-radius: 5px; background: #241c12; overflow: hidden; border: 1px solid #4a3b22; }
+.paper-hpbar > div { height: 100%; background: linear-gradient(90deg, #a93226, #e74c3c); }
+.paper-hptext { font-size: 11px; color: #9a8f7d; }
+.paper-pet { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9a8f7d; margin-top: 2px; }
+.paper-pet .pet-emoji { font-size: 30px; line-height: 1; }
+.char-sec-title { color: #c9a227; font-size: 12px; letter-spacing: 2px; margin: 10px 0 4px; border-bottom: 1px solid #4a3b22; padding-bottom: 2px; }
+.char-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; font-size: 12px; }
+.char-stat-grid .k { color: #9a8f7d; }
+.char-stat-grid .v { color: #e8e0cf; font-weight: bold; }
+.gear-tip { position: absolute; left: 0; top: 0; z-index: 60; min-width: 170px; max-width: 230px; background: rgba(10, 8, 5, .97); border: 1px solid #8a6d2f; border-radius: 8px; padding: 10px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.65); pointer-events: none; font-size: 12px; }
+.gear-tip .tip-name { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
+.gear-tip .tip-sub { color: #9a8f7d; font-size: 11px; margin-bottom: 6px; }
+.gear-tip .tip-stat { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.gear-tip .tip-stat .k { color: #9a8f7d; }
+.gear-tip .tip-stat .v { color: #7ddf8a; }
+.gear-tip .tip-set { color: #7df9ff; font-size: 11px; margin-top: 6px; }
