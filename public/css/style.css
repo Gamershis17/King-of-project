@@ -4587,35 +4587,37 @@ body.reduce-motion .quest-claim { animation: none; }
 }
 .lb-row:active { transform: scale(0.99); }
 
-/* Tier medallion: custom icon layered over its emoji fallback, rank below. */
+/* Rank medallion: classic emoji indicator on its own disc, placement pill. */
 .lb-medal {
-  position: relative; flex: none; width: 3.2rem;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
+  flex: none; width: 3.4rem; height: 3.4rem; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.14), rgba(0,0,0,.5) 72%);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 3px 8px rgba(0,0,0,.45);
 }
-.lb-medal-fb { font-size: 2.5rem; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
-.lb-medal-img {
-  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-  width: 2.8rem; height: 2.8rem; object-fit: contain;
-}
+.lb-medal-emoji { font-size: 1.9rem; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
 .lb-pos {
   font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; color: var(--muted);
   background: rgba(0,0,0,.5); border: 1px solid var(--stone2);
   padding: 0.08rem 0.5rem; border-radius: 999px; white-space: nowrap;
 }
-/* Tier-tinted glow on the medallion icon. */
-.lb-tier-sov .lb-medal-img, .lb-tier-sov2 .lb-medal-img, .lb-tier-sov3 .lb-medal-img { filter: drop-shadow(0 0 10px rgba(255,210,63,.6)); }
-.lb-tier-elite .lb-medal-img { filter: drop-shadow(0 0 10px rgba(196,181,253,.55)); }
-.lb-tier-vet .lb-medal-img { filter: drop-shadow(0 0 10px rgba(154,220,255,.5)); }
-.lb-tier-adv .lb-medal-img { filter: drop-shadow(0 3px 8px rgba(0,0,0,.65)); }
+/* Legacy metallic rank discs are retired — the emoji medallion carries its
+   own disc, so the old gradient backgrounds must not double-paint. */
+.lb-row.lb-top1 .lb-rank, .lb-row.lb-top2 .lb-rank, .lb-row.lb-top3 .lb-rank {
+  border-color: transparent; box-shadow: none; background: none;
+}
+/* Tier-tinted glow on the medal emoji. */
+.lb-tier-sov .lb-medal-emoji, .lb-tier-sov2 .lb-medal-emoji, .lb-tier-sov3 .lb-medal-emoji { filter: drop-shadow(0 0 10px rgba(255,210,63,.6)); }
+.lb-tier-elite .lb-medal-emoji { filter: drop-shadow(0 0 10px rgba(196,181,253,.55)); }
+.lb-tier-vet .lb-medal-emoji { filter: drop-shadow(0 0 10px rgba(154,220,255,.5)); }
+.lb-tier-adv .lb-medal-emoji { filter: drop-shadow(0 3px 8px rgba(0,0,0,.65)); }
 
 /* Top-3 presence: grander medallions, stronger aura. */
-.lb-top1 .lb-medal { width: 4rem; }
-.lb-top1 .lb-medal-fb { font-size: 3.2rem; }
-.lb-top1 .lb-medal-img { width: 3.6rem; height: 3.6rem; }
+.lb-top1 .lb-medal { width: 4rem; height: 4rem; }
+.lb-top1 .lb-medal-emoji { font-size: 2.4rem; }
 .lb-top1 { box-shadow: 0 0 26px rgba(255,210,63,.22), 0 8px 24px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.1); }
-.lb-top2 .lb-medal { width: 3.6rem; }
-.lb-top2 .lb-medal-fb { font-size: 2.9rem; }
-.lb-top2 .lb-medal-img { width: 3.2rem; height: 3.2rem; }
+.lb-top2 .lb-medal { width: 3.7rem; height: 3.7rem; }
+.lb-top2 .lb-medal-emoji { font-size: 2.2rem; }
 .lb-top2 { box-shadow: 0 0 20px rgba(196,181,253,.2), 0 8px 22px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.09); }
 .lb-top3 { box-shadow: 0 0 16px rgba(154,220,255,.16), 0 6px 20px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.08); }
 .lb-top1 .lb-pos { color: var(--gold); border-color: rgba(255,210,63,.5); }
@@ -4623,9 +4625,32 @@ body.reduce-motion .quest-claim { animation: none; }
 /* Main column: identity row above the stat grid. */
 .lb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.5rem; }
 .lb-row .lb-identity { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: row; align-items: center; gap: 0.6rem; }
-.lb-row .lb-avatar { font-size: 1.5rem; width: 2.6rem; height: 2.6rem; }
+/* Player avatar: framed portrait tile — sharp, centered, proportioned. */
+.lb-row .lb-avatar {
+  flex: none; width: 2.9rem; height: 2.9rem;
+  display: grid; place-items: center;
+  font-size: 1.6rem; line-height: 1;
+  border-radius: 12px;
+  background: radial-gradient(circle at 35% 28%, rgba(255,255,255,.12), rgba(0,0,0,.42) 70%);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), 0 3px 8px rgba(0,0,0,.45);
+}
+/* Top hero gets a gold frame instead of a scale pop (no overlap). */
+.lb-row.lb-top1 .lb-avatar {
+  transform: none;
+  border-color: rgba(255,210,63,.65);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 0 12px rgba(255,210,63,.35);
+}
 .lb-idtext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
-.lb-row .lb-name { font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Identity line: meta icons (flag/badge/class/guild) keep their width; only
+   the username truncates — nothing overlaps or clips its decorations. */
+.lb-row .lb-name {
+  font-size: 0.98rem; font-weight: 700;
+  display: flex; align-items: baseline; gap: 0.4rem; min-width: 0;
+}
+.lb-name-meta { flex: none; white-space: nowrap; }
+.lb-name-user { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-row .lb-you { flex: none; }
 .lb-tier {
   flex: none; margin-left: auto;
   font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
@@ -4685,17 +4710,14 @@ body.reduce-motion .quest-claim { animation: none; }
 
 @media (max-width: 640px) {
   .lb-row { gap: 0.55rem; padding: 0.55rem 0.6rem; }
-  .lb-medal { width: 2.7rem; }
-  .lb-medal-fb { font-size: 2.1rem; }
-  .lb-medal-img { width: 2.4rem; height: 2.4rem; }
-  .lb-top1 .lb-medal { width: 3.3rem; }
-  .lb-top1 .lb-medal-fb { font-size: 2.6rem; }
-  .lb-top1 .lb-medal-img { width: 2.9rem; height: 2.9rem; }
-  .lb-top2 .lb-medal { width: 3rem; }
-  .lb-top2 .lb-medal-fb { font-size: 2.35rem; }
-  .lb-top2 .lb-medal-img { width: 2.65rem; height: 2.65rem; }
+  .lb-medal { width: 2.8rem; height: 2.8rem; }
+  .lb-medal-emoji { font-size: 1.7rem; }
+  .lb-top1 .lb-medal { width: 3.4rem; height: 3.4rem; }
+  .lb-top1 .lb-medal-emoji { font-size: 2.1rem; }
+  .lb-top2 .lb-medal { width: 3.1rem; height: 3.1rem; }
+  .lb-top2 .lb-medal-emoji { font-size: 1.9rem; }
   .lb-stats { grid-template-columns: repeat(3, 1fr); }
-  .lb-row .lb-avatar { width: 2.2rem; height: 2.2rem; font-size: 1.3rem; }
+  .lb-row .lb-avatar { width: 2.4rem; height: 2.4rem; font-size: 1.35rem; border-radius: 10px; }
 }
 body.reduce-motion .lb-row.me-row::after { animation: none; }
 body.reduce-motion .lb-row { transition: none; }
