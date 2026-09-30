@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js?v=20260930u';
 import * as Engine from './engine.js?v=20260930u';
-import { UI, esc, formatNum } from './ui.js?v=20260930z';
+import { UI, esc, formatNum } from './ui.js?v=20260930aa';
 import { Auth } from './auth.js?v=20260930y';
 import { GM } from './gm.js?v=20260930x';
 
@@ -1375,6 +1375,7 @@ function doTap() {
   s.stats.taps += 1;
   heroStrike(Engine.computeStats(s), Engine.tapDamageMult(s, App.tapCombo, frenzy));
   UI.updateCombo(App.tapCombo, frenzy, App.frenzyUntil - now);
+  UI.tapFeedback();
   checkAch();
 }
 

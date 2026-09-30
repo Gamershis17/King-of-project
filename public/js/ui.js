@@ -2691,6 +2691,28 @@ export const UI = {
   },
 
   // Tap combo meter (clicker mode). frenzyMsLeft > 0 while frenzy is active.
+  // Tap-button tactile feedback: expanding ripple ring + subtle haptic.
+  // Presentation only; the damage number itself is already floated by
+  // damageEnemy via floatText, so no value is rendered here (no doubles).
+  // The ripple span is removed on animationend, with a timeout fallback so
+  // it can never linger if the animation event doesn't fire.
+  tapFeedback() {
+    const btn = this.els['tap-btn'];
+    if (!btn || btn.disabled) return;
+    try {
+      const reduceMotion = document.body.classList.contains('reduce-motion') ||
+        document.body.classList.contains('os-reduced');
+      if (!reduceMotion) {
+        const r = document.createElement('span');
+        r.className = 'tap-ripple';
+        r.addEventListener('animationend', () => r.remove());
+        btn.appendChild(r);
+        setTimeout(() => r.remove(), 600);
+      }
+      if (navigator.vibrate) navigator.vibrate(8);
+    } catch { /* feedback must never break the tap */ }
+  },
+
   updateCombo(combo, frenzy, frenzyMsLeft = 0) {
     const el = this.els['combo-meter'];
     if (!el) return;

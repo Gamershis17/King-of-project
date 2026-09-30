@@ -15,7 +15,7 @@
 // ============================================================
 import { Audio } from './audio.js?v=20260930u';
 import { setGuildPerks } from './engine.js?v=20260930u';
-import { UI } from './ui.js?v=20260930z';
+import { UI } from './ui.js?v=20260930aa';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({
