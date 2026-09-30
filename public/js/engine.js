@@ -364,6 +364,18 @@ export const CLASSES = {
     perks: ['+40% crit damage', '+10% dodge', '+5% attack speed'],
     critDmgBonus: 40, dodgeBonus: 10, atkSpdBonus: 0.05,
   },
+  necromancer: {
+    name: 'Necromancer', emoji: '💀',
+    desc: 'Master of death. Every fallen enemy feeds your dark power.',
+    perks: ['+15% attack', '+10% crit damage', '−10% max HP'],
+    atkMult: 1.15, critDmgBonus: 10, hpMult: 0.90,
+  },
+  berserker: {
+    name: 'Berserker', emoji: '🩸',
+    desc: 'Unstoppable rage. Hits like a siege engine, defends like one too.',
+    perks: ['+30% attack', '+10% attack speed', '−15% defense'],
+    atkMult: 1.30, atkSpdBonus: 0.10, defMult: 0.85,
+  },
 };
 export function classDef(id) { return CLASSES[id] || null; }
 
@@ -480,7 +492,7 @@ export function defaultState(race) {
     country: null,    // ISO-3166 country code (e.g. 'US') — flag shown on leaderboard
     infGold: false,   // owner-only perk: infinite gold (purchases never deduct)
     restedUntil: 0,
-    playerClass: null, // permanent class choice: hunter|warrior|mage|assassin (null = not chosen)
+    playerClass: null, // permanent class choice: hunter|warrior|mage|assassin|necromancer|berserker (null = not chosen)
     spec: null,       // permanent specialization: tank|dps|healer|classic (null = not chosen)
     pets: { collection: [], activeUid: null, eggs: 0 }, // pet system (all players)
     mine: { depth: 1, rockHp: 30, rockMaxHp: 30, ores: {} }, // mining (backfilled by ensureMine)
