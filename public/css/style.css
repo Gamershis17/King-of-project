@@ -4003,6 +4003,91 @@ body:is(.perf, .os-reduced) .float-txt {
   0%, 100% { background-position: 110% 0; }
   50% { background-position: -10% 0; }
 }
+/* ---- staff-exclusive name effects ---- */
+.pname.fx-gavelstrike {
+  background-image:
+    radial-gradient(circle, #ffdf80 0 1.2px, transparent 2px),
+    linear-gradient(100deg, #4a2400 0%, #ff9d2e 30%, #ffe9a8 50%, #ff9d2e 70%, #4a2400 100%);
+  background-size: 20px 20px, 260% 100%;
+  background-position: 0 0, 110% 0;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 12px rgba(255, 160, 50, .55);
+  animation: pname-gavelstrike 4s ease-in-out infinite;
+}
+@keyframes pname-gavelstrike {
+  0%, 100% { background-position: 0 0, 110% 0; }
+  50% { background-position: 10px 10px, -10% 0; }
+}
+.pname.fx-allseeing {
+  background-image:
+    linear-gradient(135deg, #0a0618 0%, #2a1060 40%, #7a3cff 50%, #2a1060 60%, #0a0618 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 16px rgba(140, 80, 255, .65);
+  animation: pname-allseeing 5s ease-in-out infinite;
+}
+@keyframes pname-allseeing {
+  0%, 100% { background-position: 100% 0; text-shadow: 0 0 10px rgba(140, 80, 255, .4); }
+  50% { background-position: 0% 0; text-shadow: 0 0 20px rgba(160, 100, 255, .8); }
+}
+.pname.fx-worldforge {
+  background-image:
+    radial-gradient(circle, #a8fff0 0 1.2px, transparent 2px),
+    linear-gradient(100deg, #00332c 0%, #14d8b8 30%, #d8fff6 50%, #14d8b8 70%, #00332c 100%);
+  background-size: 22px 22px, 260% 100%;
+  background-position: 0 0, -10% 0;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 12px rgba(40, 220, 190, .55);
+  animation: pname-worldforge 4.5s linear infinite;
+}
+@keyframes pname-worldforge {
+  0% { background-position: 0 0, -10% 0; }
+  100% { background-position: 22px 22px, 110% 0; }
+}
+.pname.fx-archlight {
+  background-image:
+    linear-gradient(100deg, #5a6a7a 0%, #cfe6ff 25%, #ffffff 50%, #cfe6ff 75%, #5a6a7a 100%);
+  background-size: 240% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 10px rgba(200, 225, 255, .5);
+  animation: pname-archlight 3.5s linear infinite;
+}
+@keyframes pname-archlight {
+  0% { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+.pname.fx-shadowcrown {
+  background-image:
+    radial-gradient(circle at 60% 40%, #8a2be2 0%, transparent 45%),
+    linear-gradient(135deg, #000000 0%, #2a0a3a 40%, #7a2bd8 50%, #2a0a3a 60%, #000000 100%);
+  background-size: 42px 42px, 280% 100%;
+  background-position: 0 0, 100% 0;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 14px rgba(150, 60, 220, .6);
+  animation: pname-shadowcrown 6s ease-in-out infinite;
+}
+@keyframes pname-shadowcrown {
+  0%, 100% { background-position: 0 0, 100% 0; }
+  50% { background-position: 21px 21px, 0% 0; }
+}
+.pname.fx-everflame {
+  background-image:
+    linear-gradient(100deg, #6a6a72 0%, #e8e8f0 30%, #ffffff 50%, #e8e8f0 70%, #6a6a72 100%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  text-shadow: 0 0 14px rgba(240, 240, 255, .6), 0 0 28px rgba(180, 180, 220, .3);
+  animation: pname-everflame 7s ease-in-out infinite;
+}
+@keyframes pname-everflame {
+  0%, 100% { background-position: 110% 0; }
+  50% { background-position: -10% 0; }
+}
 /* Perf / reduced-motion: freeze the motion, keep the color. */
 body:is(.perf, .os-reduced) .pname,
 body:is(.perf, .os-reduced) .title-glow,
