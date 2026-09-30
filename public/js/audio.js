@@ -209,7 +209,12 @@ export const Audio = {
         combatMusic: !p || p.combatMusic !== false,
       };
       this._applyGains();
-      if (track !== this._musicTrackId) this._switchTrack(track);
+      if (track !== this._musicTrackId) {
+        // While a boss fight owns the speakers, an explicit track change is
+        // remembered for after the fight instead of cutting the boss theme off.
+        if (this._combatOn) this._preCombatTrack = track;
+        else this._switchTrack(track);
+      }
       if (this._ctx) {
         if (this.prefs.music) this._startMusic();
         else this._stopMusic();

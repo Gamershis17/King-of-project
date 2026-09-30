@@ -1,17 +1,17 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930af';
-import * as Engine from './engine.js?v=20260930af';
-import { UI, esc, formatNum } from './ui.js?v=20260930af';
-import { Auth } from './auth.js?v=20260930af';
-import { GM } from './gm.js?v=20260930af';
+import { api } from './api.js?v=20260930ag';
+import * as Engine from './engine.js?v=20260930ag';
+import { UI, esc, formatNum } from './ui.js?v=20260930ag';
+import { Auth } from './auth.js?v=20260930ag';
+import { GM } from './gm.js?v=20260930ag';
 
-import { Raid } from './raid.js?v=20260930af';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930af';
-import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930af';
-import { Realm } from './realm.js?v=20260930af';
-import { Audio } from './audio.js?v=20260930af';
+import { Raid } from './raid.js?v=20260930ag';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930ag';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ag';
+import { Realm } from './realm.js?v=20260930ag';
+import { Audio } from './audio.js?v=20260930ag';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -145,6 +145,7 @@ async function boot() {
     onMpJoin: doMpJoin,
     onMpLeave: doMpLeave,
     onMpKick: doMpKick,
+    onMpPromote: doMpPromote,
     onMpDisband: doMpDisband,
     onMpCopy: doMpCopy,
     onMpRefresh: () => { loadMpParty(); },
@@ -795,6 +796,8 @@ function setSfxVolume(v) {
 function applyWorldMusic() {
   const s = App.state;
   if (!s || audioOf(s).followWorld === false) return;
+  // A boss fight owns the music: never let a world change stomp the boss theme.
+  if (App.enemy && App.enemy.boss && audioOf(s).combatMusic !== false) return;
   const world = Engine.worldForStage(s.stage);
   const track = (world.id === 'void-abyss' || world.id === 'throne-of-shadows') ? 'void-hymn' : 'shadow-requiem';
   if (audioOf(s).track !== track) {
@@ -829,6 +832,16 @@ function startGame() {
   UI.renderMore(App.state, App.user);
   UI.updateHUD(App.state, App.user);
   UI.showTab('battle');
+
+  // Periodic quest reset check: daily/weekly quest sets roll on UTC
+  // day/week keys inside Engine.ensureQuests, but nothing invoked it outside
+  // the Quests tab — a player grinding Battle across midnight kept stale
+  // quests until they opened the tab. Check at session start and every
+  // minute; on rollover, toast, refresh the tab if visible, and persist.
+  checkQuestReset();
+  App.questResetTimer = setInterval(() => {
+    try { checkQuestReset(); } catch { /* reset check must never stall the game */ }
+  }, 60000);
 
   // A single bad tick must never stall the game: contain the error, log it
   // (throttled so a persistent failure can't spam the console), and let the
@@ -1470,6 +1483,27 @@ function doClaimQuest(period, id) {
   saveNow();
 }
 
+// Timestamp-based quest reset check (UTC day / ISO week, matching the keys
+// Engine.ensureQuests rolls on). Compares keys before/after so the first-ever
+// init stays silent and only a real rollover notifies. No save-format change:
+// it reuses the existing quests.dailyKey / quests.weeklyKey fields.
+function checkQuestReset() {
+  const s = App.state;
+  if (!s || typeof s !== 'object') return;
+  const q0 = (s.quests && typeof s.quests === 'object') ? s.quests : {};
+  const d0 = q0.dailyKey, w0 = q0.weeklyKey;
+  Engine.ensureQuests(s); // safe to call often; re-rolls only on key change
+  const q1 = s.quests || {};
+  const dailyRolled = d0 && d0 !== q1.dailyKey;
+  const weeklyRolled = w0 && w0 !== q1.weeklyKey;
+  if (!dailyRolled && !weeklyRolled) return;
+  if (dailyRolled) UI.notify('quest', '☀️ A new day dawns — fresh daily quests await!', 'success');
+  if (weeklyRolled) UI.notify('quest', '📅 A new week begins — fresh weekly quests await!', 'success');
+  if (UI.activeTab === 'quests') { try { UI.renderQuests(s); } catch { /* ignore */ } }
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
 function doEnchant(id) {
   const s = App.state;
   if (!s) return;
@@ -1983,6 +2017,15 @@ async function doMpKick(userId) {
     App.mpParty = res.party;
     UI.toast('Member kicked.', 'info');
   } catch (e) { UI.toast(e.message || 'Could not kick member.', 'error'); }
+  renderPartyTab();
+}
+
+async function doMpPromote(userId) {
+  try {
+    const res = await api.partyPromote(Number(userId));
+    App.mpParty = res.party || (await api.partyGet()).party;
+    UI.toast('👑 Leadership transferred.', 'success');
+  } catch (e) { UI.toast(e.message || 'Could not promote member.', 'error'); }
   renderPartyTab();
 }
 

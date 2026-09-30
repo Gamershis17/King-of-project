@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930af';
-import { Audio } from './audio.js?v=20260930af';
+import * as Engine from './engine.js?v=20260930ag';
+import { Audio } from './audio.js?v=20260930ag';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -350,6 +350,7 @@ export const UI = {
       if (btn.dataset.action === 'mp-disband' && h.onMpDisband) h.onMpDisband();
       if (btn.dataset.action === 'mp-copy' && h.onMpCopy) h.onMpCopy();
       if (btn.dataset.action === 'mp-kick' && h.onMpKick) h.onMpKick(btn.dataset.id);
+      if (btn.dataset.action === 'mp-promote' && h.onMpPromote) h.onMpPromote(btn.dataset.id);
       if (btn.dataset.action === 'mp-join' && h.onMpJoin) {
         const input = document.getElementById('mp-join-code');
         h.onMpJoin(input ? input.value : '');
@@ -2923,12 +2924,14 @@ export const UI = {
     const hue = this.portraitHue(c.name);
     const initial = (c.name || '?').trim().charAt(0).toUpperCase();
     const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
+    const down = (c.hp || 0) <= 0;
+    const dot = `<span class="member-dot${down ? ' down' : ''}" aria-hidden="true"></span>`;
     const roleKind = (c && c.roleKind) || (Engine.companionRole && Engine.companionRole(c)) || 'dps';
     const roleLabel = ((Engine.COMPANION_ROLES || {})[roleKind] || {}).label || roleKind;
     const roleBadge = `<span class="role-badge role-${roleKind}">${roleLabel}</span>`;
     if (mini) {
       return `
-      <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
+      <div class="portrait${down ? ' down' : ''}" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${dot}${esc(initial)}</div>
       <div class="member-name">${esc(c.name)}</div>
       <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge}</div>
       <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
@@ -2938,7 +2941,7 @@ export const UI = {
     const tierCls = `tier-${String(tier).toLowerCase()}`;
     return `
       <div class="member-top">
-        <div class="portrait" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${esc(initial)}</div>
+        <div class="portrait${down ? ' down' : ''}" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${dot}${esc(initial)}</div>
         <div class="member-id">
           <div class="member-name">${esc(c.name)} <span class="lvl-badge">Lv ${c.level}</span></div>
           <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge} · <span class="tier-badge ${tierCls}">${esc(tier)}</span></div>
@@ -3331,20 +3334,32 @@ export const UI = {
     Engine.ensureStoryQuests(state);
     const cardHtml = (period, entry, progress, target, complete, def, rw, lockedHint) => {
       const pct = target > 0 ? Math.min(100, Math.round((progress / target) * 100)) : 0;
-      const status = entry.claimed
-        ? '<span class="quest-tag claimed">✓ Claimed</span>'
-        : complete ? '<span class="quest-tag ready">Ready!</span>' : '';
-      return `<div class="card quest-card" data-qcard="${period}:${entry.id}">
-        <div class="quest-top"><span>${def.emoji} <b>${esc(def.name)}</b></span>${status}</div>
-        <div class="muted small">${esc(def.desc(target))}</div>
-        ${lockedHint ? `<div class="muted small">🔒 ${esc(lockedHint)}</div>` : ''}
+      // Visual state drives the card's theme: active → complete → claimed,
+      // with locked as an overlay state for chained story quests.
+      const stateCls = entry.claimed ? 'is-claimed'
+        : complete ? 'is-complete'
+        : lockedHint ? 'is-locked' : 'is-active';
+      const pill = entry.claimed
+        ? '<span class="quest-pill claimed">✓ Claimed</span>'
+        : complete ? '<span class="quest-pill ready">Ready</span>'
+        : lockedHint ? '<span class="quest-pill locked">🔒 Locked</span>'
+        : '<span class="quest-pill active">Active</span>';
+      return `<div class="card quest-card ${stateCls}" data-qcard="${period}:${entry.id}">
+        <div class="quest-top">
+          <span class="quest-ico" aria-hidden="true">${def.emoji}</span>
+          <div class="quest-idt"><b>${esc(def.name)}</b>
+            <div class="quest-desc muted">${esc(def.desc(target))}</div>
+          </div>
+          ${pill}
+        </div>
+        ${lockedHint ? `<div class="quest-lock muted">🔒 ${esc(lockedHint)}</div>` : ''}
         <div class="quest-bar"><div class="quest-fill" data-qfill style="width:${pct}%"></div></div>
         <div class="quest-meta">
-          <span class="muted small" data-qtxt>${formatNum(Math.min(progress, target))} / ${formatNum(target)}</span>
-          <span class="muted small">💰${formatNum(rw.gold)} ⭐${rw.stars}</span>
+          <span class="muted" data-qtxt>${formatNum(Math.min(progress, target))} / ${formatNum(target)}</span>
+          <span class="quest-rw">💰${formatNum(rw.gold)} ⭐${rw.stars}</span>
         </div>
         ${entry.claimed ? '' : complete
-          ? `<button class="btn small gold wide" data-claim="${period}:${entry.id}">🎁 Claim reward</button>`
+          ? `<button class="quest-claim" data-claim="${period}:${entry.id}">🎁 Claim reward</button>`
           : ''}
       </div>`;
     };
@@ -3352,7 +3367,7 @@ export const UI = {
       const el = this.els[elId];
       if (!el) return;
       const list = period === 'weekly' ? state.quests.weekly : state.quests.daily;
-      el.innerHTML = `<div class="quest-head-row"><h3 class="quest-head">${title}</h3><span class="muted small" id="${cdId}"></span></div>` + (list || []).map((entry) => {
+      el.innerHTML = `<div class="quest-head-row"><h3 class="quest-head">${title}</h3><span class="quest-timer" id="${cdId}"></span></div>` + (list || []).map((entry) => {
         const { progress, target, complete, def } = Engine.questProgress(state, entry);
         if (!def) return '';
         const rw = Engine.questRewardPreview(state, period);
@@ -3512,36 +3527,43 @@ export const UI = {
         continue;
       }
       if (m.isNpc) {
+        const ownerIsMe = String(m.ownerUsername || '') === me;
         slots.push(`
-          <div class="mp-member mp-npc">
-            <div class="mp-avatar">${esc(m.emoji || '🛡️')}</div>
+          <div class="mp-member mp-npc${m.online ? '' : ' is-offline'}">
+            <div class="mp-avatar">${esc(m.emoji || '🛡️')}<span class="mp-dot" aria-hidden="true"></span></div>
             <div class="mp-info">
-              <div class="mp-name">${esc(m.name)} <span class="muted small">Lv ${m.level}</span></div>
-              <div class="muted small">NPC ally · ${esc(m.ownerUsername || '')}${m.online ? '' : ' · owner offline'}</div>
+              <div class="mp-name">${esc(m.name)} <span class="lvl-badge">Lv ${m.level}</span>${ownerIsMe ? ' <span class="mp-you">YOURS</span>' : ''}</div>
+              <div class="mp-sub">NPC ally · ${esc(m.ownerUsername || '')}${m.online ? '' : ' · <span class="mp-off">owner offline</span>'}</div>
             </div>
           </div>`);
         continue;
       }
       const race = (Engine.RACES && Engine.RACES[m.race]) || {};
       const cls = (Engine.CLASSES && Engine.CLASSES[m.playerClass]) || {};
-      const dot = m.online ? '🟢' : '⚪';
       const crown = m.isLeader ? ' 👑' : '';
       const flag = (Engine.countryFlag && Engine.countryFlag(m.country)) || '';
       const mTitleCls = this.titleClsFor({ activeTitle: m.activeTitle });
       const title = m.activeTitle ? `<div class="mp-title ${mTitleCls}">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
       const mIsMe = String(m.username) === me;
-      const kick = (isLeader && !mIsMe)
+      // Leader quick actions: promote to leader, or kick. Rendered as a
+      // compact action cluster on every manageable member card.
+      const canManage = isLeader && !mIsMe;
+      const promoteBtn = canManage
+        ? `<button class="btn small ghost icon-btn" data-action="mp-promote" data-id="${m.userId}" title="Promote ${esc(m.username)} to party leader">👑</button>`
+        : '';
+      const kickBtn = canManage
         ? `<button class="btn small ghost icon-btn" data-action="mp-kick" data-id="${m.userId}" title="Kick ${esc(m.username)}">✕</button>`
         : '';
+      const actions = (promoteBtn || kickBtn) ? `<div class="mp-actions">${promoteBtn}${kickBtn}</div>` : '';
       slots.push(`
-        <div class="mp-member">
-          <div class="mp-avatar">${race.emoji || '🛡️'}</div>
+        <div class="mp-member${mIsMe ? ' is-me' : ''}${m.online ? '' : ' is-offline'}${m.isLeader ? ' is-leader' : ''}">
+          <div class="mp-avatar">${race.emoji || '🛡️'}<span class="mp-dot" aria-hidden="true"></span></div>
           <div class="mp-info">
-            <div class="mp-name">${dot} ${this.nameHtml(m.username, mIsMe ? state : m)}${flag ? ' ' + flag : ''}${crown}</div>
+            <div class="mp-name">${this.nameHtml(m.username, mIsMe ? state : m)}${flag ? ' ' + flag : ''}${crown}${mIsMe ? ' <span class="mp-you">YOU</span>' : ''}</div>
             ${title}
-            <div class="muted small">Lv ${m.level} · Stage ${m.stage}${cls.name ? ' · ' + esc(cls.name) : ''}${m.online ? '' : ' · offline'}</div>
+            <div class="mp-sub">Lv ${m.level} · Stage ${m.stage}${cls.name ? ' · ' + esc(cls.name) : ''}${m.online ? '' : ' · <span class="mp-off">offline</span>'}</div>
           </div>
-          ${kick}
+          ${actions}
         </div>`);
     }
     card.innerHTML = `
@@ -3556,7 +3578,8 @@ export const UI = {
       </div>
       <div class="mp-members">${slots.join('')}</div>
       <div class="mp-controls">
-        <button class="btn small ghost" data-action="mp-leave">🚪 Leave party</button>
+        <button class="btn small ghost" data-action="mp-copy">📋 Invite</button>
+        <button class="btn small ghost" data-action="mp-leave">🚪 Leave</button>
         ${isLeader ? `<button class="btn small danger" data-action="mp-disband">💥 Disband</button>` : ''}
       </div>`;
   },
@@ -3929,6 +3952,15 @@ export const UI = {
     const cat = this.LB_CATS[by] || this.LB_CATS[this.lbCategory] || this.LB_CATS.level;
     const note = this.els['lb-note'];
     if (note) note.textContent = `Top heroes by ${cat.label.toLowerCase()}.`;
+    // Own-standing banner: "You rank #N" at a glance.
+    const meBar = document.getElementById('lb-me');
+    const meRank = entries.findIndex((en) => en.username === meUsername);
+    if (meBar) {
+      if (meRank >= 0) {
+        meBar.classList.remove('hidden');
+        meBar.innerHTML = `<span class="lb-me-crown">👑</span> You rank <b>#${meRank + 1}</b> of ${entries.length} heroes by ${cat.label.toLowerCase()}`;
+      } else meBar.classList.add('hidden');
+    }
     const body = this.els['lb-body'];
     if (!body) return;
     body.innerHTML = '';
@@ -3936,10 +3968,18 @@ export const UI = {
       body.innerHTML = '<div class="lb-empty muted center">No heroes yet.</div>';
       return;
     }
+    // Placement tiers: top 3 get named sovereign tiers, then elite / veteran /
+    // adventurer bands. Drives the tier badge + row ornament scaling.
+    const tierFor = (i) => i === 0 ? ['sov', 'Sovereign']
+      : i === 1 ? ['sov2', 'Sovereign']
+      : i === 2 ? ['sov3', 'Sovereign']
+      : i < 10 ? ['elite', 'Elite']
+      : i < 25 ? ['vet', 'Veteran'] : ['adv', 'Adventurer'];
     const medals = ['🥇', '🥈', '🥉'];
     entries.forEach((en, i) => {
+      const [tierCls, tierName] = tierFor(i);
       const row = document.createElement('div');
-      row.className = 'lb-row lb-clickable' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      row.className = 'lb-row lb-clickable lb-tier-' + tierCls + (i < 3 ? ' lb-top' + (i + 1) : '');
       row.dataset.username = en.username || '';
       row.title = 'Inspect ' + (en.username || '');
       const isMe = en.username === meUsername;
@@ -3958,8 +3998,8 @@ export const UI = {
       const guildTag = en.guildTag
         ? `<span class="lb-guildtag" title="Guild: ${esc(en.guildTag)}">[${esc(en.guildTag)}]</span> ` : '';
       const rankHtml = medals[i]
-        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}</div>`
-        : `<div class="lb-rank">${i + 1}</div>`;
+        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}<span class="lb-tier tier-${tierCls}">${tierName}</span></div>`
+        : `<div class="lb-rank"><span class="lb-pos">#${i + 1}</span><span class="lb-tier tier-${tierCls}">${tierName}</span></div>`;
       row.innerHTML = `
         ${rankHtml}
         <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
@@ -3992,12 +4032,17 @@ export const UI = {
       return;
     }
     const medals = ['🥇', '🥈', '🥉'];
+    const gtierFor = (i) => i < 3 ? ['sov', 'Sovereign'] : i < 10 ? ['elite', 'Elite'] : i < 25 ? ['vet', 'Veteran'] : ['adv', 'Adventurer'];
+    // Hide the hero standing banner on the guild board.
+    const meBar = document.getElementById('lb-me');
+    if (meBar) meBar.classList.add('hidden');
     guilds.forEach((g, i) => {
+      const [tierCls, tierName] = gtierFor(i);
       const row = document.createElement('div');
-      row.className = 'lb-row guild-row' + (i < 3 ? ' lb-top' + (i + 1) : '');
+      row.className = 'lb-row guild-row lb-tier-' + tierCls + (i < 3 ? ' lb-top' + (i + 1) : '');
       const rankHtml = medals[i]
-        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}</div>`
-        : `<div class="lb-rank">${i + 1}</div>`;
+        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}<span class="lb-tier tier-${tierCls}">${tierName}</span></div>`
+        : `<div class="lb-rank"><span class="lb-pos">#${i + 1}</span><span class="lb-tier tier-${tierCls}">${tierName}</span></div>`;
       row.innerHTML = `
         ${rankHtml}
         <div class="lb-avatar" aria-hidden="true">🏰</div>

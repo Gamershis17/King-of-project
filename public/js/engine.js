@@ -953,11 +953,14 @@ function questMetric(state, metric) {
     case 'forge': {
       const f = state.forge || {};
       let n = (f.weapon ? 1 : 0) + (f.armor ? 1 : 0);
-      // Enchanting any gear to +1 also counts as "forging ahead".
+      // Enchanting any gear to +1 also counts as "forging ahead". Count every
+      // enchanted piece (not just "any exists") so the metric keeps climbing
+      // as you enchant more — otherwise a veteran whose snapshot already
+      // includes an enchanted item could never move the counter again.
       const slots = state.equipped || {};
       const inv = Array.isArray(state.inventory) ? state.inventory : [];
       const items = [...Object.values(slots), ...inv];
-      if (items.some((it) => it && Number(it.enchant) > 0)) n += 1;
+      n += items.filter((it) => it && Number(it.enchant) > 0).length;
       return n;
     }
     default: return 0;

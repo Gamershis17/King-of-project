@@ -66,6 +66,7 @@ export const api = {
   partyJoin: (code) => post('/api/party/join', { code }),
   partyLeave: () => post('/api/party/leave', {}),
   partyKick: (userId) => post('/api/party/kick', { userId }),
+  partyPromote: (userId) => post('/api/party/promote', { userId }),
   partyDisband: () => post('/api/party/disband', {}),
 
   // Player inspect (public gameplay profile)
