@@ -28,7 +28,7 @@ const {
 } = require('./src/db');
 const { authRouter } = require('./src/auth');
 const { gameRouter } = require('./src/gameApi');
-onst { gmRouter } = require('./src/gmApi');
+const { gmRouter } = require('./src/gmApi');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
