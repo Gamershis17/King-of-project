@@ -182,19 +182,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_uidx ON friendships (pair_key
 -- once per minute per user (see touchLastActive in src/db.js); the friends
 -- list treats "active within 5 minutes" as online.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active BIGINT NOT NULL DEFAULT 0;
-
--- Multi-hero support (2026-09-30): up to 3 heroes per account. The ACTIVE
--- hero's save stays in player_state (unchanged); parked heroes live here.
--- users.active_slot records which slot is active (0 = the original hero).
-CREATE TABLE IF NOT EXISTS hero_storage (
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  slot INTEGER NOT NULL CHECK (slot >= 0 AND slot < 3),
-  level INTEGER NOT NULL DEFAULT 1,
-  stage INTEGER NOT NULL DEFAULT 1,
-  bosses_killed INTEGER NOT NULL DEFAULT 0,
-  rebirth_count INTEGER NOT NULL DEFAULT 0,
-  state_json TEXT NOT NULL DEFAULT '{}',
-  updated_at BIGINT NOT NULL,
-  PRIMARY KEY (user_id, slot)
-);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS active_slot INTEGER NOT NULL DEFAULT 0;
