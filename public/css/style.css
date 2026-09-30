@@ -2148,7 +2148,13 @@ body[data-bgstyle="winter-night"] #bg-canvas,
 body[data-bgstyle="hallows-eve"] #bg-canvas,
 body[data-bgstyle="new-year"] #bg-canvas,
 body[data-bgstyle="summer-tide"] #bg-canvas,
-body[data-bgstyle="spring-bloom"] #bg-canvas { display: block; }
+body[data-bgstyle="spring-bloom"] #bg-canvas,
+body[data-bgstyle="class-hunter"] #bg-canvas,
+body[data-bgstyle="class-warrior"] #bg-canvas,
+body[data-bgstyle="class-mage"] #bg-canvas,
+body[data-bgstyle="class-assassin"] #bg-canvas,
+body[data-bgstyle="class-necromancer"] #bg-canvas,
+body[data-bgstyle="class-berserker"] #bg-canvas { display: block; }
 body[data-bgstyle="shadow-eyes"] { --bg: #050308; background-image: none; }
 body[data-bgstyle="orbs"] { --bg: #0a0812; background-image: none; }
 body[data-bgstyle="ember-drift"] { --bg: #0d0505; background-image: none; }
@@ -2170,6 +2176,12 @@ body[data-bgstyle="hallows-eve"] { --bg: #12060f; background-image: none; }
 body[data-bgstyle="new-year"] { --bg: #0d0a04; background-image: none; }
 body[data-bgstyle="summer-tide"] { --bg: #061014; background-image: none; }
 body[data-bgstyle="spring-bloom"] { --bg: #0a120c; background-image: none; }
+body[data-bgstyle="class-hunter"] { --bg: #0a120c; background-image: none; }
+body[data-bgstyle="class-warrior"] { --bg: #140806; background-image: none; }
+body[data-bgstyle="class-mage"] { --bg: #0e0a1a; background-image: none; }
+body[data-bgstyle="class-assassin"] { --bg: #060a14; background-image: none; }
+body[data-bgstyle="class-necromancer"] { --bg: #08120c; background-image: none; }
+body[data-bgstyle="class-berserker"] { --bg: #140606; background-image: none; }
 body[data-bgstyle="shadow-eyes"]::before, body[data-bgstyle="shadow-eyes"]::after,
 body[data-bgstyle="orbs"]::before, body[data-bgstyle="orbs"]::after,
 body[data-bgstyle="ember-drift"]::before, body[data-bgstyle="ember-drift"]::after,
@@ -2190,7 +2202,13 @@ body[data-bgstyle="winter-night"]::before, body[data-bgstyle="winter-night"]::af
 body[data-bgstyle="hallows-eve"]::before, body[data-bgstyle="hallows-eve"]::after,
 body[data-bgstyle="new-year"]::before, body[data-bgstyle="new-year"]::after,
 body[data-bgstyle="summer-tide"]::before, body[data-bgstyle="summer-tide"]::after,
-body[data-bgstyle="spring-bloom"]::before, body[data-bgstyle="spring-bloom"]::after {
+body[data-bgstyle="spring-bloom"]::before, body[data-bgstyle="spring-bloom"]::after,
+body[data-bgstyle="class-hunter"]::before, body[data-bgstyle="class-hunter"]::after,
+body[data-bgstyle="class-warrior"]::before, body[data-bgstyle="class-warrior"]::after,
+body[data-bgstyle="class-mage"]::before, body[data-bgstyle="class-mage"]::after,
+body[data-bgstyle="class-assassin"]::before, body[data-bgstyle="class-assassin"]::after,
+body[data-bgstyle="class-necromancer"]::before, body[data-bgstyle="class-necromancer"]::after,
+body[data-bgstyle="class-berserker"]::before, body[data-bgstyle="class-berserker"]::after {
   display: none;
 }
 /* Scene option controls (Settings → Background) */
