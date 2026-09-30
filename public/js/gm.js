@@ -1,9 +1,9 @@
 // ============================================================
 // gm.js — GM console UI. Only opened for staff roles.
 // ============================================================
-import { api } from './api.js';
-import { UI, esc, formatNum } from './ui.js';
-import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js';
+import { api } from './api.js?v=20260930d';
+import { UI, esc, formatNum } from './ui.js?v=20260930d';
+import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v=20260930d';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
@@ -41,6 +41,17 @@ export const GM = {
     const isGm = canGm(this.me.role);
 
     // Quick-jump chips in the sticky target bar: smooth-scroll to each section.
+    // The sticky GM header + sticky target bar would otherwise cover the
+    // jumped-to section, so measure both and offset via scroll-margin; the
+    // target bar also parks just under the header instead of sliding beneath it.
+    const gmHeader = document.querySelector('#view-gm .gm-header');
+    const gmTarget = root.querySelector('.gm-target');
+    const hdrH = gmHeader ? gmHeader.offsetHeight : 0;
+    if (gmTarget && hdrH) gmTarget.style.top = hdrH + 'px';
+    const jumpOffset = hdrH + (gmTarget ? gmTarget.offsetHeight : 0) + 12;
+    root.querySelectorAll('[id^="gm-sec-"]').forEach((sec) => {
+      sec.style.scrollMarginTop = jumpOffset + 'px';
+    });
     root.querySelectorAll('[data-goto]').forEach((chip) => {
       chip.addEventListener('click', () => {
         const el = document.getElementById(chip.dataset.goto);
