@@ -267,6 +267,23 @@ export const GM = {
       return `👑 Granted title "${t ? t.name : titleId}" to ${username}.`;
     }));
 
+    // ---- grant every title at once (gm) ----
+    on('gm-grant-all-titles-btn', 'click', async () => {
+      const username = needTarget();
+      if (!username) return;
+      const ok = await UI.confirm('Grant all titles?',
+        `<p>Unlock all <b>${TITLES.length}</b> titles for <b>${esc(username)}</b>?</p>`);
+      if (!ok) return;
+      runAction('gm-grant-all-titles-btn', 'Grant all titles', async () => {
+        let res = null;
+        for (const t of TITLES) {
+          res = await api.gmGrantTitle(username, t.id);
+        }
+        await hotReloadIfSelf(username, res);
+        return `👑 Granted all ${TITLES.length} titles to ${username}.`;
+      });
+    });
+
     on('gm-grant-badge-btn', 'click', () => runAction('gm-grant-badge-btn', 'Set badge', async () => {
       const username = needTarget();
       if (!username) return null;
@@ -434,6 +451,19 @@ export const GM = {
       await api.gmMute(username, 0);
       return `🔈 ${username} unmuted.`;
     }));
+
+    // ---- clear the target's guild chat history (owner/admin/gm) ----
+    on('gm-clear-chat-btn', 'click', async () => {
+      const username = needTarget();
+      if (!username) return;
+      const ok = await confirmDestructive('🧹 Clear guild chat?',
+        `<p>Wipe the <b>entire message history</b> of <b>${esc(username)}</b>'s guild?</p><p class="muted">The guild itself is untouched. This cannot be undone.</p>`, 'Wipe it');
+      if (!ok) return;
+      runAction('gm-clear-chat-btn', 'Clear guild chat', async () => {
+        const res = await api.gmClearGuildChat(username);
+        return `🧹 Cleared ${res.removed} chat message${res.removed === 1 ? '' : 's'} from ${username}'s guild.`;
+      });
+    });
 
     on('gm-player-reset-btn', 'click', async () => {
       const username = needTarget();
@@ -707,6 +737,26 @@ export const GM = {
       return `✨ ${username}'s equipped ${slot} (${res.item}) → +${lv}.`;
     }));
 
+    // ---- enchant every equipped piece to +10 (skips empty slots) ----
+    on('gm-enchant-all-btn', 'click', () => runAction('gm-enchant-all-btn', 'Enchant all', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const slots = ['weapon', 'armor', 'helmet', 'boots', 'trinket'];
+      const done = [];
+      let res = null;
+      for (const slot of slots) {
+        try {
+          res = await api.gmSetEnchant(username, { slot }, 10);
+          done.push(slot);
+        } catch (e) {
+          // Empty slot — leave it alone and keep going.
+        }
+      }
+      await hotReloadIfSelf(username, res);
+      if (!done.length) throw new Error(`${username} has nothing equipped.`);
+      return `✨ ${username}'s equipped gear → +10 (${done.join(', ')}).`;
+    }));
+
     // ---- quest re-roll ----
     on('gm-quest-reset-btn', 'click', () => runAction('gm-quest-reset-btn', 'Re-roll quests', async () => {
       const username = needTarget();
@@ -898,6 +948,10 @@ export const GM = {
           <button id="gm-grant-title-btn" class="btn small" style="align-self:flex-end">👑 Grant title</button>
         </div>
         <div class="row">
+          <span class="muted small" style="align-self:center">…or unlock the whole collection at once:</span>
+          <button id="gm-grant-all-titles-btn" class="btn small" style="align-self:flex-end">👑 Grant all titles</button>
+        </div>
+        <div class="row">
           <label class="fld"><span>Creator badge</span><select id="gm-grant-badge">${badgeOptions}</select></label>
           <button id="gm-grant-badge-btn" class="btn small" style="align-self:flex-end">▶️ Set badge</button>
         </div>
@@ -961,6 +1015,7 @@ export const GM = {
           <label class="fld"><span>Enchant level (0–10)</span>
             <input id="gm-enchant-level" type="number" min="0" max="10" value="10"></label>
           <button id="gm-enchant-btn" class="btn small" style="align-self:flex-end">✨ Set enchant</button>
+          <button id="gm-enchant-all-btn" class="btn small" style="align-self:flex-end">✨ Enchant all +10</button>
         </div>
       </div>
       ` : ''}
@@ -1011,6 +1066,10 @@ export const GM = {
             <input id="gm-player-mute-mins" type="number" min="0" max="10080" value="60"></label>
           <button id="gm-player-mute-btn" class="btn small" style="align-self:flex-end">🔇 Mute</button>
           <button id="gm-player-unmute-btn" class="btn small" style="align-self:flex-end">🔈 Unmute</button>
+        </div>
+        <div class="row" style="margin-top:0.6rem">
+          <span class="muted small" style="align-self:center;flex:1;min-width:220px">🧹 Wipe the message history of the target's guild. The guild itself is untouched — for spam raids.</span>
+          <button id="gm-clear-chat-btn" class="btn small danger" style="align-self:flex-end">🧹 Clear guild chat</button>
         </div>
         <div class="row" style="margin-top:0.6rem">
           <label class="fld"><span>Reset quests</span>

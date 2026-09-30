@@ -96,6 +96,7 @@ export const api = {
   gmSetXp: (username, amount) => post('/api/gm/set-xp', { username, amount }),
   gmGrantItem: (username, set, slot) => post('/api/gm/grant-item', { username, set, slot }),
   gmMute: (username, minutes) => post('/api/gm/mute', { username, minutes }),
+  gmClearGuildChat: (username) => post('/api/gm/clear-guild-chat', { username }),
   gmNameStyle: (username, color, fx) => post('/api/gm/name-style', { username, color, fx }),
   gmInspect: (username) => post('/api/gm/inspect', { username }),
   gmAudit: () => request('/api/gm/audit'),
