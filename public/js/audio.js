@@ -8,9 +8,10 @@
 // Rules:
 //  - The AudioContext is created lazily on the first user gesture
 //    (browsers block audio before that) and resumed on later ones.
-//  - Preferences live in the game state (s.audio = { sfx, music }):
-//    SFX default ON, music default OFF (opt-in). app.js syncs them
-//    here via Audio.sync() whenever state loads or a toggle flips.
+//  - Preferences live in the game state (s.audio = { sfx, music, track,
+//    followWorld, combatMusic, musicVol, sfxVol }): SFX default ON, music
+//    default OFF (opt-in), volumes default 0.5. app.js syncs them here via
+//    Audio.sync() whenever state loads or a toggle flips.
 //  - Everything is wrapped in try/catch: if WebAudio is unavailable
 //    or fails, all calls silently no-op and the game keeps running.
 // ============================================================
@@ -21,8 +22,8 @@ const THROTTLE_MS = {
   claim: 400, guild: 400, skill: 250,
 };
 
-const SFX_VOLUME = 0.22;   // master SFX gain
-const MUSIC_VOLUME = 0.10; // master music gain (subtle)
+const SFX_MAX = 0.44;    // SFX gain at 100% slider (default 50% ≈ 0.22)
+const MUSIC_MAX = 0.20;  // music gain at 100% slider (default 50% ≈ 0.10)
 
 // Generative music tracks. Each track is a slow pad progression + sparse
 // plucks; the scheduler reads the active track so switching is seamless.
@@ -96,6 +97,30 @@ const TRACKS = {
     pluckScale: [523.25, 587.33, 659.25, 783.99, 880.0], // high, icy
     pluckGap: [5.0, 11.0],
   },
+  'dread-sovereign': {
+    name: 'Dread Sovereign',
+    chords: [
+      [41.2, 82.41, 98.0],      // Em:  E1 E2 G2 (sub-bass weight)
+      [32.7, 65.41, 82.41],     // C:   C1 C2 E2
+      [46.25, 92.5, 110.0],     // F#:  F#1 F#2 A2
+      [30.87, 61.74, 73.42],    // Bm:  B0 B1 D2 (crushing low)
+    ],
+    chordSecs: 6,
+    pluckScale: [164.81, 196.0, 246.94, 293.66, 329.63], // E minor, low-mid
+    pluckGap: [1.5, 4.0],
+  },
+  'starfall-drift': {
+    name: 'Starfall Drift',
+    chords: [
+      [220.0, 261.63, 329.63],  // Am:  A3 C4 E4 (airy)
+      [174.61, 220.0, 261.63],  // F:   F3 A3 C4
+      [196.0, 246.94, 293.66],  // G:   G3 B3 D4
+      [164.81, 196.0, 246.94],  // Em:  E3 G3 B3
+    ],
+    chordSecs: 10,
+    pluckScale: [440.0, 523.25, 587.33, 659.25, 783.99, 880.0], // high shimmer
+    pluckGap: [3.0, 8.0],
+  },
 };
 export const MUSIC_TRACKS = Object.keys(TRACKS);
 export const MUSIC_TRACK_NAMES = Object.fromEntries(
@@ -115,7 +140,9 @@ export const Audio = {
   _musicPluckAt: 0,
   _musicTrackId: DEFAULT_TRACK,
   _inited: false,
-  prefs: { sfx: true, music: false, track: DEFAULT_TRACK },
+  _combatOn: false,
+  _preCombatTrack: null,
+  prefs: { sfx: true, music: false, track: DEFAULT_TRACK, musicVol: 0.5, sfxVol: 0.5, combatMusic: true },
 
   // ---- lifecycle -------------------------------------------------
 
@@ -155,10 +182,10 @@ export const Audio = {
         if (!AC) return false;
         this._ctx = new AC();
         this._sfxGain = this._ctx.createGain();
-        this._sfxGain.gain.value = SFX_VOLUME;
+        this._sfxGain.gain.value = this.prefs.sfxVol * SFX_MAX;
         this._sfxGain.connect(this._ctx.destination);
         this._musicGain = this._ctx.createGain();
-        this._musicGain.gain.value = MUSIC_VOLUME;
+        this._musicGain.gain.value = this.prefs.musicVol * MUSIC_MAX;
         this._musicGain.connect(this._ctx.destination);
       }
       if (this._ctx.state === 'suspended') this._ctx.resume();
@@ -177,7 +204,11 @@ export const Audio = {
         sfx: !p || p.sfx !== false,
         music: !!(p && p.music),
         track,
+        musicVol: this._clampVol(p && p.musicVol),
+        sfxVol: this._clampVol(p && p.sfxVol),
+        combatMusic: !p || p.combatMusic !== false,
       };
+      this._applyGains();
       if (track !== this._musicTrackId) this._switchTrack(track);
       if (this._ctx) {
         if (this.prefs.music) this._startMusic();
@@ -185,6 +216,49 @@ export const Audio = {
       }
       // SFX off kills the inn ambience too.
       if (!this.prefs.sfx) this.stopInnAmbience();
+    } catch { /* ignore */ }
+  },
+
+  _clampVol(v) {
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5;
+  },
+
+  _applyGains() {
+    try {
+      if (this._sfxGain) this._sfxGain.gain.value = this.prefs.sfxVol * SFX_MAX;
+      if (this._musicGain) this._musicGain.gain.value = this.prefs.musicVol * MUSIC_MAX;
+    } catch { /* ignore */ }
+  },
+
+  // Independent volume controls (0..1). Apply live if the context exists.
+  setMusicVolume(v) {
+    this.prefs.musicVol = this._clampVol(v);
+    this._applyGains();
+  },
+
+  setSfxVolume(v) {
+    this.prefs.sfxVol = this._clampVol(v);
+    this._applyGains();
+  },
+
+  // Combat music: boss fights temporarily switch to the Dread Sovereign
+  // theme, then restore the previous track — unless the player picked a
+  // different track mid-fight, in which case their choice sticks.
+  setCombat(on) {
+    try {
+      if (on && !this._combatOn) {
+        if (this.prefs.combatMusic === false) return;
+        this._combatOn = true;
+        this._preCombatTrack = this.prefs.track;
+        this.setTrack('dread-sovereign');
+      } else if (!on && this._combatOn) {
+        this._combatOn = false;
+        if (this._musicTrackId === 'dread-sovereign') {
+          const back = this._preCombatTrack && TRACKS[this._preCombatTrack] ? this._preCombatTrack : DEFAULT_TRACK;
+          this.setTrack(back);
+        }
+        this._preCombatTrack = null;
+      }
     } catch { /* ignore */ }
   },
 

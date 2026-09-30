@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930u';
-import { Audio } from './audio.js?v=20260930u';
+import * as Engine from './engine.js?v=20260930ac';
+import { Audio } from './audio.js?v=20260930ac';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -99,7 +99,7 @@ const SETTINGS_KEY = 'rpg-idle-settings';
 export const UI = {
   handlers: {},
   els: {},
-  settings: { damageNumbers: true, reduceMotion: false, performanceMode: false, bgFps: 30, bgHd: false },
+  settings: { damageNumbers: true, reduceMotion: false, performanceMode: false, bgFps: 30, bgHd: false, atmosphere: 'clear', weatherSync: false, gfx: 'hd' },
   activeTab: 'battle',
 
   // Null-safe cached element lookup: falls back to a live query when the
@@ -191,6 +191,12 @@ export const UI = {
     if (!document.body.dataset.uistyle) document.body.dataset.uistyle = 'modern';
     document.body.classList.toggle('reduce-motion', !!this.settings.reduceMotion);
     document.body.classList.toggle('perf', !!this.settings.performanceMode);
+    // Graphics fidelity tier on <html>.
+    try { this.applyGfx(); } catch { /* never break boot */ }
+    // Immersion: circadian palette, seasonal tint, weather overlay.
+    // Re-check every 15 min so long sessions cross into night correctly.
+    try { this.syncEnvironment(); } catch { /* never break boot */ }
+    if (!this._envTimer) this._envTimer = setInterval(() => { try { this.syncEnvironment(); } catch {} }, 15 * 60 * 1000);
     // OS reduced-motion auto-enables the visual parts of Performance mode
     // even when the toggle is off (body.os-reduced shares the perf CSS).
     const osReduced = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -216,7 +222,7 @@ export const UI = {
       'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
       'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
-      'set-dmgnums', 'set-motion', 'set-perf', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
+      'set-dmgnums', 'set-motion', 'set-perf', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-combat-music', 'set-music-vol', 'set-sfx-vol', 'set-notif-level', 'set-notif-death', 'set-atmosphere', 'set-weathersync',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
       'share-btn', 'changelog-btn', 'changelog-badge', 'changelog-hud', 'changelog-badge-hud',
@@ -546,6 +552,14 @@ export const UI = {
       this.saveSetting('performanceMode', e.target.checked);
       this.applyPerfMode();
     });
+    // Immersion: atmosphere picker + opt-in real-weather sync.
+    if (this.els['set-atmosphere']) this.els['set-atmosphere'].value = this.settings.atmosphere || 'clear';
+    listen('set-atmosphere', 'change', (e) => this.setAtmosphere(e.target.value));
+    if (this.els['set-weathersync']) this.els['set-weathersync'].checked = !!this.settings.weatherSync;
+    listen('set-weathersync', 'change', (e) => {
+      this.saveSetting('weatherSync', e.target.checked);
+      if (e.target.checked) this.maybeSyncWeather();
+    });
     // Audio prefs live on the game state (per player / guest save), not in
     // localStorage — app.js syncs the checkboxes via applyAudioPrefs().
     listen('set-sfx', 'change', (e) => this.handlers.onSfx && this.handlers.onSfx(e.target.checked));
@@ -553,6 +567,12 @@ export const UI = {
     // Music track picker + world-follow toggle (Settings).
     listen('set-music-track', 'change', (e) => this.handlers.onMusicTrack && this.handlers.onMusicTrack(e.target.value));
     listen('set-follow-world', 'change', (e) => this.handlers.onFollowWorld && this.handlers.onFollowWorld(e.target.checked));
+    // Boss-fight music toggle (Settings).
+    listen('set-combat-music', 'change', (e) => this.handlers.onCombatMusic && this.handlers.onCombatMusic(e.target.checked));
+    // Independent volume sliders: live 'input' so the change is audible
+    // while dragging; guarded the same as the other audio controls.
+    listen('set-music-vol', 'input', (e) => this.handlers.onMusicVolume && this.handlers.onMusicVolume(e.target.value / 100));
+    listen('set-sfx-vol', 'input', (e) => this.handlers.onSfxVolume && this.handlers.onSfxVolume(e.target.value / 100));
     // Notification toggles (Settings → Notifications): delegate to the app,
     // which persists them on the game state save.
     for (const cat of ['level', 'death', 'loot', 'quest']) {
@@ -592,6 +612,17 @@ export const UI = {
       });
     }
     this._syncBgQualitySegs();
+    // Graphics quality segmented control (Settings → SD/HD/4K fidelity).
+    const gfxSeg = document.getElementById('gfx-seg');
+    if (gfxSeg) {
+      gfxSeg.querySelectorAll('button').forEach((b) => {
+        b.addEventListener('click', () => {
+          this.saveSetting('gfx', ['sd', 'hd', '4k'].includes(b.dataset.gfx) ? b.dataset.gfx : 'hd');
+          this.applyGfx();
+        });
+      });
+    }
+    this._syncGfxSeg();
 
     // Custom button / background pickers (Settings)
     this._renderStylePickers();
@@ -622,11 +653,101 @@ export const UI = {
     if (this._bg && this._bg.scene) this.setBgScene(this._bg.scene, this._bg.opts);
   },
 
+  // Graphics profile (SD / HD / 4K): fidelity tiers on <html>.
+  // SD strips shadows/blurs via CSS; HD is the default look; 4K deepens
+  // glow tokens. Visual-only — game logic and tick rate untouched.
+  applyGfx() {
+    const g = ['sd', 'hd', '4k'].includes(this.settings.gfx) ? this.settings.gfx : 'hd';
+    const root = document.documentElement;
+    root.classList.toggle('gfx-sd', g === 'sd');
+    root.classList.toggle('gfx-hd', g === 'hd');
+    root.classList.toggle('gfx-4k', g === '4k');
+    this._syncGfxSeg();
+  },
+
+  _syncGfxSeg() {
+    const g = this.settings.gfx || 'hd';
+    const seg = document.getElementById('gfx-seg');
+    if (seg) seg.querySelectorAll('button').forEach((b) =>
+      b.classList.toggle('active', b.dataset.gfx === g));
+  },
+
   // True when the perf visuals should apply: user toggle OR the OS
   // prefers-reduced-motion setting (which auto-enables the visual parts).
   _perfVisual() {
     return !!this.settings.performanceMode ||
       (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  },
+
+  // ---------------- immersion: time, season, weather ----------------
+  // Reads the device clock (no network, no permission): late-night hours
+  // get the circadian palette, the month picks a seasonal tint. Weather
+  // comes from the manual atmosphere picker, or from Open-Meteo when
+  // weatherSync is enabled (opt-in, geolocation-gated, fail-silent).
+  // Re-run cheaply on a timer; class toggles are no-ops when unchanged.
+  syncEnvironment() {
+    const d = new Date(), h = d.getHours(), m = d.getMonth();
+    document.body.classList.toggle('env-night', h >= 22 || h < 6);
+    const season = (m <= 1 || m === 11) ? 'winter' : (m <= 4 ? 'spring' : (m <= 7 ? 'summer' : 'autumn'));
+    for (const s of ['winter', 'spring', 'summer', 'autumn']) document.body.classList.toggle('env-' + s, s === season);
+    this._applyAtmosphere();
+    this.maybeSyncWeather();
+  },
+
+  _applyAtmosphere() {
+    let tint = document.getElementById('season-tint');
+    if (!tint) {
+      tint = document.createElement('div');
+      tint.id = 'season-tint';
+      tint.className = 'season-tint';
+      tint.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(tint);
+    }
+    let ov = document.getElementById('env-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'env-overlay';
+      ov.className = 'env-overlay';
+      ov.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(ov);
+    }
+    const a = this.settings.atmosphere || 'clear';
+    ov.className = 'env-overlay' + (a !== 'clear' ? ' on env-' + a : '');
+    const sel = this.els['set-atmosphere'];
+    if (sel && sel.value !== a) sel.value = a;
+  },
+
+  setAtmosphere(id) {
+    const ok = ['clear', 'rain', 'fog', 'ash'].includes(id) ? id : 'clear';
+    this.saveSetting('atmosphere', ok);
+    this._applyAtmosphere();
+  },
+
+  // Opt-in real weather. Caches 30 min; any failure (denied permission,
+  // offline, bad response) silently keeps the manual atmosphere.
+  async maybeSyncWeather() {
+    if (!this.settings.weatherSync) return;
+    const now = Date.now();
+    if (this._wxAt && now - this._wxAt < 30 * 60 * 1000) return;
+    if (!navigator.geolocation) return;
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000, maximumAge: 3600000 }));
+      const { latitude: lat, longitude: lon } = pos.coords;
+      const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&current=weather_code&timezone=auto`);
+      if (!r.ok) return;
+      const j = await r.json();
+      const atm = this._wxCodeToAtmosphere(j && j.current && j.current.weather_code);
+      if (atm) { this._wxAt = now; this.setAtmosphere(atm); }
+    } catch { /* keep manual atmosphere */ }
+  },
+
+  _wxCodeToAtmosphere(code) {
+    if (code == null) return null;
+    if (code === 45 || code === 48) return 'fog';
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99)) return 'rain';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'ash'; // snow → drifting particles
+    return 'clear';
   },
 
   // ---------------- views & tabs ----------------
@@ -828,6 +949,12 @@ export const UI = {
     }
     const fw = this.els['set-follow-world'];
     if (fw) fw.checked = !p || p.followWorld !== false;
+    const cm = this.els['set-combat-music'];
+    if (cm) cm.checked = !p || p.combatMusic !== false;
+    const mv = this.els['set-music-vol'];
+    if (mv) mv.value = Math.round(((p && p.musicVol) ?? 0.5) * 100);
+    const sv = this.els['set-sfx-vol'];
+    if (sv) sv.value = Math.round(((p && p.sfxVol) ?? 0.5) * 100);
   },
 
   // ---------------- pause-while-browsing ----------------

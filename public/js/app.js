@@ -1,16 +1,16 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930u';
-import * as Engine from './engine.js?v=20260930u';
-import { UI, esc, formatNum } from './ui.js?v=20260930aa';
-import { Auth } from './auth.js?v=20260930y';
-import { GM } from './gm.js?v=20260930x';
+import { api } from './api.js?v=20260930ac';
+import * as Engine from './engine.js?v=20260930ac';
+import { UI, esc, formatNum } from './ui.js?v=20260930ac';
+import { Auth } from './auth.js?v=20260930ac';
+import { GM } from './gm.js?v=20260930ac';
 
-import { Raid } from './raid.js?v=20260930u';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930u';
-import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930u';
-import { Audio } from './audio.js?v=20260930u';
+import { Raid } from './raid.js?v=20260930ac';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930ac';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ac';
+import { Audio } from './audio.js?v=20260930ac';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -240,6 +240,9 @@ async function boot() {
     onMusic: setMusic,
     onMusicTrack: setMusicTrack,
     onFollowWorld: setFollowWorld,
+    onCombatMusic: setCombatMusic,
+    onMusicVolume: setMusicVolume,
+    onSfxVolume: setSfxVolume,
     onNotifPref: (cat, val) => {
       const s = App.state;
       if (!s) return;
@@ -701,11 +704,15 @@ function setNameFx(fx) {
 function audioOf(s) {
   const a = s && s.audio;
   const track = (a && typeof a.track === 'string' && Audio.MUSIC_TRACKS.includes(a.track)) ? a.track : 'shadow-requiem';
+  const vol = (v) => Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5;
   return {
     sfx: !a || a.sfx !== false,
     music: !!(a && a.music),
     track,
     followWorld: !a || a.followWorld !== false, // default ON: worlds pick the music
+    combatMusic: !a || a.combatMusic !== false, // default ON: bosses get their theme
+    musicVol: vol(a && a.musicVol),
+    sfxVol: vol(a && a.sfxVol),
   };
 }
 function applyAudioPrefs() {
@@ -715,6 +722,12 @@ function applyAudioPrefs() {
   const musEl = UI.el('set-music');
   if (sfxEl) sfxEl.checked = p.sfx;
   if (musEl) musEl.checked = p.music;
+  const mvEl = UI.el('set-music-vol');
+  if (mvEl) mvEl.value = Math.round(p.musicVol * 100);
+  const svEl = UI.el('set-sfx-vol');
+  if (svEl) svEl.value = Math.round(p.sfxVol * 100);
+  const cmEl = UI.el('set-combat-music');
+  if (cmEl) cmEl.checked = p.combatMusic;
   UI.syncMusicPrefs(p);
 }
 function setSfx(on) {
@@ -746,6 +759,33 @@ function setFollowWorld(on) {
   s.audio = { ...audioOf(s), followWorld: !!on };
   if (on) applyWorldMusic();
   applyAudioPrefs();
+  saveNow();
+}
+// Boss-fight music: temporarily switches to the Dread Sovereign theme while
+// a boss is up (Audio restores the previous track after). Toggleable.
+function setCombatMusic(on) {
+  const s = App.state;
+  if (!s) return;
+  s.audio = { ...audioOf(s), combatMusic: !!on };
+  applyAudioPrefs();
+  if (!on) Audio.setCombat(false);
+  else if (App.enemy) Audio.setCombat(!!App.enemy.boss);
+  saveNow();
+}
+function setMusicVolume(v) {
+  const s = App.state;
+  if (!s) return;
+  const vol = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5;
+  s.audio = { ...audioOf(s), musicVol: vol };
+  Audio.setMusicVolume(vol);
+  saveNow();
+}
+function setSfxVolume(v) {
+  const s = App.state;
+  if (!s) return;
+  const vol = Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0.5;
+  s.audio = { ...audioOf(s), sfxVol: vol };
+  Audio.setSfxVolume(vol);
   saveNow();
 }
 // Worlds pick the music: Void Abyss and Throne of Shadows get the Void Hymn,
@@ -859,6 +899,8 @@ function spawnEnemy() {
   // revive downed companions on a fresh enemy
   for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
+  // Boss-fight music: Dread Sovereign while a boss is up, restore after.
+  try { if (audioOf(s).combatMusic !== false) Audio.setCombat(!!(App.enemy && App.enemy.boss)); } catch {}
   // reset the live damage meter for this fight — but keep the last fight's
   // numbers around so one-tap kills show a real DPS instead of 0.
   if (App.meter) App.lastMeter = meterSnapshot();
