@@ -2,8 +2,8 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930j';
-import * as Engine from './engine.js?v=20260930i';
-import { UI, esc, formatNum } from './ui.js?v=20260930f';
+import * as Engine from './engine.js?v=20260930k';
+import { UI, esc, formatNum } from './ui.js?v=20260930k';
 import { Auth } from './auth.js?v=20260930f';
 import { GM } from './gm.js?v=20260930j';
 import { Raid } from './raid.js?v=20260930f';
@@ -491,9 +491,10 @@ async function continueBoot(state, lastSeenAt) {
   startGame();
 }
 
-// Staff titles: unlock the tiers matching the account's staff role at boot
-// (owner → owner+admin+gm, admin → admin+gm, gm → gm). Idempotent; the
-// titles themselves can never auto-unlock via checkTitles().
+// Staff titles + name effects: unlock the tiers matching the account's staff
+// role at boot (owner → owner+admin+gm, admin → admin+gm, gm → gm).
+// Idempotent; the titles/effects themselves can never auto-unlock via
+// checkTitles() or the token shop.
 function grantStaffTitles() {
   const s = App.state;
   const role = App.user && App.user.role;
@@ -507,6 +508,13 @@ function grantStaffTitles() {
   for (const t of (Engine.STAFF_TITLES || [])) {
     if (tiers.includes(t.staffRole) && !s.titlesUnlocked.includes(t.id)) {
       s.titlesUnlocked.push(t.id);
+      added++;
+    }
+  }
+  const fx = Engine.ensureFxUnlocked(s);
+  for (const f of (Engine.STAFF_NAME_FX || [])) {
+    if (tiers.includes(f.staffRole) && !fx.includes(f.id)) {
+      fx.push(f.id);
       added++;
     }
   }
@@ -645,6 +653,11 @@ function setNameFx(fx) {
   // Token-exclusive effects must be bought in the Token Shop first.
   if (fx !== 'none' && Engine.TOKEN_NAME_FX.some(f => f.id === fx) && !Engine.fxIsUnlocked(s, fx)) {
     UI.toast('🔒 Buy this effect in the 🌀 Token Shop first!', 'warn');
+    return;
+  }
+  // Staff-exclusive effects are granted automatically by staff role at boot.
+  if (fx !== 'none' && Engine.STAFF_NAME_FX.some(f => f.id === fx) && !Engine.fxIsUnlocked(s, fx)) {
+    UI.toast('🔒 Staff-only effect.', 'warn');
     return;
   }
   s.nameFx = fx;

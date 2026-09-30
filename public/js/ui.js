@@ -1584,10 +1584,12 @@ export const UI = {
       const all = [
         ...this.NAME_FX,
         ...Engine.TOKEN_NAME_FX.map(f => ({ ...f, token: true })),
+        ...Engine.STAFF_NAME_FX.map(f => ({ ...f, staff: true })),
       ];
       fel.innerHTML = all.map((f) => {
-        const locked = f.token && !unlocked.includes(f.id);
-        return `<button type="button" class="btn fx-btn${locked ? ' fx-locked' : ''}" data-fx="${f.id}"${locked ? ' title="Token Shop exclusive"' : ''}>${locked ? '🔒 ' : ''}${f.name}</button>`;
+        const locked = (f.token || f.staff) && !unlocked.includes(f.id);
+        const lockNote = f.staff ? 'Staff only' : 'Token Shop exclusive';
+        return `<button type="button" class="btn fx-btn${locked ? ' fx-locked' : ''}" data-fx="${f.id}"${locked ? ` title="${lockNote}"` : ''}>${locked ? '🔒 ' : ''}${f.name}</button>`;
       }).join('');
       fel.querySelectorAll('.fx-btn').forEach((b) => {
         b.addEventListener('click', () => { if (this.handlers.onNameFx) this.handlers.onNameFx(b.dataset.fx); });

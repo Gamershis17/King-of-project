@@ -2565,12 +2565,24 @@ export const TOKEN_NAME_FX = [
   { id: 'throneflame', name: '👑 Throneflame' },
 ];
 
+// Staff-exclusive name effects (visual CSS classes .pname.fx-<id>).
+// staffOnly: never sold or auto-unlocked; granted at boot by staff role
+// (owner → all, admin → admin+gm, gm → gm), mirroring STAFF_TITLES.
+export const STAFF_NAME_FX = [
+  { id: 'gavelstrike', name: '🔨 Gavelstrike', desc: 'Staff only. Judgement, rendered in molten gold.', staffOnly: true, staffRole: 'gm' },
+  { id: 'allseeing',   name: '👁️ All-Seeing',  desc: 'Staff only. Nothing escapes this gaze.',          staffOnly: true, staffRole: 'gm' },
+  { id: 'worldforge',  name: '🌍 Worldforge',  desc: 'Staff only. The world, hammered into shape.',     staffOnly: true, staffRole: 'admin' },
+  { id: 'archlight',   name: '📐 Archlight',   desc: 'Staff only. Drawn in lines of cold light.',       staffOnly: true, staffRole: 'admin' },
+  { id: 'shadowcrown', name: '👑 Shadowcrown', desc: 'Staff only. The throne casts a long shadow.',     staffOnly: true, staffRole: 'owner' },
+  { id: 'everflame',   name: '♾️ Everflame',    desc: 'Staff only. It has always burned. It always will.', staffOnly: true, staffRole: 'owner' },
+];
+
 // Name effects free for everyone (everything in the old picker).
 export const BASE_NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice',
   'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist',
   'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks',
   'champagne', 'midnight'];
-export const ALL_NAME_FX_IDS = [...BASE_NAME_FX_IDS, ...TOKEN_NAME_FX.map(f => f.id)];
+export const ALL_NAME_FX_IDS = [...BASE_NAME_FX_IDS, ...TOKEN_NAME_FX.map(f => f.id), ...STAFF_NAME_FX.map(f => f.id)];
 
 // Backfill for old saves: everyone owns the free effects; token ones are
 // only added by buyTokenItem().
