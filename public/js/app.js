@@ -4,7 +4,7 @@
 import { api } from './api.js?v=20260930j';
 import * as Engine from './engine.js?v=20260930k';
 import { UI, esc, formatNum } from './ui.js?v=20260930k';
-import { Auth } from './auth.js?v=20260930f';
+import { Auth } from './auth.js?v=20260930l';
 import { GM } from './gm.js?v=20260930j';
 import { Raid } from './raid.js?v=20260930f';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930f';
@@ -271,6 +271,11 @@ async function boot() {
   // Quest live-sync reads state through this (avoids a bare global).
   UI.setStateProvider(() => App.state);
 
+  // Bind the auth form NOW, not after the server gate: the auth screen is
+  // already visible from the static HTML, and a tap before the gate finishes
+  // would natively submit the form (full page reload) instead of logging in.
+  Auth.init({ onAuthed: (u) => enterApp(u), onGuest: (n) => enterGuest(n) });
+
   // Maintenance / reachability gate: check the server before anything else.
   // Retries briefly so a deploy/restart window shows as "updating", not dead.
   const gate = await serverGate();
@@ -283,6 +288,10 @@ async function boot() {
   } catch (e) {
     if (e.status !== 401) UI.toast('Could not reach the server.', 'error');
   }
+
+  // Someone may already have logged in (or entered as guest) while the gate
+  // was running — don't yank them back to the auth screen or boot twice.
+  if (App.user) return;
 
   if (!user) {
     showAuthView();
@@ -371,17 +380,27 @@ async function openUpgradeModal() {
   });
 }
 
+// Re-entry guard: the auth form is bound before the server gate finishes, so
+// a login submitted during the gate can overlap boot's own post-gate entry.
+let _enterAppActive = false;
 async function enterApp(user) {
-  let raw, lastSeenAt;
+  if (_enterAppActive) return;
+  if (App.user && App.state && App.user.username === user.username) return;
+  _enterAppActive = true;
   try {
-    const res = await api.getState();
-    raw = res.state; lastSeenAt = res.lastSeenAt;
-  } catch (e) {
-    showAuthView();
-    UI.toast('Session expired — please log in again.', 'error');
-    return;
+    let raw, lastSeenAt;
+    try {
+      const res = await api.getState();
+      raw = res.state; lastSeenAt = res.lastSeenAt;
+    } catch (e) {
+      showAuthView();
+      UI.toast('Session expired — please log in again.', 'error');
+      return;
+    }
+    await enterAppWithState(user, raw, lastSeenAt);
+  } finally {
+    _enterAppActive = false;
   }
-  await enterAppWithState(user, raw, lastSeenAt);
 }
 
 // Guest entry: no server calls at all. State comes from localStorage

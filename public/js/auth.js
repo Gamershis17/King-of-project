@@ -11,6 +11,11 @@ export const Auth = {
   init({ onAuthed, onGuest }) {
     this.onAuthed = onAuthed;
     this.onGuest = onGuest;
+    // Idempotent: boot() binds the form immediately (the auth screen renders
+    // from static HTML before the server gate finishes) and showAuthView()
+    // binds again once the gate completes.
+    if (this._bound) return;
+    this._bound = true;
 
     const tabLogin = document.getElementById('auth-tab-login');
     const tabRegister = document.getElementById('auth-tab-register');
