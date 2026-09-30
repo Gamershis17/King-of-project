@@ -17,6 +17,15 @@ const AUTOSAVE_MS = 15000;
 const ENEMY_ATTACK_S = 2.0;
 const RESPAWN_MS = 3000;
 
+// Null-safe input value read: returns '' when the field is absent instead
+// of throwing inside a click/submit handler.
+function inputVal(id) {
+  const el = document.getElementById(id);
+  return el ? String(el.value || '') : '';
+}
+// Throttle stamp for contained tick errors (module scope: one loop only).
+let _lastTickErrAt = 0;
+
 const App = {
   user: null,
   state: null,
@@ -358,10 +367,10 @@ async function openUpgradeModal() {
         label: 'Create & keep progress', cls: 'gold',
         onClick: async (close) => {
           const errBox = document.getElementById(errId);
-          const showErr = (m) => { errBox.textContent = m; errBox.classList.remove('hidden'); };
-          const username = document.getElementById('upgrade-username').value.trim();
-          const password = document.getElementById('upgrade-password').value;
-          const confirm = document.getElementById('upgrade-password2').value;
+          const showErr = (m) => { if (errBox) { errBox.textContent = m; errBox.classList.remove('hidden'); } };
+          const username = inputVal('upgrade-username').trim();
+          const password = inputVal('upgrade-password');
+          const confirm = inputVal('upgrade-password2');
           if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) return showErr('Username: 3–20 chars, letters/numbers/underscore.');
           if (password.length < 8) return showErr('Password must be at least 8 characters.');
           if (password !== confirm) return showErr('Passwords do not match.');
@@ -702,8 +711,8 @@ function audioOf(s) {
 function applyAudioPrefs() {
   const p = audioOf(App.state);
   Audio.sync(p);
-  const sfxEl = document.getElementById('set-sfx');
-  const musEl = document.getElementById('set-music');
+  const sfxEl = UI.el('set-sfx');
+  const musEl = UI.el('set-music');
   if (sfxEl) sfxEl.checked = p.sfx;
   if (musEl) musEl.checked = p.music;
   UI.syncMusicPrefs(p);
@@ -759,9 +768,11 @@ function startGame() {
   applyCustomStyles();
   applyAudioPrefs();
   // Guest chrome: upgrade card + exit label instead of logout.
-  document.getElementById('guest-upgrade-card').classList.toggle('hidden', !isGuest());
-  document.getElementById('logout-btn').textContent = isGuest() ? '🚪 Exit guest session' : 'Logout';
-  const upBtn = document.getElementById('guest-upgrade-btn');
+  const upgradeCard = UI.el('guest-upgrade-card');
+  if (upgradeCard) upgradeCard.classList.toggle('hidden', !isGuest());
+  const logoutBtn = UI.el('logout-btn');
+  if (logoutBtn) logoutBtn.textContent = isGuest() ? '🚪 Exit guest session' : 'Logout';
+  const upBtn = UI.el('guest-upgrade-btn');
   if (upBtn) upBtn.addEventListener('click', openUpgradeModal);
   // Character sheet: tap the top hero panel (.hud-id) or the battle hero
   // panel (.hero-panel). Delegated so it survives HUD re-renders.
@@ -777,7 +788,19 @@ function startGame() {
   UI.updateHUD(App.state, App.user);
   UI.showTab('battle');
 
-  App.tickTimer = setInterval(tick, TICK_MS);
+  // A single bad tick must never stall the game: contain the error, log it
+  // (throttled so a persistent failure can't spam the console), and let the
+  // next tick proceed as normal.
+  App.tickTimer = setInterval(() => {
+    try { tick(); }
+    catch (err) {
+      const now = Date.now();
+      if (now - _lastTickErrAt > 10000) {
+        _lastTickErrAt = now;
+        try { console.error('[app] tick error (contained, loop continues):', err); } catch { /* logging must never throw */ }
+      }
+    }
+  }, TICK_MS);
   App.saveTimer = setInterval(() => saveNow(), AUTOSAVE_MS);
   App.statusTimer = setInterval(() => pollMaintenance(), 60000);
   pollBroadcast();
@@ -1174,7 +1197,7 @@ function respawn() {
 // keeps the 2%/s rest-heal running while everything else stays frozen).
 function computePaused() {
   if (!App.started) return false;
-  const appView = document.getElementById('view-app');
+  const appView = UI.el('view-app');
   if (!appView || appView.classList.contains('hidden')) return true;
   if (UI.anyModalOpen()) return true;
   return UI.activeTab !== 'battle';
@@ -2037,8 +2060,7 @@ async function doRebirth() {
 
 async function doRedeem() {
   if (isGuest()) { promptUpgrade('gift codes'); return; }
-  const input = document.getElementById('redeem-input');
-  const code = (input.value || '').trim().toUpperCase();
+  const code = inputVal('redeem-input').trim().toUpperCase();
   if (!code) { UI.toast('Enter a gift code.', 'error'); return; }
   try {
     const res = await api.redeem(code);
