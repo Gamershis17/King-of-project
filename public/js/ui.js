@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930f';
-import { Audio } from './audio.js?v=20260930f';
+import * as Engine from './engine.js?v=20260930m';
+import { Audio } from './audio.js?v=20260930m';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -1584,7 +1584,7 @@ export const UI = {
       const all = [
         ...this.NAME_FX,
         ...Engine.TOKEN_NAME_FX.map(f => ({ ...f, token: true })),
-        ...Engine.STAFF_NAME_FX.map(f => ({ ...f, staff: true })),
+        ...(Engine.STAFF_NAME_FX || []).map(f => ({ ...f, staff: true })),
       ];
       fel.innerHTML = all.map((f) => {
         const locked = (f.token || f.staff) && !unlocked.includes(f.id);
