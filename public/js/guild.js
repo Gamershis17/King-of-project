@@ -13,9 +13,9 @@
 // `api` may expose get(path)/post(path, body) helpers (like api.js), or
 // be omitted entirely — this module falls back to same-origin fetch.
 // ============================================================
-import { Audio } from './audio.js?v=20260930ag';
-import { setGuildPerks } from './engine.js?v=20260930ag';
-import { UI } from './ui.js?v=20260930ag';
+import { Audio } from './audio.js?v=20260930ai';
+import { setGuildPerks } from './engine.js?v=20260930ai';
+import { UI } from './ui.js?v=20260930ai';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({

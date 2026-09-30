@@ -1719,61 +1719,61 @@ export function buyGearItem(s, stockId) {
 // keeps high-level pet stats in sane ranges. Bond uses max(linear, 2% of
 // these stats) so it stays relevant at high level (see petBondFor).
 export const PET_SPECIES = {
-  cinderpup:   { name: 'Cinder Pup',   emoji: '🐶', rarity: 'common',    weight: 40, baseDmg: 8,  growth: 1.06,
+  cinderpup:   { name: 'Cinder Pup',   emoji: '🐶', icon: 'img/pets/cinderpup.webp', rarity: 'common',    weight: 40, baseDmg: 8,  growth: 1.06,
                  flavor: 'A loyal pup — always by your side, through every battle.', style: 'Loyal · balanced companion',
                  baseStats: { atk: 8,  def: 3,  hp: 50  }, bond: { atk: 2, def: 1, hp: 15 } },
-  frostsprite: { name: 'Frost Sprite', emoji: '🧚', rarity: 'magic',     weight: 28, baseDmg: 12, growth: 1.065,
+  frostsprite: { name: 'Frost Sprite', emoji: '🧚', icon: 'img/pets/frostsprite.webp', rarity: 'magic',     weight: 28, baseDmg: 12, growth: 1.065,
                  baseStats: { atk: 12, def: 2,  hp: 40  }, bond: { atk: 3, def: 0, hp: 10 } },
-  stormhawk:   { name: 'Storm Hawk',   emoji: '🦅', rarity: 'rare',      weight: 17, baseDmg: 18, growth: 1.07,
+  stormhawk:   { name: 'Storm Hawk',   emoji: '🦅', icon: 'img/pets/stormhawk.webp', rarity: 'rare',      weight: 17, baseDmg: 18, growth: 1.07,
                  baseStats: { atk: 16, def: 4,  hp: 55  }, bond: { atk: 2, def: 1, hp: 15 } },
-  emberfox:    { name: 'Ember Fox',    emoji: '🦊', rarity: 'epic',      weight: 10, baseDmg: 26, growth: 1.075,
+  emberfox:    { name: 'Ember Fox',    emoji: '🦊', icon: 'img/pets/emberfox.webp', rarity: 'epic',      weight: 10, baseDmg: 26, growth: 1.075,
                  baseStats: { atk: 22, def: 5,  hp: 65  }, bond: { atk: 3, def: 1, hp: 12 } },
-  tideturtle:  { name: 'Tide Turtle',  emoji: '🐢', rarity: 'legendary', weight: 5,  baseDmg: 38, growth: 1.08,
+  tideturtle:  { name: 'Tide Turtle',  emoji: '🐢', icon: 'img/pets/tideturtle.webp', rarity: 'legendary', weight: 5,  baseDmg: 38, growth: 1.08,
                  baseStats: { atk: 20, def: 12, hp: 120 }, bond: { atk: 1, def: 3, hp: 40 } },
   // Mythic line — hatchable from Mythic Eggs (rarely from wild eggs). Stronger
   // than anything below; priced to match (see EGG_TIERS).
-  stormdrake:   { name: 'Storm Drake',  emoji: '🐉', rarity: 'mythic',    weight: 2,   baseDmg: 46, growth: 1.085,
+  stormdrake:   { name: 'Storm Drake',  emoji: '🐉', icon: 'img/pets/stormdrake.webp', rarity: 'mythic',    weight: 2,   baseDmg: 46, growth: 1.085,
                  flavor: 'A young drake — every wingbeat smells of ozone and war.', style: 'Majestic · soaring strikes',
                  baseStats: { atk: 40, def: 10, hp: 100 }, bond: { atk: 3, def: 2, hp: 30 } },
-  prismhorn:    { name: 'Prismhorn',    emoji: '🦄', rarity: 'mythic',    weight: 1,   baseDmg: 52, growth: 1.09,
+  prismhorn:    { name: 'Prismhorn',    emoji: '🦄', icon: 'img/pets/prismhorn.webp', rarity: 'mythic',    weight: 1,   baseDmg: 52, growth: 1.09,
                  flavor: 'Its horn refracts the last light of dying stars.', style: 'Radiant · piercing strikes',
                  baseStats: { atk: 46, def: 12, hp: 110 }, bond: { atk: 4, def: 2, hp: 30 } },
   // Shadow line — Throne of Shadows natives, hatchable from Shadow Eggs
   // (rarely from wild eggs). Dark, loyal, and hungry for the light.
-  shadowwisp:   { name: 'Shadow Wisp',  emoji: '👻', rarity: 'shadow',    weight: 2,   baseDmg: 42, growth: 1.085,
+  shadowwisp:   { name: 'Shadow Wisp',  emoji: '👻', icon: 'img/pets/shadowwisp.webp', rarity: 'shadow',    weight: 2,   baseDmg: 42, growth: 1.085,
                  flavor: 'A whisper of the dark — it drinks the light around it.', style: 'Eerie · chilling strikes',
                  baseStats: { atk: 30, def: 10, hp: 95  }, bond: { atk: 2, def: 2, hp: 30 } },
-  gloomstalker: { name: 'Gloomstalker', emoji: '🐈‍⬛', rarity: 'shadow',   weight: 1.5, baseDmg: 48, growth: 1.085,
+  gloomstalker: { name: 'Gloomstalker', emoji: '🐈‍⬛', icon: 'img/pets/gloomstalker.webp', rarity: 'shadow',   weight: 1.5, baseDmg: 48, growth: 1.085,
                  flavor: 'You never see it move. You only see what it leaves behind.', style: 'Silent · ruthless strikes',
                  baseStats: { atk: 36, def: 9,  hp: 90  }, bond: { atk: 3, def: 1, hp: 25 } },
-  voidreaver:   { name: 'Void Reaver',  emoji: '💀', rarity: 'shadow',    weight: 1,   baseDmg: 56, growth: 1.09,
+  voidreaver:   { name: 'Void Reaver',  emoji: '💀', icon: 'img/pets/voidreaver.webp', rarity: 'shadow',    weight: 1,   baseDmg: 56, growth: 1.09,
                  flavor: 'It remembers every throne that fell — and how.', style: 'Dread · devastating strikes',
                  baseStats: { atk: 44, def: 12, hp: 110 }, bond: { atk: 3, def: 2, hp: 35 } },
   // Starlight line — celestial natives, hatchable from Starlight Eggs
   // (rarely from wild eggs). Born of dying stars; loyal to the light.
-  starwisp:    { name: 'Star Wisp',    emoji: '💫', rarity: 'celestial', weight: 2,   baseDmg: 42, growth: 1.085,
+  starwisp:    { name: 'Star Wisp',    emoji: '💫', icon: 'img/pets/starwisp.webp', rarity: 'celestial', weight: 2,   baseDmg: 42, growth: 1.085,
                  flavor: 'A spark that refused to go out — it chose you instead.', style: 'Bright · searing strikes',
                  baseStats: { atk: 30, def: 10, hp: 95  }, bond: { atk: 2, def: 2, hp: 30 } },
-  lunacub:     { name: 'Luna Cub',     emoji: '🐻‍❄️', rarity: 'celestial', weight: 1.5, baseDmg: 48, growth: 1.085,
+  lunacub:     { name: 'Luna Cub',     emoji: '🐻‍❄️', icon: 'img/pets/lunacub.webp', rarity: 'celestial', weight: 1.5, baseDmg: 48, growth: 1.085,
                  flavor: 'Raised under a moon that never sets.', style: 'Loyal · crushing strikes',
                  baseStats: { atk: 36, def: 9,  hp: 90  }, bond: { atk: 3, def: 1, hp: 25 } },
-  astraldrake: { name: 'Astral Drake', emoji: '🐲', rarity: 'celestial', weight: 1,   baseDmg: 56, growth: 1.09,
+  astraldrake: { name: 'Astral Drake', emoji: '🐲', icon: 'img/pets/astraldrake.webp', rarity: 'celestial', weight: 1,   baseDmg: 56, growth: 1.09,
                  flavor: 'It has seen the end of everything — and decided to fight beside you.', style: 'Cosmic · devastating strikes',
                  baseStats: { atk: 44, def: 12, hp: 110 }, bond: { atk: 3, def: 2, hp: 35 } },
   // Hunter starter beasts (not hatchable from eggs — starterOnly). Note: 🐺 is
   // taken by the Gloomfang Wolf enemy, so the wolf-ish slot uses 🦁 Lion.
   // Budget starter: the Ash Mouse is Stray-Egg-only (weight 0 keeps it out
   // of the wild-egg pool) — a cheap first pet for brand-new players.
-  ashmouse:   { name: 'Ash Mouse',   emoji: '🐁', rarity: 'common',    weight: 0,  baseDmg: 5,  growth: 1.055,
+  ashmouse:   { name: 'Ash Mouse',   emoji: '🐁', icon: 'img/pets/ashmouse.webp', rarity: 'common',    weight: 0,  baseDmg: 5,  growth: 1.055,
                  flavor: 'Small, scrappy, and first into the fray. Every legend starts somewhere.', style: 'Scrappy · eager starter',
                  baseStats: { atk: 5,  def: 2,  hp: 35  }, bond: { atk: 1, def: 1, hp: 10 } },
-  tiger: { name: 'Tiger', emoji: '🐯', rarity: 'common', weight: 0, baseDmg: 14, growth: 1.065,
+  tiger: { name: 'Tiger', emoji: '🐯', icon: 'img/pets/tiger.webp', rarity: 'common', weight: 0, baseDmg: 14, growth: 1.065,
            starterOnly: true, flavor: 'A fierce striker — hits hardest from the very first hunt.', style: 'Fierce · high base damage',
            baseStats: { atk: 14, def: 4, hp: 60 }, bond: { atk: 3, def: 1, hp: 15 } },
-  bear:  { name: 'Bear',  emoji: '🐻', rarity: 'common', weight: 0, baseDmg: 10, growth: 1.08,
+  bear:  { name: 'Bear',  emoji: '🐻', icon: 'img/pets/bear.webp', rarity: 'common', weight: 0, baseDmg: 10, growth: 1.08,
            starterOnly: true, flavor: 'A steady guardian — grows mightier with every level.', style: 'Steady · best late scaling',
            baseStats: { atk: 10, def: 8, hp: 90 }, bond: { atk: 1, def: 2, hp: 30 } },
-  lion:  { name: 'Lion',  emoji: '🦁', rarity: 'common', weight: 0, baseDmg: 12, growth: 1.065,
+  lion:  { name: 'Lion',  emoji: '🦁', icon: 'img/pets/lion.webp', rarity: 'common', weight: 0, baseDmg: 12, growth: 1.065,
            starterOnly: true, flavor: 'A keen hunter — swift, sharp, and sure.', style: 'Keen · balanced strikes',
            baseStats: { atk: 12, def: 5, hp: 70 }, bond: { atk: 2, def: 1, hp: 20 } },
 };

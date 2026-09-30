@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930ag';
-import { Audio } from './audio.js?v=20260930ag';
+import * as Engine from './engine.js?v=20260930ai';
+import { Audio } from './audio.js?v=20260930ai';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -366,9 +366,26 @@ export const UI = {
     });
     // Pets tab: delegated pet + breeding actions
     listen('tab-pets', 'click', (e) => {
-      const btn = e.target.closest('button[data-action]');
+      const btn = e.target.closest('[data-action]');
       if (!btn) return;
       const h = this.handlers;
+      if (btn.dataset.action === 'pet-select') {
+        const id = btn.dataset.id;
+        this._petExpanded = this._petExpanded === id ? null : id;
+        if (this._petState) this.renderPetsTab(this._petState);
+      }
+      if (btn.dataset.action === 'pet-focus') {
+        this._petExpanded = btn.dataset.id;
+        if (this._petState) this.renderPetsTab(this._petState);
+        try {
+          const el = document.querySelector('.pet-slot.is-expanded[data-id="' + btn.dataset.id + '"]');
+          if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } catch (e2) { /* scroll is best-effort */ }
+      }
+      if (btn.dataset.action === 'pet-filter') {
+        this._petFilter = btn.dataset.f || 'all';
+        if (this._petState) this.renderPetsTab(this._petState);
+      }
       if (btn.dataset.action === 'hatch-pet' && h.onHatchPet) h.onHatchPet(btn.dataset.tier || 'wild');
       if (btn.dataset.action === 'feed-pet' && h.onFeedPet) h.onFeedPet(btn.dataset.id);
       if (btn.dataset.action === 'set-active-pet' && h.onSetActivePet) h.onSetActivePet(btn.dataset.id);
@@ -3660,7 +3677,7 @@ export const UI = {
     const pet = st && st.collection.find(x => x.uid === uid);
     if (!pet) return '<span class="muted">—</span>';
     const sp = Engine.petSpeciesOf(pet);
-    return `<span>${sp.emoji} ${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></span>`;
+    return `<span class="breed-chip">${this.petIconHtml(sp, 'pet-chip-icon')}<span>${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></span></span>`;
   },
   _refreshBreedPanel() {
     const st = this._breedState;
@@ -3690,12 +3707,147 @@ export const UI = {
         </div>`;
     }
     // Highlight selected cards.
-    document.querySelectorAll('#tab-pets .pet-card').forEach(card => {
-      const id = card.dataset.petUid;
+    document.querySelectorAll('#tab-pets .pet-slot').forEach(card => {
+      const id = card.dataset.id;
       card.classList.toggle('breed-pick', this._breedSel.includes(id));
       card.classList.toggle('combine-pick', this._combineSel.includes(id));
     });
   },
+
+  // ---------------- pet system UI ----------------
+  // Rarity → slot border class (mirrors Engine.PET_RARITY_ORDER).
+  petRarityCls(rarity) { return 'rarity-' + (rarity || 'common'); },
+
+  // Cohesive pet icon: the generated portrait covers the emoji fallback;
+  // if the image fails to load it removes itself and the emoji shows.
+  petIconHtml(sp, cls) {
+    sp = sp || {};
+    const fb = `<span class="pet-icon-fb">${sp.emoji || '\u{1F43E}'}</span>`;
+    const img = sp.icon
+      ? `<img class="pet-icon-img" src="${sp.icon}" alt="" loading="lazy" onerror="this.remove()">`
+      : '';
+    return `<span class="pet-icon${cls ? ' ' + cls : ''}">${img}${fb}</span>`;
+  },
+
+  // Live companion telemetry: total strike, total bond, slots in use.
+  // Read-only — every number comes straight from Engine (no formula changes).
+  petTelemetryHtml(state, p, stats) {
+    const strike = Engine.petStrikeDamage(state, stats);
+    const bond = Engine.petBond(state);
+    const n = Engine.activePets(state).length;
+    const hunter = state.playerClass === 'hunter';
+    const dmgMult = (Engine.CLASSES[state.playerClass] || {}).petDmgMult || 1;
+    return `<div class="pet-telemetry">
+      <div class="pet-tstat"><span class="pet-tlabel">\u2694\uFE0F Strike</span><span class="pet-tval">${esc(formatNum(strike))}</span></div>
+      <div class="pet-tstat"><span class="pet-tlabel">\u{1F517} Bond</span><span class="pet-tval">+${esc(formatNum(bond.atk))} ATK &middot; +${esc(formatNum(bond.def))} DEF &middot; +${esc(formatNum(bond.hp))} HP</span></div>
+      <div class="pet-tstat"><span class="pet-tlabel">\u{1F43E} Lineup</span><span class="pet-tval">${n}/${hunter ? 2 : 1}</span></div>
+      ${hunter && dmgMult !== 1 ? `<div class="pet-tstat"><span class="pet-tlabel">\u{1F3F9} Hunter</span><span class="pet-tval">+${Math.round((dmgMult - 1) * 100)}% pet dmg</span></div>` : ''}
+    </div>`;
+  },
+
+  // Equipped companion slots: primary + (hunter) second. Tap to inspect.
+  petSlotsHtml(state, p) {
+    const hunter = state.playerClass === 'hunter';
+    const primary = p.collection.find(x => x.uid === p.activeUid) || null;
+    const second = p.collection.find(x => x.uid === p.secondUid) || null;
+    const slot = (pet, label, locked) => {
+      if (locked) return `<div class="pet-slot-frame is-locked"><span class="pet-slot-label">${label}</span><span class="muted small">\u{1F512} Hunter perk</span></div>`;
+      if (!pet) return `<div class="pet-slot-frame is-empty"><span class="pet-slot-label">${label}</span><span class="muted small">Empty &mdash; tap a pet below</span></div>`;
+      const sp = Engine.petSpeciesOf(pet) || {};
+      const bond = Engine.petBondFor(pet);
+      const mult = Engine.petHungerMult(pet);
+      const multLabel = mult === 1 ? '&times;1.0' : mult > 0 ? '&times;0.4 hungry' : 'sitting out';
+      return `<div class="pet-slot-frame ${this.petRarityCls(sp.rarity)}" data-action="pet-focus" data-id="${esc(pet.uid)}" role="button" tabindex="0" title="Inspect ${esc(sp.name)}">
+        <span class="pet-slot-label">${label}</span>
+        ${this.petIconHtml(sp, 'pet-frame-icon')}
+        <span class="pet-frame-name">${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></span>
+        <span class="muted small">\u{1F517} +${esc(formatNum(bond.atk))}/+${esc(formatNum(bond.def))}/+${esc(formatNum(bond.hp))} &middot; ${multLabel}</span>
+      </div>`;
+    };
+    return `<div class="pet-slots">${slot(primary, '\u2694\uFE0F Primary', false)}${slot(second, '\u{1F43E} Second', !hunter)}</div>`;
+  },
+
+  // Collection order: active first, then rarity high&rarr;low, then level high&rarr;low.
+  petSort(collection, p) {
+    const order = Engine.PET_RARITY_ORDER || [];
+    const rrank = (pet) => order.indexOf(((Engine.petSpeciesOf(pet) || {}).rarity) || '');
+    const arank = (pet) => (pet.uid === p.activeUid || pet.uid === p.secondUid) ? 0 : 1;
+    return [...collection].sort((a, b) => arank(a) - arank(b) || rrank(b) - rrank(a) || (b.level || 0) - (a.level || 0));
+  },
+
+  petCollectionHtml(state, p) {
+    const pets = this.petSort(p.collection, p);
+    const f = this._petFilter || 'all';
+    const rarities = [];
+    for (const pet of pets) {
+      const r = (Engine.petSpeciesOf(pet) || {}).rarity;
+      if (r && !rarities.includes(r)) rarities.push(r);
+    }
+    const visible = pets.filter(pet => {
+      if (f === 'all') return true;
+      if (f === 'active') return pet.uid === p.activeUid || pet.uid === p.secondUid;
+      return ((Engine.petSpeciesOf(pet) || {}).rarity) === f;
+    });
+    const chip = (key, label) => `<button class="btn small${f === key ? '' : ' ghost'} pet-chip" data-action="pet-filter" data-f="${key}">${label}</button>`;
+    const chips = chip('all', 'All') + chip('active', '\u2B50 Active') + rarities.map(r => chip(r, esc(Engine.rarityName(r)))).join('');
+    const cards = visible.map(pet => this.petCardHtml(state, p, pet)).join('');
+    return `<div class="pet-filters">${chips}</div>
+      <div class="pet-slot-grid">${cards || '<p class="muted small">No pets match this filter.</p>'}</div>`;
+  },
+
+  // One inventory slot: compact card, or expanded detail when selected.
+  petCardHtml(state, p, pet) {
+    const sp = Engine.petSpeciesOf(pet) || {};
+    const rcls = this.petRarityCls(sp.rarity);
+    const isPrimary = pet.uid === p.activeUid;
+    const isSecond = pet.uid === p.secondUid;
+    const active = isPrimary || isSecond;
+    const badge = isPrimary ? '<span class="pet-active">ACTIVE</span>' : isSecond ? '<span class="pet-active">2ND</span>' : '';
+    const hungerPct = Math.max(0, Math.min(100, Math.round(pet.hunger)));
+    if (this._petExpanded !== pet.uid) {
+      return `<div class="pet-slot ${rcls}${active ? ' is-active' : ''}" data-action="pet-select" data-id="${esc(pet.uid)}" role="button" tabindex="0" title="${esc(sp.name)} &mdash; tap to inspect">
+        ${this.petIconHtml(sp, 'pet-slot-icon')}
+        <span class="pet-slot-name">${esc(sp.name)}</span>
+        <span class="muted small">Lv ${pet.level} &middot; ${esc(Engine.rarityName(sp.rarity))}</span>
+        ${badge}
+        <span class="pet-slot-hunger" title="Hunger ${hungerPct}%"><i style="width:${hungerPct}%"></i></span>
+      </div>`;
+    }
+    const ps = Engine.petStats(pet);
+    const pb = Engine.petBondFor(pet);
+    const mult = Engine.petHungerMult(pet);
+    const hungerLabel = mult === 1 ? 'full power &times;1.0' : mult > 0 ? 'peckish &mdash; 40% power &times;0.4' : 'hungry &mdash; sits out &times;0';
+    const isHunter = state.playerClass === 'hunter';
+    const cost = Engine.petFeedCost(pet, state);
+    const setActiveBtn = isPrimary ? '' : `<button class="btn small ghost" data-action="set-active-pet" data-id="${esc(pet.uid)}">Set active</button>`;
+    const secondBtn = !isHunter || isPrimary ? '' : isSecond
+      ? `<button class="btn small ghost" data-action="remove-second-pet" data-id="${esc(pet.uid)}">Remove 2nd</button>`
+      : `<button class="btn small ghost" data-action="set-second-pet" data-id="${esc(pet.uid)}">Set as 2nd</button>`;
+    const sellPrice = Engine.petSellPrice(pet);
+    const sellLabel = `Sell &middot; \u{1F4B0}${formatNum(sellPrice)}`;
+    const sellBtn = Engine.canSellPet(pet)
+      ? `<button class="btn small ghost sell-btn" data-action="sell-pet" data-id="${esc(pet.uid)}" data-sell-text="${esc(sellLabel)}" title="Sell this pet for gold"><span class="sell-label">${esc(sellLabel)}</span></button>`
+      : `<span class="muted small" title="This pet is special and cannot be sold">\u{1F512} unsellable</span>`;
+    const feedBtn = `<button class="btn small" data-action="feed-pet" data-id="${esc(pet.uid)}" ${pet.hunger >= 100 ? 'disabled' : ''}>\u{1F356} Feed (\u{1F4B0}${formatNum(cost)})</button>`;
+    const breedBtn = `<button class="btn small ghost" data-action="breed-select" data-id="${esc(pet.uid)}" title="Select for breeding">\u{1F495}</button>`;
+    const combineBtn = sp.unsellable ? '' : `<button class="btn small ghost" data-action="combine-select" data-id="${esc(pet.uid)}" title="Select for combining">\u{1F500}</button>`;
+    const petBtns = [feedBtn, setActiveBtn, secondBtn, breedBtn, combineBtn, sellBtn].filter(Boolean).join('<span class="btn-sep" aria-hidden="true">|</span>');
+    return `<div class="pet-slot is-expanded ${rcls}${active ? ' is-active' : ''}" data-action="pet-select" data-id="${esc(pet.uid)}">
+      <div class="pet-xhead">${this.petIconHtml(sp, 'pet-xicon')}
+        <div><div class="comp-name">${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></div>
+        <div class="muted small">${esc(Engine.rarityName(sp.rarity))} &middot; strikes every ${Engine.PET_STRIKE_SEC}s</div></div>
+        ${badge}</div>
+      <div class="pet-xstats">
+        <span>\u{1F4CA} ${esc(formatNum(ps.atk))} ATK &middot; ${esc(formatNum(ps.def))} DEF &middot; ${esc(formatNum(ps.hp))} HP</span>
+        <span>\u{1F517} Bond ${active ? 'active' : '(applies when active)'}: +${esc(formatNum(pb.atk))} ATK / +${esc(formatNum(pb.def))} DEF / +${esc(formatNum(pb.hp))} HP</span>
+        <span>\u{1F356} ${hungerPct}% &mdash; ${hungerLabel}</span>
+      </div>
+      <div class="pet-hunger"><div class="bar hunger"><div class="fill" style="width:${hungerPct}%"></div></div></div>
+      <div class="row pet-actions">${petBtns}</div>
+      ${sp.flavor ? `<div class="muted small pet-flavor">&ldquo;${esc(sp.flavor)}&rdquo;</div>` : ''}
+    </div>`;
+  },
+
   renderPetsTab(state) {
     const panel = document.getElementById('pets-section');
     if (!panel) return;
@@ -3781,58 +3933,19 @@ export const UI = {
       hint.textContent = '🏹 Hunter perk: field a second pet — set any pet as your 2nd and both will fight.';
       panel.appendChild(hint);
     }
-    const list = document.createElement('div');
-    list.className = 'pet-list';
-    for (const pet of p.collection) {
-      const sp = Engine.petSpeciesOf(pet);
-      const isPrimary = pet.uid === p.activeUid;
-      const isSecond = pet.uid === p.secondUid;
-      const isHunter = state.playerClass === 'hunter';
-      const active = isPrimary || isSecond;
-      const cost = Engine.petFeedCost(pet, state);
-      const hungerPct = Math.round(pet.hunger);
-      const hungerLabel = pet.hunger <= 0 ? 'hungry — sits out!' : pet.hunger <= 50 ? 'peckish (40% dmg)' : 'full power';
-      const ps = Engine.petStats(pet);
-      const pb = Engine.petBondFor(pet);
-      const bondNote = pet.hunger <= 0 ? ' — starving, no bond' : pet.hunger <= 50 ? ' (40% — hungry)' : '';
-      const bondText = active
-        ? `🔗 Bond active: +${formatNum(pb.atk)} ATK / +${formatNum(pb.def)} DEF / +${formatNum(pb.hp)} HP${bondNote}`
-        : `🔗 Bond: +${formatNum(pb.atk)} ATK / +${formatNum(pb.def)} DEF / +${formatNum(pb.hp)} HP (applies when active)`;
-      const row = document.createElement('div');
-      row.className = 'pet-card' + (active ? ' active' : '');
-      row.dataset.petUid = pet.uid;
-      const badge = isPrimary ? '<span class="pet-active">ACTIVE</span>'
-        : isSecond ? '<span class="pet-active">2ND PET</span>' : '';
-      const setActiveBtn = isPrimary ? '' : `<button class="btn small ghost" data-action="set-active-pet" data-id="${esc(pet.uid)}">Set active</button>`;
-      const secondBtn = !isHunter || isPrimary ? '' : isSecond
-        ? `<button class="btn small ghost" data-action="remove-second-pet" data-id="${esc(pet.uid)}">Remove 2nd</button>`
-        : `<button class="btn small ghost" data-action="set-second-pet" data-id="${esc(pet.uid)}">Set as 2nd</button>`;
-      const sellPrice = Engine.petSellPrice(pet);
-      const sellLabel = `Sell · 💰${formatNum(sellPrice)}`;
-      const sellBtn = Engine.canSellPet(pet)
-        ? `<button class="btn small ghost sell-btn" data-action="sell-pet" data-id="${esc(pet.uid)}" data-sell-text="${esc(sellLabel)}" title="Sell this pet for gold"><span class="sell-label">${esc(sellLabel)}</span></button>`
-        : `<span class="muted small" title="This pet is special and cannot be sold">🔒 unsellable</span>`;
-      const feedBtn = `<button class="btn small" data-action="feed-pet" data-id="${esc(pet.uid)}" ${pet.hunger >= 100 ? 'disabled' : ''}>🍖 Feed (💰${formatNum(cost)})</button>`;
-      const breedBtn = `<button class="btn small ghost" data-action="breed-select" data-id="${esc(pet.uid)}" title="Select for breeding">💕</button>`;
-      const combineBtn = sp.unsellable ? '' : `<button class="btn small ghost" data-action="combine-select" data-id="${esc(pet.uid)}" title="Select for combining">🔀</button>`;
-      const petBtns = [feedBtn, setActiveBtn, secondBtn, breedBtn, combineBtn, sellBtn].filter(Boolean);
-      const petBtnRow = petBtns.join('<span class="btn-sep" aria-hidden="true">|</span>');
-      row.innerHTML = `
-        <div class="pet-head"><span class="pet-emoji">${sp.emoji}</span>
-          <div><div class="comp-name">${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></div>
-          <div class="muted small">${esc(Engine.rarityName(sp.rarity))} · strikes every 4s</div></div>
-          ${badge}
-        </div>
-        <div class="muted small">📊 ${formatNum(ps.atk)} ATK · ${formatNum(ps.def)} DEF · ${formatNum(ps.hp)} HP</div>
-        <div class="muted small">${bondText}</div>
-        <div class="pet-hunger"><div class="bar hunger"><div class="fill" style="width:${hungerPct}%"></div></div>
-          <span class="muted small">🍖 ${hungerPct}% ${hungerLabel}</span></div>
-        <div class="row pet-actions">
-          ${petBtnRow}
-        </div>`;
-      list.appendChild(row);
-    }
-    panel.appendChild(list);
+    // --- Companion telemetry + equipped slots + collection grid ---
+    // (Pet System rework: structured slots, rarity borders, live bonuses)
+    this._petState = state;
+    const pStats = Engine.computeStats(state);
+    const tele = document.createElement('div');
+    tele.innerHTML = this.petTelemetryHtml(state, p, pStats);
+    panel.appendChild(tele);
+    const slots = document.createElement('div');
+    slots.innerHTML = this.petSlotsHtml(state, p);
+    panel.appendChild(slots);
+    const grid = document.createElement('div');
+    grid.innerHTML = this.petCollectionHtml(state, p);
+    panel.appendChild(grid);
 
     // --- Breeding Den ---
     const den = document.createElement('div');
