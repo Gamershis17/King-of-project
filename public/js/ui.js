@@ -3246,8 +3246,8 @@ export const UI = {
       const pb = Engine.petBondFor(pet);
       const bondNote = pet.hunger <= 0 ? ' — starving, no bond' : pet.hunger <= 50 ? ' (40% — hungry)' : '';
       const bondText = active
-        ? `🔗 Bond active: +${pb.atk} ATK / +${pb.def} DEF / +${pb.hp} HP${bondNote}`
-        : `🔗 Bond: +${pb.atk} ATK / +${pb.def} DEF / +${pb.hp} HP (applies when active)`;
+        ? `🔗 Bond active: +${formatNum(pb.atk)} ATK / +${formatNum(pb.def)} DEF / +${formatNum(pb.hp)} HP${bondNote}`
+        : `🔗 Bond: +${formatNum(pb.atk)} ATK / +${formatNum(pb.def)} DEF / +${formatNum(pb.hp)} HP (applies when active)`;
       const row = document.createElement('div');
       row.className = 'pet-card' + (active ? ' active' : '');
       const badge = isPrimary ? '<span class="pet-active">ACTIVE</span>'
@@ -3267,7 +3267,7 @@ export const UI = {
           <div class="muted small">${esc(sp.rarity)} · strikes every 4s</div></div>
           ${badge}
         </div>
-        <div class="muted small">📊 ${ps.atk} ATK · ${ps.def} DEF · ${ps.hp} HP</div>
+        <div class="muted small">📊 ${formatNum(ps.atk)} ATK · ${formatNum(ps.def)} DEF · ${formatNum(ps.hp)} HP</div>
         <div class="muted small">${bondText}</div>
         <div class="pet-hunger"><div class="bar hunger"><div class="fill" style="width:${hungerPct}%"></div></div>
           <span class="muted small">🍖 ${hungerPct}% ${hungerLabel}</span></div>
