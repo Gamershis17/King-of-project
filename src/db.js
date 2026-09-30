@@ -827,6 +827,34 @@ async function disbandParty(leaderId) {
   return { disbanded: true };
 }
 
+async function promotePartyLeader(leaderId, targetUserId) {
+  const partyId = await getMyPartyId(leaderId);
+  if (!partyId) throw partyError('PARTY_NOT_IN');
+  if (Number(targetUserId) === Number(leaderId)) throw partyError('PARTY_CANNOT_PROMOTE_SELF');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM parties WHERE id = $1 FOR UPDATE', [partyId]);
+    const p = await client.query('SELECT leader_id FROM parties WHERE id = $1', [partyId]);
+    if (!p.rows.length || Number(p.rows[0].leader_id) !== Number(leaderId)) {
+      throw partyError('PARTY_NOT_LEADER');
+    }
+    const mem = await client.query(
+      'SELECT 1 FROM party_members WHERE party_id = $1 AND user_id = $2 AND is_npc = false',
+      [partyId, targetUserId]
+    );
+    if (!mem.rows.length) throw partyError('PARTY_TARGET_NOT_IN');
+    await client.query('UPDATE parties SET leader_id = $1 WHERE id = $2', [Number(targetUserId), partyId]);
+    await client.query('COMMIT');
+    return { ok: true };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 /**
  * Full party view for a member. Humans and NPC allies are FLAT rows in
  * members[]: humans carry isNpc:false + server-read stats, NPC allies carry
@@ -1274,6 +1302,7 @@ module.exports = {
   leaveParty,
   kickPartyMember,
   disbandParty,
+  promotePartyLeader,
   getPartyView,
   syncPartyNpcs,
   PARTY_MAX_HUMANS,

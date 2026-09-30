@@ -73,6 +73,7 @@ const {
   leaveParty,
   kickPartyMember,
   disbandParty,
+  promotePartyLeader,
   getPartyView,
   syncPartyNpcs,
   // friends / presence
@@ -1196,6 +1197,7 @@ function partyErrorToResponse(err, res) {
     PARTY_NOT_LEADER: [403, 'Only the party leader can do that.'],
     PARTY_TARGET_NOT_IN: [404, 'That player is not in your party.'],
     PARTY_CANNOT_KICK_SELF: [400, 'You cannot kick yourself — leave or disband instead.'],
+    PARTY_CANNOT_PROMOTE_SELF: [400, 'You are already the leader.'],
   };
   const hit = err && map[err.code];
   if (hit) return res.status(hit[0]).json({ error: hit[1] });
@@ -1287,6 +1289,22 @@ router.post(
     try {
       await disbandParty(req.user.id);
       res.json({ ok: true, disbanded: true });
+    } catch (err) {
+      return partyErrorToResponse(err, res);
+    }
+  })
+);
+
+router.post(
+  '/party/promote',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const targetId = req.body && Number(req.body.userId);
+    if (!Number.isFinite(targetId)) return res.status(400).json({ error: 'userId is required.' });
+    try {
+      await promotePartyLeader(req.user.id, targetId);
+      const view = await getPartyView(req.user.id);
+      res.json({ ok: true, party: view });
     } catch (err) {
       return partyErrorToResponse(err, res);
     }
