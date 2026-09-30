@@ -7,8 +7,6 @@ import { UI, esc, formatNum } from './ui.js?v=20260930m';
 import { Auth } from './auth.js?v=20260930m';
 import { GM } from './gm.js?v=20260930m';
 
-// TEMP-DIAG: boot probe (remove after diagnosis)
-try { window.__bootprobe && window.__bootprobe('app.js: module evaluated'); } catch (e) {}
 import { Raid } from './raid.js?v=20260930m';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930m';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930m';
@@ -98,9 +96,6 @@ async function pollMaintenance() {
 
 // ---------------- boot ----------------
 async function boot() {
-  // TEMP-DIAG: boot probe (remove after diagnosis)
-  try { window.__bootprobe && window.__bootprobe('boot(): start'); } catch (e) {}
-  try {
   // PWA: register the service worker if supported; a failure must never break the game.
   // update() forces the version check on every load so a stale SW can never
   // linger; the SW itself reloads tabs once when a new version activates.
@@ -281,14 +276,10 @@ async function boot() {
   // already visible from the static HTML, and a tap before the gate finishes
   // would natively submit the form (full page reload) instead of logging in.
   Auth.init({ onAuthed: (u) => enterApp(u), onGuest: (n) => enterGuest(n) });
-  // TEMP-DIAG: boot probe (remove after diagnosis)
-  try { window.__bootprobe && window.__bootprobe('boot(): early Auth.init done'); } catch (e) {}
 
   // Maintenance / reachability gate: check the server before anything else.
   // Retries briefly so a deploy/restart window shows as "updating", not dead.
   const gate = await serverGate();
-  // TEMP-DIAG: boot probe (remove after diagnosis)
-  try { window.__bootprobe && window.__bootprobe('boot(): gate=' + gate); } catch (e) {}
   if (gate === 'maintenance') { enterMaintenanceLoop(); return; }
 
   let user = null;
@@ -304,16 +295,9 @@ async function boot() {
   if (App.user) return;
 
   if (!user) {
-    try { window.__bootprobe && window.__bootprobe('boot(): showing auth view'); } catch (e) {}
     showAuthView();
   } else {
-    try { window.__bootprobe && window.__bootprobe('boot(): entering app as ' + user.username); } catch (e) {}
     enterApp(user);
-  }
-  } catch (err) {
-    // TEMP-DIAG: surface boot failures visibly (remove after diagnosis)
-    try { window.__bootprobe && window.__bootprobe('boot(): FATAL ' + (err && err.message) + ' :: ' + (err && err.stack)); } catch (e) {}
-    throw err;
   }
 }
 
