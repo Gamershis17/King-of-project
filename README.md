@@ -1,8 +1,8 @@
-# King of Project
+# Throne of Shadows
 
 ## What this is
 
-King of Project is a multiplayer idle RPG game you play in your web browser —
+Throne of Shadows is a multiplayer idle RPG game you play in your web browser —
 no install needed, and it works on phones and computers. You pick a hero race
 (Human, Orc, Celestial, Dragonkin, Fae, or Revenant), tap to fight monsters,
 collect loot, recruit a party for dungeon runs, and even prestige (restart
