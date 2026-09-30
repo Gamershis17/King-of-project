@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Throne of Shadows">
   <title>Throne of Shadows</title>
-  <link rel="stylesheet" href="css/style.css?v=20260930aa">
+  <link rel="stylesheet" href="css/style.css?v=20260930ac">
 </head>
 <body>
 <canvas id="bg-canvas" aria-hidden="true"></canvas>
@@ -398,6 +398,15 @@
             <span class="setting-label">🎼 Music track</span>
             <select id="set-music-track" class="country-select" aria-label="Music track"></select>
           </div>
+          <div class="setting-row">
+            <span class="setting-label">🎚️ Music volume</span>
+            <input type="range" id="set-music-vol" min="0" max="100" value="50" aria-label="Music volume">
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">🎚️ SFX volume</span>
+            <input type="range" id="set-sfx-vol" min="0" max="100" value="50" aria-label="SFX volume">
+          </div>
+          <label class="setting"><input type="checkbox" id="set-combat-music" checked> Boss-fight music <span class="muted small">(Dread Sovereign)</span></label>
           <label class="setting"><input type="checkbox" id="set-follow-world" checked> Worlds change the music <span class="muted small">(Void Hymn in deep worlds)</span></label>
           <div class="setting-row" style="margin-top:0.55rem">
             <span class="setting-label">🔔 Notifications</span>
@@ -442,6 +451,28 @@
             <div id="bg-anim-opts"></div>
           </div>
         </div>
+        <div class="card">
+          <h3>🌍 Immersion</h3>
+          <div class="setting-row">
+            <span class="setting-label">🌦️ Atmosphere</span>
+            <select id="set-atmosphere" class="country-select" aria-label="Atmosphere">
+              <option value="clear">Clear skies</option>
+              <option value="rain">Rain</option>
+              <option value="fog">Fog</option>
+              <option value="ash">Drifting ash</option>
+            </select>
+          </div>
+          <label class="setting"><input type="checkbox" id="set-weathersync"> Sync real weather <span class="muted small">(uses your location)</span></label>
+          <div class="setting-row">
+            <span class="setting-label">🎨 Graphics quality</span>
+            <div class="seg-control" id="gfx-seg" role="group" aria-label="Graphics quality">
+              <button type="button" data-gfx="sd">SD</button>
+              <button type="button" data-gfx="hd">HD</button>
+              <button type="button" data-gfx="4k">4K</button>
+            </div>
+          </div>
+          <p class="muted small">Night palette and seasonal tints follow your device clock automatically.</p>
+        </div>
         <button id="logout-btn" class="btn danger wide">Logout</button>
       </section>
     </main>
@@ -477,6 +508,6 @@
 <div id="modal-root"></div>
 <div id="toast-root"></div>
 
-<script type="module" src="js/app.js?v=20260930aa"></script>
+<script type="module" src="js/app.js?v=20260930ac"></script>
 </body>
 </html>
