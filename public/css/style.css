@@ -4564,50 +4564,117 @@ body.reduce-motion .quest-claim { animation: none; }
   padding: 0.6rem 0.8rem; margin-bottom: 0.7rem; font-size: 0.9rem;
 }
 .lb-me b { color: var(--gold); font-size: 1.05rem; }
-.lb-me-crown { font-size: 1.2rem; }
+.lb-me-crown { position: relative; display: inline-flex; width: 1.7rem; height: 1.7rem; flex: none; align-items: center; justify-content: center; font-size: 1.2rem; }
+.lb-me-crown img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 0 6px rgba(255,210,63,.5)); }
+
+/* Glassmorphism rank row: frosted dark-fantasy plate, gradient hairline border. */
 .lb-row {
   position: relative; overflow: hidden;
-  background: var(--plate);
-  border: 1px solid var(--stone2); border-radius: var(--radius);
-  padding: 0.6rem 0.7rem; margin-bottom: 0.55rem;
-  display: flex; align-items: center; gap: 0.65rem;
-  transition: transform .15s ease, box-shadow .15s ease;
+  display: flex; align-items: stretch; gap: 0.7rem;
+  padding: 0.65rem 0.75rem; margin-bottom: 0.6rem;
+  border-radius: 14px; border: 1px solid transparent;
+  background:
+    linear-gradient(165deg, rgba(40,30,62,.9), rgba(18,13,30,.94)) padding-box,
+    linear-gradient(165deg, rgba(255,255,255,.16), rgba(255,255,255,.04) 45%, rgba(0,0,0,.4)) border-box;
+  box-shadow: 0 6px 20px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.07);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.lb-row.lb-clickable { cursor: pointer; }
+.lb-row.lb-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(0,0,0,.55), 0 0 18px rgba(255,210,63,.14), inset 0 1px 0 rgba(255,255,255,.1);
 }
 .lb-row:active { transform: scale(0.99); }
-/* tier accent strip + placement glow */
-.lb-row::before {
-  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-  background: #4a4458;
+
+/* Tier medallion: custom icon layered over its emoji fallback, rank below. */
+.lb-medal {
+  position: relative; flex: none; width: 3.2rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.2rem;
 }
-.lb-tier-sov::before { background: linear-gradient(180deg, #ffe08a, #b8860b); }
-.lb-tier-elite::before { background: linear-gradient(180deg, #c4b5fd, #6d28d9); }
-.lb-tier-vet::before { background: linear-gradient(180deg, #9adcff, #1f6feb); }
-.lb-tier-adv::before { background: #4a4458; }
-/* smooth rank scaling: top 3 grow progressively grander */
-.lb-top1 { border-color: rgba(255,224,138,.7); box-shadow: 0 0 22px rgba(255,210,63,.22); padding: 0.8rem; }
-.lb-top2 { border-color: rgba(196,181,253,.5); box-shadow: 0 0 16px rgba(139,92,246,.18); padding: 0.7rem; }
-.lb-top3 { border-color: rgba(154,220,255,.4); box-shadow: 0 0 12px rgba(31,111,235,.15); }
-.lb-top1 .lb-avatar { font-size: 2.4rem; }
-.lb-top1 .lb-name { font-size: 1.08rem; }
-.lb-top2 .lb-avatar { font-size: 2.1rem; }
-.lb-top3 .lb-avatar { font-size: 1.9rem; }
-.lb-rank { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; min-width: 3rem; flex: none; }
+.lb-medal-fb { font-size: 2.5rem; line-height: 1; filter: drop-shadow(0 2px 6px rgba(0,0,0,.6)); }
+.lb-medal-img {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 2.8rem; height: 2.8rem; object-fit: contain;
+}
 .lb-pos {
-  font-family: Georgia, serif; font-weight: 800; font-size: 1.05rem; color: var(--text);
-  width: 2.1rem; height: 2.1rem; display: flex; align-items: center; justify-content: center;
-  background: rgba(0,0,0,.4); border: 1px solid var(--stone2); border-radius: 50%;
+  font-size: 0.7rem; font-weight: 800; letter-spacing: 0.08em; color: var(--muted);
+  background: rgba(0,0,0,.5); border: 1px solid var(--stone2);
+  padding: 0.08rem 0.5rem; border-radius: 999px; white-space: nowrap;
 }
-.lb-top1 .lb-pos { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 10px rgba(255,210,63,.4); }
-.lb-medal { font-size: 1.25rem; }
+/* Tier-tinted glow on the medallion icon. */
+.lb-tier-sov .lb-medal-img, .lb-tier-sov2 .lb-medal-img, .lb-tier-sov3 .lb-medal-img { filter: drop-shadow(0 0 10px rgba(255,210,63,.6)); }
+.lb-tier-elite .lb-medal-img { filter: drop-shadow(0 0 10px rgba(196,181,253,.55)); }
+.lb-tier-vet .lb-medal-img { filter: drop-shadow(0 0 10px rgba(154,220,255,.5)); }
+.lb-tier-adv .lb-medal-img { filter: drop-shadow(0 3px 8px rgba(0,0,0,.65)); }
+
+/* Top-3 presence: grander medallions, stronger aura. */
+.lb-top1 .lb-medal { width: 4rem; }
+.lb-top1 .lb-medal-fb { font-size: 3.2rem; }
+.lb-top1 .lb-medal-img { width: 3.6rem; height: 3.6rem; }
+.lb-top1 { box-shadow: 0 0 26px rgba(255,210,63,.22), 0 8px 24px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.1); }
+.lb-top2 .lb-medal { width: 3.6rem; }
+.lb-top2 .lb-medal-fb { font-size: 2.9rem; }
+.lb-top2 .lb-medal-img { width: 3.2rem; height: 3.2rem; }
+.lb-top2 { box-shadow: 0 0 20px rgba(196,181,253,.2), 0 8px 22px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.09); }
+.lb-top3 { box-shadow: 0 0 16px rgba(154,220,255,.16), 0 6px 20px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.08); }
+.lb-top1 .lb-pos { color: var(--gold); border-color: rgba(255,210,63,.5); }
+
+/* Main column: identity row above the stat grid. */
+.lb-main { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.5rem; }
+.lb-row .lb-identity { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: row; align-items: center; gap: 0.6rem; }
+.lb-row .lb-avatar { font-size: 1.5rem; width: 2.6rem; height: 2.6rem; }
+.lb-idtext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.lb-row .lb-name { font-size: 0.98rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lb-tier {
+  flex: none; margin-left: auto;
   font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
-  padding: 0.1rem 0.45rem; border-radius: 999px; white-space: nowrap;
+  padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap;
 }
 .tier-sov { color: #ffe08a; border: 1px solid rgba(255,224,138,.6); background: rgba(255,210,63,.10); }
 .tier-elite { color: #c4b5fd; border: 1px solid rgba(196,181,253,.5); background: rgba(139,92,246,.10); }
 .tier-vet { color: #9adcff; border: 1px solid rgba(154,220,255,.4); background: rgba(31,111,235,.10); }
 .tier-adv { color: var(--muted); border: 1px solid var(--stone2); background: rgba(0,0,0,.25); }
-.lb-identity { flex: 1; min-width: 0; }
+
+/* Stat grid: aligned icon + label + value cells; headline = active category. */
+.lb-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.35rem; }
+.lb-stats-guild { grid-template-columns: repeat(3, 1fr); }
+.lb-stat {
+  display: flex; flex-direction: column; align-items: center; gap: 0.12rem;
+  background: rgba(0,0,0,.38); border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px; padding: 0.32rem 0.2rem; min-width: 0;
+}
+.lb-stat-ic { font-size: 0.95rem; line-height: 1; }
+.lb-stat-lb {
+  font-size: 0.56rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--muted); white-space: nowrap;
+}
+.lb-stat-v { font-size: 0.85rem; font-weight: 800; color: var(--text); white-space: nowrap; }
+.lb-stat-hero { border-color: rgba(255,210,63,.45); background: rgba(255,210,63,.07); }
+.lb-stat-hero .lb-stat-v { color: var(--gold); }
+
+/* "YOU" spotlight: gold gradient frame, radiant glow, sweeping sheen. */
+.lb-row.me-row {
+  border: 1px solid transparent;
+  background:
+    linear-gradient(165deg, rgba(66,48,22,.94), rgba(26,18,8,.96)) padding-box,
+    linear-gradient(165deg, #ffe08a, #b8860b 45%, #ffe08a) border-box;
+  box-shadow: 0 0 26px rgba(255,210,63,.3), 0 8px 24px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14);
+}
+.lb-row.me-row::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 40%, rgba(255,224,138,.16) 50%, transparent 60%);
+  animation: lb-sheen 3.4s ease-in-out infinite;
+}
+@keyframes lb-sheen { 0% { transform: translateX(-100%); } 60%, 100% { transform: translateX(100%); } }
+.lb-you {
+  display: inline-block; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.12em;
+  color: #1a1206; background: linear-gradient(180deg, #ffe08a, #d4a017);
+  border-radius: 999px; padding: 0.14rem 0.55rem; margin-left: 0.45rem; vertical-align: 2px;
+  box-shadow: 0 0 12px rgba(255,210,63,.6); white-space: nowrap;
+}
+
+/* Legacy chip styles (kept for other consumers). */
 .lb-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .lb-chip {
   font-size: 0.72rem; background: rgba(0,0,0,.35); border: 1px solid var(--stone2);
@@ -4615,10 +4682,23 @@ body.reduce-motion .quest-claim { animation: none; }
 }
 .lb-chip b { color: var(--gold); margin-right: 0.25rem; font-weight: 700; }
 .lb-chip-cat { border-color: var(--plate-edge); }
-@media (max-width: 560px) {
-  .lb-row { flex-wrap: wrap; }
-  .lb-chips { width: 100%; }
+
+@media (max-width: 640px) {
+  .lb-row { gap: 0.55rem; padding: 0.55rem 0.6rem; }
+  .lb-medal { width: 2.7rem; }
+  .lb-medal-fb { font-size: 2.1rem; }
+  .lb-medal-img { width: 2.4rem; height: 2.4rem; }
+  .lb-top1 .lb-medal { width: 3.3rem; }
+  .lb-top1 .lb-medal-fb { font-size: 2.6rem; }
+  .lb-top1 .lb-medal-img { width: 2.9rem; height: 2.9rem; }
+  .lb-top2 .lb-medal { width: 3rem; }
+  .lb-top2 .lb-medal-fb { font-size: 2.35rem; }
+  .lb-top2 .lb-medal-img { width: 2.65rem; height: 2.65rem; }
+  .lb-stats { grid-template-columns: repeat(3, 1fr); }
+  .lb-row .lb-avatar { width: 2.2rem; height: 2.2rem; font-size: 1.3rem; }
 }
+body.reduce-motion .lb-row.me-row::after { animation: none; }
+body.reduce-motion .lb-row { transition: none; }
 
 /* ==================== BATTLE ==================== */
 .enemy-card {
