@@ -372,6 +372,23 @@ export const GM = {
       return `🎁 Granted ${res.item || (set + ' ' + slot)} to ${username}.`;
     }));
 
+    on('gm-grant-class-btn', 'click', () => runAction('gm-grant-class-btn', 'Grant class gear', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const slot = $('gm-grant-class-slot').value;
+      const res = await api.gmGrantClassGear(username, slot);
+      await hotReloadIfSelf(username, res);
+      return `⚔️ Granted ${res.item || ('class ' + slot)} to ${username}.`;
+    }));
+
+    on('gm-grant-forgebox-btn', 'click', () => runAction('gm-grant-forgebox-btn', 'Grant forge box', async () => {
+      const username = needTarget();
+      if (!username) return null;
+      const res = await api.gmGrantForgeBox(username);
+      await hotReloadIfSelf(username, res);
+      return `🌌 Granted galaxy forge box (25 galaxy + 40 adamant) to ${username}.`;
+    }));
+
     on('gm-name-style-btn', 'click', () => runAction('gm-name-style-btn', 'Set name style', async () => {
       const username = needTarget();
       if (!username) return null;
@@ -985,6 +1002,18 @@ export const GM = {
               <option value="trinket">📿 Trinket</option>
             </select></label>
           <button id="gm-grant-item-btn" class="btn small" style="align-self:flex-end">🎁 Grant item</button>
+        </div>
+        <div class="row">
+          <label class="fld"><span>Class gear — piece</span>
+            <select id="gm-grant-class-slot">
+              <option value="weapon">🗡️ Weapon</option>
+              <option value="armor">🛡️ Armor</option>
+            </select></label>
+          <button id="gm-grant-class-btn" class="btn small" style="align-self:flex-end">⚔️ Grant class gear</button>
+        </div>
+        <div class="row">
+          <span class="muted small" style="align-self:center">🌌 Forge box: 25 galaxy shards + 40 adamant</span>
+          <button id="gm-grant-forgebox-btn" class="btn small" style="align-self:flex-end">🌌 Grant forge box</button>
         </div>
         <h4 class="gm-sub">Name style</h4>
         <div class="row">
