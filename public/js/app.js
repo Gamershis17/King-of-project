@@ -707,8 +707,11 @@ function startGame() {
   document.getElementById('logout-btn').textContent = isGuest() ? '🚪 Exit guest session' : 'Logout';
   const upBtn = document.getElementById('guest-upgrade-btn');
   if (upBtn) upBtn.addEventListener('click', openUpgradeModal);
-  const heroPanel = document.querySelector('.hero-panel');
-  if (heroPanel) heroPanel.addEventListener('click', openCharacterSheet);
+  // Character sheet: tap the top hero panel (.hud-id) or the battle hero
+  // panel (.hero-panel). Delegated so it survives HUD re-renders.
+  document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.hud-id, .hero-panel')) openCharacterSheet();
+  });
   UI.showView('app');
   spawnEnemy();
   UI.renderBattle(App.state);
