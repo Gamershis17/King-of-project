@@ -1,15 +1,15 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930e';
-import * as Engine from './engine.js?v=20260930e';
-import { UI, esc, formatNum } from './ui.js?v=20260930e';
-import { Auth } from './auth.js?v=20260930e';
-import { GM } from './gm.js?v=20260930e';
-import { Raid } from './raid.js?v=20260930e';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930e';
-import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930e';
-import { Audio } from './audio.js?v=20260930e';
+import { api } from './api.js?v=20260930f';
+import * as Engine from './engine.js?v=20260930f';
+import { UI, esc, formatNum } from './ui.js?v=20260930f';
+import { Auth } from './auth.js?v=20260930f';
+import { GM } from './gm.js?v=20260930f';
+import { Raid } from './raid.js?v=20260930f';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930f';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930f';
+import { Audio } from './audio.js?v=20260930f';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -319,6 +319,12 @@ function promptUpgrade(feature) {
       { label: '✨ Create account', cls: 'gold', onClick: (close) => { close(); openUpgradeModal(); } },
     ],
   });
+}
+
+// Character sheet: WoW-style paper-doll. Opened by tapping the hero panel.
+function openCharacterSheet() {
+  if (!App.state) return;
+  UI.openCharacter(App.state, (App.user && App.user.username) || 'You');
 }
 
 // Guest → account migration: register, upload the local guest save to the
@@ -701,6 +707,8 @@ function startGame() {
   document.getElementById('logout-btn').textContent = isGuest() ? '🚪 Exit guest session' : 'Logout';
   const upBtn = document.getElementById('guest-upgrade-btn');
   if (upBtn) upBtn.addEventListener('click', openUpgradeModal);
+  const heroPanel = document.querySelector('.hero-panel');
+  if (heroPanel) heroPanel.addEventListener('click', openCharacterSheet);
   UI.showView('app');
   spawnEnemy();
   UI.renderBattle(App.state);

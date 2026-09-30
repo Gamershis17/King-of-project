@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930e';
-import { Audio } from './audio.js?v=20260930e';
+import * as Engine from './engine.js?v=20260930f';
+import { Audio } from './audio.js?v=20260930f';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -823,6 +823,142 @@ export const UI = {
     if (root) root.querySelectorAll('.social-row.soon').forEach((b) => {
       b.addEventListener('click', () => { this.toast(`${b.dataset.name} is coming soon!`); });
     });
+  },
+
+  // ---------------- character sheet ----------------
+  // WoW-style paper-doll: gear slots flank the hero portrait, grouped stat
+  // sections below, active companion tucked under the portrait.
+  // Hover a slot (desktop) or long-press it (~550ms, mobile) to see that item's stats.
+  openCharacter(state, username) {
+    const E = Engine;
+    const stats = E.computeStats(state);
+    const cls = (E.CLASSES && E.CLASSES[state.playerClass]) || {};
+    const heroName = username || 'You';
+    const hp = Math.max(0, Math.ceil((state.hero && state.hero.hp) || 0));
+    const maxHp = Math.max(1, Math.round(stats.maxHp || 1));
+
+    const gearBySlot = {};
+    for (const slot of (E.SLOTS || [])) {
+      const id = state.equipped && state.equipped[slot];
+      if (!id) continue;
+      gearBySlot[slot] = id === E.GALAXY_EQUIP_ID
+        ? E.galaxyItemFor(state, slot)
+        : (state.inventory || []).find(i => i.id === id) || null;
+    }
+
+    const slotHTML = (slot) => {
+      const info = (E.SLOT_INFO || {})[slot] || {};
+      const item = gearBySlot[slot];
+      if (!item) {
+        return `<div class="paper-slot empty" data-slot="${slot}">`
+          + `<div class="paper-emoji">${info.emoji || '▫️'}</div>`
+          + `<div class="paper-slot-label">${esc(info.name || slot)}</div>`
+          + `<div class="paper-slot-label">Empty</div></div>`;
+      }
+      const rar = (E.RARITY_BY_ID && E.RARITY_BY_ID[item.rarity]) || {};
+      return `<div class="paper-slot r-${esc(item.rarity || 'common')}" data-slot="${slot}" tabindex="0" role="button" aria-label="${esc(item.name)}">`
+        + `<div class="paper-emoji">${info.emoji || '🎒'}</div>`
+        + `<div class="paper-slot-label">${esc(info.name || slot)}</div>`
+        + `<div class="paper-slot-label" style="color:${esc(rar.color || '#ccc')}">${esc(item.rarity)}</div></div>`;
+    };
+
+    const tipFor = (slot) => {
+      const info = (E.SLOT_INFO || {})[slot] || {};
+      const item = gearBySlot[slot];
+      if (!item) {
+        return `<div class="tip-name" style="color:#9a8f7d">${esc(info.name || slot)}</div>`
+          + `<div class="tip-sub">No item equipped.</div>`;
+      }
+      const rar = (E.RARITY_BY_ID && E.RARITY_BY_ID[item.rarity]) || {};
+      const rows = Object.entries(item.stats || {}).map(([k, v]) =>
+        `<div class="tip-stat"><span class="k">${esc((E.STAT_LABELS || {})[k] || k)}</span>`
+        + `<span class="v">+${esc(formatStatVal(k, v))}</span></div>`).join('');
+      return `<div class="tip-name" style="color:${esc(rar.color || '#e8e0cf')}">${esc(item.name)}${item.enchant ? ' +' + item.enchant : ''}</div>`
+        + `<div class="tip-sub">${esc(info.name || slot)} · ${esc(item.rarity || '')}</div>`
+        + rows
+        + (item.setName ? `<div class="tip-set">Set: ${esc(item.setName)}</div>` : '');
+    };
+
+    const statCell = (k) => {
+      const label = ((E.STAT_LABELS || {})[k] || k).replace(' %', '');
+      return `<span><span class="k">${esc(label)}</span> <span class="v">${esc(formatStatVal(k, stats[k] || 0))}</span></span>`;
+    };
+    const section = (title, keys) =>
+      `<div class="char-sec-title">${title}</div><div class="char-stat-grid">${keys.map(statCell).join('')}</div>`;
+
+    const pets = (state.pets && state.pets.collection) || [];
+    const active = pets.find(p => p.uid === (state.pets && state.pets.activeUid));
+    let petHTML = `<div class="paper-pet"><span class="pet-emoji">🐾</span><span>No companion</span></div>`;
+    if (active) {
+      const sp = (E.petSpeciesOf && E.petSpeciesOf(active)) || {};
+      const pr = (E.RARITY_BY_ID && E.RARITY_BY_ID[sp.rarity]) || {};
+      const pc = pr.color || '#4da3ff';
+      petHTML = `<div class="paper-pet"><span class="pet-emoji" style="filter:drop-shadow(0 0 8px ${esc(pc)})">${esc(sp.emoji || '🐾')}</span>`
+        + `<span>${esc(sp.name || 'Pet')}<br><span style="color:${esc(pc)}">Lv ${active.level || 1}</span></span></div>`;
+    }
+
+    const leftSlots = ['helmet', 'weapon', 'trinket'];
+    const rightSlots = ['armor', 'boots'];
+    this.modal({
+      title: 'Character',
+      wide: true,
+      html: `<div class="char-sheet">`
+        + `<div class="paper-doll">`
+        + `<div class="paper-col">${leftSlots.map(slotHTML).join('')}</div>`
+        + `<div class="paper-center">`
+        + `<div class="paper-portrait">${esc(cls.emoji || '🦸')}</div>`
+        + `<div class="paper-name">${esc(heroName)}</div>`
+        + `<div class="paper-sub">Level ${state.level || 1} ${esc(cls.name || '')}</div>`
+        + `<div class="paper-hpbar"><div style="width:${Math.min(100, (hp / maxHp) * 100)}%"></div></div>`
+        + `<div class="paper-hptext">❤️ ${formatNum(hp)} / ${formatNum(maxHp)}</div>`
+        + petHTML
+        + `</div>`
+        + `<div class="paper-col">${rightSlots.map(slotHTML).join('')}</div>`
+        + `</div>`
+        + section('OFFENSE', ['attack', 'critChance', 'critDamage', 'attackSpeed', 'lifesteal'])
+        + section('DEFENSE', ['defense', 'maxHp', 'dodge', 'parry'])
+        + section('GAINS', ['xpBonus', 'goldBonus'])
+        + `<div class="gear-tip hidden" id="gear-tip"></div>`
+        + `</div>`,
+      buttons: [{ label: 'Close' }],
+    });
+
+    // Tooltip wiring: hover on desktop, long-press on touch.
+    const rootEl = document.getElementById('modal-root');
+    const sheet = rootEl && rootEl.querySelector('.char-sheet');
+    const tip = rootEl && rootEl.querySelector('#gear-tip');
+    if (!sheet || !tip) return;
+    let pressTimer = null;
+    const showTip = (slotEl) => {
+      tip.innerHTML = tipFor(slotEl.dataset.slot);
+      tip.classList.remove('hidden');
+      const sr = sheet.getBoundingClientRect();
+      const r = slotEl.getBoundingClientRect();
+      tip.style.transform = 'translate(0px,0px)';
+      const tw = tip.offsetWidth || 200, th = tip.offsetHeight || 120;
+      let x = r.right - sr.left + 8;
+      let y = r.top - sr.top - 4;
+      if (x + tw > sr.width - 4) x = r.left - sr.left - tw - 8;
+      if (y + th > sr.height - 4) y = Math.max(4, sr.height - th - 4);
+      tip.style.transform = `translate(${Math.max(4, x)}px, ${Math.max(0, y)}px)`;
+    };
+    const hideTip = () => tip.classList.add('hidden');
+    sheet.querySelectorAll('.paper-slot').forEach(slotEl => {
+      slotEl.addEventListener('mouseenter', () => showTip(slotEl));
+      slotEl.addEventListener('mouseleave', hideTip);
+      slotEl.addEventListener('focus', () => showTip(slotEl));
+      slotEl.addEventListener('blur', hideTip);
+      slotEl.addEventListener('contextmenu', e => e.preventDefault());
+      slotEl.addEventListener('touchstart', () => {
+        if (pressTimer) clearTimeout(pressTimer);
+        pressTimer = setTimeout(() => { pressTimer = null; showTip(slotEl); }, 550);
+      }, { passive: true });
+      const cancelPress = () => { if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; } };
+      slotEl.addEventListener('touchmove', () => { cancelPress(); hideTip(); }, { passive: true });
+      slotEl.addEventListener('touchend', cancelPress, { passive: true });
+      slotEl.addEventListener('touchcancel', cancelPress, { passive: true });
+    });
+    sheet.addEventListener('click', (e) => { if (!e.target.closest('.paper-slot')) hideTip(); });
   },
 
   // ---------------- modals ----------------
