@@ -1734,7 +1734,7 @@ function doSellPet(petUid) {
   }
   UI.toast(`💰 Sold ${sp.emoji} ${res.name} for 💰${formatNum(res.gold)} gold${res.capped ? ' (gold cap reached)' : ''}.`, 'success');
   UI.combatLog(`💰 Sold ${sp.emoji} ${res.name} for 💰${formatNum(res.gold)}.`, 'loot');
-  UI.renderParty(s);
+  UI.renderPetsTab(App.state);
   saveNow();
 }
 
