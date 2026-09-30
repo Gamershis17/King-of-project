@@ -142,7 +142,7 @@ function sanitizeStateBlob(blob) {
   // Name styles are cosmetic: keep them only when well-formed so tampered
   // blobs can't smuggle junk (rendering escapes everything anyway).
   if (blob.nameColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(blob.nameColor))) delete blob.nameColor;
-  if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight', 'voidborn', 'goldleaf', 'bloodmoon', 'stormsurge', 'celestial', 'throneflame'].includes(blob.nameFx)) delete blob.nameFx;
+  if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight', 'voidborn', 'goldleaf', 'bloodmoon', 'stormsurge', 'celestial', 'throneflame', 'gavelstrike', 'allseeing', 'worldforge', 'archlight', 'shadowcrown', 'everflame'].includes(blob.nameFx)) delete blob.nameFx;
   // Battle background is cosmetic: keep only a known value.
   if (blob.battleBg !== undefined && !['world', 'mystyle', 'off'].includes(blob.battleBg)) delete blob.battleBg;
   if (typeof blob.bossesKilled !== 'number') blob.bossesKilled = 0;

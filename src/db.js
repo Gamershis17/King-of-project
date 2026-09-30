@@ -54,6 +54,7 @@ pool.on('error', (err) => {
 const NAME_FX_IDS = new Set([
   'none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy',
   'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight',
+  'gavelstrike', 'allseeing', 'worldforge', 'archlight', 'shadowcrown', 'everflame',
 ]);
 
 /**
