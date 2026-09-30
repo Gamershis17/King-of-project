@@ -1548,6 +1548,15 @@ export const UI = {
   // Rarest titles: these cycle rainbow in the Titles tab / profile.
   RAINBOW_TITLES: ['ever-reborn', 'true-capped', 'worldforger'],
 
+  // Staff titles get their own animated tier style (title-staff-gm/admin/owner)
+  // instead of the generic gold glow. Returns '' for non-staff titles.
+  staffTitleCls(id) {
+    const t = (Engine.STAFF_TITLES || []).find(x => x.id === id);
+    if (!t) return '';
+    return t.staffRole === 'owner' ? 'title-staff-owner'
+         : t.staffRole === 'admin' ? 'title-staff-admin' : 'title-staff-gm';
+  },
+
   // Returns the local player's display name, HTML-escaped and wrapped
   // in a styled span when a custom color/effect is set. `state` is the
   // LOCAL player's state; pass null/{} for the default plain name.
@@ -4129,7 +4138,7 @@ export const UI = {
         <div>
           <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${this.nameHtml(user ? user.username : '—', state)}</div>
           <div class="profile-title-row">
-            <div class="profile-title ${this.RAINBOW_TITLES.includes(state.activeTitle) ? 'title-rainbow' : 'title-glow'}">${esc(Engine.titleName(state.activeTitle))}</div>
+            <div class="profile-title ${this.staffTitleCls(state.activeTitle) || (this.RAINBOW_TITLES.includes(state.activeTitle) ? 'title-rainbow' : 'title-glow')}">${esc(Engine.titleName(state.activeTitle))}</div>
           </div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
@@ -4165,8 +4174,8 @@ export const UI = {
       const has = unlocked.has(t.id);
       const active = s.activeTitle === t.id;
       const rowCls = 'title-row' + (has ? ' unlocked' : ' locked') + (active ? ' active' : '');
-      // Unlocked titles get a subtle gold glow; the 3 rarest cycle rainbow.
-      const glowCls = has ? (this.RAINBOW_TITLES.includes(t.id) ? 'title-rainbow' : 'title-glow') : '';
+      // Unlocked titles get a subtle gold glow; the 3 rarest cycle rainbow; staff tiers get their own animation.
+      const glowCls = has ? (this.staffTitleCls(t.id) || (this.RAINBOW_TITLES.includes(t.id) ? 'title-rainbow' : 'title-glow')) : '';
       const nameHtml = (has && active ? '👑 ' : has ? '' : '🔒 ') + esc(t.name);
       return has
         ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name ${glowCls}">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
