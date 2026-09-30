@@ -939,7 +939,7 @@ body.reduce-motion .shop-card:hover { transform: none; }
 
 /* ---------- toasts ---------- */
 #toast-root {
-  position: fixed; left: 0; right: 0; top: 132px; /* JS refines with real HUD height */
+  position: fixed; left: 0; right: 0; top: var(--toast-top, 132px); /* JS refines --toast-top with real HUD height */
   z-index: 120; display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
   pointer-events: none; padding: 0 1rem;
 }
@@ -4296,7 +4296,7 @@ body:is(.perf, .os-reduced) .tl3-anim-shadowking { animation: none !important; }
 .char-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; font-size: 12px; }
 .char-stat-grid .k { color: #9a8f7d; }
 .char-stat-grid .v { color: #e8e0cf; font-weight: bold; }
-.gear-tip { position: absolute; left: 0; top: 0; z-index: 60; min-width: 170px; max-width: 230px; background: rgba(10, 8, 5, .97); border: 1px solid #8a6d2f; border-radius: 8px; padding: 10px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.65); pointer-events: none; font-size: 12px; }
+.gear-tip { position: absolute; left: 0; top: 0; transform: translate(var(--tip-x, 0px), var(--tip-y, 0px)); z-index: 60; min-width: 170px; max-width: 230px; background: rgba(10, 8, 5, .97); border: 1px solid #8a6d2f; border-radius: 8px; padding: 10px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.65); pointer-events: none; font-size: 12px; }
 .gear-tip .tip-name { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
 .gear-tip .tip-sub { color: #9a8f7d; font-size: 11px; margin-bottom: 6px; }
 .gear-tip .tip-stat { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
