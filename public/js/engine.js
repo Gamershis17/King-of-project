@@ -2527,6 +2527,34 @@ export const TOKEN_TITLES = [
 ];
 for (const t of TOKEN_TITLES) TITLES.push(t);
 
+// Staff titles. staffOnly: never auto-unlocked by checkTitles()
+// (their check always fails) and never granted by "Grant all titles";
+// they unlock automatically at boot for accounts whose staff role
+// qualifies (owner → all tiers, admin → admin+gm, gm → gm).
+export const STAFF_TITLES = [
+  { id: 'gm-gamemaster',   name: '🛡️ the Game Master',  desc: 'Staff only. Wears the mantle of the realm\u2019s judge.',   check: () => false, staffOnly: true, staffRole: 'gm' },
+  { id: 'gm-watcher',      name: '👁️ the Watcher',       desc: 'Staff only. Sees all.',                                     check: () => false, staffOnly: true, staffRole: 'gm' },
+  { id: 'gm-arbiter',      name: '⚖️ the Arbiter',       desc: 'Staff only. Settler of disputes.',                         check: () => false, staffOnly: true, staffRole: 'gm' },
+  { id: 'gm-stormjudge',   name: '⛈️ the Stormjudge',    desc: 'Staff only. Their word is thunder.',                       check: () => false, staffOnly: true, staffRole: 'gm' },
+  { id: 'gm-lawkeeper',    name: '🏰 the Lawkeeper',     desc: 'Staff only. Keeper of the realm\u2019s law.',               check: () => false, staffOnly: true, staffRole: 'gm' },
+  { id: 'gm-mediator',     name: '🤝 the Mediator',      desc: 'Staff only. Brings peace to the chaos.',                   check: () => false, staffOnly: true, staffRole: 'gm' },
+  { id: 'gm-galaxywatcher', name: '🌌 the Galaxywatcher', desc: 'Staff only. Watches over the entire galaxy.',             check: () => false, staffOnly: true, staffRole: 'gm' },
+  { id: 'admin-administrator', name: '🏛️ the Administrator', desc: 'Staff only. Runs the realm behind the curtain.',      check: () => false, staffOnly: true, staffRole: 'admin' },
+  { id: 'admin-worldsmith',    name: '🔨 the Worldsmith',    desc: 'Staff only. Forges the world itself.',                check: () => false, staffOnly: true, staffRole: 'admin' },
+  { id: 'admin-warden',        name: '🗡️ the Warden',        desc: 'Staff only. Guardian of the gates.',                  check: () => false, staffOnly: true, staffRole: 'admin' },
+  { id: 'admin-architect',     name: '📐 the Architect',     desc: 'Staff only. Designs the realm\u2019s foundations.',   check: () => false, staffOnly: true, staffRole: 'admin' },
+  { id: 'admin-purgebearer',   name: '🔥 the Purgebearer',   desc: 'Staff only. Cleanses what threatens the realm.',      check: () => false, staffOnly: true, staffRole: 'admin' },
+  { id: 'admin-overseer',      name: '🌟 the Overseer',      desc: 'Staff only. Oversees all.',                           check: () => false, staffOnly: true, staffRole: 'admin' },
+  { id: 'owner-thronekeeper', name: '👑 the Thronekeeper', desc: 'Staff only. Keeper of the Throne of Shadows.',          check: () => false, staffOnly: true, staffRole: 'owner' },
+  { id: 'owner-shadowking',   name: '🌑 the Shadow King',  desc: 'Staff only. The shadow behind the throne.',             check: () => false, staffOnly: true, staffRole: 'owner' },
+  { id: 'owner-everlasting',  name: '♾️ the Everlasting',  desc: 'Staff only. Eternal as the throne itself.',             check: () => false, staffOnly: true, staffRole: 'owner' },
+];
+for (const t of STAFF_TITLES) TITLES.push(t);
+// TITLE_BY_ID was built before the token/staff pushes above; merge them in
+// so titleName() resolves everywhere (profile, leaderboard, server).
+for (const t of TOKEN_TITLES) TITLE_BY_ID[t.id] = t;
+for (const t of STAFF_TITLES) TITLE_BY_ID[t.id] = t;
+
 // Token-exclusive name effects (visual CSS classes .pname.fx-<id>).
 export const TOKEN_NAME_FX = [
   { id: 'voidborn',   name: '🕳️ Voidborn' },

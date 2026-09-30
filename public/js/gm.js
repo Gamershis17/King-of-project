@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js?v=20260930e';
 import { UI, esc, formatNum } from './ui.js?v=20260930e';
-import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v=20260930e';
+import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v=20260930i';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
@@ -282,16 +282,19 @@ export const GM = {
     on('gm-grant-all-titles-btn', 'click', async () => {
       const username = needTarget();
       if (!username) return;
+      // Staff titles stay staff-only: the bulk grant skips them (single
+      // grant-title can still target one deliberately).
+      const grantable = TITLES.filter(t => !t.staffOnly);
       const ok = await UI.confirm('Grant all titles?',
-        `<p>Unlock all <b>${TITLES.length}</b> titles for <b>${esc(username)}</b>?</p>`);
+        `<p>Unlock all <b>${grantable.length}</b> titles for <b>${esc(username)}</b>?</p>`);
       if (!ok) return;
       runAction('gm-grant-all-titles-btn', 'Grant all titles', async () => {
         let res = null;
-        for (const t of TITLES) {
+        for (const t of grantable) {
           res = await api.gmGrantTitle(username, t.id);
         }
         await hotReloadIfSelf(username, res);
-        return `👑 Granted all ${TITLES.length} titles to ${username}.`;
+        return `👑 Granted all ${grantable.length} titles to ${username}.`;
       });
     });
 

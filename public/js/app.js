@@ -2,10 +2,10 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930f';
-import * as Engine from './engine.js?v=20260930f';
+import * as Engine from './engine.js?v=20260930i';
 import { UI, esc, formatNum } from './ui.js?v=20260930f';
 import { Auth } from './auth.js?v=20260930f';
-import { GM } from './gm.js?v=20260930f';
+import { GM } from './gm.js?v=20260930i';
 import { Raid } from './raid.js?v=20260930f';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930f';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930f';
@@ -465,6 +465,7 @@ async function enterAppWithState(user, raw, lastSeenAt) {
 // apply offline earnings, start the game loop.
 async function continueBoot(state, lastSeenAt) {
   Raid.init(state);
+  grantStaffTitles();
   UI.showView('app');
   // Guild perks: fetch once at boot for account players (no-op for guests
   // and guildless players). Fire-and-forget; the engine defaults to zero.
@@ -488,6 +489,28 @@ async function continueBoot(state, lastSeenAt) {
   }
 
   startGame();
+}
+
+// Staff titles: unlock the tiers matching the account's staff role at boot
+// (owner → owner+admin+gm, admin → admin+gm, gm → gm). Idempotent; the
+// titles themselves can never auto-unlock via checkTitles().
+function grantStaffTitles() {
+  const s = App.state;
+  const role = App.user && App.user.role;
+  if (!s || !role) return;
+  const tiers = role === 'owner' ? ['owner', 'admin', 'gm']
+    : role === 'admin' ? ['admin', 'gm']
+    : role === 'gm' ? ['gm'] : [];
+  if (!tiers.length) return;
+  if (!Array.isArray(s.titlesUnlocked)) s.titlesUnlocked = ['wanderer'];
+  let added = 0;
+  for (const t of (Engine.STAFF_TITLES || [])) {
+    if (tiers.includes(t.staffRole) && !s.titlesUnlocked.includes(t.id)) {
+      s.titlesUnlocked.push(t.id);
+      added++;
+    }
+  }
+  if (added && !isGuest()) { try { saveNow(); } catch { /* offline-tolerant */ } }
 }
 
 // ---------------- UI style theme ----------------
