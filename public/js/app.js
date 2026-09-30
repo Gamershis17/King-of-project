@@ -240,6 +240,9 @@ async function boot() {
     },
     onShare: () => UI.shareGame(App.state, App.user),
     onChangelog: () => UI.openChangelog(),
+    onOpenHeroes: () => openHeroes(),
+    onHeroSwitch: (slot) => doHeroSwitch(slot),
+    onHeroCreate: (slot) => doHeroCreate(slot),
     onTitle: (id) => {
       const s = App.state;
       if (!s || !(s.titlesUnlocked || []).includes(id)) return;
@@ -362,6 +365,66 @@ async function openUpgradeModal() {
         },
       },
     ],
+  });
+}
+
+// ---------------- multi-hero ----------------
+// Hero switcher (main-screen hero card). Guests get the locked prompt;
+// authed players get the 3-slot modal.
+async function openHeroes() {
+  if (isGuest()) { promptUpgrade('Hero slots'); return; }
+  let data;
+  try {
+    data = await api.heroesList();
+  } catch (e) {
+    UI.toast(e.message || 'Could not load heroes.', 'error');
+    return;
+  }
+  UI.showHeroesModal(data);
+}
+
+// Switch to another hero: confirm, save the current hero FIRST (the server
+// parks whatever is in player_state), then switch and reboot into it.
+async function doHeroSwitch(slot) {
+  const ok = await UI.confirm(
+    '🦸 Switch hero?',
+    'Your current hero is <b>saved automatically</b> — you pick up right where you left it next time.'
+  );
+  if (!ok) return;
+  try {
+    await persistNow();
+  } catch (e) {
+    UI.toast('Save failed — not switching, to protect your progress.', 'error');
+    return;
+  }
+  try {
+    await api.heroesSwitch(slot);
+  } catch (e) {
+    UI.toast(e.message || 'Switch failed.', 'error');
+    return;
+  }
+  UI.toast('🦸 Hero switched — loading…', 'success');
+  setTimeout(() => location.reload(), 700);
+}
+
+// Create a hero in an empty slot: pick race/class/spec/pet, save the current
+// hero first, then create on the server and reboot into the new hero.
+async function doHeroCreate(slot) {
+  UI.heroCreateModal(async (race, playerClass, spec, petSpecies) => {
+    try {
+      await persistNow();
+    } catch (e) {
+      UI.toast('Save failed — not creating, to protect your progress.', 'error');
+      return;
+    }
+    try {
+      await api.heroesCreate(slot, race, playerClass, spec, petSpecies);
+    } catch (e) {
+      UI.toast(e.message || 'Hero creation failed.', 'error');
+      return;
+    }
+    UI.toast('🦸 New hero created — loading…', 'success');
+    setTimeout(() => location.reload(), 700);
   });
 }
 
