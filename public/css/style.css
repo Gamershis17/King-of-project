@@ -932,9 +932,10 @@ body.reduce-motion .shop-card:hover { transform: none; }
 .modal-overlay {
   position: fixed; inset: 0; z-index: 100; background: rgba(5,3,10,.72);
   display: flex; align-items: center; justify-content: center; padding: 1rem;
-  opacity: 0; transition: opacity .18s;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .18s, visibility .18s;
 }
-.modal-overlay.show { opacity: 1; }
+.modal-overlay.show { opacity: 1; visibility: visible; pointer-events: auto; }
 .modal {
   background: linear-gradient(180deg, var(--stone2), var(--bg2));
   border: 1px solid var(--arcane-dim); border-radius: 16px;
