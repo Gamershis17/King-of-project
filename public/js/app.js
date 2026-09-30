@@ -5,7 +5,7 @@ import { api } from './api.js?v=20260930u';
 import * as Engine from './engine.js?v=20260930u';
 import { UI, esc, formatNum } from './ui.js?v=20260930u';
 import { Auth } from './auth.js?v=20260930u';
-import { GM } from './gm.js?v=20260930u';
+import { GM } from './gm.js?v=20260930x';
 
 import { Raid } from './raid.js?v=20260930u';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930u';

@@ -47,10 +47,12 @@ export const GM = {
     const gmHeader = document.querySelector('#view-gm .gm-header');
     const gmTarget = root.querySelector('.gm-target');
     const hdrH = gmHeader ? gmHeader.offsetHeight : 0;
-    if (gmTarget && hdrH) gmTarget.style.top = hdrH + 'px';
+    // Dynamic offsets travel as CSS custom properties; style.css owns how
+    // they're applied (same pattern as the toast/tooltip vars in ui.js).
+    if (gmTarget && hdrH) gmTarget.style.setProperty('--gm-target-top', hdrH + 'px');
     const jumpOffset = hdrH + (gmTarget ? gmTarget.offsetHeight : 0) + 12;
     root.querySelectorAll('[id^="gm-sec-"]').forEach((sec) => {
-      sec.style.scrollMarginTop = jumpOffset + 'px';
+      sec.style.setProperty('--gm-jump-offset', jumpOffset + 'px');
     });
     root.querySelectorAll('[data-goto]').forEach((chip) => {
       chip.addEventListener('click', () => {
@@ -830,6 +832,7 @@ export const GM = {
 
   async render() {
     const root = document.getElementById('gm-content');
+    if (!root) return; // console view absent (e.g. partial HTML): fail gracefully
     root.innerHTML = '<p class="muted">Loading console…</p>';
     // /gm/overview is gm|owner only; admins/moderators get a slim header.
     let ov;
