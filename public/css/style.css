@@ -4743,3 +4743,104 @@ body.reduce-motion .enemy-card.boss::after { animation: none; }
   border-radius: var(--radius); padding: 0.6rem 0.7rem;
 }
 .recruit-row .btn { min-height: 42px; }
+
+/* ---------- Gamepad navigation (Xbox / TV / controllers) ---------- */
+/* The focus ring only renders while a controller is in use (body.gamepad),
+   so mouse and touch players never see it. */
+body.gamepad .gpad-focus {
+  outline: 3px solid #ffd75e !important;
+  outline-offset: 3px;
+  border-radius: 10px;
+  box-shadow: 0 0 0 5px rgba(255, 215, 94, 0.22), 0 0 18px rgba(255, 215, 94, 0.45);
+}
+body.gamepad .gpad-press { transform: scale(0.95); }
+.gpad-toast {
+  position: fixed; left: 50%; bottom: 92px; transform: translate(-50%, 16px);
+  background: rgba(10, 8, 18, 0.92); color: #ffe9a8;
+  border: 1px solid var(--gold-line, #8a6d2f); border-radius: 12px;
+  padding: 0.55rem 1rem; font-size: 0.85rem; z-index: 400;
+  opacity: 0; transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none; max-width: 88vw; text-align: center;
+}
+.gpad-toast.show { opacity: 1; transform: translate(-50%, 0); }
+body.reduce-motion .gpad-toast { transition: none; }
+
+/* ================= Pet System rework ================= */
+.pet-telemetry {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 8px; margin: 0.8rem 0;
+}
+.pet-tstat {
+  background: var(--stone); border: 1px solid var(--stone2);
+  border-radius: var(--radius); padding: 0.5rem 0.7rem;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.pet-tlabel { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.04em; }
+.pet-tval { font-size: 0.95rem; font-weight: 700; color: var(--gold-hi); }
+
+.pet-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 0.9rem; }
+.pet-slot-frame {
+  background: var(--stone); border: 2px solid var(--stone2);
+  border-radius: var(--radius); padding: 0.6rem;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center;
+}
+.pet-slot-frame[data-action] { cursor: pointer; }
+.pet-slot-frame.is-empty, .pet-slot-frame.is-locked { border-style: dashed; opacity: 0.75; }
+.pet-slot-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.pet-frame-name { font-weight: 700; }
+
+.pet-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0.6rem 0; }
+.pet-chip { text-transform: capitalize; }
+
+.pet-slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(108px, 1fr)); gap: 10px; }
+.pet-slot {
+  background: var(--stone); border: 2px solid var(--stone2);
+  border-radius: var(--radius); padding: 0.6rem 0.5rem;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; position: relative; text-align: center;
+  transition: transform 0.08s ease, box-shadow 0.15s ease;
+}
+.pet-slot:active { transform: scale(0.96); }
+.pet-slot .pet-active { margin: 0; }
+.pet-slot.is-active { box-shadow: 0 0 10px rgba(255, 215, 0, 0.28); }
+.pet-slot.is-expanded { grid-column: 1 / -1; align-items: stretch; text-align: left; cursor: default; padding: 0.8rem; }
+.pet-slot-name { font-weight: 700; font-size: 0.85rem; }
+.pet-slot-hunger { width: 100%; height: 6px; background: rgba(0, 0, 0, 0.45); border-radius: 3px; overflow: hidden; }
+.pet-slot-hunger i { display: block; height: 100%; background: linear-gradient(90deg, #c98a2b, #ffd75e); border-radius: 3px; }
+
+/* rarity borders */
+.pet-slot.rarity-common, .pet-slot-frame.rarity-common { border-color: #9aa3b2; }
+.pet-slot.rarity-magic, .pet-slot-frame.rarity-magic { border-color: #5aa9ff; }
+.pet-slot.rarity-rare, .pet-slot-frame.rarity-rare { border-color: #4fe07a; }
+.pet-slot.rarity-epic, .pet-slot-frame.rarity-epic { border-color: #b366ff; }
+.pet-slot.rarity-legendary, .pet-slot-frame.rarity-legendary { border-color: #ff9f43; }
+.pet-slot.rarity-mythic, .pet-slot-frame.rarity-mythic { border-color: #ffd75e; box-shadow: 0 0 12px rgba(255, 215, 94, 0.3); }
+.pet-slot.rarity-shadow, .pet-slot-frame.rarity-shadow { border-color: #7c3aed; box-shadow: 0 0 12px rgba(124, 58, 237, 0.35); }
+.pet-slot.rarity-celestial, .pet-slot-frame.rarity-celestial { border-color: #7df9ff; box-shadow: 0 0 12px rgba(125, 249, 255, 0.3); }
+
+/* breed / combine pick highlight */
+.pet-slot.breed-pick { border-color: #ff8fb3; box-shadow: 0 0 12px rgba(255, 143, 179, 0.35); }
+.pet-slot.combine-pick { border-color: #7df9ff; box-shadow: 0 0 12px rgba(125, 249, 255, 0.35); }
+
+/* cohesive icon with emoji fallback */
+.pet-icon { position: relative; display: inline-block; width: 52px; height: 52px; flex: none; }
+.pet-icon-img { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block; background: #14101c; }
+.pet-icon-fb { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 30px; }
+.pet-frame-icon, .pet-xicon { width: 64px; height: 64px; }
+.pet-frame-icon .pet-icon-fb, .pet-xicon .pet-icon-fb { font-size: 36px; }
+.pet-chip-icon { width: 26px; height: 26px; }
+.pet-chip-icon .pet-icon-fb { font-size: 18px; }
+.pet-chip-icon .pet-icon-img { border-radius: 7px; }
+.breed-chip { display: inline-flex; align-items: center; gap: 6px; }
+
+/* expanded detail */
+.pet-xhead { display: flex; align-items: center; gap: 0.7rem; }
+.pet-xhead .pet-active { margin-left: auto; }
+.pet-xstats { display: grid; gap: 3px; font-size: 0.85rem; margin: 0.5rem 0; }
+.pet-slot .pet-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+.pet-flavor { font-style: italic; margin-top: 0.4rem; }
+@media (max-width: 560px) {
+  .pet-slot-grid { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+  .pet-icon { width: 46px; height: 46px; }
+}
+body:is(.perf, .os-reduced) .pet-slot { transition: none; }
