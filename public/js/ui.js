@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930ad';
-import { Audio } from './audio.js?v=20260930ad';
+import * as Engine from './engine.js?v=20260930af';
+import { Audio } from './audio.js?v=20260930af';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -245,6 +245,8 @@ export const UI = {
     // Bottom tab bar
     $$('#tabbar .tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
+        // 🌐 Realm Network is a modal trigger, not a tab (wired separately below).
+        if (btn.id === 'realm-open') return;
         // Staff tab is a shortcut into the GM console (role-checked on open).
         if (btn.dataset.tab === 'staff') { this.handlers.onOpenGM && this.handlers.onOpenGM(); return; }
         this.showTab(btn.dataset.tab);
