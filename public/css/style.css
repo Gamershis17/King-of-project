@@ -389,16 +389,51 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 @keyframes pulse { 50% { opacity: 0.6; } }
 .enemy-atk { margin-top: 0.4rem; color: var(--muted); font-size: 0.85rem; }
 .float-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+/* ---- floating combat text: spawn lanes + arc trajectories ----
+   Design tokens (tweak per breakpoint below as needed):
+     --ft-dur    total flight time
+     --ft-rise   how high a number travels
+     --ft-drift  how far sideways it arcs
+     --ft-dir    +1 arcs right, -1 arcs left (set by the lane classes)
+   Numbers spawn below the enemy name/HP block and arc outward+upward,
+   so they never spawn over or drift across static card text. To change
+   the motion, edit the tokens/keyframes here — never inline in JS. */
 .float-txt {
-  position: absolute; top: 30%; font-weight: 800; font-size: 1.25rem;
-  text-shadow: 0 2px 4px #000; animation: floatup 1.05s ease-out forwards;
+  --ft-dur: 1.05s;
+  --ft-rise: 84px;
+  --ft-drift: 56px;
+  --ft-dir: 1;
+  position: absolute; top: 40%; left: 50%; translate: -50% 0;
+  font-weight: 800; font-size: 1.25rem; white-space: nowrap;
+  text-shadow: 0 2px 4px #000;
+  animation: ft-arc var(--ft-dur) ease-out forwards;
   will-change: transform, opacity;
+}
+.ft-lane-l { --ft-dir: -1; }
+.ft-lane-r { --ft-dir: 1; }
+@keyframes ft-arc {
+  0%   { transform: translate(0, 0) scale(.6); opacity: 0; }
+  12%  { transform: translate(calc(var(--ft-drift) * var(--ft-dir) * .2), -12px) scale(1.25); opacity: 1; }
+  30%  { transform: translate(calc(var(--ft-drift) * var(--ft-dir) * .5), -32px) scale(1); opacity: 1; }
+  65%  { transform: translate(calc(var(--ft-drift) * var(--ft-dir) * .85), -58px) scale(1); opacity: 1; }
+  100% { transform: translate(calc(var(--ft-drift) * var(--ft-dir)), calc(var(--ft-rise) * -1)) scale(.92); opacity: 0; }
+}
+@media (max-width: 480px) {
+  .float-txt { --ft-drift: 34px; --ft-rise: 70px; }
 }
 .float-dmg { color: #fff; }
 .float-crit {
   color: var(--gold); font-size: 1.6rem;
   text-shadow: 0 0 14px rgba(255, 210, 63, .6), 0 2px 4px #000;
-  animation: crit-float 1.05s ease-out forwards;
+  animation: ft-arc-crit var(--ft-dur, 1.05s) ease-out forwards;
+}
+/* Crits ride the same lane system with a bigger pop and a wider arc. */
+@keyframes ft-arc-crit {
+  0%   { transform: translate(0, 0) scale(.4); opacity: 0; }
+  12%  { transform: translate(calc(var(--ft-drift) * var(--ft-dir) * .15), -14px) scale(1.6); opacity: 1; }
+  30%  { transform: translate(calc(var(--ft-drift) * var(--ft-dir) * .4), -30px) scale(1.05); opacity: 1; }
+  65%  { transform: translate(calc(var(--ft-drift) * var(--ft-dir) * .8), -60px) scale(1); opacity: 1; }
+  100% { transform: translate(calc(var(--ft-drift) * var(--ft-dir) * 1.15), calc(var(--ft-rise) * -1.1)) scale(.9); opacity: 0; }
 }
 .float-hurt { color: var(--danger); }
 .float-dodge { color: #9adcff; }
@@ -415,21 +450,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .role-tank { color: #9adcff; border-color: #1f6feb66; background: #1f6feb14; }
 .role-healer { color: #7dffa8; border-color: #2ea04366; background: #2ea04314; }
 .role-dps { color: #ffb86b; border-color: #b86b0066; background: #b86b0014; }
-@keyframes floatup {
-  0% { transform: translateY(0) scale(0.6) rotate(var(--tilt, 0deg)); opacity: 0; }
-  12% { transform: translateY(-10px) scale(1.2) rotate(var(--tilt, 0deg)); opacity: 1; }
-  25% { transform: translateY(-22px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
-  65% { transform: translateY(-52px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
-  100% { transform: translateY(-72px) scale(0.9) rotate(var(--tilt, 0deg)); opacity: 0; }
-}
-/* Crits get a bigger pop + gold glow in every theme (not just modern). */
-@keyframes crit-float {
-  0% { transform: translateY(0) scale(0.4) rotate(var(--tilt, 0deg)); opacity: 0; }
-  12% { transform: translateY(-12px) scale(1.55) rotate(var(--tilt, 0deg)); opacity: 1; }
-  30% { transform: translateY(-26px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
-  65% { transform: translateY(-56px) scale(1) rotate(var(--tilt, 0deg)); opacity: 1; }
-  100% { transform: translateY(-78px) scale(0.9) rotate(var(--tilt, 0deg)); opacity: 0; }
-}
+
 /* ---- low hero HP: pulsing red warning ---- */
 .bar.hp.hp-low .fill {
   background: linear-gradient(180deg, #ff2d2d, #8f0f0f);
@@ -1205,7 +1226,7 @@ button.title-row { cursor: pointer; }
   border-color: var(--gold); background: var(--stone2);
   box-shadow: 0 0 12px rgba(255,210,63,.28);
 }
-.title-row.active .title-row-name { color: var(--gold); }
+.title-row.active .title-row-name:not([class*="tl1-"]) { color: var(--gold); }
 
 /* ---------- rainbow Sovereign gear ---------- */
 @property --rainbow-angle {
@@ -1543,15 +1564,7 @@ body[data-uistyle="modern"] .modal-overlay.show .modal {
   animation: modern-modal-in .34s cubic-bezier(.34,1.35,.64,1);
 }
 
-/* ---- crit damage numbers: extra pop (mirrors floatup timing + pop) ---- */
-@keyframes modern-crit-float {
-  0% { transform: translateY(0) scale(.4); opacity: 0; }
-  12% { transform: translateY(-10px) scale(1.40); opacity: 1; }
-  30% { transform: translateY(-22px) scale(1); opacity: 1; }
-  65% { transform: translateY(-52px) scale(1); opacity: 1; }
-  100% { transform: translateY(-72px) scale(.9); opacity: 0; }
-}
-body[data-uistyle="modern"] .float-crit { animation: modern-crit-float 1.05s ease-out forwards; }
+
 
 /* ============================================================
    REDUCE MOTION — kill every modern keyframe animation.
@@ -2354,18 +2367,7 @@ body[data-bgstyle="midnight"]::before { animation-name: bg-fall-l; }
 @keyframes bg-drift-x-m { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(150px, 0, 0); } }
 @keyframes bg-drift-x-l { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(180px, 0, 0); } }
 
-/* ---- crit juice: bigger pop, works in Classic AND Modern ---- */
-.float-txt.float-crit {
-  animation: crit-pop 1.05s ease-out forwards;
-  text-shadow: 0 0 14px rgba(255, 210, 63, .65), 0 2px 4px #000;
-}
-@keyframes crit-pop {
-  0%   { transform: translateY(0) scale(.5); opacity: 0; }
-  12%  { transform: translateY(-12px) scale(1.6); opacity: 1; }
-  30%  { transform: translateY(-26px) scale(1.05); opacity: 1; }
-  65%  { transform: translateY(-56px) scale(1); opacity: 1; }
-  100% { transform: translateY(-78px) scale(.9); opacity: 0; }
-}
+
 
 /* ---- soft pulse on the skill button while it is ready ---- */
 .skill-btn.skill-ready { animation: skill-ready-pulse 2.2s ease-in-out infinite; }
@@ -3694,10 +3696,8 @@ body:is(.perf, .os-reduced) .float-txt {
   60% { text-shadow: -1px 0 rgba(255, 45, 90, .9), 1px 0 rgba(45, 220, 255, .9); }
   80% { text-shadow: 5px 0 rgba(255, 45, 90, .7), -5px 0 rgba(45, 220, 255, .7); }
 }
-/* Active-row gold must not override the rainbow gradient on rarest titles. */
-.title-row.active .title-row-name.title-rainbow {
-  color: transparent;
-}
+/* Active-row gold must not override title gradient layers (tl1-*) — the
+   layer-1 class itself owns the color, so no override rule is needed. */
 
 /* ============================================================
    SEASONAL NAME EFFECTS (12)
@@ -4099,76 +4099,58 @@ body:is(.perf, .os-reduced) .float-txt {
 }
 
 /* Perf / reduced-motion: freeze the motion, keep the color. */
-body:is(.perf, .os-reduced) .pname,
-body:is(.perf, .os-reduced) .title-glow,
-body:is(.perf, .os-reduced) .title-rainbow,
-body:is(.perf, .os-reduced) .title-staff-gm,
-body:is(.perf, .os-reduced) .title-staff-admin,
-body:is(.perf, .os-reduced) .title-staff-owner,
-body:is(.perf, .os-reduced) .title-gm-gamemaster,
-body:is(.perf, .os-reduced) .title-gm-stormjudge,
-body:is(.perf, .os-reduced) .title-owner-shadowking { animation: none !important; }
+body:is(.perf, .os-reduced) .tl3-pulse,
+body:is(.perf, .os-reduced) .tl3-slide,
+body:is(.perf, .os-reduced) .tl3-sheen-gm,
+body:is(.perf, .os-reduced) .tl3-sheen-admin,
+body:is(.perf, .os-reduced) .tl3-sheen-owner,
+body:is(.perf, .os-reduced) .tl3-anim-gamemaster,
+body:is(.perf, .os-reduced) .tl3-anim-stormjudge,
+body:is(.perf, .os-reduced) .tl3-anim-shadowking { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  .pname, .title-glow, .title-rainbow, .title-staff-gm, .title-staff-admin, .title-staff-owner, .title-gm-gamemaster, .title-gm-stormjudge, .title-owner-shadowking { animation: none !important; }
+  .pname, .tl3-pulse, .tl3-slide, .tl3-sheen-gm, .tl3-sheen-admin, .tl3-sheen-owner,
+  .tl3-anim-gamemaster, .tl3-anim-stormjudge, .tl3-anim-shadowking { animation: none !important; }
 }
 
-/* ---- animated titles ---- */
-.title-glow {
-  color: #ffd76a;
-  text-shadow: 0 0 8px rgba(255, 215, 106, .55), 0 0 20px rgba(255, 170, 60, .28);
-  animation: title-glow-pulse 2.6s ease-in-out infinite;
-}
-@keyframes title-glow-pulse {
-  0%, 100% { text-shadow: 0 0 8px rgba(255, 215, 106, .45), 0 0 18px rgba(255, 170, 60, .22); }
-  50% { text-shadow: 0 0 12px rgba(255, 215, 106, .75), 0 0 28px rgba(255, 170, 60, .4); }
-}
-.title-rainbow {
+/* ============ TITLE VISUAL LAYERS ============
+   Every hero title is styled by composing up to three layer classes,
+   chosen by Engine.TitleManager from the title's `fx` data in priority
+   order (never by if/else chains on title ids):
+     layer 1 (.tl1-*) = base text color / gradient
+     layer 2 (.tl2-*) = text shadow / glow
+     layer 3 (.tl3-*) = keyframe animation / motion
+   To add a new title visual: add the layer classes here, then point the
+   title's `fx` at them in TITLE_DEFS (engine.js) — one line of data. */
+
+/* ---- layer 1: base text color / gradient ---- */
+.tl1-gold { color: #ffd76a; }
+.tl1-rainbow {
   background-image: linear-gradient(90deg, #ff5b5b, #ff9f43, #ffd23f, #5bff8f, #5bd7ff, #b78bff, #ff8bd1, #ff5b5b);
   background-size: 300% 100%;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  animation: pname-rainbow 4s linear infinite;
 }
-
-/* ---- staff title tiers: each staff rank gets its own animated identity ---- */
-.title-staff-gm {
+.tl1-grad-gm {
   background-image: linear-gradient(100deg, #7a4a00 0%, #ffb52e 25%, #fff3c4 50%, #ffb52e 75%, #7a4a00 100%);
   background-size: 250% 100%;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  animation: title-staff-gm 3.2s ease-in-out infinite;
 }
-@keyframes title-staff-gm {
-  0%, 100% { background-position: 110% 0; text-shadow: 0 0 8px rgba(255,170,60,.45), 0 0 20px rgba(255,140,30,.22); }
-  50% { background-position: -10% 0; text-shadow: 0 0 14px rgba(255,190,80,.85), 0 0 36px rgba(255,150,40,.45); }
-}
-.title-staff-admin {
+.tl1-grad-admin {
   background-image: linear-gradient(100deg, #2a4a5a 0%, #7fd8ff 25%, #ffffff 50%, #7fd8ff 75%, #2a4a5a 100%);
   background-size: 250% 100%;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  animation: title-staff-admin 3.6s ease-in-out infinite;
 }
-@keyframes title-staff-admin {
-  0%, 100% { background-position: 110% 0; text-shadow: 0 0 8px rgba(140,220,255,.4); }
-  50% { background-position: -10% 0; text-shadow: 0 0 16px rgba(170,230,255,.9), 0 0 34px rgba(120,200,255,.42); }
-}
-.title-staff-owner {
+.tl1-grad-owner {
   background-image:
     radial-gradient(circle, rgba(200,130,255,.95) 0 1.4px, transparent 2.4px),
     linear-gradient(135deg, #12041f 0%, #4a1060 35%, #c084ff 50%, #4a1060 65%, #12041f 100%);
   background-size: 30px 30px, 280% 100%;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  animation: title-staff-owner 4.5s ease-in-out infinite;
 }
-@keyframes title-staff-owner {
-  0%, 100% { background-position: 0 0, 100% 0; text-shadow: 0 0 10px rgba(170,90,255,.5), 0 0 24px rgba(120,40,200,.28); }
-  50% { background-position: 15px 15px, 0% 0; text-shadow: 0 0 18px rgba(190,110,255,.95), 0 0 42px rgba(140,60,220,.5); }
-}
-
-/* ---- flagship titles: unique per-title animations ---- */
-.title-gm-gamemaster {
+.tl1-grad-gamemaster {
   background-image:
     radial-gradient(circle, #fff8dd 0 1.6px, transparent 2.6px),
     linear-gradient(100deg, #6b4300 0%, #e8a020 22%, #fff6d8 40%, #ffe98a 50%, #fff6d8 60%, #e8a020 78%, #6b4300 100%);
@@ -4176,9 +4158,53 @@ body:is(.perf, .os-reduced) .title-owner-shadowking { animation: none !important
   background-position: 0 0, 110% 0;
   -webkit-background-clip: text; background-clip: text;
   color: transparent;
-  animation: title-gm-gamemaster 4.5s ease-in-out infinite;
 }
-@keyframes title-gm-gamemaster {
+.tl1-grad-stormjudge {
+  background-image:
+    linear-gradient(100deg, #1a2233 0%, #3a4f6e 30%, #9fc8e8 48%, #ffffff 50%, #9fc8e8 52%, #3a4f6e 70%, #1a2233 100%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+.tl1-grad-shadowking {
+  background-image:
+    radial-gradient(circle, rgba(255,90,60,.95) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle, rgba(190,110,255,.9) 0 1.3px, transparent 2.3px),
+    linear-gradient(135deg, #000000 0%, #1c0510 35%, #5a1020 50%, #1c0510 65%, #000000 100%);
+  background-size: 46px 46px, 60px 60px, 300% 100%;
+  background-position: 0 0, 30px 30px, 100% 0;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+
+/* ---- layer 2: text shadow / glow ---- */
+.tl2-none { text-shadow: none; }
+.tl2-glow-gold { text-shadow: 0 0 8px rgba(255, 215, 106, .55), 0 0 20px rgba(255, 170, 60, .28); }
+
+/* ---- layer 3: keyframe animation / motion ---- */
+.tl3-pulse { animation: tl3-pulse 2.6s ease-in-out infinite; }
+@keyframes tl3-pulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(255, 215, 106, .45), 0 0 18px rgba(255, 170, 60, .22); }
+  50% { text-shadow: 0 0 12px rgba(255, 215, 106, .75), 0 0 28px rgba(255, 170, 60, .4); }
+}
+.tl3-slide { animation: pname-rainbow 4s linear infinite; }
+.tl3-sheen-gm { animation: tl3-sheen-gm 3.2s ease-in-out infinite; }
+@keyframes tl3-sheen-gm {
+  0%, 100% { background-position: 110% 0; text-shadow: 0 0 8px rgba(255,170,60,.45), 0 0 20px rgba(255,140,30,.22); }
+  50% { background-position: -10% 0; text-shadow: 0 0 14px rgba(255,190,80,.85), 0 0 36px rgba(255,150,40,.45); }
+}
+.tl3-sheen-admin { animation: tl3-sheen-admin 3.6s ease-in-out infinite; }
+@keyframes tl3-sheen-admin {
+  0%, 100% { background-position: 110% 0; text-shadow: 0 0 8px rgba(140,220,255,.4); }
+  50% { background-position: -10% 0; text-shadow: 0 0 16px rgba(170,230,255,.9), 0 0 34px rgba(120,200,255,.42); }
+}
+.tl3-sheen-owner { animation: tl3-sheen-owner 4.5s ease-in-out infinite; }
+@keyframes tl3-sheen-owner {
+  0%, 100% { background-position: 0 0, 100% 0; text-shadow: 0 0 10px rgba(170,90,255,.5), 0 0 24px rgba(120,40,200,.28); }
+  50% { background-position: 15px 15px, 0% 0; text-shadow: 0 0 18px rgba(190,110,255,.95), 0 0 42px rgba(140,60,220,.5); }
+}
+.tl3-anim-gamemaster { animation: tl3-anim-gamemaster 4.5s ease-in-out infinite; }
+@keyframes tl3-anim-gamemaster {
   0%, 100% { background-position: 0 0, 110% 0; text-shadow: 0 0 10px rgba(255,190,70,.5), 0 0 26px rgba(255,150,30,.25); filter: brightness(1); }
   20% { text-shadow: 0 0 18px rgba(255,205,100,.85), 0 0 44px rgba(255,160,40,.45); filter: brightness(1.2); }
   40% { background-position: 17px 17px, 30% 0; }
@@ -4186,15 +4212,8 @@ body:is(.perf, .os-reduced) .title-owner-shadowking { animation: none !important
   60% { background-position: 8px 8px, -10% 0; text-shadow: 0 0 10px rgba(255,190,70,.5); filter: brightness(1); }
   80% { text-shadow: 0 0 18px rgba(255,205,100,.85), 0 0 44px rgba(255,160,40,.45); filter: brightness(1.2); }
 }
-.title-gm-stormjudge {
-  background-image:
-    linear-gradient(100deg, #1a2233 0%, #3a4f6e 30%, #9fc8e8 48%, #ffffff 50%, #9fc8e8 52%, #3a4f6e 70%, #1a2233 100%);
-  background-size: 280% 100%;
-  -webkit-background-clip: text; background-clip: text;
-  color: transparent;
-  animation: title-gm-stormjudge 3.8s linear infinite;
-}
-@keyframes title-gm-stormjudge {
+.tl3-anim-stormjudge { animation: tl3-anim-stormjudge 3.8s linear infinite; }
+@keyframes tl3-anim-stormjudge {
   0% { background-position: 110% 0; text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
   18% { background-position: 70% 0; text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
   20% { text-shadow: 0 0 34px rgba(230,245,255,1), 0 0 70px rgba(150,200,255,.9); filter: brightness(2.1); }
@@ -4206,18 +4225,8 @@ body:is(.perf, .os-reduced) .title-owner-shadowking { animation: none !important
   68% { text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
   100% { background-position: -20% 0; text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
 }
-.title-owner-shadowking {
-  background-image:
-    radial-gradient(circle, rgba(255,90,60,.95) 0 1.5px, transparent 2.5px),
-    radial-gradient(circle, rgba(190,110,255,.9) 0 1.3px, transparent 2.3px),
-    linear-gradient(135deg, #000000 0%, #1c0510 35%, #5a1020 50%, #1c0510 65%, #000000 100%);
-  background-size: 46px 46px, 60px 60px, 300% 100%;
-  background-position: 0 0, 30px 30px, 100% 0;
-  -webkit-background-clip: text; background-clip: text;
-  color: transparent;
-  animation: title-owner-shadowking 5s ease-in-out infinite;
-}
-@keyframes title-owner-shadowking {
+.tl3-anim-shadowking { animation: tl3-anim-shadowking 5s ease-in-out infinite; }
+@keyframes tl3-anim-shadowking {
   0%, 100% { background-position: 0 0, 30px 30px, 100% 0; text-shadow: 0 0 12px rgba(120,20,40,.6), 0 0 30px rgba(80,10,30,.35); filter: brightness(1); }
   25% { text-shadow: 0 0 22px rgba(200,40,60,.85), 0 0 50px rgba(140,20,40,.5); filter: brightness(1.35); }
   50% { background-position: 23px 23px, 0 0, 0% 0; text-shadow: 0 0 12px rgba(120,20,40,.6); filter: brightness(1); }
