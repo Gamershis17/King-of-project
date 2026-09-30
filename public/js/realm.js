@@ -9,13 +9,16 @@
 //      list with proportional bars — no canvas, no rAF.
 //
 //  Lifecycle: Realm.open() builds + shows the modal (idempotent),
-//  Realm.close() hides it and pauses animation, Realm.destroy()
-//  tears everything down. Animations also pause when the tab is hidden.
+//  Realm.close() stops animation and fully detaches the modal + backdrop
+//  from the DOM (so nothing invisible can block taps), Realm.destroy()
+//  tears everything down including the visibility listener. Animations
+//  also pause when the tab is hidden. The HD canvas now spins a slow,
+//  continuous 360° (~24s per turn); labels stay upright.
 //  A failed fetch keeps the last good data instead of erroring out.
 // ============================================================
 
-import { api } from './api.js?v=20260930ad';
-import { COUNTRIES, countryFlag } from './engine.js?v=20260930ad';
+import { api } from './api.js?v=20260930af';
+import { COUNTRIES, countryFlag } from './engine.js?v=20260930af';
 
 const NAMES = Object.fromEntries(COUNTRIES);
 const MAX_DPR = 2;
@@ -62,7 +65,13 @@ export const Realm = {
   close() {
     try {
       this._stopLoop();
-      if (this._overlay) this._overlay.classList.remove('show');
+      // Fully detach the modal + backdrop from the DOM: a hidden overlay
+      // must never linger to intercept taps on the game underneath.
+      if (this._overlay && this._overlay.parentNode) {
+        this._overlay.parentNode.removeChild(this._overlay);
+      }
+      this._overlay = this._canvas = this._ctx = this._list = this._meta = null;
+      this._nodes = [];
     } catch { /* ignore */ }
   },
 
@@ -136,11 +145,17 @@ export const Realm = {
     doc.body.appendChild(overlay);
 
     overlay.addEventListener('click', (e) => { if (e.target === overlay) this.close(); });
-    this._onVis = () => {
-      if (document.hidden) this._stopLoop();
-      else if (this._overlay && this._overlay.classList.contains('show') && this._data) this._render();
-    };
-    document.addEventListener('visibilitychange', this._onVis);
+    // The visibility listener is bound once for the lifetime of the page:
+    // close() detaches the overlay, and open() rebuilds it, so binding here
+    // on every build would stack duplicate listeners.
+    if (!this._bound) {
+      this._onVis = () => {
+        if (document.hidden) this._stopLoop();
+        else if (this._overlay && this._overlay.classList.contains('show') && this._data) this._render();
+      };
+      document.addEventListener('visibilitychange', this._onVis);
+      this._bound = true;
+    }
 
     this._overlay = overlay;
     this._canvas = canvas;
@@ -306,16 +321,32 @@ export const Realm = {
     const cx = size / 2, cy = size / 2;
     ctx.clearRect(0, 0, size, size);
 
+    const ns = this._nodes;
+    // Nodes: gentle orbital drift, then the whole disc rotates slowly —
+    // one full 360° turn every ~24s. Labels stay upright while the
+    // constellation spins beneath them.
+    for (const n of ns) {
+      n.x = n.baseX + 3 * Math.sin(t * 0.8 + n.phase);
+      n.y = n.baseY + 3 * Math.cos(t * 0.6 + n.phase);
+    }
+    const rot = t * (Math.PI * 2 / 24);
+    const cosR = Math.cos(rot), sinR = Math.sin(rot);
+    const px = new Array(ns.length), py = new Array(ns.length);
+    for (let i = 0; i < ns.length; i++) {
+      const dx = ns[i].x - cx, dy = ns[i].y - cy;
+      px[i] = cx + dx * cosR - dy * sinR;
+      py[i] = cy + dx * sinR + dy * cosR;
+    }
+
     // Constellation web: each node links to its two neighbors.
     ctx.strokeStyle = 'rgba(167,139,250,0.18)';
     ctx.lineWidth = 1;
-    const ns = this._nodes;
     for (let i = 0; i < ns.length; i++) {
       for (const j of [(i + 1) % ns.length, (i + 2) % ns.length]) {
         if (j === i || !ns[j]) continue;
         ctx.beginPath();
-        ctx.moveTo(ns[i].x, ns[i].y);
-        ctx.lineTo(ns[j].x, ns[j].y);
+        ctx.moveTo(px[i], py[i]);
+        ctx.lineTo(px[j], py[j]);
         ctx.stroke();
       }
     }
@@ -329,28 +360,25 @@ export const Realm = {
     ctx.arc(cx, cy, size * 0.16, 0, Math.PI * 2);
     ctx.fill();
 
-    // Nodes: gentle orbital drift + twinkle.
+    // Nodes: twinkle at their rotated positions; labels stay upright.
     ctx.textAlign = 'center';
-    for (const n of ns) {
-      const wob = 3 * Math.sin(t * 0.8 + n.phase);
-      const wobY = 3 * Math.cos(t * 0.6 + n.phase);
-      n.x = n.baseX + wob;
-      n.y = n.baseY + wobY;
+    for (let i = 0; i < ns.length; i++) {
+      const n = ns[i], x = px[i], y = py[i];
       const tw = 0.55 + 0.45 * Math.sin(t * 2 + n.phase);
-      const g = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.r * 2.4);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, n.r * 2.4);
       g.addColorStop(0, 'rgba(255,210,63,' + (0.5 * tw + 0.25).toFixed(2) + ')');
       g.addColorStop(1, 'rgba(167,139,250,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
-      ctx.arc(n.x, n.y, n.r * 2.4, 0, Math.PI * 2);
+      ctx.arc(x, y, n.r * 2.4, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = 'rgba(255,236,170,' + (0.65 + 0.35 * tw).toFixed(2) + ')';
       ctx.beginPath();
-      ctx.arc(n.x, n.y, n.r * 0.55, 0, Math.PI * 2);
+      ctx.arc(x, y, n.r * 0.55, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = 'rgba(232,220,255,0.9)';
       ctx.font = '11px system-ui, sans-serif';
-      ctx.fillText(n.label, n.x, n.y + n.r + 14);
+      ctx.fillText(n.label, x, y + n.r + 14);
     }
   },
 };
