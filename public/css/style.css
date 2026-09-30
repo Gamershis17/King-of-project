@@ -3031,6 +3031,8 @@ input:focus, select:focus {
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.55);
   padding: 0.5rem;
   max-height: 220px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 #gm-content .gm-log-row {
   background: rgba(255, 255, 255, 0.02);
