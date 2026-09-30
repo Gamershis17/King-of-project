@@ -4280,6 +4280,81 @@ body:is(.perf, .os-reduced) .tap-ripple { animation: none !important; }
 .tfxb-kingslayer { --tfx-hue: 0, 85%, 55%; --tfx-dur: 3s; }
 .tfxb-mythweaver { --tfx-hue: 180, 80%, 60%; --tfx-dur: 3.8s; }
 
+/* Setting rows: range sliders fill the row. */
+.setting-row input[type="range"] { flex: 1; min-width: 0; accent-color: var(--gold); }
+
+/* ---- Immersion: circadian + seasonal + weather ---- */
+/* Circadian Realm Shift: late-night palette (10pm–6am local). Surfaces
+   darken a touch; gold and text stay readable. */
+body.env-night {
+  --bg: #0d0b15;
+  --bg2: #141020;
+  --stone: #1d1830;
+  --stone2: #262038;
+  --panel-bg: linear-gradient(180deg, #181324 0%, #110d1b 60%, #0c0913 100%);
+  --panel-bg-deep: linear-gradient(180deg, #141020 0%, #0d0a15 100%);
+  --text: #ddd8ea;
+  --muted: #8b85a3;
+}
+/* Seasonal tint: one faint full-screen wash, no animation. */
+.season-tint { position: fixed; inset: 0; pointer-events: none; z-index: 59; background: var(--season-tint, transparent); }
+body.env-winter { --season-tint: rgba(150,190,255,.05); }
+body.env-spring { --season-tint: rgba(150,255,170,.04); }
+body.env-summer { --season-tint: rgba(255,220,150,.045); }
+body.env-autumn { --season-tint: rgba(255,160,80,.05); }
+/* Weather overlays: pure CSS, pointer-transparent, hidden under
+   Performance mode / reduced motion. */
+.env-overlay { position: fixed; inset: 0; pointer-events: none; z-index: 90; opacity: 0; transition: opacity .8s ease; overflow: hidden; }
+.env-overlay.on { opacity: 1; }
+body.perf .env-overlay, body.perf .season-tint,
+body.reduce-motion .env-overlay, body.os-reduced .env-overlay { display: none; }
+/* Rain: tilted streaks on an oversized layer, translated by exactly one
+   vertical period (150px) so the loop is seamless. transform-only. */
+.env-rain::before {
+  content: ''; position: absolute; left: 0; right: 0; top: -100%; height: 200%;
+  background-image: repeating-linear-gradient(100deg, transparent 0 12px, rgba(174,200,255,.13) 12px 13px, transparent 13px 26px);
+  animation: env-rain-fall .55s linear infinite;
+}
+@keyframes env-rain-fall { from { transform: translateY(0); } to { transform: translateY(150px); } }
+/* Fog: two soft banks oscillating (alternate = seamless). */
+.env-fog::before, .env-fog::after {
+  content: ''; position: absolute; top: -10%; bottom: -10%; width: 140%; left: -20%;
+  background:
+    radial-gradient(38% 30% at 30% 40%, rgba(180,190,220,.10), transparent 70%),
+    radial-gradient(45% 35% at 70% 60%, rgba(170,180,210,.08), transparent 70%);
+}
+.env-fog::before { animation: env-fog-drift 26s ease-in-out infinite alternate; }
+.env-fog::after { animation: env-fog-drift 34s ease-in-out infinite alternate-reverse; }
+@keyframes env-fog-drift { from { transform: translateX(-6%); } to { transform: translateX(6%); } }
+/* Ash: sparse embers rising slowly. */
+.env-ash::before {
+  content: ''; position: absolute; left: 50%; top: 60%; width: 3px; height: 3px; border-radius: 50%;
+  background: transparent;
+  box-shadow: -42vw -8vh 0 rgba(255,180,120,.5), -28vw 6vh 0 rgba(255,150,100,.35), -12vw -14vh 0 rgba(255,200,140,.45), 4vw 2vh 0 rgba(255,170,110,.4), 18vw -10vh 0 rgba(255,160,105,.35), 32vw 8vh 0 rgba(255,190,130,.45), 44vw -4vh 0 rgba(255,150,100,.3), -38vw 14vh 0 rgba(255,200,140,.35), 8vw -20vh 0 rgba(255,170,110,.4), -6vw 18vh 0 rgba(255,180,120,.3);
+  animation: env-ash-rise 9s ease-in-out infinite alternate;
+}
+@keyframes env-ash-rise { from { transform: translateY(40px); opacity: .7; } to { transform: translateY(-70px); opacity: 1; } }
+
+/* ---- Graphics profiles: fidelity tiers on <html> (HD is the default look,
+   so it needs no overrides) ---- */
+/* SD: strip expensive paint — shadows, blurs, backdrop filters, text glow.
+   Layout and readability are untouched; this is purely cheaper pixels. */
+html.gfx-sd *, html.gfx-sd *::before, html.gfx-sd *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  filter: none !important;
+}
+html.gfx-sd .env-overlay, html.gfx-sd .season-tint { display: none; }
+/* 4K: deepen the signature glows via tokens (picked up everywhere). */
+html.gfx-4k {
+  --btn-glow: rgba(139,92,246,.55);
+  --tap-glow: rgba(139,92,246,.8);
+  --gold-line: rgba(212,160,23,.8);
+  --gold-line-soft: rgba(212,160,23,.45);
+}
+
 /* Title-unlock toast: subtle glow only, stays readable. */
 .toast-title .toast-msg {
   color: #ffd76a;
