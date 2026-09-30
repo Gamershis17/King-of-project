@@ -1,5 +1,42 @@
 [
   {
+    "version": "v23",
+    "date": "2026-09-29",
+    "title": "Pet rebalance, Starlight pets, staff role fix",
+    "changes": [
+      {
+        "system": "Pet stat growth",
+        "before": "Pet stats grew at 1.12–1.21 per level — a Lv 85 Void Reaver displayed ~989M HP, a meaningless number that only ever appeared on the pet panel.",
+        "after": "Growth flattened to 1.055–1.09 per level. Same Lv 85 Void Reaver now shows ~153K HP. Display-only change; no effect on battles.",
+        "note": "High-level pet numbers stay readable from here on."
+      },
+      {
+        "system": "Pet bond bonus",
+        "before": "Bond scaled flat per level (e.g. +35 HP/level) while everything else in the game scaled exponentially — at high level the bond collapsed to a rounding error.",
+        "after": "Bond is now the better of the classic per-level values and 2% of the pet's own stats. Levels 1–85 are virtually unchanged; from ~Lv 100 up the bond tracks your pet instead of fading out.",
+        "note": "Hunger rules unchanged: full bond above 50 hunger, 40% at 1–50, none at 0. Hunters with two active pets still get both bonds."
+      },
+      {
+        "system": "Pet strike damage",
+        "before": "Strikes scaled at 25% + 4% per pet level of your attack with no cap — a Lv 85 pet struck for 361% of your attack every 4s, far outshining the hero.",
+        "after": "Strike scaling capped at 150% of your attack per pet (cap reached at pet level 32). Pets stay meaningful without replacing the hero.",
+        "note": "Hunger, species, and Hunter pet-damage perks still multiply on top of the capped base."
+      },
+      {
+        "system": "New pets: Starlight line",
+        "before": "Starlight pets were a coming-soon teaser in the Pet Shop.",
+        "after": "Three real species: Star Wisp 💫, Luna Cub 🐻‍❄️, Astral Drake 🐲 — celestial natives on par with the Shadow line, hatchable from the new 500K-gold Starlight Egg (🌠) or rarely from wild eggs.",
+        "note": "Shadow demons remain teased as coming soon."
+      },
+      {
+        "system": "Staff roles",
+        "before": "The admin role could open the GM console but every grant, set-level, set-gold, and inventory action failed — admins had moderation powers but none of the console powers.",
+        "after": "Admin is now the senior staff role: owner > admin > gm > moderator. Admins keep ban/kick/mute and gain the full GM console.",
+        "note": "Staff-only; normal players see nothing."
+      }
+    ]
+  },
+  {
     "version": "v22",
     "date": "2026-09-29",
     "title": "XP bonus ceiling + GM console powers",

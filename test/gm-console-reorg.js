@@ -111,9 +111,9 @@ async function stateOf(j) {
     const r = await mod.fetch('/api/gm/grant-pet', { method: 'POST', body: { username: 'player1', amount: 1 } });
     assert.strictEqual(r.status, 403);
   });
-  await check('admin cannot grant pet eggs (403, grants are gm|owner)', async () => {
+  await check('v23: admin CAN grant pet eggs (admin is senior staff: owner > admin > gm)', async () => {
     const r = await admin.fetch('/api/gm/grant-pet', { method: 'POST', body: { username: 'player1', amount: 1 } });
-    assert.strictEqual(r.status, 403);
+    assert.ok(r.status === 200 || r.status === 201, `expected 200/201, got ${r.status}`);
   });
   await check('player cannot set rebirth (403)', async () => {
     const r = await player.fetch('/api/gm/set-rebirth', { method: 'POST', body: { username: 'player1', count: 1 } });

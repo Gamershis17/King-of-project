@@ -2,24 +2,24 @@
 
 /**
  * GM + role-management API:
- *   GET  /api/gm/overview     (gm|owner)
- *   POST /api/gm/grant        (gm|owner)
- *   POST /api/gm/grant-title  (gm|owner)
- *   POST /api/gm/badge       (gm|owner)
- *   POST /api/gm/grant-pet   (gm|owner) — grant unhatched pet eggs
- *   POST /api/gm/set-rebirth (gm|owner) — set a player's rebirth count
+ *   GET  /api/gm/overview     (gm|owner|admin)
+ *   POST /api/gm/grant        (gm|owner|admin)
+ *   POST /api/gm/grant-title  (gm|owner|admin)
+ *   POST /api/gm/badge       (gm|owner|admin)
+ *   POST /api/gm/grant-pet   (gm|owner|admin) — grant unhatched pet eggs
+ *   POST /api/gm/set-rebirth (gm|owner|admin) — set a player's rebirth count
  *   POST /api/gm/inf-gold    (owner) — toggle infinite-gold perk
  *   POST /api/gm/settings    (owner) — update server tunables (gold_cap)
  *   POST /api/gm/maintenance (owner) — maintenance mode on/off + message
- *   POST /api/gm/set-stage    (gm|owner)
- *   POST /api/gm/set-level    (gm|owner) — set a player's level (1-120)
- *   POST /api/gm/set-gold     (gm|owner) — set a player's gold (absolute)
- *   POST /api/gm/heal         (gm|owner)
- *   POST /api/gm/reset        (gm|owner)
- *   GET  /api/gm/codes        (gm|owner)
- *   POST /api/gm/codes        (gm|owner)
- *   GET  /api/gm/roster       (gm|owner)
- *   POST /api/gm/roster       (gm|owner)
+ *   POST /api/gm/set-stage    (gm|owner|admin)
+ *   POST /api/gm/set-level    (gm|owner|admin) — set a player's level (1-120)
+ *   POST /api/gm/set-gold     (gm|owner|admin) — set a player's gold (absolute)
+ *   POST /api/gm/heal         (gm|owner|admin)
+ *   POST /api/gm/reset        (gm|owner|admin)
+ *   GET  /api/gm/codes        (gm|owner|admin)
+ *   POST /api/gm/codes        (gm|owner|admin)
+ *   GET  /api/gm/roster       (gm|owner|admin)
+ *   POST /api/gm/roster       (gm|owner|admin)
  *   POST /api/gm/title        (owner|admin) — unlock a title for a player
  *   POST /api/gm/stage        (owner|admin) — set a player's stage
  *   POST /api/gm/ban          (owner|admin) — stub until users.banned exists
@@ -31,12 +31,12 @@
  *   POST /api/gm/reset-player (owner|admin) — wipe a player's save
  *   POST /api/gm/delete-account (owner only) — permanently delete an account
  *   POST /api/roles           (owner only)
- *   POST /api/gm/inventory      (gm|owner) — full inventory listing
- *   POST /api/gm/remove-item    (gm|owner) — remove one inventory item
- *   POST /api/gm/set-enchant    (gm|owner) — set enchant 0-10 on inventory/equipped item
- *   POST /api/gm/reset-quests   (gm|owner) — force re-roll of daily/weekly quests
- *   POST /api/gm/event-buff     (gm|owner) — server-wide XP/gold multiplier w/ expiry
- *   GET  /api/gm/audit          (gm|owner) — server-side staff action log
+ *   POST /api/gm/inventory      (gm|owner|admin) — full inventory listing
+ *   POST /api/gm/remove-item    (gm|owner|admin) — remove one inventory item
+ *   POST /api/gm/set-enchant    (gm|owner|admin) — set enchant 0-10 on inventory/equipped item
+ *   POST /api/gm/reset-quests   (gm|owner|admin) — force re-roll of daily/weekly quests
+ *   POST /api/gm/event-buff     (gm|owner|admin) — server-wide XP/gold multiplier w/ expiry
+ *   GET  /api/gm/audit          (gm|owner|admin) — server-side staff action log
  *
  * All database access is async (PostgreSQL).
  */
@@ -68,7 +68,10 @@ const {
 } = require('./db');
 
 const router = express.Router();
-const gmOrOwner = requireRole('gm', 'owner');
+// v23: admin is a senior staff role — it carries the GM grant powers too
+// (owner > admin > gm > moderator). Previously admins could open the GM
+// console but every grant/set-level/set-gold button 403'd on them.
+const gmOrOwner = requireRole('gm', 'owner', 'admin');
 const ownerOnly = requireRole('owner');
 // Moderator tier: read-only staff tools + broadcasts. Sensitive grant
 // endpoints stay on gmOrOwner; never widen those to this middleware.
@@ -365,7 +368,7 @@ router.post(
   })
 );
 
-// ---------- set badge (gm|owner) ----------
+// ---------- set badge (gm|owner|admin) ----------
 // Grants a creator badge (e.g. 'youtuber') shown next to the name on the
 // leaderboard. Pass badge: '' to clear it.
 const VALID_BADGES = new Set(['youtuber', 'streamer', 'vip', 'admin', 'mod']);
@@ -390,7 +393,7 @@ router.post(
   })
 );
 
-// ---------- grant pet eggs (gm|owner) ----------
+// ---------- grant pet eggs (gm|owner|admin) ----------
 // Adds unhatched pet eggs to a player's save. Mirrors the client shape in
 // public/js/engine.js defaultPets(): { collection, activeUid, eggs, shopEggs }.
 const PET_GRANT_MIN = 1;
@@ -425,7 +428,7 @@ router.post(
   })
 );
 
-// ---------- set rebirth count (gm|owner) ----------
+// ---------- set rebirth count (gm|owner|admin) ----------
 const REBIRTH_SET_MIN = 0;
 const REBIRTH_SET_MAX = 999;
 router.post(

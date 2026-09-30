@@ -1625,51 +1625,66 @@ export function buyGearItem(s, stockId) {
 // rebirth. Hunger 0-100 decays with play time (-1 per 5 min); feeding costs
 // gold scaling with pet level and restores +35 hunger.
 // Hunger gating: >50 full damage, 1-50 → 40% damage, 0 → pet sits out.
+// v23: pet stat growth flattened (was 1.12–1.21, now 1.055–1.09). The old
+// curve put a Lv 85 Void Reaver at ~989M HP on the display; the new curve
+// keeps high-level pet stats in sane ranges. Bond uses max(linear, 2% of
+// these stats) so it stays relevant at high level (see petBondFor).
 export const PET_SPECIES = {
-  cinderpup:   { name: 'Cinder Pup',   emoji: '🐶', rarity: 'common',    weight: 40, baseDmg: 8,  growth: 1.15,
+  cinderpup:   { name: 'Cinder Pup',   emoji: '🐶', rarity: 'common',    weight: 40, baseDmg: 8,  growth: 1.06,
                  flavor: 'A loyal pup — always by your side, through every battle.', style: 'Loyal · balanced companion',
                  baseStats: { atk: 8,  def: 3,  hp: 50  }, bond: { atk: 2, def: 1, hp: 15 } },
-  frostsprite: { name: 'Frost Sprite', emoji: '🧚', rarity: 'magic',     weight: 28, baseDmg: 12, growth: 1.16,
+  frostsprite: { name: 'Frost Sprite', emoji: '🧚', rarity: 'magic',     weight: 28, baseDmg: 12, growth: 1.065,
                  baseStats: { atk: 12, def: 2,  hp: 40  }, bond: { atk: 3, def: 0, hp: 10 } },
-  stormhawk:   { name: 'Storm Hawk',   emoji: '🦅', rarity: 'rare',      weight: 17, baseDmg: 18, growth: 1.17,
+  stormhawk:   { name: 'Storm Hawk',   emoji: '🦅', rarity: 'rare',      weight: 17, baseDmg: 18, growth: 1.07,
                  baseStats: { atk: 16, def: 4,  hp: 55  }, bond: { atk: 2, def: 1, hp: 15 } },
-  emberfox:    { name: 'Ember Fox',    emoji: '🦊', rarity: 'epic',      weight: 10, baseDmg: 26, growth: 1.18,
+  emberfox:    { name: 'Ember Fox',    emoji: '🦊', rarity: 'epic',      weight: 10, baseDmg: 26, growth: 1.075,
                  baseStats: { atk: 22, def: 5,  hp: 65  }, bond: { atk: 3, def: 1, hp: 12 } },
-  tideturtle:  { name: 'Tide Turtle',  emoji: '🐢', rarity: 'legendary', weight: 5,  baseDmg: 38, growth: 1.19,
+  tideturtle:  { name: 'Tide Turtle',  emoji: '🐢', rarity: 'legendary', weight: 5,  baseDmg: 38, growth: 1.08,
                  baseStats: { atk: 20, def: 12, hp: 120 }, bond: { atk: 1, def: 3, hp: 40 } },
   // Mythic line — hatchable from Mythic Eggs (rarely from wild eggs). Stronger
   // than anything below; priced to match (see EGG_TIERS).
-  stormdrake:   { name: 'Storm Drake',  emoji: '🐉', rarity: 'mythic',    weight: 2,   baseDmg: 46, growth: 1.20,
+  stormdrake:   { name: 'Storm Drake',  emoji: '🐉', rarity: 'mythic',    weight: 2,   baseDmg: 46, growth: 1.085,
                  flavor: 'A young drake — every wingbeat smells of ozone and war.', style: 'Majestic · soaring strikes',
                  baseStats: { atk: 40, def: 10, hp: 100 }, bond: { atk: 3, def: 2, hp: 30 } },
-  prismhorn:    { name: 'Prismhorn',    emoji: '🦄', rarity: 'mythic',    weight: 1,   baseDmg: 52, growth: 1.21,
+  prismhorn:    { name: 'Prismhorn',    emoji: '🦄', rarity: 'mythic',    weight: 1,   baseDmg: 52, growth: 1.09,
                  flavor: 'Its horn refracts the last light of dying stars.', style: 'Radiant · piercing strikes',
                  baseStats: { atk: 46, def: 12, hp: 110 }, bond: { atk: 4, def: 2, hp: 30 } },
   // Shadow line — Throne of Shadows natives, hatchable from Shadow Eggs
   // (rarely from wild eggs). Dark, loyal, and hungry for the light.
-  shadowwisp:   { name: 'Shadow Wisp',  emoji: '👻', rarity: 'shadow',    weight: 2,   baseDmg: 42, growth: 1.20,
+  shadowwisp:   { name: 'Shadow Wisp',  emoji: '👻', rarity: 'shadow',    weight: 2,   baseDmg: 42, growth: 1.085,
                  flavor: 'A whisper of the dark — it drinks the light around it.', style: 'Eerie · chilling strikes',
                  baseStats: { atk: 30, def: 10, hp: 95  }, bond: { atk: 2, def: 2, hp: 30 } },
-  gloomstalker: { name: 'Gloomstalker', emoji: '🐈‍⬛', rarity: 'shadow',   weight: 1.5, baseDmg: 48, growth: 1.20,
+  gloomstalker: { name: 'Gloomstalker', emoji: '🐈‍⬛', rarity: 'shadow',   weight: 1.5, baseDmg: 48, growth: 1.085,
                  flavor: 'You never see it move. You only see what it leaves behind.', style: 'Silent · ruthless strikes',
                  baseStats: { atk: 36, def: 9,  hp: 90  }, bond: { atk: 3, def: 1, hp: 25 } },
-  voidreaver:   { name: 'Void Reaver',  emoji: '💀', rarity: 'shadow',    weight: 1,   baseDmg: 56, growth: 1.21,
+  voidreaver:   { name: 'Void Reaver',  emoji: '💀', rarity: 'shadow',    weight: 1,   baseDmg: 56, growth: 1.09,
                  flavor: 'It remembers every throne that fell — and how.', style: 'Dread · devastating strikes',
+                 baseStats: { atk: 44, def: 12, hp: 110 }, bond: { atk: 3, def: 2, hp: 35 } },
+  // Starlight line — celestial natives, hatchable from Starlight Eggs
+  // (rarely from wild eggs). Born of dying stars; loyal to the light.
+  starwisp:    { name: 'Star Wisp',    emoji: '💫', rarity: 'celestial', weight: 2,   baseDmg: 42, growth: 1.085,
+                 flavor: 'A spark that refused to go out — it chose you instead.', style: 'Bright · searing strikes',
+                 baseStats: { atk: 30, def: 10, hp: 95  }, bond: { atk: 2, def: 2, hp: 30 } },
+  lunacub:     { name: 'Luna Cub',     emoji: '🐻‍❄️', rarity: 'celestial', weight: 1.5, baseDmg: 48, growth: 1.085,
+                 flavor: 'Raised under a moon that never sets.', style: 'Loyal · crushing strikes',
+                 baseStats: { atk: 36, def: 9,  hp: 90  }, bond: { atk: 3, def: 1, hp: 25 } },
+  astraldrake: { name: 'Astral Drake', emoji: '🐲', rarity: 'celestial', weight: 1,   baseDmg: 56, growth: 1.09,
+                 flavor: 'It has seen the end of everything — and decided to fight beside you.', style: 'Cosmic · devastating strikes',
                  baseStats: { atk: 44, def: 12, hp: 110 }, bond: { atk: 3, def: 2, hp: 35 } },
   // Hunter starter beasts (not hatchable from eggs — starterOnly). Note: 🐺 is
   // taken by the Gloomfang Wolf enemy, so the wolf-ish slot uses 🦁 Lion.
   // Budget starter: the Ash Mouse is Stray-Egg-only (weight 0 keeps it out
   // of the wild-egg pool) — a cheap first pet for brand-new players.
-  ashmouse:   { name: 'Ash Mouse',   emoji: '🐁', rarity: 'common',    weight: 0,  baseDmg: 5,  growth: 1.12,
+  ashmouse:   { name: 'Ash Mouse',   emoji: '🐁', rarity: 'common',    weight: 0,  baseDmg: 5,  growth: 1.055,
                  flavor: 'Small, scrappy, and first into the fray. Every legend starts somewhere.', style: 'Scrappy · eager starter',
                  baseStats: { atk: 5,  def: 2,  hp: 35  }, bond: { atk: 1, def: 1, hp: 10 } },
-  tiger: { name: 'Tiger', emoji: '🐯', rarity: 'common', weight: 0, baseDmg: 14, growth: 1.16,
+  tiger: { name: 'Tiger', emoji: '🐯', rarity: 'common', weight: 0, baseDmg: 14, growth: 1.065,
            starterOnly: true, flavor: 'A fierce striker — hits hardest from the very first hunt.', style: 'Fierce · high base damage',
            baseStats: { atk: 14, def: 4, hp: 60 }, bond: { atk: 3, def: 1, hp: 15 } },
-  bear:  { name: 'Bear',  emoji: '🐻', rarity: 'common', weight: 0, baseDmg: 10, growth: 1.19,
+  bear:  { name: 'Bear',  emoji: '🐻', rarity: 'common', weight: 0, baseDmg: 10, growth: 1.08,
            starterOnly: true, flavor: 'A steady guardian — grows mightier with every level.', style: 'Steady · best late scaling',
            baseStats: { atk: 10, def: 8, hp: 90 }, bond: { atk: 1, def: 2, hp: 30 } },
-  lion:  { name: 'Lion',  emoji: '🦁', rarity: 'common', weight: 0, baseDmg: 12, growth: 1.16,
+  lion:  { name: 'Lion',  emoji: '🦁', rarity: 'common', weight: 0, baseDmg: 12, growth: 1.065,
            starterOnly: true, flavor: 'A keen hunter — swift, sharp, and sure.', style: 'Keen · balanced strikes',
            baseStats: { atk: 12, def: 5, hp: 70 }, bond: { atk: 2, def: 1, hp: 20 } },
 };
@@ -1697,8 +1712,10 @@ export const EGG_TIERS = {
              desc: 'Hatches a Storm Drake or Prismhorn — stronger than any lesser pet.', pool: ['stormdrake', 'prismhorn'] },
   shadow:  { name: 'Shadow Egg',  emoji: '🌑', price: 500000,
              desc: 'Hatches a Shadow Wisp, Gloomstalker, or Void Reaver — children of the dark.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver'] },
+  celestial: { name: 'Starlight Egg', emoji: '🌠', price: 500000,
+             desc: 'Hatches a Star Wisp, Luna Cub, or Astral Drake — children of the light.', pool: ['starwisp', 'lunacub', 'astraldrake'] },
 };
-export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow'];
+export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial'];
 
 export function defaultPets() {
   const shopEggs = {};
@@ -1847,7 +1864,7 @@ export function feedPet(s, petUid) {
 // pet reassigns the slot to the first remaining pet, or clears it.
 const PET_SELL_BASE = {
   common: 800, magic: 2000, rare: 5000, epic: 15000,
-  legendary: 40000, mythic: 80000, shadow: 120000,
+  legendary: 40000, mythic: 80000, shadow: 120000, celestial: 120000,
 };
 export function petSellPrice(pet) {
   const sp = petSpeciesOf(pet);
@@ -1883,11 +1900,10 @@ export function sellPet(s, petUid) {
 }
 
 // ---------------- Coming-soon teasers ----------------
-// Visible but unobtainable: Starlight pets and shadow demons are teased in
-// the Pet Shop as locked entries. NOT a Seasons system — just static teasers.
+// Visible but unobtainable: shadow demons are teased in the Pet Shop as a
+// locked entry. NOT a Seasons system — just a static teaser. (Starlight
+// pets graduated from teaser to real species in v23.)
 export const PET_TEASERS = [
-  { id: 'starlight', name: 'Starlight pets', emoji: '🌠',
-    desc: 'Celestial companions wreathed in starlight. Arriving in a future update.' },
   { id: 'shadow-demons', name: 'Shadow demons', emoji: '😈',
     desc: 'True demons of the Throne — not yet ready to be tamed.' },
 ];
@@ -1919,10 +1935,15 @@ export function petBondFor(pet) {
   const mult = petHungerMult(pet);
   if (!mult) return zero;
   const lv = Math.max(1, pet.level);
+  // v23: bond is the better of the classic per-level values and 2% of the
+  // pet's own stats. Early game is unchanged (linear wins); at high level
+  // the bond tracks the pet instead of collapsing to a rounding error.
+  const ps = petStats(pet);
+  const PCT = 0.02;
   return {
-    atk: Math.round(b.atk * lv * mult),
-    def: Math.round(b.def * lv * mult),
-    hp: Math.round(b.hp * lv * mult),
+    atk: Math.round(Math.max(b.atk * lv, ps.atk * PCT) * mult),
+    def: Math.round(Math.max(b.def * lv, ps.def * PCT) * mult),
+    hp: Math.round(Math.max(b.hp * lv, ps.hp * PCT) * mult),
   };
 }
 export function petBond(s) {
@@ -1954,7 +1975,10 @@ export function petStrikeDamage(s, stats) {
     const mult = petHungerMult(pet);
     if (!mult) continue;
     const sp = petSpeciesOf(pet);
-    const base = stats.attack * (0.25 + 0.04 * (pet.level - 1));
+    // v23: strike scaling capped at 150% of hero attack per pet (was
+    // uncapped 25% + 4%/level — a Lv 85 pet struck for 361% of your attack).
+    // Pets stay meaningful without ever outshining the hero.
+    const base = stats.attack * Math.min(0.25 + 0.04 * (pet.level - 1), 1.5);
     const speciesMult = 1 + (sp.baseDmg / 200); // rarer species hit a touch harder
     total += Math.max(1, Math.round(base * mult * speciesMult * classMult));
   }
