@@ -1,8 +1,8 @@
 // ============================================================
 // auth.js — login / register / guest view wiring.
 // ============================================================
-import { api } from './api.js?v=20260930t';
-import { sanitizeGuestName, loadGuest, clearGuest } from './guest.js?v=20260930t';
+import { api } from './api.js?v=20260930u';
+import { sanitizeGuestName, loadGuest, clearGuest } from './guest.js?v=20260930u';
 
 export const Auth = {
   onAuthed: null,
