@@ -1563,7 +1563,7 @@ export const UI = {
   nameHtml(name, state) {
     const safe = esc(name);
     const color = /^#[0-9a-fA-F]{6}$/.test(state && state.nameColor) ? state.nameColor : this.NAME_COLOR_DEFAULT;
-    const fxIds = this._allFxIds || (this._allFxIds = [...this.NAME_FX.map(f => f.id), ...Engine.TOKEN_NAME_FX.map(f => f.id)]);
+    const fxIds = this._allFxIds || (this._allFxIds = [...this.NAME_FX.map(f => f.id), ...Engine.TOKEN_NAME_FX.map(f => f.id), ...(Engine.STAFF_NAME_FX || []).map(f => f.id)]);
     const fx = fxIds.includes(state && state.nameFx) && state.nameFx !== 'none' ? state.nameFx : 'none';
     if (fx === 'none' && color.toLowerCase() === this.NAME_COLOR_DEFAULT) return safe;
     return `<span class="pname${fx === 'none' ? '' : ' fx-' + fx}" style="--namec:${color}">${safe}</span>`;
