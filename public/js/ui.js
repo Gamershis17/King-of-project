@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930ac';
-import { Audio } from './audio.js?v=20260930ac';
+import * as Engine from './engine.js?v=20260930ad';
+import { Audio } from './audio.js?v=20260930ad';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -220,7 +220,7 @@ export const UI = {
       'party-slots', 'recruit-list', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
       'stats-card', 'titles-list',
       'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
-      'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view',
+      'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view', 'realm-open',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-perf', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-combat-music', 'set-music-vol', 'set-sfx-vol', 'set-notif-level', 'set-notif-death', 'set-atmosphere', 'set-weathersync',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
@@ -432,6 +432,9 @@ export const UI = {
     });
 
     // Ranks sub-tabs (Board / Friends)
+    // Realm Network (Global Player Origins) modal, opened from the Ranks tab.
+    listen('realm-open', 'click', () => this.handlers.onRealmOpen && this.handlers.onRealmOpen());
+    // Ranks subtabs (board/friends).
     listen('ranks-subtabs', 'click', (e) => {
       const btn = e.target.closest('button[data-subtab]');
       if (!btn) return;

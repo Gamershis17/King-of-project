@@ -1,16 +1,17 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930ac';
-import * as Engine from './engine.js?v=20260930ac';
-import { UI, esc, formatNum } from './ui.js?v=20260930ac';
-import { Auth } from './auth.js?v=20260930ac';
-import { GM } from './gm.js?v=20260930ac';
+import { api } from './api.js?v=20260930ad';
+import * as Engine from './engine.js?v=20260930ad';
+import { UI, esc, formatNum } from './ui.js?v=20260930ad';
+import { Auth } from './auth.js?v=20260930ad';
+import { GM } from './gm.js?v=20260930ad';
 
-import { Raid } from './raid.js?v=20260930ac';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930ac';
-import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ac';
-import { Audio } from './audio.js?v=20260930ac';
+import { Raid } from './raid.js?v=20260930ad';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930ad';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ad';
+import { Realm } from './realm.js?v=20260930ad';
+import { Audio } from './audio.js?v=20260930ad';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -243,6 +244,7 @@ async function boot() {
     onCombatMusic: setCombatMusic,
     onMusicVolume: setMusicVolume,
     onSfxVolume: setSfxVolume,
+    onRealmOpen: () => { try { Realm.open(); } catch {} },
     onNotifPref: (cat, val) => {
       const s = App.state;
       if (!s) return;

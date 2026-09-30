@@ -57,6 +57,9 @@ export const api = {
   // Guild rankings (no auth required)
   guildRankings: () => request('/api/guilds/rankings'),
 
+  // Realm Network: aggregate active-player counts per region (no auth required)
+  realmNetwork: () => request('/api/realm-network'),
+
   // Multiplayer parties (invite codes)
   partyGet: () => request('/api/party'),
   partyCreate: () => post('/api/party/create', {}),
