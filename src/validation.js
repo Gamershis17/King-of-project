@@ -70,6 +70,7 @@ const CLAMPED_FIELDS = {
   xpNext: [0, 1e21],
   bossesKilled: [0, 100000000],
   rebirthCount: [0, 100000],
+  rebirthTokens: [0, 100000], // earned 1 per rebirth, spent in the token shop
 };
 
 function clamp(n, min, max) {
@@ -141,7 +142,7 @@ function sanitizeStateBlob(blob) {
   // Name styles are cosmetic: keep them only when well-formed so tampered
   // blobs can't smuggle junk (rendering escapes everything anyway).
   if (blob.nameColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(blob.nameColor))) delete blob.nameColor;
-  if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight'].includes(blob.nameFx)) delete blob.nameFx;
+  if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight', 'voidborn', 'goldleaf', 'bloodmoon', 'stormsurge', 'celestial', 'throneflame'].includes(blob.nameFx)) delete blob.nameFx;
   // Battle background is cosmetic: keep only a known value.
   if (blob.battleBg !== undefined && !['world', 'mystyle', 'off'].includes(blob.battleBg)) delete blob.battleBg;
   if (typeof blob.bossesKilled !== 'number') blob.bossesKilled = 0;
@@ -162,7 +163,8 @@ function sanitizeStateBlob(blob) {
     // Pickaxe tier must be an int 0..7; lifetime mining counters must be
     // finite non-negative ints.
     blob.mine.pickaxe = typeof blob.mine.pickaxe === 'number'
-      ? clamp(Math.floor(blob.mine.pickaxe), 0, 7)
+      // Keep in sync with PICKAXE_TIERS.length - 1 in public/js/engine.js (11 tiers).
+      ? clamp(Math.floor(blob.mine.pickaxe), 0, 10)
       : 0;
     for (const k of ['totalTaps', 'totalMined', 'maxDepth']) {
       const v = blob.mine[k];

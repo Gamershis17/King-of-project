@@ -1,5 +1,54 @@
 [
   {
+    "version": "v24",
+    "date": "2026-09-30",
+    "title": "Rebirth Tokens, new gear rarities, pet breeding, better loot",
+    "changes": [
+      {
+        "system": "New gear rarities",
+        "before": "Mythic was the top gear rarity at every stage.",
+        "after": "Four new rarities above Mythic: Divine (stage 40+, x15), Cosmic (stage 60+, x22), Enduring (stage 80+, x45), Infinite (stage 100+, x65). Gear rolls are stage-gated, so the new tiers only appear once you reach their stage.",
+        "note": "Enchanting costs scale with the new tiers."
+      },
+      {
+        "system": "Rebirth Tokens",
+        "before": "Rebirthing gave no currency.",
+        "after": "Each rebirth now grants 1 Rebirth Token (no cooldown on rebirth). Tokens spend in the new Token Shop tab.",
+        "note": "Token balance shows in the Rebirth panel."
+      },
+      {
+        "system": "Token Shop",
+        "before": "No token shop existed.",
+        "after": "New Token Shop tab after Gear. Two staple items (Token Egg, Egg Bundle) plus four rotating offers that change every 24 hours. Sells exclusive titles, name effects, and eggs. Bought items are permanent.",
+        "note": "A countdown shows when stock rotates."
+      },
+      {
+        "system": "Enemy loot",
+        "before": "Normal enemies had a flat 10% gear drop chance; no streak or special-enemy mechanics.",
+        "after": "Kill streaks add +1% gear drop chance per 25 kills (up to +10%, resets on death). 3% of non-boss enemies are now Radiant: gold-trimmed, guaranteed gear drop, bonus gold.",
+        "note": "Streak and loot bonus show in the battle HUD."
+      },
+      {
+        "system": "New pickaxes",
+        "before": "Super Galaxy Pick (x25) was the top pickaxe.",
+        "after": "Three new tiers above it: Void Pick (x40), Cosmic Pick (x65), Thronebreaker's Pick (x100), bought with Super Galaxy Cores + gold in the Mining Shop.",
+        "note": "Master Miner achievement now counts all 10 tiers."
+      },
+      {
+        "system": "Pet breeding & combining",
+        "before": "Pets could only be hatched or bought.",
+        "after": "The new Pets tab has a Breeding Den: breed two pets for a gold fee (child keeps a parent's species, usually), or combine three same-rarity pets into one of the next rarity up (keeps the highest level). Combining asks for confirmation; special pets are protected.",
+        "note": "Celestial is the max combine rarity."
+      },
+      {
+        "system": "Rarity display name",
+        "before": "The second gear/pet rarity was labeled \"Magic\".",
+        "after": "It is now labeled \"Uncommon\" everywhere it appears. No stat or save changes.",
+        "note": "Display-only change."
+      }
+    ]
+  },
+  {
     "version": "v23",
     "date": "2026-09-29",
     "title": "Pet rebalance, Starlight pets, staff role fix",

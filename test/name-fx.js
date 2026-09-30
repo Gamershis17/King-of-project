@@ -9,10 +9,18 @@
 const assert = require('assert');
 
 let failures = 0;
+const pending = [];
 function check(name, fn) {
   try {
-    fn();
-    console.log(`  ok   ${name}`);
+    const r = fn();
+    if (r && typeof r.then === 'function') {
+      pending.push(r.then(
+        () => console.log(`  ok   ${name}`),
+        (e) => { failures++; console.error(`  FAIL ${name}: ${e.message}`); }
+      ));
+    } else {
+      console.log(`  ok   ${name}`);
+    }
   } catch (e) {
     failures++;
     console.error(`  FAIL ${name}: ${e.message}`);
@@ -73,18 +81,15 @@ check('nameColor regex matches client validation', () => {
   assert.ok(re.test('#ffd76a') && re.test('#A0B1C2'));
   assert.ok(!re.test('red') && !re.test('#fff') && !re.test('#gggggg'));
 });
-check('nameFx id list matches client list', () => {
-  const ids = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight'];
-  // Read the real client-side whitelist from public/js/app.js (setNameFx
-  // validates against it) so a missed update fails the test instead of
-  // silently falling back to 'none' in the game.
-  const fs = require('fs');
-  const path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'app.js'), 'utf8');
-  const m = src.match(/const NAME_FX_IDS = \[([^\]]*)\]/);
-  assert.ok(m, 'NAME_FX_IDS not found in public/js/app.js');
-  const clientIds = m[1].split(',').map((s) => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
-  assert.deepStrictEqual(clientIds, ids, 'app.js NAME_FX_IDS is out of sync');
+check('nameFx id list matches engine list', () => {
+  const ids = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight',
+    'voidborn', 'goldleaf', 'bloodmoon', 'stormsurge', 'celestial', 'throneflame'];
+  // The client whitelist now lives in engine.js (ALL_NAME_FX_IDS);
+  // app.js references it directly. Verify the engine list matches so a
+  // missed update fails instead of silently falling back to 'none'.
+  return import('../public/js/engine.js').then((E) => {
+    assert.deepStrictEqual(E.ALL_NAME_FX_IDS, ids, 'engine ALL_NAME_FX_IDS is out of sync');
+  });
 });
 
 console.log('== sanitizeStateBlob battleBg ==');
@@ -102,8 +107,10 @@ check('strips malformed battleBg', () => {
   assert.strictEqual('battleBg' in b, false);
 });
 
-if (failures) {
-  console.error(`\n${failures} failure(s)`);
-  process.exit(1);
-}
-console.log('\nall name-fx tests passed');
+Promise.all(pending).then(() => {
+  if (failures) {
+    console.error(`\n${failures} failure(s)`);
+    process.exit(1);
+  }
+  console.log('\nall name-fx tests passed');
+});

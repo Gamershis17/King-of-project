@@ -155,7 +155,7 @@ export const UI = {
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
-      'party-slots', 'recruit-list', 'pets-panel', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
+      'party-slots', 'recruit-list', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
       'stats-card', 'titles-list',
       'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
       'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view',
@@ -260,13 +260,19 @@ export const UI = {
       if (!btn || btn.disabled) return;
       if (this.handlers.onPickaxeUpgrade) this.handlers.onPickaxeUpgrade();
     });
+    // Mining shop: buy buttons (data-action="buy-pickaxe").
+    listen('mining-shop', 'click', (e) => {
+      const btn = e.target.closest('button[data-action="buy-pickaxe"]');
+      if (!btn || btn.disabled) return;
+      if (this.handlers.onPickaxeUpgrade) this.handlers.onPickaxeUpgrade();
+    });
     listen('upgrade-list', 'click', (e) => {
       const btn = e.target.closest('button[data-upgrade]');
       if (!btn) return;
       this.handlers.onUpgrade && this.handlers.onUpgrade(btn.dataset.upgrade);
     });
 
-    // Party: delegated recruit/dismiss/pet actions
+    // Party: delegated recruit/dismiss actions
     listen('tab-party', 'click', (e) => {
       const btn = e.target.closest('button[data-action]');
       if (!btn) return;
@@ -274,12 +280,40 @@ export const UI = {
       if (btn.dataset.action === 'recruit' && h.onRecruit) h.onRecruit(btn.dataset.id);
       if (btn.dataset.action === 'dismiss' && h.onDismiss) h.onDismiss(btn.dataset.id);
       if (btn.dataset.action === 'levelup' && h.onLevelUpCompanion) h.onLevelUpCompanion(btn.dataset.id);
+      // Multiplayer party actions
+      if (btn.dataset.action === 'mp-create' && h.onMpCreate) h.onMpCreate();
+      if (btn.dataset.action === 'mp-leave' && h.onMpLeave) h.onMpLeave();
+      if (btn.dataset.action === 'mp-disband' && h.onMpDisband) h.onMpDisband();
+      if (btn.dataset.action === 'mp-copy' && h.onMpCopy) h.onMpCopy();
+      if (btn.dataset.action === 'mp-kick' && h.onMpKick) h.onMpKick(btn.dataset.id);
+      if (btn.dataset.action === 'mp-join' && h.onMpJoin) {
+        const input = document.getElementById('mp-join-code');
+        h.onMpJoin(input ? input.value : '');
+      }
+    });
+    // Token shop
+    listen('tab-tokenshop', 'click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      if (btn.dataset.action === 'buy-token' && this.handlers.onBuyTokenItem) {
+        this.handlers.onBuyTokenItem(btn.dataset.id);
+      }
+    });
+    // Pets tab: delegated pet + breeding actions
+    listen('tab-pets', 'click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const h = this.handlers;
       if (btn.dataset.action === 'hatch-pet' && h.onHatchPet) h.onHatchPet(btn.dataset.tier || 'wild');
       if (btn.dataset.action === 'feed-pet' && h.onFeedPet) h.onFeedPet(btn.dataset.id);
       if (btn.dataset.action === 'set-active-pet' && h.onSetActivePet) h.onSetActivePet(btn.dataset.id);
       if (btn.dataset.action === 'set-second-pet' && h.onSetSecondPet) h.onSetSecondPet(btn.dataset.id);
       if (btn.dataset.action === 'remove-second-pet' && h.onRemoveSecondPet) h.onRemoveSecondPet();
       if (btn.dataset.action === 'buy-egg' && h.onBuyEgg) h.onBuyEgg(btn.dataset.tier);
+      if (btn.dataset.action === 'breed-select') this._toggleBreedSelect(btn.dataset.id);
+      if (btn.dataset.action === 'combine-select') this._toggleCombineSelect(btn.dataset.id);
+      if (btn.dataset.action === 'do-breed' && h.onBreedPets) h.onBreedPets();
+      if (btn.dataset.action === 'do-combine' && h.onCombinePets) h.onCombinePets();
       // Sell pet: two-step confirm. First tap arms the button ("Tap again to
       // confirm"); the second tap (within 6s) fires the sale.
       if (btn.dataset.action === 'sell-pet' && h.onSellPet) {
@@ -300,16 +334,6 @@ export const UI = {
             if (l && btn.isConnected) l.textContent = btn.dataset.sellText || 'Sell';
           }, 6000);
         }
-      }
-      // Multiplayer party actions
-      if (btn.dataset.action === 'mp-create' && h.onMpCreate) h.onMpCreate();
-      if (btn.dataset.action === 'mp-leave' && h.onMpLeave) h.onMpLeave();
-      if (btn.dataset.action === 'mp-disband' && h.onMpDisband) h.onMpDisband();
-      if (btn.dataset.action === 'mp-copy' && h.onMpCopy) h.onMpCopy();
-      if (btn.dataset.action === 'mp-kick' && h.onMpKick) h.onMpKick(btn.dataset.id);
-      if (btn.dataset.action === 'mp-join' && h.onMpJoin) {
-        const input = document.getElementById('mp-join-code');
-        h.onMpJoin(input ? input.value : '');
       }
     });
     // Multiplayer party: manual refresh
@@ -513,7 +537,7 @@ export const UI = {
     // Custom button / background pickers (Settings)
     this._renderStylePickers();
     this._renderBattleBgPicker();
-    this._renderNameStylePickers();
+    this._renderNameStylePickers(this._settingsState || null);
 
     // Ambient animated background canvas (null-safe: hidden if absent)
     this.initBgCanvas();
@@ -574,6 +598,7 @@ export const UI = {
   showTab(name) {
     this.activeTab = name;
     if (name !== 'quests') { this._stopQuestCountdowns(); this._stopQuestSync(); }
+    if (name !== 'tokenshop') this._stopTokenCountdown();
     // Leaving the inn by any route (e.g. tab bar) stops its glow loop;
     // enterInn() restarts it after switching to the inn tab.
     if (name !== 'inn') this.stopInnGlow();
@@ -972,7 +997,7 @@ export const UI = {
       card.innerHTML = `
       <div class="race-emoji">${sp.emoji}</div>
       <div class="race-name">${esc(sp.name)}</div>
-      <div class="race-trait">${esc(sp.flavor || sp.rarity)}</div>
+      <div class="race-trait">${esc(sp.flavor || Engine.rarityName(sp.rarity))}</div>
       <div class="class-perks"><div>✦ ${esc(sp.style || 'A loyal beast')}</div></div>`;
       card.addEventListener('click', () => onPick(id));
       grid.appendChild(card);
@@ -994,7 +1019,7 @@ export const UI = {
       return `<button class="race-card class-card" data-pick="${id}">
         <div class="race-emoji">${sp.emoji}</div>
         <div class="race-name">${esc(sp.name)}</div>
-        <div class="race-trait">${esc(sp.flavor || sp.rarity)}</div>
+        <div class="race-trait">${esc(sp.flavor || Engine.rarityName(sp.rarity))}</div>
         <div class="class-perks"><div>✦ ${esc(sp.style || 'A loyal beast')}</div></div></button>`;
     }).join('');
     const classSection = lockedClass
@@ -1090,7 +1115,8 @@ export const UI = {
       const nextMult = Engine.rebirthXpMult ? Engine.rebirthXpMult((state.rebirthCount || 0) + 1) : 1;
       this.els['rebirth-note'].innerHTML =
         `Return to <b class="gold-text">level 1</b> — everything else stays (stage, gold, gear, pets, titles).<br>` +
-        `<span class="muted">Rebirths so far: ${state.rebirthCount || 0}. ` +
+        `<span class="muted">Rebirths so far: ${state.rebirthCount || 0} · 🌀 Tokens: <b>${state.rebirthTokens || 0}</b> ` +
+        `(spend in the 🌀 Token Shop).<br>` +
         `Next climb: XP requirements ×${nextMult.toFixed(2)}.</span>`;
     }
     this.updateHeroPanel(state, Engine.computeStats(state), null);
@@ -1107,8 +1133,9 @@ export const UI = {
     // A fresh enemy never inherits the previous one's hit/death animation.
     e['enemy-card'].classList.remove('modern-hit', 'modern-death');
     const world = Engine.worldForStage(enemy.stage);
-    e['enemy-sprite'].textContent = enemy.emoji;
-    e['enemy-name'].textContent = enemy.name;
+    e['enemy-sprite'].textContent = enemy.radiant ? '🌟' : enemy.emoji;
+    e['enemy-name'].textContent = enemy.radiant ? `Radiant ${enemy.name}` : enemy.name;
+    e['enemy-card'].classList.toggle('radiant', !!enemy.radiant);
     // Raid waves show the wave counter instead of the stage.
     e['enemy-stage'].textContent = enemy.raidWave
       ? `🌀 Raid — Wave ${enemy.raidWave}`
@@ -1173,6 +1200,11 @@ export const UI = {
     const bond = stats.bond || { atk: 0, def: 0, hp: 0 };
     const bondChip = (bond.atk + bond.def + bond.hp) > 0
       ? `<span class="buff-chip" title="Pet bond: +${bond.atk} ATK, +${bond.def} DEF, +${bond.hp} max HP">🔗 +${bond.atk}⚔️ +${bond.def}🛡️ +${bond.hp}❤️</span>` : '';
+    // Kill streak: boosts loot drop chance (+1% per 25, max +10%). Resets on death.
+    const streak = Math.max(0, Math.floor(state.streak || 0));
+    const streakBonus = Engine.streakDropBonus(streak);
+    const streakChip = streak >= 5
+      ? `<span class="buff-chip" title="Kill streak: +${streakBonus}% loot drop chance (max +10% at 250). Dies with you.">🔥 ${streak} streak +${streakBonus}% loot</span>` : '';
     this.els['hero-stats'].innerHTML = `
       <span>⚔️ ${formatNum(stats.attack)}</span>
       <span>🛡️ ${formatNum(stats.defense)}</span>
@@ -1181,6 +1213,7 @@ export const UI = {
       ${rested}
       ${petChip}
       ${bondChip}
+      ${streakChip}
       ${setLine}
       ${pSetLine}`;
     // dungeon party mini-cards
@@ -1372,13 +1405,15 @@ export const UI = {
   nameHtml(name, state) {
     const safe = esc(name);
     const color = /^#[0-9a-fA-F]{6}$/.test(state && state.nameColor) ? state.nameColor : this.NAME_COLOR_DEFAULT;
-    const fx = this.NAME_FX.some((f) => f.id === (state && state.nameFx)) && state.nameFx !== 'none' ? state.nameFx : 'none';
+    const fxIds = this._allFxIds || (this._allFxIds = [...this.NAME_FX.map(f => f.id), ...Engine.TOKEN_NAME_FX.map(f => f.id)]);
+    const fx = fxIds.includes(state && state.nameFx) && state.nameFx !== 'none' ? state.nameFx : 'none';
     if (fx === 'none' && color.toLowerCase() === this.NAME_COLOR_DEFAULT) return safe;
     return `<span class="pname${fx === 'none' ? '' : ' fx-' + fx}" style="--namec:${color}">${safe}</span>`;
   },
 
   // Builds the Settings name-color swatches + custom color input + effect buttons.
-  _renderNameStylePickers() {
+  _renderNameStylePickers(state) {
+    this._fxPickerState = state || null;
     const cel = document.getElementById('name-color-picker');
     if (cel) {
       cel.innerHTML = this.NAME_COLORS.map((c) =>
@@ -1395,9 +1430,16 @@ export const UI = {
     }
     const fel = document.getElementById('name-fx-picker');
     if (fel) {
-      fel.innerHTML = this.NAME_FX.map((f) =>
-        `<button type="button" class="btn fx-btn" data-fx="${f.id}">${f.name}</button>`
-      ).join('');
+      const st = this._fxPickerState || null;
+      const unlocked = st ? Engine.ensureFxUnlocked(st) : Engine.BASE_NAME_FX_IDS;
+      const all = [
+        ...this.NAME_FX,
+        ...Engine.TOKEN_NAME_FX.map(f => ({ ...f, token: true })),
+      ];
+      fel.innerHTML = all.map((f) => {
+        const locked = f.token && !unlocked.includes(f.id);
+        return `<button type="button" class="btn fx-btn${locked ? ' fx-locked' : ''}" data-fx="${f.id}"${locked ? ' title="Token Shop exclusive"' : ''}>${locked ? '🔒 ' : ''}${f.name}</button>`;
+      }).join('');
       fel.querySelectorAll('.fx-btn').forEach((b) => {
         b.addEventListener('click', () => { if (this.handlers.onNameFx) this.handlers.onNameFx(b.dataset.fx); });
       });
@@ -2612,7 +2654,7 @@ export const UI = {
             <div class="shop-emoji">${entry.emoji}</div>
             <div class="shop-name">${esc(entry.name)}</div>
             <div class="muted small shop-desc">${esc(entry.desc)}</div>
-            <div class="shop-rarity" style="color:${rc}">${esc(entry.rarity)} · ${esc(slotName)}</div>
+            <div class="shop-rarity" style="color:${rc}">${esc(Engine.rarityName(entry.rarity))} · ${esc(slotName)}</div>
             <button class="btn small" data-action="buy-gear" data-id="${entry.id}" ${afford ? '' : 'disabled'}>
               ${afford ? `Buy · ${priceLabel}` : `Need ${priceLabel}`}
             </button>
@@ -2724,7 +2766,7 @@ export const UI = {
           ${isEquipped ? '<span class="equipped-tag">EQUIPPED</span>' : ''}
           ${enchLvl ? `<span class="enchant-tag" title="Enchanted +${enchLvl}: stats ×${(1 + Engine.ENCHANT_PCT * enchLvl).toFixed(2)}">+${enchLvl}</span>` : ''}
         </div>
-        <div class="item-sub">${esc(item.rarity)} · ${esc(Engine.SLOT_INFO[item.slot]?.name || item.slot)}</div>
+        <div class="item-sub">${esc(Engine.rarityName(item.rarity))} · ${esc(Engine.SLOT_INFO[item.slot]?.name || item.slot)}</div>
         ${setBadge}
         <div class="stat-chips">${statChips}</div>
         <div class="item-actions">
@@ -2817,6 +2859,33 @@ export const UI = {
           <div class="ore-name">${esc(o.name)}</div>
           <div class="ore-count"><b>${formatNum(have)}</b></div>
           ${locked ? `<div class="muted tiny">Depth ${o.unlockDepth}</div>` : ''}
+        </div>`;
+      }).join('');
+    }
+    // --- Mining Shop: all pickaxe tiers, buy in order ---
+    const mshop = document.getElementById('mining-shop');
+    if (mshop) {
+      const cur = m.pickaxe || 0;
+      mshop.innerHTML = E.PICKAXE_TIERS.map((t, i) => {
+        const owned = i <= cur;
+        const isNext = i === cur + 1;
+        const costParts = [];
+        for (const [k, n] of Object.entries(t.cost || {})) {
+          if (k === 'gold') { costParts.push(`💰 ${formatNum(n)}`); continue; }
+          const od = E.ORE_BY_ID[k];
+          costParts.push(`${(od && od.emoji) || ''} ${formatNum(n)}`);
+        }
+        const btn = owned
+          ? `<button class="btn small ghost" disabled>✔ Owned</button>`
+          : isNext
+            ? `<button class="btn small gold" data-action="buy-pickaxe" data-tier="${i}">Buy ⛏️</button>`
+            : `<button class="btn small" disabled title="Buy the previous tier first">🔒</button>`;
+        return `<div class="shop-card${owned ? ' owned' : ''}${i > cur + 1 ? ' locked' : ''}">
+          <div class="shop-emoji">${t.emoji}</div>
+          <div class="shop-name">${esc(t.name)}</div>
+          <div class="muted small">×${t.mult} tap damage</div>
+          ${owned ? '' : `<div class="muted small">${costParts.join(' + ')}</div>`}
+          <div style="margin-top:8px">${btn}</div>
         </div>`;
       }).join('');
     }
@@ -3144,22 +3213,82 @@ export const UI = {
       list.appendChild(row);
     }
     void ownedIds;
-    this.renderPets(state);
   },
 
   // ---------------- pets ----------------
-  // Pets UI lives in the Party tab. The Pet Shop sells tiered eggs for gold
-  // (guaranteed rarity pools); wild eggs drop from bosses (15%) and hatch
-  // any species. All hatching is instant from here.
-  renderPets(state) {
-    const panel = this.els['pets-panel'];
+  // Pets live in their own 🐾 Pets tab: the Pet Shop (tiered eggs for gold),
+  // your collection, and the Breeding Den. Wild eggs drop from bosses (15%).
+  // All hatching is instant from here.
+  _breedSel: [],
+  _combineSel: [],
+  _toggleBreedSelect(uid) {
+    const i = this._breedSel.indexOf(uid);
+    if (i >= 0) this._breedSel.splice(i, 1);
+    else if (this._breedSel.length < 2) this._breedSel.push(uid);
+    else { this._breedSel.shift(); this._breedSel.push(uid); }
+    this._refreshBreedPanel();
+  },
+  _toggleCombineSelect(uid) {
+    const i = this._combineSel.indexOf(uid);
+    if (i >= 0) this._combineSel.splice(i, 1);
+    else if (this._combineSel.length < 3) this._combineSel.push(uid);
+    this._refreshBreedPanel();
+  },
+  _petChip(uid) {
+    const st = this._breedState;
+    const pet = st && st.collection.find(x => x.uid === uid);
+    if (!pet) return '<span class="muted">—</span>';
+    const sp = Engine.petSpeciesOf(pet);
+    return `<span>${sp.emoji} ${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></span>`;
+  },
+  _refreshBreedPanel() {
+    const st = this._breedState;
+    if (!st) return;
+    const breedBox = document.getElementById('breed-picks');
+    const combBox = document.getElementById('combine-picks');
+    if (breedBox) {
+      const [a, b] = this._breedSel;
+      const cost = (a && b) ? 5000 * (Math.max(1, (st.collection.find(x => x.uid === a) || {}).level || 1) + Math.max(1, (st.collection.find(x => x.uid === b) || {}).level || 1)) : 0;
+      breedBox.innerHTML = `
+        <div class="breed-slots">${this._petChip(a)}<span class="muted">+</span>${this._petChip(b)}</div>
+        <div class="row-between" style="margin-top:8px">
+          <span class="muted small">${a && b ? `Cost: 💰${formatNum(cost)}` : 'Tap 💕 on two pets to pick parents'}</span>
+          <button class="btn small success" data-action="do-breed" ${a && b ? '' : 'disabled'}>💕 Breed</button>
+        </div>`;
+    }
+    if (combBox) {
+      const picks = this._combineSel;
+      const rarities = picks.map(u => { const pet = st.collection.find(x => x.uid === u); return pet ? Engine.petSpeciesOf(pet).rarity : null; });
+      const sameRarity = picks.length === 3 && new Set(rarities).size === 1;
+      const topRarity = sameRarity && rarities[0] === 'celestial';
+      combBox.innerHTML = `
+        <div class="breed-slots">${picks.map(u => this._petChip(u)).join('<span class="muted">+</span>') || '<span class="muted">—</span>'}</div>
+        <div class="row-between" style="margin-top:8px">
+          <span class="muted small">${picks.length < 3 ? 'Tap 🔀 on three pets of the same rarity' : topRarity ? 'Already max rarity!' : sameRarity ? `→ next rarity up, keeps highest level` : '⚠️ All three must share a rarity'}</span>
+          <button class="btn small success" data-action="do-combine" ${sameRarity && !topRarity ? '' : 'disabled'}>🔀 Combine</button>
+        </div>`;
+    }
+    // Highlight selected cards.
+    document.querySelectorAll('#tab-pets .pet-card').forEach(card => {
+      const id = card.dataset.petUid;
+      card.classList.toggle('breed-pick', this._breedSel.includes(id));
+      card.classList.toggle('combine-pick', this._combineSel.includes(id));
+    });
+  },
+  renderPetsTab(state) {
+    const panel = document.getElementById('pets-section');
+    if (!panel) return;
     panel.innerHTML = '';
+    this._breedSel = [];
+    this._combineSel = [];
     const p = Engine.ensurePets(state);
-
+    this._breedState = p;
     // --- Pet Shop ---
     const shop = document.createElement('div');
     shop.className = 'pet-shop';
-    const cards = Engine.SHOP_EGG_TIERS.map(tier => {
+    const cards = Engine.SHOP_EGG_TIERS
+      .filter(tier => Engine.EGG_TIERS[tier].price != null) // token-only eggs live in the Token Shop
+      .map(tier => {
       const t = Engine.EGG_TIERS[tier];
       const owned = p.shopEggs[tier] || 0;
       const afford = state.infGold === true || state.gold >= t.price;
@@ -3250,6 +3379,7 @@ export const UI = {
         : `🔗 Bond: +${formatNum(pb.atk)} ATK / +${formatNum(pb.def)} DEF / +${formatNum(pb.hp)} HP (applies when active)`;
       const row = document.createElement('div');
       row.className = 'pet-card' + (active ? ' active' : '');
+      row.dataset.petUid = pet.uid;
       const badge = isPrimary ? '<span class="pet-active">ACTIVE</span>'
         : isSecond ? '<span class="pet-active">2ND PET</span>' : '';
       const setActiveBtn = isPrimary ? '' : `<button class="btn small ghost" data-action="set-active-pet" data-id="${esc(pet.uid)}">Set active</button>`;
@@ -3261,25 +3391,98 @@ export const UI = {
       const sellBtn = Engine.canSellPet(pet)
         ? `<button class="btn small ghost sell-btn" data-action="sell-pet" data-id="${esc(pet.uid)}" data-sell-text="${esc(sellLabel)}" title="Sell this pet for gold"><span class="sell-label">${esc(sellLabel)}</span></button>`
         : `<span class="muted small" title="This pet is special and cannot be sold">🔒 unsellable</span>`;
+      const feedBtn = `<button class="btn small" data-action="feed-pet" data-id="${esc(pet.uid)}" ${pet.hunger >= 100 ? 'disabled' : ''}>🍖 Feed (💰${formatNum(cost)})</button>`;
+      const breedBtn = `<button class="btn small ghost" data-action="breed-select" data-id="${esc(pet.uid)}" title="Select for breeding">💕</button>`;
+      const combineBtn = sp.unsellable ? '' : `<button class="btn small ghost" data-action="combine-select" data-id="${esc(pet.uid)}" title="Select for combining">🔀</button>`;
+      const petBtns = [feedBtn, setActiveBtn, secondBtn, breedBtn, combineBtn, sellBtn].filter(Boolean);
+      const petBtnRow = petBtns.join('<span class="btn-sep" aria-hidden="true">|</span>');
       row.innerHTML = `
         <div class="pet-head"><span class="pet-emoji">${sp.emoji}</span>
           <div><div class="comp-name">${esc(sp.name)} <span class="muted small">Lv ${pet.level}</span></div>
-          <div class="muted small">${esc(sp.rarity)} · strikes every 4s</div></div>
+          <div class="muted small">${esc(Engine.rarityName(sp.rarity))} · strikes every 4s</div></div>
           ${badge}
         </div>
         <div class="muted small">📊 ${formatNum(ps.atk)} ATK · ${formatNum(ps.def)} DEF · ${formatNum(ps.hp)} HP</div>
         <div class="muted small">${bondText}</div>
         <div class="pet-hunger"><div class="bar hunger"><div class="fill" style="width:${hungerPct}%"></div></div>
           <span class="muted small">🍖 ${hungerPct}% ${hungerLabel}</span></div>
-        <div class="row">
-          <button class="btn small" data-action="feed-pet" data-id="${esc(pet.uid)}" ${pet.hunger >= 100 ? 'disabled' : ''}>🍖 Feed (💰${formatNum(cost)})</button>
-          ${setActiveBtn}
-          ${secondBtn}
-          ${sellBtn}
+        <div class="row pet-actions">
+          ${petBtnRow}
         </div>`;
       list.appendChild(row);
     }
     panel.appendChild(list);
+
+    // --- Breeding Den ---
+    const den = document.createElement('div');
+    den.className = 'breeding-den';
+    den.innerHTML = `
+      <h2>💕 Breeding Den</h2>
+      <p class="muted small" style="margin:4px 0">Breed two pets for a gold fee — the egg hatches a Lv 1 pet (45/45% parent species, 10% mutation of the higher rarity). Combine <b>three pets of the same rarity</b> into one pet of the next rarity up — keeps the highest level. Celestial pets are max rarity.</p>
+      <h3>Breed</h3>
+      <div id="breed-picks" class="breed-box"></div>
+      <h3>Combine</h3>
+      <div id="combine-picks" class="breed-box"></div>`;
+    panel.appendChild(den);
+    this._refreshBreedPanel();
+  },
+
+  // ---------------- token shop ----------------
+  // 🌀 Rebirth Token Shop: rotating 24h stock, permanent purchases.
+  _tokenTimer: null,
+  _startTokenCountdown() {
+    this._stopTokenCountdown();
+    this._tickTokenCountdown();
+    this._tokenTimer = setInterval(() => this._tickTokenCountdown(), 1000);
+  },
+  _stopTokenCountdown() {
+    if (this._tokenTimer) { clearInterval(this._tokenTimer); this._tokenTimer = null; }
+  },
+  _tickTokenCountdown() {
+    const el = document.getElementById('token-countdown');
+    if (!el || !this._tokenStock) return;
+    let ms = this._tokenStock.windowEnd - Date.now();
+    if (ms <= 0) {
+      // Rotation landed: refresh the stock silently if we're still here.
+      if (this.activeTab === 'tokenshop' && this._tokenState) this.renderTokenShop(this._tokenState);
+      return;
+    }
+    const h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000), s = Math.floor(ms % 60000 / 1000);
+    el.textContent = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  },
+  _tokenShopCard(state, item) {
+    let title, desc, owned = false;
+    if (item.kind === 'title') {
+      const t = Engine.TITLES.find(x => x.id === item.ref) || {};
+      title = t.name || item.ref; desc = t.desc || '';
+      owned = (state.titlesUnlocked || []).includes(item.ref);
+    } else if (item.kind === 'fx') {
+      const f = Engine.TOKEN_NAME_FX.find(x => x.id === item.ref) || {};
+      title = f.name || item.ref; desc = 'Name effect — equip it in Settings → Name Style.';
+      owned = Engine.fxIsUnlocked(state, item.ref);
+    } else {
+      title = item.name; desc = item.desc || '';
+    }
+    const afford = (state.rebirthTokens || 0) >= item.cost;
+    const btn = owned
+      ? `<button class="btn small ghost" disabled>✔ Owned</button>`
+      : `<button class="btn small ${afford ? 'success' : ''}" data-action="buy-token" data-id="${item.id}" ${afford ? '' : 'disabled'}>🌀 ${item.cost} token${item.cost > 1 ? 's' : ''}</button>`;
+    return `<div class="shop-card${owned ? ' owned' : ''}">
+      <div class="shop-name">${esc(title)}${item.staple ? ' <span class="quest-tag ready">STAPLE</span>' : ''}</div>
+      <div class="muted small">${esc(desc)}</div>
+      <div style="margin-top:8px">${btn}</div>
+    </div>`;
+  },
+  renderTokenShop(state) {
+    this._tokenState = state;
+    Engine.ensureFxUnlocked(state);
+    const stock = Engine.tokenShopStock(Date.now());
+    this._tokenStock = stock;
+    const bal = document.getElementById('token-balance');
+    if (bal) bal.innerHTML = `🌀 <b>${formatNum(state.rebirthTokens || 0)}</b> token${(state.rebirthTokens || 0) === 1 ? '' : 's'}`;
+    const grid = document.getElementById('token-shop-grid');
+    if (grid) grid.innerHTML = stock.items.map(item => this._tokenShopCard(state, item)).join('');
+    this._startTokenCountdown();
   },
 
   // ---------------- ranks ----------------
@@ -3736,6 +3939,8 @@ export const UI = {
   renderMore(state, user) {
     const role = (user && user.role) || 'player';
     this.role = role; // remembered for role-aware changelog filtering
+    this._settingsState = state || null; // for the name-fx lock picker
+    this._renderNameStylePickers(state); // refresh token-fx lock badges
     const canGM = role === 'owner' || role === 'gm' || role === 'admin' || role === 'moderator';
     this.els['gm-entry-card'].classList.toggle('hidden', !canGM);
     // Staff tab in the main nav: visible to staff only, opens the GM console.

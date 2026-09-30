@@ -44,14 +44,15 @@ function makeState(overrides) {
   const V = require('../src/validation.js');
 
   console.log('== pickaxe tiers ==');
-  check('8 tiers, index 0..7, mults ascend', () => {
-    assert.strictEqual(E.PICKAXE_TIERS.length, 8);
+  check('11 tiers, index 0..10, mults ascend', () => {
+    assert.strictEqual(E.PICKAXE_TIERS.length, 11);
     const mults = E.PICKAXE_TIERS.map(t => t.mult);
-    assert.deepStrictEqual(mults, [1, 1.6, 2.5, 4, 6.5, 10, 16, 25]);
+    assert.deepStrictEqual(mults, [1, 1.6, 2.5, 4, 6.5, 10, 16, 25, 40, 65, 100]);
     assert.strictEqual(E.PICKAXE_TIERS[0].cost, null);
     assert.deepStrictEqual(E.PICKAXE_TIERS[1].cost, { copper: 20, gold: 500 });
     assert.deepStrictEqual(E.PICKAXE_TIERS[7].cost, { supergalaxy: 10, gold: 500000000 });
-    assert.strictEqual(E.MAX_PICKAXE_TIER, 7);
+    assert.deepStrictEqual(E.PICKAXE_TIERS[10].cost, { supergalaxy: 120, gold: 500000000000 });
+    assert.strictEqual(E.MAX_PICKAXE_TIER, 10);
   });
 
   console.log('== ensureMine defaults ==');
@@ -65,11 +66,11 @@ function makeState(overrides) {
     assert.strictEqual(s.forge.crafts, 0);
     assert.strictEqual(s.forge.superCrafted, false);
   });
-  check('ensureMine clamps a tampered pickaxe into 0..7', () => {
+  check('ensureMine clamps a tampered pickaxe into 0..10', () => {
     const s = makeState();
     s.mine.pickaxe = 99;
     E.ensureMine(s);
-    assert.strictEqual(s.mine.pickaxe, 7);
+    assert.strictEqual(s.mine.pickaxe, 10);
     s.mine.pickaxe = -3;
     E.ensureMine(s);
     assert.strictEqual(s.mine.pickaxe, 0);
@@ -99,7 +100,7 @@ function makeState(overrides) {
     const s = makeState();
     E.ensureMine(s);
     assert.deepStrictEqual(E.pickaxeUpgradeCost(s), { copper: 20, gold: 500 });
-    s.mine.pickaxe = 7;
+    s.mine.pickaxe = 10;
     assert.strictEqual(E.pickaxeUpgradeCost(s), null);
   });
   check("can't-afford-ore returns an error string, no deduction", () => {
@@ -125,12 +126,12 @@ function makeState(overrides) {
   });
   check('maxed tier returns an error string', () => {
     const s = makeState();
-    s.mine.pickaxe = 7;
+    s.mine.pickaxe = 10;
     E.ensureMine(s);
     const res = E.buyPickaxeUpgrade(s);
     assert.strictEqual(typeof res, 'string');
     assert.ok(/MAX/i.test(res), `unexpected: ${res}`);
-    assert.strictEqual(s.mine.pickaxe, 7);
+    assert.strictEqual(s.mine.pickaxe, 10);
   });
   check('infGold bypasses the gold cost', () => {
     const s = makeState();
@@ -157,7 +158,7 @@ function makeState(overrides) {
     assert.strictEqual(E.pickaxeTier(null).mult, 1);
     assert.strictEqual(E.pickaxeTier({}).mult, 1);
     assert.strictEqual(E.pickaxeTier({ mine: { pickaxe: 'x' } }).mult, 1);
-    assert.strictEqual(E.pickaxeTier({ mine: { pickaxe: 99 } }).mult, 25);
+    assert.strictEqual(E.pickaxeTier({ mine: { pickaxe: 99 } }).mult, 100);
     assert.strictEqual(E.pickaxeTier({ mine: { pickaxe: 4 } }).name, 'Mithril Pick');
   });
 
@@ -235,10 +236,10 @@ function makeState(overrides) {
   });
 
   console.log('== server validation ==');
-  check('sanitizeStateBlob clamps pickaxe 99 -> 7 and -1 -> 0, defaults missing -> 0', () => {
+  check('sanitizeStateBlob clamps pickaxe 99 -> 10 and -1 -> 0, defaults missing -> 0', () => {
     const b1 = { level: 10, mine: { depth: 5, ores: { copper: 3 }, pickaxe: 99 } };
     const r1 = V.sanitizeStateBlob(b1);
-    assert.strictEqual(r1.state.mine.pickaxe, 7);
+    assert.strictEqual(r1.state.mine.pickaxe, 10);
     const b2 = { level: 10, mine: { depth: 5, ores: {}, pickaxe: -1 } };
     assert.strictEqual(V.sanitizeStateBlob(b2).state.mine.pickaxe, 0);
     const b3 = { level: 10, mine: { depth: 5, ores: {} } };

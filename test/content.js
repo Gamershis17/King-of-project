@@ -43,7 +43,7 @@ async function main() {
     assert.strictEqual(E.EGG_TIERS.shadow.price, 500000);
   });
   check('shop tier order starts with stray, ends with the new tiers', () => {
-    assert.deepStrictEqual(E.SHOP_EGG_TIERS, ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow']);
+    assert.deepStrictEqual(E.SHOP_EGG_TIERS, ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial', 'token']);
   });
   check('mythic pool hatches stormdrake or prismhorn', () => {
     assert.deepStrictEqual([...E.EGG_TIERS.mythic.pool].sort(), ['prismhorn', 'stormdrake']);
@@ -222,10 +222,10 @@ async function main() {
   });
 
   console.log('== teasers ==');
-  check('starlight pets + shadow demons teased, locked, unobtainable', () => {
-    assert.strictEqual(E.PET_TEASERS.length, 2);
+  check('shadow demons teased, locked, unobtainable', () => {
+    assert.strictEqual(E.PET_TEASERS.length, 1);
     const ids = E.PET_TEASERS.map(t => t.id);
-    assert.ok(ids.includes('starlight') && ids.includes('shadow-demons'));
+    assert.ok(ids.includes('shadow-demons'));
     for (const t of E.PET_TEASERS) {
       assert.ok(!E.PET_SPECIES[t.id], `${t.id} must not be a hatchable species`);
       for (const tier of Object.values(E.EGG_TIERS)) {

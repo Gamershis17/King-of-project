@@ -330,12 +330,12 @@ router.post(
 
     if (kind === 'pickaxe') {
       const { tier } = req.body || {};
-      if (!Number.isInteger(tier) || tier < 0 || tier > 7) {
-        return res.status(400).json({ error: 'Tier must be an integer between 0 and 7.' });
+      if (!Number.isInteger(tier) || tier < 0 || tier > 10) {
+        return res.status(400).json({ error: 'Tier must be an integer between 0 and 10.' });
       }
       const blob = await loadBlob(target.id);
       if (!blob.mine || typeof blob.mine !== 'object') blob.mine = { depth: 1, ores: {} };
-      blob.mine.pickaxe = Math.max(0, Math.min(7, tier));
+      blob.mine.pickaxe = Math.max(0, Math.min(10, tier));
       await persistMergedState(target.id, blob);
       await logAudit(req, 'grant', target.username, `pickaxe tier ${tier}`);
       return res.json({ ok: true, state: selfState(req, target, blob) });

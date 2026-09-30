@@ -72,6 +72,9 @@ export const PICKAXE_TIERS = [
   { name: 'Adamant Pick',     emoji: '⛏️', mult: 10,   cost: { adamant: 25, gold: 5000000 } },
   { name: 'Galaxy Pick',      emoji: '🌌', mult: 16,   cost: { galaxy: 20, gold: 50000000 } },
   { name: 'Super Galaxy Pick',emoji: '💜', mult: 25,   cost: { supergalaxy: 10, gold: 500000000 } },
+  { name: 'Void Pick',        emoji: '🕳️', mult: 40,   cost: { supergalaxy: 25, gold: 5000000000 } },
+  { name: 'Cosmic Pick',      emoji: '🌠', mult: 65,   cost: { supergalaxy: 60, gold: 50000000000 } },
+  { name: "Thronebreaker's Pick", emoji: '👑', mult: 100, cost: { supergalaxy: 120, gold: 500000000000 } },
 ];
 export const MAX_PICKAXE_TIER = PICKAXE_TIERS.length - 1;
 
@@ -107,7 +110,7 @@ export function mineDamage(state) {
   // Equipped pickaxe multiplies tap damage (rounded).
   return Math.max(1, Math.round(base * pickaxeTier(state).mult));
 }
-// Defensive pickaxe tier lookup: clamps a tampered/missing value to 0..7.
+// Defensive pickaxe tier lookup: clamps a tampered/missing value to 0..MAX_PICKAXE_TIER.
 export function pickaxeTier(state) {
   const raw = state && state.mine && state.mine.pickaxe;
   const idx = Number.isFinite(Number(raw))
@@ -179,7 +182,7 @@ export function ensureMine(s) {
     const v = m.ores[o.id];
     m.ores[o.id] = Number.isFinite(v) ? Math.max(0, Math.floor(v)) : 0;
   }
-  // Pickaxe tier (0..7) + lifetime mining counters. All default 0 and stay
+  // Pickaxe tier (0..MAX_PICKAXE_TIER) + lifetime mining counters. All default 0 and stay
   // finite/non-negative so tampered saves can't smuggle weird values in.
   const pk = Math.floor(Number(m.pickaxe));
   m.pickaxe = Number.isFinite(pk) ? Math.max(0, Math.min(MAX_PICKAXE_TIER, pk)) : 0;
@@ -403,9 +406,20 @@ export const RARITIES = [
   { id: 'epic',      weight: 7,   color: '#b366ff', stats: 3, mult: 4,   prefix: 'Arcane' },
   { id: 'legendary', weight: 3.5, color: '#ff8c1a', stats: 3, mult: 6.5, prefix: 'Mythril' },
   { id: 'mythic',    weight: 1.5, color: '#ff3b3b', stats: 4, mult: 10,  prefix: 'Eternal' },
+  { id: 'divine',    weight: 0.7,  color: '#ffe87a', stats: 4, mult: 15, prefix: 'Divine',   emoji: '💛' },
+  { id: 'cosmic',    weight: 0.35, color: '#7df9ff', stats: 5, mult: 22, prefix: 'Cosmic',   emoji: '🌌' },
+  { id: 'enduring',  weight: 0.18, color: '#e0a458', stats: 5, mult: 45, prefix: 'Enduring', emoji: '🛡️' },
+  { id: 'infinite',  weight: 0.09, color: '#ff6ef5', stats: 6, mult: 65, prefix: 'Infinite', emoji: '♾️' },
 ];
 export const RARITY_BY_ID = Object.fromEntries(RARITIES.map(r => [r.id, r]));
 export const RARITY_IDX = Object.fromEntries(RARITIES.map((r, i) => [r.id, i]));
+// Player-facing rarity names. Ids stay stable for saves; only the label changes.
+export const RARITY_NAMES = {
+  common: 'Common', magic: 'Uncommon', rare: 'Rare', epic: 'Epic',
+  legendary: 'Legendary', mythic: 'Mythic', divine: 'Divine',
+  cosmic: 'Cosmic', enduring: 'Enduring', infinite: 'Infinite',
+};
+export function rarityName(id) { return RARITY_NAMES[id] || String(id); }
 
 export const SLOTS = ['weapon', 'armor', 'helmet', 'boots', 'trinket'];
 export const SLOT_INFO = {
@@ -443,7 +457,7 @@ export function defaultState(race) {
     level: 1, xp: 0, xpNext: xpForLevel(1),
     gold: 500, stars: 0,
     stage: 1, bossesKilled: 0,
-    rebirthCount: 0,
+    rebirthCount: 0, rebirthTokens: 0,
     hero: {
       hp: 100, maxHp: 100, attack: 10, defense: 2,
       critChance: 5, critDamage: 150, parry: 0, dodge: 5,
@@ -558,6 +572,9 @@ export function ensureState(raw) {
     if (i !== -1) s.achievements[i] = 'rebirth-1';
   }
   s.rebirthCount = Math.max(0, Math.floor(s.rebirthCount || 0));
+  s.rebirthTokens = Math.max(0, Math.floor(s.rebirthTokens || 0));
+  // Kill streak: consecutive kills without dying; boosts loot drop chance.
+  s.streak = Math.max(0, Math.floor(s.streak || 0));
   s.stage = Math.max(1, Math.floor(s.stage || 1));
   s.xpNext = xpForLevel(s.level, s.rebirthCount);
   s.hero.hp = clamp(s.hero.hp, 0, s.hero.maxHp);
@@ -1147,7 +1164,15 @@ export function enemyFor(stage, playerStats = null) {
     attack,
     emoji: foe.emoji,
     world: world.id,
+    // Radiant enemies: rare shimmering foes (3% of non-boss spawns) with
+    // guaranteed loot and bonus gold. Never bosses.
+    radiant: !boss && Math.random() < 0.03,
   };
+}
+
+// Kill-streak loot bonus: +1% drop chance per 25-streak, capped at +10%.
+export function streakDropBonus(streak) {
+  return Math.min(10, Math.floor(Math.max(0, streak || 0) / 25));
 }
 
 // ---------------- Enchanting ----------------
@@ -1158,6 +1183,7 @@ export const ENCHANT_MAX = 10;
 export const ENCHANT_PCT = 0.08;
 const ENCHANT_BASE_COST = {
   common: 100, magic: 500, rare: 2500, epic: 15000, legendary: 100000, mythic: 500000,
+  divine: 2500000, cosmic: 12000000, enduring: 50000000, infinite: 200000000,
 };
 export function enchantLevel(item) {
   return Math.min(ENCHANT_MAX, Math.max(0, (item && item.enchant) | 0));
@@ -1282,12 +1308,23 @@ export function enemyStrike(stats, enemyAttack) {
 }
 
 // ---------------- Loot ----------------
-export function rollRarity(minIdx = 0) {
-  const pool = RARITIES.map((r, i) => ({ r, i })).filter(x => x.i >= minIdx);
+export function rollRarity(minIdx = 0, maxIdx = RARITIES.length - 1) {
+  const pool = RARITIES.map((r, i) => ({ r, i })).filter(x => x.i >= minIdx && x.i <= maxIdx);
   const total = pool.reduce((a, x) => a + x.r.weight, 0);
   let roll = Math.random() * total;
   for (const x of pool) { roll -= x.r.weight; if (roll <= 0) return x.r; }
   return pool[pool.length - 1].r;
+}
+
+// Stage gate for the post-mythic tiers: divine 40+, cosmic 60+,
+// enduring 80+, infinite 100+. Returns the max RARITIES index allowed.
+export function maxRarityIdxForStage(stage) {
+  const s = Math.max(1, Math.floor(Number(stage) || 1));
+  if (s >= 100) return RARITY_IDX.infinite;
+  if (s >= 80) return RARITY_IDX.enduring;
+  if (s >= 60) return RARITY_IDX.cosmic;
+  if (s >= 40) return RARITY_IDX.divine;
+  return RARITY_IDX.mythic;
 }
 
 const SLOT_NAMES = {
@@ -1345,10 +1382,16 @@ export function makeLootItem(stage, rarityId, slot) {
 }
 
 // Returns an item or null. Drop chances (set pieces see rollSetDrop):
-// normal enemies 10%, bosses 80% (rare+ guaranteed, raid bosses epic+).
-export function rollLoot(stage, isBoss = false, minIdx = null) {
-  if (Math.random() > (isBoss ? 0.80 : 0.10)) return null;
-  const rarity = rollRarity(minIdx !== null ? minIdx : (isBoss ? 2 : 0));
+// normal enemies 10% (+streak bonus), bosses 80% (rare+ guaranteed, raid
+// bosses epic+). Radiant enemies always drop. Post-mythic rarities are
+// stage-gated via maxRarityIdxForStage().
+export function rollLoot(stage, isBoss = false, minIdx = null, opts = {}) {
+  const bonus = Math.max(0, Number(opts.bonusChance) || 0);
+  const baseChance = opts.guaranteed ? 1 : (isBoss ? 0.80 : 0.10 + bonus / 100);
+  if (Math.random() > baseChance) return null;
+  const maxIdx = maxRarityIdxForStage(stage);
+  const lo = Math.min(minIdx !== null ? minIdx : (isBoss ? 2 : 0), maxIdx);
+  const rarity = rollRarity(lo, maxIdx);
   return makeLootItem(stage, rarity.id, pick(SLOTS));
 }
 
@@ -1714,8 +1757,11 @@ export const EGG_TIERS = {
              desc: 'Hatches a Shadow Wisp, Gloomstalker, or Void Reaver — children of the dark.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver'] },
   celestial: { name: 'Starlight Egg', emoji: '🌠', price: 500000,
              desc: 'Hatches a Star Wisp, Luna Cub, or Astral Drake — children of the light.', pool: ['starwisp', 'lunacub', 'astraldrake'] },
+  // Token-shop only (not sold for gold): shadow + celestial pool.
+  token:   { name: 'Token Egg',   emoji: '🌀', price: null,
+             desc: 'Token Shop exclusive — hatches a shadow or celestial pet.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver', 'starwisp', 'lunacub', 'astraldrake'] },
 };
-export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial'];
+export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial', 'token'];
 
 export function defaultPets() {
   const shopEggs = {};
@@ -1834,9 +1880,76 @@ export function buyEgg(s, tier) {
   const p = ensurePets(s);
   if (!SHOP_EGG_TIERS.includes(tier)) return { ok: false, reason: 'bad-tier' };
   const price = EGG_TIERS[tier].price;
+  if (price == null) return { ok: false, reason: 'token-only' }; // token shop only
   if (!spendGold(s, price)) return { ok: false, reason: 'gold' };
   p.shopEggs[tier] = (p.shopEggs[tier] || 0) + 1;
   return { ok: true, tier };
+}
+
+// ---------------- Pet breeding & combining ----------------
+// Rarity ladder for combining (shadow/celestial are the top — nothing above).
+export const PET_RARITY_ORDER = ['common', 'magic', 'rare', 'epic', 'legendary', 'mythic', 'shadow', 'celestial'];
+
+// Breed two pets: parents are kept, gold fee scales with their levels.
+// Offspring is level 1: 45% parent A species, 45% parent B species,
+// 10% "mutation" — a random species of the higher parent's rarity.
+export function breedPets(s, uidA, uidB) {
+  const p = ensurePets(s);
+  if (!uidA || !uidB || uidA === uidB) return { ok: false, reason: 'pick-two' };
+  const a = p.collection.find(x => x.uid === uidA);
+  const b = p.collection.find(x => x.uid === uidB);
+  if (!a || !b) return { ok: false, reason: 'not-found' };
+  const cost = 5000 * (Math.max(1, a.level) + Math.max(1, b.level));
+  if (!spendGold(s, cost)) return { ok: false, reason: 'gold', cost };
+  const ra = PET_RARITY_ORDER.indexOf(PET_SPECIES[a.species].rarity);
+  const rb = PET_RARITY_ORDER.indexOf(PET_SPECIES[b.species].rarity);
+  let species;
+  const roll = Math.random();
+  if (roll < 0.10) {
+    // Mutation: random non-starter species of the higher parent's rarity.
+    const topRarity = PET_RARITY_ORDER[Math.max(ra, rb)];
+    const pool = Object.entries(PET_SPECIES)
+      .filter(([, sp]) => sp.rarity === topRarity && !sp.starterOnly)
+      .map(([id]) => id);
+    species = pool.length ? pick(pool) : (roll < 0.05 ? a.species : b.species);
+  } else {
+    species = roll < 0.55 ? a.species : b.species;
+  }
+  const pet = { uid: uid(), species, level: 1, xp: 0, xpNext: petXpForLevel(1), hunger: 100 };
+  p.collection.push(pet);
+  if (!p.activeUid) p.activeUid = pet.uid;
+  return { ok: true, pet, cost };
+}
+
+// Combine three pets of the same rarity into one pet of the next rarity up.
+// The three are consumed; the new pet keeps the highest level. Top-rarity
+// (shadow/celestial) pets cannot be combined further.
+export function combinePets(s, uids) {
+  const p = ensurePets(s);
+  if (!Array.isArray(uids) || uids.length !== 3 || new Set(uids).size !== 3) {
+    return { ok: false, reason: 'pick-three' };
+  }
+  const pets = uids.map(u => p.collection.find(x => x.uid === u));
+  if (pets.some(x => !x)) return { ok: false, reason: 'not-found' };
+  if (pets.some(x => petSpeciesOf(x).unsellable)) return { ok: false, reason: 'protected' };
+  const rarities = pets.map(x => PET_SPECIES[x.species].rarity);
+  if (new Set(rarities).size !== 1) return { ok: false, reason: 'same-rarity' };
+  const idx = PET_RARITY_ORDER.indexOf(rarities[0]);
+  if (idx < 0 || idx >= PET_RARITY_ORDER.length - 1) return { ok: false, reason: 'max-rarity' };
+  const targetRarity = PET_RARITY_ORDER[idx + 1];
+  const pool = Object.entries(PET_SPECIES)
+    .filter(([, sp]) => sp.rarity === targetRarity && !sp.starterOnly)
+    .map(([id]) => id);
+  if (!pool.length) return { ok: false, reason: 'no-species' };
+  const level = Math.max(...pets.map(x => Math.max(1, x.level)));
+  const gone = new Set(uids);
+  p.collection = p.collection.filter(x => !gone.has(x.uid));
+  const pet = { uid: uid(), species: pick(pool), level, xp: 0, xpNext: petXpForLevel(level), hunger: 100 };
+  p.collection.push(pet);
+  if (gone.has(p.activeUid)) p.activeUid = pet.uid;
+  if (gone.has(p.secondUid)) p.secondUid = null;
+  if (!p.activeUid) p.activeUid = pet.uid;
+  return { ok: true, pet, consumed: uids.length };
 }
 
 export function petFeedCost(pet, state) {
@@ -2174,6 +2287,7 @@ export function rebirth(state) {
   state.level = 1;
   state.xp = 0;
   state.rebirthCount = (state.rebirthCount || 0) + 1;
+  state.rebirthTokens = (state.rebirthTokens || 0) + 1; // +1 token per rebirth
   state.xpNext = xpForLevel(1, state.rebirthCount);
   return ensureState(state);
 }
@@ -2309,7 +2423,7 @@ export const TITLES = [
   { id: 'rockbreaker',     name: '💥 the Rockbreaker',   desc: 'Tap the mining rock 1,000 times.',          check: (s) => (((s.mine || {}).totalTaps) || 0) >= 1000 },
   { id: 'orehoarder',      name: '💰 the Orehoarder',     desc: 'Mine 1,000 ore in total.',                  check: (s) => (((s.mine || {}).totalMined) || 0) >= 1000 },
   { id: 'prospector',      name: '🧭 the Prospector',     desc: 'Upgrade your pickaxe to tier 3.',           check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 3 },
-  { id: 'master-miner',    name: '⚒️ the Master Miner',   desc: 'Upgrade your pickaxe to the max tier.',     check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 7 },
+  { id: 'master-miner',    name: '⚒️ the Master Miner',   desc: 'Upgrade your pickaxe to the max tier.',     check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= MAX_PICKAXE_TIER },
   { id: 'starforger',      name: '⭐ the Starforger',     desc: 'Craft an item in the Galaxy Forge.',        check: (s) => (((s.forge || {}).crafts) || 0) >= 1 },
   { id: 'galaxyforger',    name: '🌌 the Galaxyforger',   desc: 'Craft 10 items in the Galaxy Forge.',       check: (s) => (((s.forge || {}).crafts) || 0) >= 10 },
   { id: 'transcendent',    name: '✨ the Transcendent',   desc: 'Craft your first Super Galaxy item.',       check: (s) => ((s.forge || {}).superCrafted) === true },
@@ -2350,6 +2464,121 @@ export function isValidCountry(code) { return COUNTRIES.some(c => c.code === cod
 export function countryFlag(code) {
   if (!/^[A-Z]{2}$/.test(code || '')) return '';
   return [...code].map(ch => String.fromCodePoint(0x1F1E6 + ch.charCodeAt(0) - 65)).join('');
+}
+
+// ---------------- Rebirth Token Shop ----------------
+// Rebirth Tokens are earned 1 per rebirth and spent in a dedicated shop tab.
+// Stock rotates every 24h: 2 fixed staples + 4 rotating slots, deterministic
+// per day so every player sees the same offers. Purchases are permanent —
+// rotation only changes what's for sale, never takes away what you own.
+
+// Token-exclusive titles. tokenOnly: never auto-unlocked by checkTitles()
+// (their check always fails); only buyTokenItem() can grant them.
+export const TOKEN_TITLES = [
+  { id: 'token-sovereign',   name: '🌀 the Reborn Sovereign', desc: 'Token shop exclusive. Worn by those who cycle death itself.', check: () => false, tokenOnly: true },
+  { id: 'token-voidwalker',  name: '🕳️ the Voidwalker',      desc: 'Token shop exclusive. Steps between worlds.',                 check: () => false, tokenOnly: true },
+  { id: 'token-starforged',  name: '🌠 the Starforged',       desc: 'Token shop exclusive. Hammered from a fallen star.',          check: () => false, tokenOnly: true },
+  { id: 'token-immortal',    name: '♾️ the Immortal',         desc: 'Token shop exclusive. Death is a rumor.',                     check: () => false, tokenOnly: true },
+  { id: 'token-kingslayer',  name: '👑 the Kingslayer',       desc: 'Token shop exclusive. Thrones fear this name.',               check: () => false, tokenOnly: true },
+  { id: 'token-mythweaver',  name: '📖 the Mythweaver',       desc: 'Token shop exclusive. Every legend starts with them.',        check: () => false, tokenOnly: true },
+];
+for (const t of TOKEN_TITLES) TITLES.push(t);
+
+// Token-exclusive name effects (visual CSS classes .pname.fx-<id>).
+export const TOKEN_NAME_FX = [
+  { id: 'voidborn',   name: '🕳️ Voidborn' },
+  { id: 'goldleaf',   name: '🍂 Goldleaf' },
+  { id: 'bloodmoon',  name: '🌙 Blood Moon' },
+  { id: 'stormsurge', name: '🌪️ Stormsurge' },
+  { id: 'celestial',  name: '✨ Celestial' },
+  { id: 'throneflame', name: '👑 Throneflame' },
+];
+
+// Name effects free for everyone (everything in the old picker).
+export const BASE_NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice',
+  'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist',
+  'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks',
+  'champagne', 'midnight'];
+export const ALL_NAME_FX_IDS = [...BASE_NAME_FX_IDS, ...TOKEN_NAME_FX.map(f => f.id)];
+
+// Backfill for old saves: everyone owns the free effects; token ones are
+// only added by buyTokenItem().
+export function ensureFxUnlocked(s) {
+  if (!Array.isArray(s.fxUnlocked)) s.fxUnlocked = BASE_NAME_FX_IDS.slice();
+  return s.fxUnlocked;
+}
+export function fxIsUnlocked(s, fxId) {
+  return ensureFxUnlocked(s).includes(fxId);
+}
+
+// The shop catalog. kind: 'title' | 'fx' | 'egg'. staple: always in stock.
+export const TOKEN_SHOP_CATALOG = [
+  { id: 'ts-egg-token',   kind: 'egg',   name: '🥚 Token Egg',          desc: 'Hatches a shadow or celestial pet.',            cost: 2, staple: true },
+  { id: 'ts-egg-wild5',   kind: 'eggs',  name: '🥚🥚 Egg Bundle',       desc: '5 wild pet eggs.',                              cost: 1, staple: true },
+  { id: 'ts-title-sovereign',  kind: 'title', ref: 'token-sovereign',  cost: 3 },
+  { id: 'ts-title-voidwalker', kind: 'title', ref: 'token-voidwalker', cost: 2 },
+  { id: 'ts-title-starforged', kind: 'title', ref: 'token-starforged', cost: 2 },
+  { id: 'ts-title-immortal',   kind: 'title', ref: 'token-immortal',   cost: 3 },
+  { id: 'ts-title-kingslayer',  kind: 'title', ref: 'token-kingslayer', cost: 2 },
+  { id: 'ts-title-mythweaver', kind: 'title', ref: 'token-mythweaver', cost: 1 },
+  { id: 'ts-fx-voidborn',    kind: 'fx', ref: 'voidborn',    cost: 2 },
+  { id: 'ts-fx-goldleaf',    kind: 'fx', ref: 'goldleaf',    cost: 1 },
+  { id: 'ts-fx-bloodmoon',   kind: 'fx', ref: 'bloodmoon',   cost: 2 },
+  { id: 'ts-fx-stormsurge',  kind: 'fx', ref: 'stormsurge',  cost: 2 },
+  { id: 'ts-fx-celestial',   kind: 'fx', ref: 'celestial',   cost: 3 },
+  { id: 'ts-fx-throneflame', kind: 'fx', ref: 'throneflame', cost: 3 },
+];
+const TOKEN_SHOP_BY_ID = Object.fromEntries(TOKEN_SHOP_CATALOG.map(i => [i.id, i]));
+
+export const TOKEN_SHOP_ROTATION_MS = 24 * 60 * 60 * 1000;
+
+// Deterministic daily stock: 2 staples + 4 rotating picks seeded by day.
+// Returns { items: [catalog entries], windowStart, windowEnd }.
+export function tokenShopStock(nowMs = Date.now()) {
+  const day = Math.floor(nowMs / TOKEN_SHOP_ROTATION_MS);
+  const windowStart = day * TOKEN_SHOP_ROTATION_MS;
+  const windowEnd = windowStart + TOKEN_SHOP_ROTATION_MS;
+  const staples = TOKEN_SHOP_CATALOG.filter(i => i.staple);
+  const rotating = TOKEN_SHOP_CATALOG.filter(i => !i.staple);
+  // Seeded shuffle (mulberry32) so the rotation is stable all day.
+  const rng = mulberry32(day >>> 0);
+  const pool = rotating.slice();
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return { items: [...staples, ...pool.slice(0, 4)], windowStart, windowEnd };
+}
+
+// Buy a token shop item. Returns {ok, reason?}. Purchases are permanent.
+export function buyTokenItem(s, itemId, nowMs = Date.now()) {
+  const item = TOKEN_SHOP_BY_ID[itemId];
+  if (!item) return { ok: false, reason: 'bad-item' };
+  const stock = tokenShopStock(nowMs);
+  if (!stock.items.some(i => i.id === itemId)) return { ok: false, reason: 'not-in-stock' };
+  if ((s.rebirthTokens || 0) < item.cost) return { ok: false, reason: 'tokens', cost: item.cost };
+  // Already-owned items can't be bought twice (titles/fx are one-time).
+  if (item.kind === 'title' && (s.titlesUnlocked || []).includes(item.ref)) {
+    return { ok: false, reason: 'owned' };
+  }
+  if (item.kind === 'fx' && (s.fxUnlocked || []).includes(item.ref)) {
+    return { ok: false, reason: 'owned' };
+  }
+  s.rebirthTokens -= item.cost;
+  if (item.kind === 'title') {
+    if (!Array.isArray(s.titlesUnlocked)) s.titlesUnlocked = ['wanderer'];
+    s.titlesUnlocked.push(item.ref);
+  } else if (item.kind === 'fx') {
+    ensureFxUnlocked(s);
+    s.fxUnlocked.push(item.ref);
+  } else if (item.kind === 'egg') {
+    const p = ensurePets(s);
+    p.shopEggs.token = (p.shopEggs.token || 0) + 1;
+  } else if (item.kind === 'eggs') {
+    const p = ensurePets(s);
+    p.eggs = (p.eggs || 0) + 5;
+  }
+  return { ok: true, item };
 }
 
 // Returns newly unlocked title defs (mutates state.titlesUnlocked).

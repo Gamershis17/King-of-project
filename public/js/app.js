@@ -144,6 +144,9 @@ async function boot() {
     onSetSecondPet: doSetSecondPet,
     onRemoveSecondPet: doRemoveSecondPet,
     onBuyEgg: doBuyEgg,
+    onBreedPets: doBreedPets,
+    onCombinePets: doCombinePets,
+    onBuyTokenItem: doBuyTokenItem,
     onBuyGear: doBuyGear,
     onGotoPetShop: doGotoPetShop,
     onRedeem: doRedeem,
@@ -589,7 +592,7 @@ function setBattleBg(id) {
   saveNow();
 }
 // ---- player name styles (cosmetic; top-level on state like bgStyle) ----
-const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight'];
+const NAME_FX_IDS = Engine.ALL_NAME_FX_IDS;
 const NAME_COLOR_DEFAULT = '#ffd76a';
 function nameColorOf(s) {
   const c = s && s.nameColor;
@@ -609,7 +612,13 @@ function setNameColor(c) {
 function setNameFx(fx) {
   const s = App.state;
   if (!s) return;
-  s.nameFx = NAME_FX_IDS.includes(fx) ? fx : 'none';
+  if (!NAME_FX_IDS.includes(fx)) fx = 'none';
+  // Token-exclusive effects must be bought in the Token Shop first.
+  if (fx !== 'none' && Engine.TOKEN_NAME_FX.some(f => f.id === fx) && !Engine.fxIsUnlocked(s, fx)) {
+    UI.toast('🔒 Buy this effect in the 🌀 Token Shop first!', 'warn');
+    return;
+  }
+  s.nameFx = fx;
   UI.syncNameStyle(nameColorOf(s), nameFxOf(s));
   saveNow();
 }
@@ -911,6 +920,16 @@ function onKillEnemy() {
   Audio.play('coin');
   const cappedNote = addedGold < gold ? ' · gold cap' : '';
   s.stats.kills += 1;
+  // Kill streak: +1 per kill, boosts loot drop chance; resets on defeat.
+  s.streak = (s.streak || 0) + 1;
+  const streakBonus = Engine.streakDropBonus(s.streak);
+  // Radiant enemies: guaranteed loot + triple gold.
+  const radiant = !!enemy.radiant;
+  if (radiant) {
+    const rGold = Math.floor(gold * 2);
+    Engine.addGold(s, rGold);
+    UI.combatLog(`🌟 Radiant ${enemy.name} slain! Bonus +${formatNum(rGold)} gold!`, 'loot');
+  }
   const isDungeonBoss = enemy.boss && s.mode === 'dungeon';
   const isRaidBoss = inRaid && raidLoot && raidLoot.boss;
   if (enemy.boss) {
@@ -929,11 +948,13 @@ function onKillEnemy() {
       UI.combatLog(`🐾 ${g.name} leveled up to ${lv}!`, 'level');
     }
   }
-  const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null);
+  const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null,
+    { bonusChance: streakBonus, guaranteed: radiant });
   if (loot) {
     s.inventory.push(loot);
-    UI.notify('loot', `🎒 Loot: ${loot.name}`, 'loot');
-    UI.combatLog(`🎒 Looted ${loot.name} (${loot.rarity})`, 'loot');
+    const tag = radiant ? '🌟 Radiant loot' : '🎒 Loot';
+    UI.notify('loot', `${tag}: ${loot.name}`, 'loot');
+    UI.combatLog(`${tag} ${loot.name} (${loot.rarity})`, 'loot');
     if (UI.activeTab === 'gear') UI.renderGear(s);
   }
   // Earnable set pieces (drop sources documented on Engine.PLAYER_SETS).
@@ -947,9 +968,9 @@ function onKillEnemy() {
   // Pet eggs from bosses (drop sources documented on Engine.rollPetEgg).
   if (Engine.rollPetEgg({ boss: enemy.boss, dungeonBoss: isDungeonBoss, raidBoss: isRaidBoss })) {
     Engine.ensurePets(s).eggs += 1;
-    UI.notify('loot', '🥚 A pet egg dropped! Hatch it in Party → Pets.', 'loot');
+    UI.notify('loot', '🥚 A pet egg dropped! Hatch it in 🐾 Pets.', 'loot');
     UI.combatLog('🥚 A pet egg dropped!', 'loot');
-    if (UI.activeTab === 'party') renderPartyTab();
+    if (UI.activeTab === 'pets') UI.renderPetsTab(s);
   }
   if (xpRes.levels.length) {
     UI.levelUpModal(xpRes.levels);
@@ -1029,6 +1050,9 @@ function onDefeat() {
   const s = App.state;
   App.dead = true;
   App.respawnAt = Date.now() + RESPAWN_MS;
+  // Death breaks the kill streak.
+  if (s.streak >= 25) UI.toast(`💔 Kill streak of ${s.streak} ended!`, 'info');
+  s.streak = 0;
   const lost = Math.floor(s.gold * 0.02);
   if (!s.infGold) s.gold -= lost; // infinite-gold perk: death takes nothing
   // Raid: death ends the run (loot kept); drop back to clicker mode.
@@ -1606,8 +1630,73 @@ function doHatchPet(tier) {
   const sp = Engine.petSpeciesOf(pet);
   UI.toast(`🥚 Hatched a ${sp.name}! ${sp.emoji}`, 'success');
   UI.combatLog(`🥚 Hatched ${sp.emoji} ${sp.name}!`, 'loot');
-  renderPartyTab();
+  if (UI.activeTab === 'pets') UI.renderPetsTab(s);
   checkAch(); // first-hatch / pack titles
+  saveNow();
+}
+
+function doBreedPets() {
+  const s = App.state;
+  if (!s) return;
+  const [a, b] = UI._breedSel || [];
+  const res = Engine.breedPets(s, a, b);
+  if (!res.ok) {
+    UI.toast(res.reason === 'gold' ? `Not enough gold — breeding costs 💰${formatNum(res.cost)}.` : 'Pick two different pets to breed.', 'warn');
+    return;
+  }
+  const sp = Engine.petSpeciesOf(res.pet);
+  UI.toast(`💕 Bred a ${sp.name}! ${sp.emoji}`, 'success');
+  UI.combatLog(`💕 Bred ${sp.emoji} ${sp.name}!`, 'loot');
+  UI.renderPetsTab(s);
+  saveNow();
+}
+
+async function doCombinePets() {
+  const s = App.state;
+  if (!s) return;
+  const uids = (UI._combineSel || []).slice();
+  const p = Engine.ensurePets(s);
+  const picks = uids.map(u => p.collection.find(x => x.uid === u)).filter(Boolean);
+  if (picks.length === 3) {
+    const names = picks.map(x => `${Engine.petSpeciesOf(x).emoji} ${Engine.petSpeciesOf(x).name} Lv ${x.level}`).join('<br>');
+    const ok = await UI.confirm(
+      '🔀 Combine pets?',
+      `<p>Permanently sacrifice these three pets to create one pet of the next rarity up?</p><p>${names}</p><p class="muted">This cannot be undone.</p>`,
+      'Combine'
+    );
+    if (!ok) return;
+  }
+  const res = Engine.combinePets(s, uids);
+  if (!res.ok) {
+    const msg = { 'pick-three': 'Pick three pets to combine.', 'same-rarity': 'All three pets must share a rarity.', 'max-rarity': 'Those pets are already max rarity!', 'protected': 'Special pets cannot be combined.' }[res.reason] || 'Combine failed.';
+    UI.toast(msg, 'warn');
+    return;
+  }
+  const sp = Engine.petSpeciesOf(res.pet);
+  UI.toast(`🔀 Combined into a Lv ${res.pet.level} ${sp.name}! ${sp.emoji}`, 'success');
+  UI.combatLog(`🔀 Combined into ${sp.emoji} Lv ${res.pet.level} ${sp.name}!`, 'loot');
+  UI.renderPetsTab(s);
+  saveNow();
+}
+
+function doBuyTokenItem(itemId) {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.buyTokenItem(s, itemId, Date.now());
+  if (!res.ok) {
+    const msg = {
+      'bad-item': 'That item is gone.',
+      'not-in-stock': 'That item rotated out of stock.',
+      'tokens': `Not enough 🌀 tokens — need ${res.cost}. Rebirth to earn more!`,
+      'owned': 'You already own that one.',
+    }[res.reason] || 'Could not buy that.';
+    UI.toast(msg, 'warn');
+    return;
+  }
+  const item = res.item;
+  UI.toast(`🌀 Bought ${item.name || item.id}! Yours forever.`, 'success');
+  UI.combatLog(`🌀 Token shop: bought ${item.name || item.id}.`, 'loot');
+  UI.renderTokenShop(s);
   saveNow();
 }
 
@@ -1623,7 +1712,7 @@ function doBuyEgg(tier) {
   const priceNote = s.infGold ? ' (∞ gold)' : ` for 💰${formatNum(t.price)} gold`;
   UI.toast(`${t.emoji} Bought a ${t.name}${priceNote}!`, 'success');
   UI.combatLog(`🛒 Bought ${t.emoji} ${t.name} from the Pet Shop.`, 'loot');
-  renderPartyTab();
+  UI.renderPetsTab(App.state);
   saveNow();
 }
 
@@ -1658,7 +1747,7 @@ function doSetSecondPet(petUid) {
   p.secondUid = petUid;
   const sp = Engine.petSpeciesOf(pet);
   UI.toast(`${sp.emoji} ${sp.name} joins the hunt as your second pet!`, 'success');
-  renderPartyTab();
+  UI.renderPetsTab(App.state);
   saveNow();
 }
 
@@ -1669,7 +1758,7 @@ function doRemoveSecondPet() {
   if (!p.secondUid) return;
   p.secondUid = null;
   UI.toast('Second pet dismissed.', 'info');
-  renderPartyTab();
+  UI.renderPetsTab(App.state);
   saveNow();
 }
 
@@ -1802,12 +1891,7 @@ function doBuyGear(stockId) {
 }
 
 function doGotoPetShop() {
-  UI.showTab('party');
-  // Party tab re-renders (incl. the Pet Shop); then jump to it.
-  requestAnimationFrame(() => {
-    const el = document.getElementById('pets-panel');
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  });
+  UI.showTab('pets');
 }
 
 function doFeedPet(petUid) {
@@ -1819,7 +1903,7 @@ function doFeedPet(petUid) {
     return;
   }
   UI.toast(`🍖 Fed for 💰${formatNum(res.cost)} gold.`, 'success');
-  renderPartyTab();
+  UI.renderPetsTab(App.state);
   saveNow();
 }
 
@@ -1832,7 +1916,7 @@ function doSetActivePet(petUid) {
   p.activeUid = petUid;
   const sp = Engine.petSpeciesOf(pet);
   UI.toast(`${sp.emoji} ${sp.name} is now your active pet!`, 'success');
-  renderPartyTab();
+  UI.renderPetsTab(App.state);
   saveNow();
 }
 
@@ -1987,6 +2071,8 @@ async function onTabSwitch(tab, force = false) {
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'mine') UI.renderMine(s);
   else if (tab === 'party') { loadMpParty(); renderPartyTab(); }
+  else if (tab === 'pets') UI.renderPetsTab(s);
+  else if (tab === 'tokenshop') UI.renderTokenShop(s);
   else if (tab === 'settings') { UI.renderMore(s, App.user); UI.syncNotifSettings(s.settings && s.settings.notif); }
   else if (tab === 'stats') UI.renderStats(s, App.user);
   else if (tab === 'titles') UI.renderTitles(s);
