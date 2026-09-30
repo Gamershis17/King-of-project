@@ -37,6 +37,7 @@
  *   POST /api/gm/reset-quests   (gm|owner|admin) — force re-roll of daily/weekly quests
  *   POST /api/gm/event-buff     (gm|owner|admin) — server-wide XP/gold multiplier w/ expiry
  *   GET  /api/gm/audit          (gm|owner|admin) — server-side staff action log
+ *   POST /api/gm/clear-guild-chat (owner|admin|gm) — wipe the target player's guild chat history
  *
  * All database access is async (PostgreSQL).
  */
@@ -656,6 +657,26 @@ router.post(
     await persistMergedState(target.id, blob);
     await logAudit(req, 'mute', target.username, mins === 0 ? 'unmuted' : `${mins} min`);
     res.json({ ok: true, mutedUntil: blob.chatMutedUntil, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- clear guild chat ----------
+// Wipes the message history of the guild the target player belongs to.
+// Moderation tool for spam raids; the guild itself is untouched.
+router.post(
+  '/gm/clear-guild-chat',
+  ownerAdminGm,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const member = await pool.query('SELECT guild_id FROM guild_members WHERE username = $1', [target.username]);
+    if (!member.rows.length) {
+      return res.status(404).json({ error: `${target.username} is not in a guild.` });
+    }
+    const del = await pool.query('DELETE FROM guild_chat WHERE guild_id = $1', [member.rows[0].guild_id]);
+    await logAudit(req, 'clear-guild-chat', target.username, `${del.rowCount} message(s) removed`);
+    res.json({ ok: true, removed: del.rowCount });
   })
 );
 
