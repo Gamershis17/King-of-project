@@ -3237,60 +3237,115 @@ body[data-uistyle="modern"] #view-auth .auth-fantasy .auth-tab.active{
 }
 
 /* ============================================================
-   Mining & Galaxy Forge (appended 2026-09-28)
-   Ornate gold-filigree theme; dark; reduced-motion respected.
+   Mining (reworked 2026-09-30)
+   Deep-cavern dark fantasy: ember glow, cracking ore nodes,
+   pickaxe tier ladder, telemetry tiles. Reduced-motion respected.
    ============================================================ */
 .mine-rock {
-  background: linear-gradient(180deg, var(--stone), var(--bg2));
-  border: 2px solid var(--gold-deep, #8a6a1c);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255,140,26,0.08), transparent 60%),
+    linear-gradient(180deg, #241a12, var(--bg2));
+  border: 2px solid #6b4a1f;
   border-radius: var(--radius);
-  box-shadow: 0 0 18px rgba(212, 160, 23, 0.18), 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 22px rgba(255,140,26,0.12), 0 10px 28px rgba(0,0,0,0.55), inset 0 0 40px rgba(0,0,0,0.5);
   padding: 1rem;
   text-align: center;
   margin-bottom: 0.8rem;
 }
-.mine-depth { font-size: 1.05rem; color: var(--gold); margin-bottom: 0.3rem; }
-.mine-rock-emoji { font-size: 3.2rem; line-height: 1.2; }
+.node-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.4rem; }
+.node-ore { font-weight: 800; font-size: 1.05rem; color: #ffd97a; text-shadow: 0 0 12px rgba(255,140,26,0.45); }
+.mine-depth { font-size: 0.95rem; color: var(--muted); }
+.mine-depth b { color: var(--gold); font-size: 1.15rem; }
+.node-visual { position: relative; display: inline-block; line-height: 1; margin: 0.2rem 0 0.4rem; }
+.node-rock { font-size: 4rem; filter: drop-shadow(0 6px 10px rgba(0,0,0,0.6)); }
+.node-crack {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 2.6rem; color: #ffe9b0; text-shadow: 0 0 10px #ffb02e, 0 0 22px #ff8c1a;
+  pointer-events: none; transition: opacity 0.25s;
+}
 .mine-rock .bar { margin: 0.5rem 0 0.3rem; }
-.mine-hptext { margin-bottom: 0.2rem; }
+.mine-hptext { margin-bottom: 0.35rem; }
+.depth-track { height: 6px; border-radius: 999px; background: rgba(255,255,255,0.07); overflow: hidden; margin: 0.15rem 0 0.45rem; }
+.depth-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #8a5a1c, var(--gold), #ffe9b0); box-shadow: 0 0 8px rgba(212,160,23,0.6); transition: width 0.3s; }
 .mine-btn {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   width: 150px; height: 150px; border-radius: 50%;
   margin: 0 auto 0.5rem; font-size: 1rem;
+  background: radial-gradient(circle at 50% 35%, #3a2a16, #1d1409);
+  border: 3px solid var(--gold-deep, #8a6a1c);
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.4), 0 0 24px rgba(255,140,26,0.25), inset 0 0 24px rgba(0,0,0,0.6);
+  animation: mine-ember 3.2s ease-in-out infinite;
+}
+@keyframes mine-ember {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(0,0,0,0.4), 0 0 18px rgba(255,140,26,0.18), inset 0 0 24px rgba(0,0,0,0.6); }
+  50% { box-shadow: 0 0 0 4px rgba(0,0,0,0.4), 0 0 34px rgba(255,140,26,0.4), inset 0 0 24px rgba(0,0,0,0.6); }
 }
 .mine-btn .mine-emoji { font-size: 3rem; }
+.mine-btn:active { transform: scale(0.94); }
 .mine-find { text-align: center; min-height: 1.4em; margin-bottom: 0.4rem; }
-.mine-stats { text-align: center; margin-bottom: 0.6rem; }
-/* pickaxe upgrade card */
+.mine-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.8rem; }
+.mine-tile {
+  background: linear-gradient(180deg, #221910, var(--bg2));
+  border: 1px solid #5c431f; border-radius: var(--radius-sm);
+  padding: 0.5rem 0.25rem; text-align: center;
+  display: flex; flex-direction: column; gap: 0.1rem;
+}
+.mine-tile-emoji { font-size: 1.2rem; }
+.mine-tile-val { font-weight: 800; color: #ffd97a; font-size: 0.95rem; }
+.mine-tile-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .mine-pickaxe {
-  background: linear-gradient(180deg, var(--stone), var(--bg2));
-  border: 2px solid var(--gold-deep, #8a6a1c);
+  background: linear-gradient(180deg, #241b10, var(--bg2));
+  border: 2px solid #6b4a1f;
   border-radius: var(--radius);
-  box-shadow: 0 0 18px rgba(212, 160, 23, 0.18), 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 22px rgba(255,140,26,0.12), 0 10px 28px rgba(0,0,0,0.55);
   padding: 0.8rem 1rem;
   margin-bottom: 0.8rem;
 }
-.pk-row { display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; }
-.pk-cur { display: flex; align-items: center; gap: 0.6rem; }
-.pk-emoji { font-size: 2.2rem; line-height: 1; }
-.pk-next { text-align: right; }
+.pk-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.6rem; }
+.pk-title { font-weight: 800; color: #ffd97a; font-size: 1rem; }
+.pk-cur-tag { font-size: 0.9rem; }
+.pk-ladder { display: flex; gap: 0.35rem; margin-bottom: 0.7rem; overflow-x: auto; padding-bottom: 0.2rem; }
+.pk-step {
+  flex: 1 0 auto; min-width: 64px; text-align: center; padding: 0.4rem 0.25rem;
+  background: rgba(255,255,255,0.03); border: 1px solid var(--stone2);
+  border-radius: var(--radius-sm); display: flex; flex-direction: column; gap: 0.1rem;
+  opacity: 0.45;
+}
+.pk-step-emoji { font-size: 1.5rem; }
+.pk-step-name { font-size: 0.62rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pk-step-mult { font-size: 0.7rem; color: var(--gold); font-weight: 700; }
+.pk-step.owned { opacity: 0.75; border-color: #4a3a22; }
+.pk-step.current {
+  opacity: 1; border-color: var(--gold);
+  background: rgba(212,160,23,0.12);
+  box-shadow: 0 0 12px rgba(212,160,23,0.35);
+}
+.pk-step.next { opacity: 0.9; border-style: dashed; border-color: var(--gold); }
+.pk-step.next .pk-step-emoji { animation: pk-bob 1.6s ease-in-out infinite; }
+@keyframes pk-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+.pk-next { border-top: 1px solid rgba(212,160,23,0.2); padding-top: 0.6rem; }
 .pk-cost { margin: 0.3rem 0 0.45rem; font-size: 0.85rem; }
 .pk-next .btn[disabled] { opacity: 0.75; cursor: not-allowed; }
-@media (max-width: 560px) {
-  .pk-row { flex-direction: column; align-items: stretch; }
-  .pk-next { text-align: left; }
-}
-.ore-grid {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem;
-}
+.ore-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 .ore-card {
-  background: var(--stone); border: 1px solid var(--gold-line-soft, #8a6a1c);
-  border-radius: var(--radius); padding: 0.5rem 0.25rem; text-align: center;
+  background: linear-gradient(180deg, #221910, var(--bg2));
+  border: 1px solid #5c431f; border-radius: var(--radius);
+  padding: 0.55rem 0.25rem; text-align: center;
+  box-shadow: inset 0 0 18px rgba(0,0,0,0.45);
+  content-visibility: auto; contain-intrinsic-size: auto 92px;
 }
 .ore-card.locked { opacity: 0.45; }
-.ore-emoji { font-size: 1.6rem; }
+.ore-card:not(.locked) { border-color: #8a6a1c; }
+.ore-emoji { font-size: 1.7rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6)); }
 .ore-name { font-size: 0.7rem; color: var(--muted); }
-.ore-count { font-size: 0.95rem; color: var(--gold); }
+.ore-count { font-size: 1rem; color: #ffd97a; font-weight: 800; }
+body:is(.perf, .os-reduced) .mine-btn { animation: none; }
+body:is(.perf, .os-reduced) .pk-step.next .pk-step-emoji { animation: none; }
+body:is(.perf, .os-reduced) .node-crack, body:is(.perf, .os-reduced) .depth-fill { transition: none; }
+@media (max-width: 560px) {
+  .mine-stats { grid-template-columns: repeat(2, 1fr); }
+  .pk-head { flex-direction: column; align-items: flex-start; }
+}
 /* forge */
 .forge-section { display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 0.8rem; }
 .forge-panel {
@@ -4946,3 +5001,21 @@ body.reduce-motion .gpad-toast { transition: none; }
   .pet-icon { width: 46px; height: 46px; }
 }
 body:is(.perf, .os-reduced) .pet-slot { transition: none; }
+
+/* ---------- armory ---------- */
+.armory-sell { display: flex; flex-direction: column; gap: 8px; }
+.sell-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+  background: var(--stone); border: 1px solid var(--stone2);
+  border-left: 5px solid var(--rc, #555); border-radius: 10px;
+  content-visibility: auto; contain-intrinsic-size: auto 56px;
+}
+.sell-name {
+  font-weight: 700; color: var(--rc, var(--text)); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sell-rarity { font-size: 0.75rem; white-space: nowrap; }
+@media (max-width: 560px) {
+  .sell-row { flex-wrap: wrap; }
+  .sell-rarity { flex: 1 1 100%; }
+}
