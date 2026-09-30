@@ -2995,6 +2995,11 @@ input:focus, select:focus {
   border: 1px solid rgba(212, 175, 55, 0.3);
   border-radius: 14px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  top: var(--gm-target-top, auto); /* JS refines with measured header height */
+}
+/* Scroll offset for quick-jump chips; JS sets --gm-jump-offset from measured heights. */
+#gm-content [id^="gm-sec-"] {
+  scroll-margin-top: var(--gm-jump-offset, 0px);
 }
 /* Quick-jump nav inside the sticky target bar. */
 #gm-content .gm-jump {
