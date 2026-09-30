@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930ak';
-import { Audio } from './audio.js?v=20260930ak';
+import * as Engine from './engine.js?v=20260930al';
+import { Audio } from './audio.js?v=20260930al';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -216,11 +216,12 @@ export const UI = {
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
+      'armory-stock', 'armory-sell',
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
       'party-slots', 'recruit-list', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
       'stats-card', 'titles-list',
       'mp-party-card', 'mp-join-card', 'mp-join-code', 'mp-join-btn', 'mp-refresh',
-      'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view', 'realm-open',
+      'ranks-subtabs', 'friends-panel', 'friend-req-badge', 'lb-board-view', 'realm-open', 'character-open',
       'redeem-input', 'redeem-btn', 'gm-entry-card', 'gm-open-btn',
       'set-dmgnums', 'set-motion', 'set-perf', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-combat-music', 'set-music-vol', 'set-sfx-vol', 'set-notif-level', 'set-notif-death', 'set-atmosphere', 'set-weathersync',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
@@ -245,8 +246,8 @@ export const UI = {
     // Bottom tab bar
     $$('#tabbar .tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        // 🌐 Realm Network is a modal trigger, not a tab (wired separately below).
-        if (btn.id === 'realm-open') return;
+        // 🌐 Realm Network and 👤 Character are modal triggers, not tabs (wired separately below).
+        if (btn.id === 'realm-open' || btn.id === 'character-open') return;
         // Staff tab is a shortcut into the GM console (role-checked on open).
         if (btn.dataset.tab === 'staff') { this.handlers.onOpenGM && this.handlers.onOpenGM(); return; }
         this.showTab(btn.dataset.tab);
@@ -312,6 +313,15 @@ export const UI = {
       if (btn.dataset.action === 'forge-craft' && h.onForgeCraft) h.onForgeCraft(btn.dataset.slot);
       if (btn.dataset.action === 'galaxy-equip' && h.onGalaxyEquip) h.onGalaxyEquip(btn.dataset.slot);
       if (btn.dataset.action === 'galaxy-unequip' && h.onGalaxyUnequip) h.onGalaxyUnequip(btn.dataset.slot);
+    });
+    // Armory: buy buttons (data-action="buy-armory") and sell buttons
+    // (data-action="sell" with data-id on the button).
+    listen('tab-armory', 'click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn || btn.disabled) return;
+      const h = this.handlers;
+      if (btn.dataset.action === 'buy-armory' && h.onBuyArmory) h.onBuyArmory(btn.dataset.id);
+      if (btn.dataset.action === 'sell' && h.onSell) h.onSell(btn.dataset.id);
     });
     // Mine: tap the rock
     listen('mine-btn', 'click', () => {
@@ -454,6 +464,8 @@ export const UI = {
     // Ranks sub-tabs (Board / Friends)
     // Realm Network (Global Player Origins) modal, opened from the Ranks tab.
     listen('realm-open', 'click', () => this.handlers.onRealmOpen && this.handlers.onRealmOpen());
+    // Character sheet modal, opened from the nav Character button.
+    listen('character-open', 'click', () => this.handlers.onCharacterOpen && this.handlers.onCharacterOpen());
     // Ranks subtabs (board/friends).
     listen('ranks-subtabs', 'click', (e) => {
       const btn = e.target.closest('button[data-subtab]');
@@ -3197,26 +3209,84 @@ export const UI = {
     }
   },
 
+  // ---------------- armory ----------------
+  renderArmory(state) {
+    const E = Engine;
+    // Buy: masterwork class gear, guaranteed rarity, stage-scaled stats.
+    const stock = this.els['armory-stock'];
+    if (stock && E.ARMORY_STOCK) {
+      const cards = E.ARMORY_STOCK.map(entry => {
+        const rc = (E.RARITY_BY_ID[entry.rarity] || {}).color || '#9aa0a6';
+        const slotName = (E.SLOT_INFO[entry.slot] || {}).name || entry.slot;
+        const afford = state.infGold === true || (state.gold || 0) >= entry.price;
+        const priceLabel = state.infGold === true ? '∞ FREE' : `💰 ${formatNum(entry.price)}`;
+        return `
+          <div class="shop-card r-${entry.rarity}">
+            <div class="shop-emoji">${entry.emoji}</div>
+            <div class="shop-name">${esc(entry.name)}</div>
+            <div class="muted small shop-desc">${esc(entry.desc)}</div>
+            <div class="shop-rarity" style="color:${rc}">${esc(E.rarityName(entry.rarity))} · ${esc(slotName)}</div>
+            <button class="btn small" data-action="buy-armory" data-id="${entry.id}" ${afford ? '' : 'disabled'}>
+              ${afford ? `Buy · ${priceLabel}` : `Need ${priceLabel}`}
+            </button>
+          </div>`;
+      }).join('');
+      stock.innerHTML = `
+        <div class="shop-head">
+          <span class="shop-title">⚒️ Armory Stock</span>
+          <span class="muted small">forged for your class · stage-scaled</span>
+        </div>
+        <div class="shop-grid">${cards}</div>`;
+    }
+    // Sell: spare inventory gear for gold. Reuses the existing sell flow
+    // (Engine.sellItem via data-action="sell") — unsellable items excluded,
+    // gold cap respected. data-id lives on the button (unlike the inventory
+    // grid, which reads it off the card).
+    const sell = this.els['armory-sell'];
+    if (sell) {
+      const items = (state.inventory || []).filter(i => !i.unsellable);
+      if (!items.length) {
+        sell.innerHTML = `<p class="muted small">Nothing to sell — your pack holds only keepsakes.</p>`;
+      } else {
+        sell.innerHTML = items.map(item => {
+          const rc = (E.RARITY_BY_ID[item.rarity] || {}).color || '#9aa0a6';
+          const slotName = (E.SLOT_INFO[item.slot] || {}).name || item.slot;
+          const equipped = state.equipped && state.equipped[item.slot] === item.id;
+          return `
+            <div class="sell-row r-${item.rarity}">
+              <span class="slot-emoji">${(E.SLOT_INFO[item.slot] || {}).emoji || '🎒'}</span>
+              <span class="sell-name" title="${esc(item.name)}">${esc(item.name)}${equipped ? ' <span class="equipped-tag">EQUIPPED</span>' : ''}</span>
+              <span class="sell-rarity" style="color:${rc}">${esc(E.rarityName(item.rarity))} · ${esc(slotName)}</span>
+              <button class="btn small ghost" data-action="sell" data-id="${item.id}">Sell +${formatNum(item.value || 1)}</button>
+            </div>`;
+        }).join('');
+      }
+    }
+  },
+
   // ---------------- mine ----------------
   renderMine(state, findText) {
     const E = Engine;
     E.ensureMine(state);
     const m = state.mine;
+    // ---- Pickaxe card: current tool + full tier ladder (progression at a glance).
     const pkCard = this.els['mine-pickaxe'];
     if (pkCard) {
       const cur = E.pickaxeTier(state);
       const cost = E.pickaxeUpgradeCost(state);
-      let cardHtml;
+      const ladder = E.PICKAXE_TIERS.map((t, i) => {
+        const cls = i < m.pickaxe ? 'owned' : i === m.pickaxe ? 'current' : i === m.pickaxe + 1 ? 'next' : 'locked';
+        return `<div class="pk-step ${cls}" title="${esc(t.name)} — ×${t.mult} tap damage">
+          <span class="pk-step-emoji">${t.emoji}</span>
+          <span class="pk-step-name">${esc(t.name)}</span>
+          <span class="pk-step-mult">×${t.mult}</span>
+        </div>`;
+      }).join('');
+      let upgradeHtml;
       if (!cost) {
         // MAX tier — show a badge, no button.
-        cardHtml = `
-          <div class="pk-row">
-            <div class="pk-cur"><span class="pk-emoji">${cur.emoji}</span>
-              <div><b>${esc(cur.name)}</b><div class="muted small">×${cur.mult} tap damage</div></div>
-            </div>
-            <div class="pk-next"><span class="btn small gold" style="pointer-events:none">MAX</span>
-              <div class="muted tiny">Strongest pickaxe forged.</div></div>
-          </div>`;
+        upgradeHtml = `<span class="btn small gold" style="pointer-events:none">MAX</span>
+          <div class="muted tiny">Strongest pickaxe forged.</div>`;
       } else {
         const next = E.PICKAXE_TIERS[m.pickaxe + 1];
         const costParts = [];
@@ -3232,40 +3302,56 @@ export const UI = {
         const goldOk = state.infGold === true || (state.gold || 0) >= goldCost;
         if (!reason && !goldOk) reason = `Need ${formatNum(goldCost - (state.gold || 0))} more gold`;
         costParts.push(`<span class="${goldOk ? 'cost-ok' : 'cost-lack'}">💰 ${formatNum(goldCost)} gold</span>`);
-        cardHtml = `
-          <div class="pk-row">
-            <div class="pk-cur"><span class="pk-emoji">${cur.emoji}</span>
-              <div><b>${esc(cur.name)}</b><div class="muted small">×${cur.mult} tap damage</div></div>
-            </div>
-            <div class="pk-next">
-              <div class="muted tiny">Next: ${next.emoji} ${esc(next.name)} ×${next.mult}</div>
-              <div class="pk-cost">${costParts.join(' + ')}</div>
-              ${reason
-                ? `<button class="btn small" id="mine-pickaxe-btn" disabled>${esc(reason)}</button>`
-                : `<button class="btn small gold" id="mine-pickaxe-btn">Upgrade ⛏️</button>`}
-            </div>
-          </div>`;
+        upgradeHtml = `
+          <div class="muted tiny">Next: ${next.emoji} ${esc(next.name)} ×${next.mult}</div>
+          <div class="pk-cost">${costParts.join(' + ')}</div>
+          ${reason
+            ? `<button class="btn small" id="mine-pickaxe-btn" disabled>${esc(reason)}</button>`
+            : `<button class="btn small gold" id="mine-pickaxe-btn">Upgrade ⛏️</button>`}`;
       }
-      pkCard.innerHTML = cardHtml;
+      pkCard.innerHTML = `
+        <div class="pk-head"><span class="pk-title">⛏️ Pickaxe</span>
+          <span class="pk-cur-tag">${cur.emoji} <b>${esc(cur.name)}</b> <span class="muted small">×${cur.mult} tap damage</span></span>
+        </div>
+        <div class="pk-ladder">${ladder}</div>
+        <div class="pk-next">${upgradeHtml}</div>`;
     }
+    // ---- Ore node: what you're striking, visibly cracking as its HP falls.
     const rock = this.els['mine-rock'];
     if (rock) {
       const pct = Math.max(0, Math.min(100, (m.rockHp / m.rockMaxHp) * 100));
+      const nodeOre = [...E.ORE_TIERS].reverse().find(o => m.depth >= o.unlockDepth) || E.ORE_TIERS[0];
       const nextTier = E.ORE_TIERS.find(o => m.depth < o.unlockDepth);
+      const crack = Math.max(0, Math.min(1, 1 - pct / 100));
+      const depthPct = E.MAX_MINE_DEPTH ? Math.min(100, (m.depth / E.MAX_MINE_DEPTH) * 100) : 0;
       rock.innerHTML = `
-        <div class="mine-depth">Depth <b>${m.depth}</b> ${m.depth >= E.MAX_MINE_DEPTH ? '<span class="muted">(max)</span>' : ''}</div>
-        <div class="mine-rock-emoji">🪨</div>
+        <div class="node-head">
+          <span class="node-ore">${nodeOre.emoji} ${esc(nodeOre.name)} Node</span>
+          <span class="mine-depth">Depth <b>${m.depth}</b>${m.depth >= E.MAX_MINE_DEPTH ? ' <span class="muted">(max)</span>' : ''}</span>
+        </div>
+        <div class="node-visual"><span class="node-rock">🪨</span><span class="node-crack" style="opacity:${crack.toFixed(2)}">⚡</span></div>
         <div class="bar hp"><div class="fill" style="width:${pct}%"></div></div>
         <div class="mine-hptext muted small">${Math.max(0, Math.ceil(m.rockHp))} / ${m.rockMaxHp} HP · ⛏️ ${E.mineDamage(state)} dmg/tap</div>
+        <div class="depth-track" title="Depth progress"><div class="depth-fill" style="width:${depthPct}%"></div></div>
         ${nextTier ? `<div class="muted tiny">Next ore: ${nextTier.emoji} ${esc(nextTier.name)} at depth ${nextTier.unlockDepth}</div>` : '<div class="muted tiny">All ore tiers unlocked!</div>'}`;
     }
     const find = this.els['mine-find'];
     if (find && findText) find.textContent = findText;
+    // ---- Telemetry tiles: deepest / taps / ore mined / damage per tap.
     const stats = this.els['mine-stats'];
     if (stats) {
       const fmt = (n) => Math.max(0, Math.floor(n || 0)).toLocaleString('en-US');
-      stats.textContent = `Deepest: ${m.maxDepth || m.depth} · Total taps: ${fmt(m.totalTaps)} · Total ore mined: ${fmt(m.totalMined)}`;
+      const tiles = [
+        ['🏔️', 'Deepest', `${m.maxDepth || m.depth}`],
+        ['👆', 'Taps', fmt(m.totalTaps)],
+        ['⛏️', 'Ore mined', fmt(m.totalMined)],
+        ['💥', 'Dmg / tap', fmt(E.mineDamage(state))],
+      ];
+      stats.innerHTML = tiles.map(([e, l, v]) =>
+        `<div class="mine-tile"><span class="mine-tile-emoji">${e}</span><span class="mine-tile-val">${v}</span><span class="mine-tile-label">${l}</span></div>`
+      ).join('');
     }
+    // ---- Ore inventory counters.
     const grid = this.els['ore-grid'];
     if (grid) {
       grid.innerHTML = E.ORE_TIERS.map(o => {

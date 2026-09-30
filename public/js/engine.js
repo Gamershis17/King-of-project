@@ -1706,6 +1706,38 @@ export function buyGearItem(s, stockId) {
   return { ok: true, item };
 }
 
+// ---------------- Armory ----------------
+// Premium class-gear shop in the Armory tab. Items are generated on purchase
+// (guaranteed rarity, stage-scaled stats — same stat budget as drops) via
+// makeLootItem with the player's class, so names are class-flavored.
+// Unlike the Gear Shop, the Armory DOES sell legendary/mythic — intentional
+// per Cody 2026-09-30 ("rarest to very high quality gear you can get").
+// Privileged gear (GM sets) is never sold — GM-grant only.
+export const ARMORY_STOCK = [
+  { id: 'armory-rare-weapon',      slot: 'weapon', rarity: 'rare',      price: 250000,   emoji: '🗡️', name: 'Gilded Weapon',    desc: 'Guaranteed rare class weapon, scaled to your stage.' },
+  { id: 'armory-rare-armor',       slot: 'armor',  rarity: 'rare',      price: 250000,   emoji: '🛡️', name: 'Gilded Armor',     desc: 'Guaranteed rare class armor, scaled to your stage.' },
+  { id: 'armory-epic-weapon',      slot: 'weapon', rarity: 'epic',      price: 1000000,  emoji: '⚔️', name: 'Arcane Weapon',    desc: 'Guaranteed epic class weapon — a real upgrade.' },
+  { id: 'armory-epic-armor',       slot: 'armor',  rarity: 'epic',      price: 1000000,  emoji: '🥋', name: 'Arcane Armor',     desc: 'Guaranteed epic class armor — a real upgrade.' },
+  { id: 'armory-legendary-weapon', slot: 'weapon', rarity: 'legendary', price: 5000000,  emoji: '🔱', name: 'Mythril Weapon',   desc: 'Guaranteed legendary class weapon.' },
+  { id: 'armory-legendary-armor',  slot: 'armor',  rarity: 'legendary', price: 5000000,  emoji: '🦾', name: 'Mythril Armor',    desc: 'Guaranteed legendary class armor.' },
+  { id: 'armory-mythic-weapon',    slot: 'weapon', rarity: 'mythic',    price: 25000000, emoji: '💫', name: 'Eternal Weapon',   desc: 'Guaranteed mythic class weapon — the finest steel.' },
+  { id: 'armory-mythic-armor',     slot: 'armor',  rarity: 'mythic',    price: 25000000, emoji: '🌟', name: 'Eternal Armor',    desc: 'Guaranteed mythic class armor — the finest steel.' },
+];
+
+// Buys an Armory item for gold; mirrors buyGearItem. The item lands in the
+// inventory. Purchases go through spendGold so the owner infinite-gold perk
+// and the gold cap apply. Selling needs no new code: the Armory sell list
+// reuses the existing sellItem() (same Sell buttons as the Gear tab), which
+// already respects unsellable flags and the gold cap.
+export function buyArmoryItem(s, stockId) {
+  const entry = ARMORY_STOCK.find(e => e.id === stockId);
+  if (!entry) return { ok: false, reason: 'bad-item' };
+  if (!spendGold(s, entry.price)) return { ok: false, reason: 'gold' };
+  const item = makeLootItem(Math.max(1, s.stage || 1), entry.rarity, entry.slot, s.playerClass);
+  (s.inventory || (s.inventory = [])).push(item);
+  return { ok: true, item };
+}
+
 // ---------------- Pets ----------------
 // Available to ALL players; the Hunter class boosts them (see CLASSES).
 // Pet eggs drop from bosses (see rollPetEgg); hatching is instant in the

@@ -1,17 +1,17 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930ak';
-import * as Engine from './engine.js?v=20260930ak';
-import { UI, esc, formatNum } from './ui.js?v=20260930ak';
-import { Auth } from './auth.js?v=20260930ak';
-import { GM } from './gm.js?v=20260930ak';
+import { api } from './api.js?v=20260930al';
+import * as Engine from './engine.js?v=20260930al';
+import { UI, esc, formatNum } from './ui.js?v=20260930al';
+import { Auth } from './auth.js?v=20260930al';
+import { GM } from './gm.js?v=20260930al';
 
-import { Raid } from './raid.js?v=20260930ak';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930ak';
-import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ak';
-import { Realm } from './realm.js?v=20260930ak';
-import { Audio } from './audio.js?v=20260930ak';
+import { Raid } from './raid.js?v=20260930al';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930al';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930al';
+import { Realm } from './realm.js?v=20260930al';
+import { Audio } from './audio.js?v=20260930al';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -160,6 +160,7 @@ async function boot() {
     onCombinePets: doCombinePets,
     onBuyTokenItem: doBuyTokenItem,
     onBuyGear: doBuyGear,
+    onBuyArmory: doBuyArmory,
     onGotoPetShop: doGotoPetShop,
     onRedeem: doRedeem,
     onLogout: doLogout,
@@ -246,6 +247,7 @@ async function boot() {
     onMusicVolume: setMusicVolume,
     onSfxVolume: setSfxVolume,
     onRealmOpen: () => { try { Realm.open(); } catch {} },
+    onCharacterOpen: () => openCharacterSheet(),
     onNotifPref: (cat, val) => {
       const s = App.state;
       if (!s) return;
@@ -2068,6 +2070,23 @@ function doBuyGear(stockId) {
   saveNow();
 }
 
+function doBuyArmory(stockId) {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.buyArmoryItem(s, stockId);
+  if (!res.ok) {
+    UI.toast(res.reason === 'gold' ? 'Not enough gold for that steel.' : 'That item is not for sale.', 'error');
+    return;
+  }
+  const entry = Engine.ARMORY_STOCK.find(e => e.id === stockId);
+  const priceNote = s.infGold ? ' (∞ gold)' : ` for 💰${formatNum(entry.price)} gold`;
+  UI.toast(`${entry.emoji} Bought ${res.item.name}${priceNote}!`, 'success');
+  UI.combatLog(`⚒️ Bought ${entry.emoji} ${res.item.name} (${res.item.rarity}) from the Armory.`, 'loot');
+  UI.renderArmory(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
 function doGotoPetShop() {
   UI.showTab('pets');
 }
@@ -2246,6 +2265,7 @@ async function onTabSwitch(tab, force = false) {
   // Party polling only lives while the Party tab is open.
   setMpPoll(tab === 'party');
   if (tab === 'gear') UI.renderGear(s);
+  else if (tab === 'armory') UI.renderArmory(s);
   else if (tab === 'mine') UI.renderMine(s);
   else if (tab === 'party') { loadMpParty(); renderPartyTab(); }
   else if (tab === 'pets') UI.renderPetsTab(s);
