@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Throne of Shadows">
   <title>Throne of Shadows</title>
-  <link rel="stylesheet" href="css/style.css?v=20260930ak">
+  <link rel="stylesheet" href="css/style.css?v=20260930al">
 </head>
 <body>
 <canvas id="bg-canvas" aria-hidden="true"></canvas>
@@ -196,13 +196,14 @@
 
       <!-- MINE -->
       <section id="tab-mine" class="tab">
-        <h2>⛏️ Mine</h2>
+        <h2>⛏️ Deepdelve Mine</h2>
+        <p class="muted small" style="margin:0 0 8px">Shatter ore nodes, delve deeper, forge stronger pickaxes.</p>
         <div id="mine-pickaxe" class="mine-pickaxe"></div>
         <div id="mine-rock" class="mine-rock"></div>
         <button id="mine-btn" class="btn tap-btn mine-btn"><span class="mine-emoji">⛏️</span><span>MINE</span></button>
         <div id="mine-find" class="mine-find muted"></div>
-        <div id="mine-stats" class="mine-stats muted small"></div>
-        <h2>Ore Inventory</h2>
+        <div id="mine-stats" class="mine-stats"></div>
+        <h2>💎 Ore Inventory</h2>
         <div id="ore-grid" class="ore-grid"></div>
         <h2>⛏️ Mining Shop</h2>
         <p class="muted small" style="margin:4px 0">Buy pickaxes with ore + gold. Each tier must be bought in order — stronger picks mine deeper, faster.</p>
@@ -222,6 +223,16 @@
         <h2>Inventory <span id="inv-count" class="muted"></span></h2>
         <div id="set-progress" class="set-progress"></div>
         <div id="inventory-grid" class="inv-grid"></div>
+      </section>
+
+      <!-- ARMORY -->
+      <section id="tab-armory" class="tab">
+        <h2>⚒️ Armory</h2>
+        <p class="muted small">Masterwork class gear, forged for your class. Below, sell your spare gear for gold.</p>
+        <h2>Buy</h2>
+        <div id="armory-stock" class="gear-shop"></div>
+        <h2>Sell for gold</h2>
+        <div id="armory-sell" class="armory-sell"></div>
       </section>
 
       <!-- TOKEN SHOP -->
@@ -481,9 +492,11 @@
     </main>
 
     <nav id="tabbar">
+      <button class="tab-btn" id="character-open"><span class="ticon">👤</span><span>Character</span></button>
       <button class="tab-btn active" data-tab="battle"><span class="ticon">⚔️</span><span>Battle</span></button>
       <button class="tab-btn" data-tab="mine"><span class="ticon">⛏️</span><span>Mine</span></button>
-      <button class="tab-btn" data-tab="gear"><span class="ticon">🎒</span><span>Gear</span></button>
+      <button class="tab-btn" data-tab="gear"><span class="ticon">🎒</span><span>Inventory</span></button>
+      <button class="tab-btn" data-tab="armory"><span class="ticon">⚒️</span><span>Armory</span></button>
       <button class="tab-btn" data-tab="tokenshop"><span class="ticon">🌀</span><span>Token Shop</span></button>
       <button class="tab-btn" data-tab="pets"><span class="ticon">🐾</span><span>Pets</span></button>
       <button class="tab-btn" data-tab="party"><span class="ticon">👥</span><span>Party</span></button>
@@ -512,7 +525,7 @@
 <div id="modal-root"></div>
 <div id="toast-root"></div>
 
-<script type="module" src="js/app.js?v=20260930ak"></script>
-<script type="module" src="js/gamepad.js?v=20260930ak"></script>
+<script type="module" src="js/app.js?v=20260930al"></script>
+<script type="module" src="js/gamepad.js?v=20260930al"></script>
 </body>
 </html>
