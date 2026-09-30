@@ -3,11 +3,34 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930t';
-import { Audio } from './audio.js?v=20260930t';
+import * as Engine from './engine.js?v=20260930u';
+import { Audio } from './audio.js?v=20260930u';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
+
+// ---------------- safe DOM helpers ----------------
+// Presentation-layer guards: a missing node (e.g. stale cached JS paired
+// with newer HTML after a deploy) warns once and no-ops instead of
+// throwing mid-render and breaking the game loop.
+const _missingWarned = new Set();
+function _warnMissing(id) {
+  if (_missingWarned.has(id)) return;
+  _missingWarned.add(id);
+  try { console.warn('[ui] missing element #' + id); } catch { /* logging must never throw */ }
+}
+// Clamped 0–100 bar fill; null-safe. Replaces scattered `el.style.width = pct + '%'`.
+function setBarFill(fill, pct) {
+  if (!fill) return;
+  const v = Math.min(100, Math.max(0, Number(pct) || 0));
+  fill.style.width = v + '%';
+}
+// Null-safe text write. Replaces unguarded `el.textContent = ...` on hot paths.
+function setText(el, txt) {
+  if (el) el.textContent = txt == null ? '' : String(txt);
+}
+function showEl(el) { if (el) el.classList.remove('hidden'); }
+function hideEl(el) { if (el) el.classList.add('hidden'); }
 
 // Emoji per gear stat key, used for the compact stat chips on item cards.
 const STAT_EMOJI = {
@@ -65,6 +88,19 @@ export const UI = {
   els: {},
   settings: { damageNumbers: true, reduceMotion: false, performanceMode: false, bgFps: 30, bgHd: false },
   activeTab: 'battle',
+
+  // Null-safe cached element lookup: falls back to a live query when the
+  // init-time cache missed, warns once for genuinely missing nodes, and
+  // never throws. Prefer this over raw `this.els[id]` on write paths.
+  el(id) {
+    let n = this.els[id];
+    if (!n) {
+      n = document.getElementById(id);
+      if (n) this.els[id] = n;
+      else _warnMissing(id);
+    }
+    return n || null;
+  },
 
   // Player customization presets (Settings → Buttons / Background).
   // `css` is the swatch preview; the real styling lives in style.css
@@ -627,7 +663,7 @@ export const UI = {
       const max = Math.max(1, Math.round(stats.maxHp));
       const fill = this.els['inn-hpfill'];
       const text = this.els['inn-hptext'];
-      if (fill) fill.style.width = Math.min(100, (hp / max) * 100) + '%';
+      setBarFill(fill, (hp / max) * 100);
       if (text) text.textContent = `${hp} / ${max} HP`;
       const st = this.els['inn-status'];
       if (st) st.textContent = hp >= max ? '✨ Fully rested!' : '💤 Resting… (+2% HP/s)';
@@ -707,8 +743,10 @@ export const UI = {
     const root = this.els['toast-root'];
     if (!root) return;
     // Dock toasts just under the sticky HUD so they never cover tab content.
+    // The offset is dynamic (HUD height), so it travels as a CSS custom
+    // property --toast-top; style.css owns how it's applied.
     const hud = document.getElementById('hud');
-    if (hud) root.style.top = (hud.getBoundingClientRect().height + 10) + 'px';
+    if (hud) root.style.setProperty('--toast-top', (hud.getBoundingClientRect().height + 10) + 'px');
     const now = Date.now();
     // Anti-spam: an identical toast within ~4s bumps a counter on the
     // existing toast instead of stacking a duplicate.
@@ -934,13 +972,17 @@ export const UI = {
       tip.classList.remove('hidden');
       const sr = sheet.getBoundingClientRect();
       const r = slotEl.getBoundingClientRect();
-      tip.style.transform = 'translate(0px,0px)';
+      // Tooltip position travels as CSS custom properties (--tip-x/--tip-y);
+      // style.css owns the transform. Reset first so measuring is stable.
+      tip.style.setProperty('--tip-x', '0px');
+      tip.style.setProperty('--tip-y', '0px');
       const tw = tip.offsetWidth || 200, th = tip.offsetHeight || 120;
       let x = r.right - sr.left + 8;
       let y = r.top - sr.top - 4;
       if (x + tw > sr.width - 4) x = r.left - sr.left - tw - 8;
       if (y + th > sr.height - 4) y = Math.max(4, sr.height - th - 4);
-      tip.style.transform = `translate(${Math.max(4, x)}px, ${Math.max(0, y)}px)`;
+      tip.style.setProperty('--tip-x', Math.max(4, x) + 'px');
+      tip.style.setProperty('--tip-y', Math.max(0, y) + 'px');
     };
     const hideTip = () => tip.classList.add('hidden');
     sheet.querySelectorAll('.paper-slot').forEach(slotEl => {
@@ -1064,25 +1106,26 @@ export const UI = {
     const race = Engine.RACES[state.race] || {};
     const cls = Engine.CLASSES[state.playerClass] || {};
     const spec = Engine.SPECS[state.spec] || {};
-    e['hud-emoji'].textContent = race.emoji || '❓';
-    e['hud-username'].textContent = (user && user.username) || '—';
+    setText(e['hud-emoji'], race.emoji || '❓');
+    setText(e['hud-username'], (user && user.username) || '—');
     const role = (user && user.role) || 'player';
-    e['hud-role'].textContent = role;
-    e['hud-role'].className = 'role-badge role-' + role;
-    e['hud-race'].textContent = (cls.emoji ? cls.emoji : '') + (spec.emoji ? spec.emoji : '') + ' ' + (race.name || '');
-    e['hud-gold'].textContent = state.infGold ? '∞' : formatNum(state.gold);
-    e['hud-stars'].textContent = formatNum(state.stars);
-    e['hud-stage'].textContent = state.stage;
-    e['hud-level'].textContent = state.level;
+    setText(e['hud-role'], role);
+    const roleBadge = e['hud-role'];
+    if (roleBadge) roleBadge.className = 'role-badge role-' + role;
+    setText(e['hud-race'], (cls.emoji ? cls.emoji : '') + (spec.emoji ? spec.emoji : '') + ' ' + (race.name || ''));
+    setText(e['hud-gold'], state.infGold ? '∞' : formatNum(state.gold));
+    setText(e['hud-stars'], formatNum(state.stars));
+    setText(e['hud-stage'], state.stage);
+    setText(e['hud-level'], state.level);
     const pct = state.xpNext > 0 ? Math.min(100, (state.xp / state.xpNext) * 100) : 0;
-    e['hud-xpfill'].style.width = pct + '%';
-    e['hud-xptext'].textContent = `${formatNum(state.xp)} / ${formatNum(state.xpNext)} XP`;
+    setBarFill(e['hud-xpfill'], pct);
+    setText(e['hud-xptext'], `${formatNum(state.xp)} / ${formatNum(state.xpNext)} XP`);
   },
 
   setSaveIndicator(text, ok = true) {
     const el = this.els['save-indicator'];
-    el.textContent = text;
-    el.classList.toggle('bad', !ok);
+    setText(el, text);
+    if (el) el.classList.toggle('bad', !ok);
   },
 
   // ---------------- race select ----------------
@@ -1298,19 +1341,20 @@ export const UI = {
   updateEnemy(enemy) {
     const e = this.els;
     const pct = enemy.maxHp > 0 ? Math.max(0, (enemy.hp / enemy.maxHp) * 100) : 0;
-    e['enemy-hpfill'].style.width = pct + '%';
-    e['enemy-hptext'].textContent = `${formatNum(Math.max(0, enemy.hp))} / ${formatNum(enemy.maxHp)}`;
+    setBarFill(e['enemy-hpfill'], pct);
+    setText(e['enemy-hptext'], `${formatNum(Math.max(0, enemy.hp))} / ${formatNum(enemy.maxHp)}`);
   },
 
   // Light per-tick refresh: hero bars, chips, skill cooldown.
   updateBattle(state, stats, battle) {
     const e = this.els;
     const pct = stats.maxHp > 0 ? Math.max(0, (state.hero.hp / stats.maxHp) * 100) : 0;
-    e['hero-hpfill'].style.width = pct + '%';
-    e['hero-hptext'].textContent = `❤️ ${formatNum(Math.max(0, Math.ceil(state.hero.hp)))} / ${formatNum(stats.maxHp)}`;
+    const heroFill = e['hero-hpfill'];
+    setBarFill(heroFill, pct);
+    setText(e['hero-hptext'], `❤️ ${formatNum(Math.max(0, Math.ceil(state.hero.hp)))} / ${formatNum(stats.maxHp)}`);
     // Low HP warning: pulse the hero HP bar red under 30%.
     const hpFrac = stats.maxHp > 0 ? state.hero.hp / stats.maxHp : 1;
-    e['hero-hpfill'].parentElement.classList.toggle('hp-low', hpFrac < 0.3 && hpFrac > 0);
+    if (heroFill && heroFill.parentElement) heroFill.parentElement.classList.toggle('hp-low', hpFrac < 0.3 && hpFrac > 0);
     if (battle && battle.enemy) this.updateEnemy(battle.enemy);
     // per-skill cooldowns
     if (battle && battle.skillCDs && e['skill-row']) {
@@ -2676,7 +2720,7 @@ export const UI = {
       if (!row) continue;
       row.querySelector('[data-m="dps"]').textContent = formatNum(r.dps) + ' DPS';
       row.querySelector('[data-m="pct"]').textContent = Math.round(r.pct) + '%';
-      row.querySelector('[data-m="bar"]').style.width = Math.min(100, r.pct) + '%';
+      setBarFill(row.querySelector('[data-m="bar"]'), r.pct);
     }
   },
 
@@ -2725,7 +2769,7 @@ export const UI = {
     for (const c of (state.party || [])) {
       const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
       const txt = `${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}`;
-      $$(`[data-comp-hp="${CSS.escape(c.id)}"]`).forEach(el => { el.style.width = pct + '%'; });
+      $$(`[data-comp-hp="${CSS.escape(c.id)}"]`).forEach(el => setBarFill(el, pct));
       $$(`[data-comp-hptext="${CSS.escape(c.id)}"]`).forEach(el => { el.textContent = txt; });
     }
   },
@@ -3134,8 +3178,8 @@ export const UI = {
       const el = this.els[elId];
       if (!el) return;
       const defs = Engine.STORY_QUEST_DEFS.filter((d) => d.group === group && Engine.storyQuestVisible(state, d));
-      if (!defs.length) { el.innerHTML = ''; el.style.display = 'none'; return; }
-      el.style.display = '';
+      if (!defs.length) { el.innerHTML = ''; hideEl(el); return; }
+      showEl(el);
       const rw = Engine.questRewardPreview(state, 'story');
       el.innerHTML = `<div class="quest-head-row"><h3 class="quest-head">${title}</h3><span class="muted small">${sub}</span></div>` +
         defs.map((def) => {
@@ -3194,7 +3238,7 @@ export const UI = {
         const pct = target > 0 ? Math.min(100, Math.round((progress / target) * 100)) : 0;
         const fill = card.querySelector('[data-qfill]');
         const txt = card.querySelector('[data-qtxt]');
-        if (fill) fill.style.width = pct + '%';
+        setBarFill(fill, pct);
         if (txt) txt.textContent = `${formatNum(Math.min(progress, target))} / ${formatNum(target)}`;
       }
       if (complete && !entry.claimed && !seen.has(key)) {
