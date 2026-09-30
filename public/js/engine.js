@@ -1346,6 +1346,34 @@ const SLOT_NAMES = {
   boots: ['Boots', 'Greaves', 'Treads'],
   trinket: ['Charm', 'Idol', 'Sigil'],
 };
+// Class-flavored weapon names (Option A: flavor only — stats/slots unchanged).
+// Unknown/missing class falls back to SLOT_NAMES.weapon (the old behavior).
+const WEAPON_NAMES_BY_CLASS = {
+  hunter:     ['Longbow', 'Recurve Bow', 'Crossbow', 'Blunderbuss', 'Flintlock'],
+  assassin:   ['Dagger', 'Stiletto', 'Kris', 'Fang', 'Shiv'],
+  warrior:    ['Sword', 'Claymore', 'Blade', 'Warbrand'],
+  mage:       ['Staff', 'Wand', 'Tome', 'Orb'],
+  necromancer:['Scythe', 'Grimwand', 'Bonestaff', 'Soulreaver'],
+  berserker:  ['Greataxe', 'Axe', 'Maul', 'Cleaver'],
+};
+function weaponNameFor(classId) {
+  const pool = (classId && WEAPON_NAMES_BY_CLASS[classId]) || SLOT_NAMES.weapon;
+  return pick(pool);
+}
+// Class-flavored armor names (same flavor-only approach as weapons).
+// Warrior → Plate, Hunter → Mail, Assassin/Berserker → Leather, Mage/Necromancer → Cloth.
+const ARMOR_NAMES_BY_CLASS = {
+  warrior:     ['Plate', 'Platemail', 'Bulwark Plate'],
+  hunter:      ['Mail', 'Chainmail', "Ranger's Mail"],
+  assassin:    ['Leather', 'Shadow Leather', 'Nightwraps'],
+  mage:        ['Cloth', 'Silkweave', 'Arcanist Robes'],
+  necromancer: ['Shroud', 'Gravecloth', 'Soulweave'],
+  berserker:   ['Hide', 'Warhide', 'Bloodhide'],
+};
+function armorNameFor(classId) {
+  const pool = (classId && ARMOR_NAMES_BY_CLASS[classId]) || SLOT_NAMES.armor;
+  return pick(pool);
+}
 const SUFFIX = {
   attack: 'of the Tiger', defense: 'of the Bear', maxHp: 'of the Ox',
   critChance: 'of the Falcon', critDamage: 'of Ruin', parry: 'of the Wall',
@@ -1371,7 +1399,7 @@ const SLOT_PRIMARY = { weapon: 'attack', armor: 'defense', helmet: 'maxHp', boot
 // Builds one random-rarity item for a slot with stage-scaled stats.
 // Used by rollLoot (drops) and the Gear Shop (purchases). Never produces
 // privileged gear: shop/drop items always have set: null.
-export function makeLootItem(stage, rarityId, slot) {
+export function makeLootItem(stage, rarityId, slot, classId) {
   const rarity = RARITY_BY_ID[rarityId] || RARITIES[0];
   const stats = {};
   const primary = SLOT_PRIMARY[slot];
@@ -1383,7 +1411,10 @@ export function makeLootItem(stage, rarityId, slot) {
     stats[k] = STAT_GEN[k](rarity.mult, stage);
   }
   const rIdx = RARITY_IDX[rarity.id];
-  let name = `${rarity.prefix} ${pick(SLOT_NAMES[slot])}`;
+  const baseName = slot === 'weapon' ? weaponNameFor(classId)
+    : slot === 'armor' ? armorNameFor(classId)
+    : pick(SLOT_NAMES[slot]);
+  let name = `${rarity.prefix} ${baseName}`;
   if (rIdx >= 2 && SUFFIX[primary]) name += ` ${SUFFIX[primary]}`;
   return {
     id: uid(), name, slot, rarity: rarity.id,
@@ -1404,7 +1435,7 @@ export function rollLoot(stage, isBoss = false, minIdx = null, opts = {}) {
   const maxIdx = maxRarityIdxForStage(stage);
   const lo = Math.min(minIdx !== null ? minIdx : (isBoss ? 2 : 0), maxIdx);
   const rarity = rollRarity(lo, maxIdx);
-  return makeLootItem(stage, rarity.id, pick(SLOTS));
+  return makeLootItem(stage, rarity.id, pick(SLOTS), opts.classId);
 }
 
 export function equipItem(state, itemId) {
@@ -1667,7 +1698,7 @@ export function buyGearItem(s, stockId) {
   const entry = GEAR_SHOP_STOCK.find(e => e.id === stockId);
   if (!entry) return { ok: false, reason: 'bad-item' };
   if (!spendGold(s, entry.price)) return { ok: false, reason: 'gold' };
-  const item = makeLootItem(Math.max(1, s.stage || 1), entry.rarity, entry.slot);
+  const item = makeLootItem(Math.max(1, s.stage || 1), entry.rarity, entry.slot, s.playerClass);
   (s.inventory || (s.inventory = [])).push(item);
   return { ok: true, item };
 }

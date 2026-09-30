@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930d';
-import { Audio } from './audio.js?v=20260930d';
+import * as Engine from './engine.js?v=20260930e';
+import { Audio } from './audio.js?v=20260930e';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -104,6 +104,12 @@ export const UI = {
     { id: 'new-year',     name: '🎆 New Year', css: "url('img/bg/new-year.jpg') center/cover", photo: 'img/bg/new-year.jpg', animated: true },
     { id: 'summer-tide',  name: '☀️ Summer Tide', css: "url('img/bg/summer-tide.jpg') center/cover", photo: 'img/bg/summer-tide.jpg', animated: true },
     { id: 'spring-bloom', name: '🌸 Spring Bloom', css: "url('img/bg/spring-bloom.jpg') center/cover", photo: 'img/bg/spring-bloom.jpg', animated: true },
+    { id: 'class-hunter', name: "🏹 Hunter's Dawn", css: "url('img/bg/class-hunter.jpg') center/cover", photo: 'img/bg/class-hunter.jpg', animated: true },
+    { id: 'class-warrior', name: "⚔️ Warrior's Stand", css: "url('img/bg/class-warrior.jpg') center/cover", photo: 'img/bg/class-warrior.jpg', animated: true },
+    { id: 'class-mage', name: '🔮 Mage Spire', css: "url('img/bg/class-mage.jpg') center/cover", photo: 'img/bg/class-mage.jpg', animated: true },
+    { id: 'class-assassin', name: "🗡️ Assassin's Night", css: "url('img/bg/class-assassin.jpg') center/cover", photo: 'img/bg/class-assassin.jpg', animated: true },
+    { id: 'class-necromancer', name: '💀 Necropolis', css: "url('img/bg/class-necromancer.jpg') center/cover", photo: 'img/bg/class-necromancer.jpg', animated: true },
+    { id: 'class-berserker', name: '🪓 Bloodrage Field', css: "url('img/bg/class-berserker.jpg') center/cover", photo: 'img/bg/class-berserker.jpg', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -122,7 +128,8 @@ export const UI = {
   BG_ANIMATED: ['shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm',
     'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon',
     'nightsky', 'sunset', 'woods', 'water',
-    'autumn-dusk', 'winter-night', 'hallows-eve', 'new-year', 'summer-tide', 'spring-bloom'],
+    'autumn-dusk', 'winter-night', 'hallows-eve', 'new-year', 'summer-tide', 'spring-bloom',
+    'class-hunter', 'class-warrior', 'class-mage', 'class-assassin', 'class-necromancer', 'class-berserker'],
 
   // ---------------- init ----------------
   init() {
@@ -1808,8 +1815,10 @@ export const UI = {
       }
       B.grad = this._vGrad(['#050a12', '#0d2233', '#050a12']);
     } else if (id === 'autumn-dusk' || id === 'winter-night' || id === 'hallows-eve' ||
-               id === 'new-year' || id === 'summer-tide' || id === 'spring-bloom') {
-      // Seasonal scenes: themed drifting motes over a dark seasonal gradient.
+               id === 'new-year' || id === 'summer-tide' || id === 'spring-bloom' ||
+               id === 'class-hunter' || id === 'class-warrior' || id === 'class-mage' ||
+               id === 'class-assassin' || id === 'class-necromancer' || id === 'class-berserker') {
+      // Seasonal + class scenes: themed drifting motes over a dark seasonal gradient.
       // dir: 'down' falls (leaves/snow/petals), 'up' rises (embers/sparkles),
       // 'drift' floats sideways (pollen/bubbles).
       const cfg = {
@@ -1819,6 +1828,12 @@ export const UI = {
         'new-year': { colors: ['#ffd63f', '#fff7cc', '#f59e0b'], grad: ['#0d0a04', '#241a08', '#0d0a04'], dir: 'up', n: 55, spd: [30, 70], sway: [6, 18], size: [1.8, 4.2] },
         'summer-tide': { colors: ['#2dd4bf', '#38bdf8', '#a5f3fc'], grad: ['#061014', '#0c2a30', '#061014'], dir: 'drift', n: 40, spd: [8, 20], sway: [10, 26], size: [2, 4.5] },
         'spring-bloom': { colors: ['#4ade80', '#f472b6', '#fbcfe8'], grad: ['#0a120c', '#142a1a', '#0a120c'], dir: 'down', n: 48, spd: [20, 46], sway: [30, 70], size: [2.2, 5] },
+        'class-hunter': { colors: ['#a3e635', '#4ade80', '#fde68a'], grad: ['#0a120c', '#1a2a12', '#0a120c'], dir: 'drift', n: 42, spd: [10, 24], sway: [24, 60], size: [2, 4.5] },
+        'class-warrior': { colors: ['#f97316', '#ef4444', '#fbbf24'], grad: ['#140806', '#2a1408', '#140806'], dir: 'up', n: 52, spd: [22, 55], sway: [10, 30], size: [2, 5] },
+        'class-mage': { colors: ['#a855f7', '#c084fc', '#22d3ee'], grad: ['#0e0a1a', '#1e1440', '#0e0a1a'], dir: 'up', n: 50, spd: [12, 32], sway: [14, 40], size: [1.8, 4.2] },
+        'class-assassin': { colors: ['#60a5fa', '#38bdf8', '#a5b4fc'], grad: ['#060a14', '#0e1a33', '#060a14'], dir: 'drift', n: 38, spd: [8, 18], sway: [12, 30], size: [1.8, 4] },
+        'class-necromancer': { colors: ['#4ade80', '#22c55e', '#a7f3d0'], grad: ['#08120c', '#0f2a18', '#08120c'], dir: 'up', n: 48, spd: [10, 28], sway: [16, 44], size: [2, 4.6] },
+        'class-berserker': { colors: ['#ef4444', '#f97316', '#fecaca'], grad: ['#140606', '#2a0f08', '#140606'], dir: 'up', n: 60, spd: [30, 70], sway: [8, 24], size: [2.2, 5.2] },
       }[id];
       B.sprites.season = cfg.colors.map((c) => this._glowSprite(c));
       B.seasonCfg = cfg;

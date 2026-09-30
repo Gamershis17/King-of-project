@@ -1,15 +1,15 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930d';
-import * as Engine from './engine.js?v=20260930d';
-import { UI, esc, formatNum } from './ui.js?v=20260930d';
-import { Auth } from './auth.js?v=20260930d';
-import { GM } from './gm.js?v=20260930d';
-import { Raid } from './raid.js?v=20260930d';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930d';
-import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930d';
-import { Audio } from './audio.js?v=20260930d';
+import { api } from './api.js?v=20260930e';
+import * as Engine from './engine.js?v=20260930e';
+import { UI, esc, formatNum } from './ui.js?v=20260930e';
+import { Auth } from './auth.js?v=20260930e';
+import { GM } from './gm.js?v=20260930e';
+import { Raid } from './raid.js?v=20260930e';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930e';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930e';
+import { Audio } from './audio.js?v=20260930e';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -508,7 +508,7 @@ function setUiStyle(style) {
 // Unknown values normalize to 'default', which renders pixel-identical
 // to the uncustomized game.
 const BTN_STYLE_IDS = ['default', 'ocean', 'crimson', 'emerald', 'gold', 'mono'];
-const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm', 'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon', 'nightsky', 'sunset', 'woods', 'water', 'autumn-dusk', 'winter-night', 'hallows-eve', 'new-year', 'summer-tide', 'spring-bloom'];
+const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midnight', 'shadow-eyes', 'orbs', 'ember-drift', 'void-tide', 'throne-storm', 'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon', 'nightsky', 'sunset', 'woods', 'water', 'autumn-dusk', 'winter-night', 'hallows-eve', 'new-year', 'summer-tide', 'spring-bloom', 'class-hunter', 'class-warrior', 'class-mage', 'class-assassin', 'class-necromancer', 'class-berserker'];
 function btnStyleOf(s) {
   return (s && BTN_STYLE_IDS.includes(s.btnStyle)) ? s.btnStyle : 'default';
 }
@@ -949,7 +949,7 @@ function onKillEnemy() {
     }
   }
   const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null,
-    { bonusChance: streakBonus, guaranteed: radiant });
+    { bonusChance: streakBonus, guaranteed: radiant, classId: s.playerClass });
   if (loot) {
     s.inventory.push(loot);
     const tag = radiant ? '🌟 Radiant loot' : '🎒 Loot';
