@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930ai';
-import { Audio } from './audio.js?v=20260930ai';
+import * as Engine from './engine.js?v=20260930aj';
+import { Audio } from './audio.js?v=20260930aj';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -4053,6 +4053,31 @@ export const UI = {
   },
   lbCategory: 'level',
 
+  // Rank tier icons: custom medieval emblems per placement tier. Top 3 get
+  // glowing crowns (gold/silver/bronze); Elite/Veteran/Adventurer get
+  // platinum/silver/bronze shields. Purely presentational — the tier bands
+  // themselves are still computed by tierFor() below. Each entry carries an
+  // emoji fallback rendered behind the <img>; the img removes itself on
+  // error so a missing file degrades to the emoji instead of a broken icon.
+  RANK_TIER_ICONS: {
+    sov:   { icon: 'img/ranks/crown-gold.webp',      fallback: '👑' },
+    sov2:  { icon: 'img/ranks/crown-silver.webp',    fallback: '👑' },
+    sov3:  { icon: 'img/ranks/crown-bronze.webp',    fallback: '👑' },
+    elite: { icon: 'img/ranks/shield-platinum.webp', fallback: '🛡️' },
+    vet:   { icon: 'img/ranks/shield-silver.webp',   fallback: '🛡️' },
+    adv:   { icon: 'img/ranks/shield-bronze.webp',   fallback: '🛡️' },
+  },
+
+  // Tier medallion markup: icon image layered over its emoji fallback, with
+  // the placement number beneath. Unknown tier keys degrade to Adventurer.
+  rankMedal(tierCls, pos) {
+    const t = this.RANK_TIER_ICONS[tierCls] || this.RANK_TIER_ICONS.adv;
+    return `<div class="lb-medal" aria-label="rank ${pos}">`
+      + `<span class="lb-medal-fb" aria-hidden="true">${t.fallback}</span>`
+      + `<img class="lb-medal-img" src="${t.icon}" alt="" loading="lazy" onerror="this.remove()">`
+      + `<span class="lb-pos">#${pos}</span></div>`;
+  },
+
   setLbCategory(by) {
     if (!this.LB_CATS[by]) return;
     this.lbCategory = by;
@@ -4071,7 +4096,7 @@ export const UI = {
     if (meBar) {
       if (meRank >= 0) {
         meBar.classList.remove('hidden');
-        meBar.innerHTML = `<span class="lb-me-crown">👑</span> You rank <b>#${meRank + 1}</b> of ${entries.length} heroes by ${cat.label.toLowerCase()}`;
+        meBar.innerHTML = `<span class="lb-me-crown"><span aria-hidden="true">👑</span><img src="img/ranks/crown-gold.webp" alt="" loading="lazy" onerror="this.remove()"></span> You rank <b>#${meRank + 1}</b> of ${entries.length} heroes by ${cat.label.toLowerCase()}`;
       } else meBar.classList.add('hidden');
     }
     const body = this.els['lb-body'];
@@ -4082,15 +4107,16 @@ export const UI = {
       return;
     }
     // Placement tiers: top 3 get named sovereign tiers, then elite / veteran /
-    // adventurer bands. Drives the tier badge + row ornament scaling.
+    // adventurer bands. Drives the tier icon + badge + row ornament scaling.
     const tierFor = (i) => i === 0 ? ['sov', 'Sovereign']
       : i === 1 ? ['sov2', 'Sovereign']
       : i === 2 ? ['sov3', 'Sovereign']
       : i < 10 ? ['elite', 'Elite']
       : i < 25 ? ['vet', 'Veteran'] : ['adv', 'Adventurer'];
-    const medals = ['🥇', '🥈', '🥉'];
     entries.forEach((en, i) => {
       const [tierCls, tierName] = tierFor(i);
+      // sov2/sov3 share the Sovereign badge styling (only tier-sov exists in CSS).
+      const badgeCls = tierCls.startsWith('sov') ? 'sov' : tierCls;
       const row = document.createElement('div');
       row.className = 'lb-row lb-clickable lb-tier-' + tierCls + (i < 3 ? ' lb-top' + (i + 1) : '');
       row.dataset.username = en.username || '';
@@ -4110,23 +4136,28 @@ export const UI = {
         ? `<span class="lb-class" title="${esc(en.spec)}">${UI_SPEC_EMOJI[en.spec]}</span> ` : '';
       const guildTag = en.guildTag
         ? `<span class="lb-guildtag" title="Guild: ${esc(en.guildTag)}">[${esc(en.guildTag)}]</span> ` : '';
-      const rankHtml = medals[i]
-        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}<span class="lb-tier tier-${tierCls}">${tierName}</span></div>`
-        : `<div class="lb-rank"><span class="lb-pos">#${i + 1}</span><span class="lb-tier tier-${tierCls}">${tierName}</span></div>`;
+      // Stat grid: headline = active ranking category, then the core sub-stats
+      // as aligned icon + label + value cells.
+      const stats = [
+        { ic: cat.emoji, lb: cat.label,   v: cat.fmt(en), hero: true },
+        { ic: '🏅', lb: 'Level',    v: en.level },
+        { ic: '🗺️', lb: 'Stage',    v: en.stage },
+        { ic: '⚔️', lb: 'Attack',   v: formatNum(en.power || 0) },
+        { ic: '👑', lb: 'Bosses',   v: en.bossesKilled },
+        { ic: '🌀', lb: 'Rebirths', v: en.rebirth > 0 ? en.rebirth : '—' },
+      ].map((s) => `<div class="lb-stat${s.hero ? ' lb-stat-hero' : ''}"><span class="lb-stat-ic" aria-hidden="true">${s.ic}</span><span class="lb-stat-lb">${s.lb}</span><b class="lb-stat-v">${s.v}</b></div>`).join('');
       row.innerHTML = `
-        ${rankHtml}
-        <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
-        <div class="lb-identity">
-          <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${this.nameHtml(en.username, isMe ? meState : en)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
-          ${title}
-        </div>
-        <div class="lb-chips">
-          <span class="lb-chip lb-chip-cat"><b>${cat.emoji}</b>${cat.fmt(en)}</span>
-          <span class="lb-chip"><b>Lv</b>${en.level}</span>
-          <span class="lb-chip"><b>Stage</b>${en.stage}</span>
-          <span class="lb-chip"><b>⚔️</b>${formatNum(en.power || 0)}</span>
-          <span class="lb-chip"><b>👑</b>${en.bossesKilled}</span>
-          <span class="lb-chip"><b>🌀</b>${en.rebirth > 0 ? en.rebirth : '—'}</span>
+        ${this.rankMedal(tierCls, i + 1)}
+        <div class="lb-main">
+          <div class="lb-identity">
+            <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
+            <div class="lb-idtext">
+              <div class="lb-name">${flag ? flag + ' ' : ''}${badgeHtml}${clsHtml}${specHtml}${guildTag}${this.nameHtml(en.username, isMe ? meState : en)}${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+              ${title}
+            </div>
+            <span class="lb-tier tier-${badgeCls}">${tierName}</span>
+          </div>
+          <div class="lb-stats">${stats}</div>
         </div>`;
       body.appendChild(row);
     });
@@ -4144,7 +4175,6 @@ export const UI = {
       body.innerHTML = '<div class="lb-empty muted center">No guilds yet. Found one in the 🏰 Guild tab!</div>';
       return;
     }
-    const medals = ['🥇', '🥈', '🥉'];
     const gtierFor = (i) => i < 3 ? ['sov', 'Sovereign'] : i < 10 ? ['elite', 'Elite'] : i < 25 ? ['vet', 'Veteran'] : ['adv', 'Adventurer'];
     // Hide the hero standing banner on the guild board.
     const meBar = document.getElementById('lb-me');
@@ -4153,20 +4183,23 @@ export const UI = {
       const [tierCls, tierName] = gtierFor(i);
       const row = document.createElement('div');
       row.className = 'lb-row guild-row lb-tier-' + tierCls + (i < 3 ? ' lb-top' + (i + 1) : '');
-      const rankHtml = medals[i]
-        ? `<div class="lb-rank lb-medal" aria-label="rank ${i + 1}">${medals[i]}<span class="lb-tier tier-${tierCls}">${tierName}</span></div>`
-        : `<div class="lb-rank"><span class="lb-pos">#${i + 1}</span><span class="lb-tier tier-${tierCls}">${tierName}</span></div>`;
+      const stats = [
+        { ic: '⭐', lb: 'Level',   v: g.level },
+        { ic: '👥', lb: 'Members', v: g.memberCount },
+        { ic: '⚔️', lb: 'Power',   v: formatNum(g.totalPower || 0) },
+      ].map((s) => `<div class="lb-stat"><span class="lb-stat-ic" aria-hidden="true">${s.ic}</span><span class="lb-stat-lb">${s.lb}</span><b class="lb-stat-v">${s.v}</b></div>`).join('');
       row.innerHTML = `
-        ${rankHtml}
-        <div class="lb-avatar" aria-hidden="true">🏰</div>
-        <div class="lb-identity">
-          <div class="lb-name"><span class="lb-guildtag guild-row-tag">[${esc(g.tag)}]</span> ${esc(g.name)}</div>
-          <div class="lb-title">Lv ${g.level} guild · ${g.memberCount} member${g.memberCount === 1 ? '' : 's'}</div>
-        </div>
-        <div class="lb-chips">
-          <span class="lb-chip"><b>Lv</b>${g.level}</span>
-          <span class="lb-chip"><b>👥</b>${g.memberCount}</span>
-          <span class="lb-chip"><b>⚔️</b>${formatNum(g.totalPower || 0)}</span>
+        ${this.rankMedal(tierCls, i + 1)}
+        <div class="lb-main">
+          <div class="lb-identity">
+            <div class="lb-avatar" aria-hidden="true">🏰</div>
+            <div class="lb-idtext">
+              <div class="lb-name"><span class="lb-guildtag guild-row-tag">[${esc(g.tag)}]</span> ${esc(g.name)}</div>
+              <div class="lb-title">Lv ${g.level} guild · ${g.memberCount} member${g.memberCount === 1 ? '' : 's'}</div>
+            </div>
+            <span class="lb-tier tier-${tierCls}">${tierName}</span>
+          </div>
+          <div class="lb-stats lb-stats-guild">${stats}</div>
         </div>`;
       body.appendChild(row);
     });

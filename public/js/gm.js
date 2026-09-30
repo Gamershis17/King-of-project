@@ -1,9 +1,9 @@
 // ============================================================
 // gm.js — GM console UI. Only opened for staff roles.
 // ============================================================
-import { api } from './api.js?v=20260930ai';
-import { UI, esc, formatNum } from './ui.js?v=20260930ai';
-import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v=20260930ai';
+import { api } from './api.js?v=20260930aj';
+import { UI, esc, formatNum } from './ui.js?v=20260930aj';
+import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v=20260930aj';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
