@@ -1549,8 +1549,12 @@ export const UI = {
   RAINBOW_TITLES: ['ever-reborn', 'true-capped', 'worldforger'],
 
   // Staff titles get their own animated tier style (title-staff-gm/admin/owner)
-  // instead of the generic gold glow. Returns '' for non-staff titles.
+  // instead of the generic gold glow. The three flagship titles get unique
+  // per-title animations. Returns '' for non-staff titles.
   staffTitleCls(id) {
+    if (id === 'gm-gamemaster') return 'title-gm-gamemaster';
+    if (id === 'gm-stormjudge') return 'title-gm-stormjudge';
+    if (id === 'owner-shadowking') return 'title-owner-shadowking';
     const t = (Engine.STAFF_TITLES || []).find(x => x.id === id);
     if (!t) return '';
     return t.staffRole === 'owner' ? 'title-staff-owner'
