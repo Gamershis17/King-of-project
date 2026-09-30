@@ -38,12 +38,17 @@
  *   POST /api/gm/event-buff     (gm|owner|admin) — server-wide XP/gold multiplier w/ expiry
  *   GET  /api/gm/audit          (gm|owner|admin) — server-side staff action log
  *   POST /api/gm/clear-guild-chat (owner|admin|gm) — wipe the target player's guild chat history
+ *   POST /api/gm/grant-forge-box (gm|owner|admin) — grant galaxy forge box (25 galaxy + 40 adamant ores)
+ *   POST /api/gm/grant-class-gear (gm|owner|admin) — grant mythic class weapon/armor scaled to target's stage
  *
  * All database access is async (PostgreSQL).
  */
 
 const crypto = require('crypto');
 const express = require('express');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { requireRole, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, VALID_ROLES } = require('./validation');
@@ -104,6 +109,25 @@ const ORE_GRANT_MAX = 1000000000;
 
 // Unambiguous alphabet: no 0/O, 1/I/L.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+
+// Client engine (public/js/engine.js) loaded as an .mjs module so GM item
+// generation uses the exact same makeLootItem / class-name pools as the
+// client. Same approach as gameApi.js.
+let _enginePromise = null;
+function serverEngine() {
+  if (!_enginePromise) {
+    _enginePromise = (async () => {
+      const src = fs.readFileSync(
+        path.join(__dirname, '..', 'public', 'js', 'engine.js'),
+        'utf8'
+      );
+      const tmp = path.join(os.tmpdir(), 'tos-engine-gm.mjs');
+      fs.writeFileSync(tmp, src);
+      return import(tmp);
+    })();
+  }
+  return _enginePromise;
+}
 
 async function generateCode() {
   for (let attempt = 0; attempt < 100; attempt++) {
@@ -636,6 +660,54 @@ router.post(
     await persistMergedState(target.id, blob);
     await logAudit(req, 'grant-item', target.username, `${piece.name} [${slot}]`);
     res.json({ ok: true, item: piece.name, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- grant galaxy forge box ----------
+// One-click bundle of Galaxy Forge materials (bigger stash: 25 galaxy
+// shards + 40 adamant). Single audit entry instead of two ore grants.
+const FORGE_BOX = { galaxy: 25, adamant: 40 };
+router.post(
+  '/gm/grant-forge-box',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const blob = await loadBlob(target.id);
+    if (!blob.mine || typeof blob.mine !== 'object') blob.mine = { depth: 1, ores: {} };
+    if (!blob.mine.ores || typeof blob.mine.ores !== 'object') blob.mine.ores = {};
+    for (const [ore, n] of Object.entries(FORGE_BOX)) {
+      blob.mine.ores[ore] = Math.min(1e12, Math.max(0, Math.floor(Number(blob.mine.ores[ore]) || 0)) + n);
+    }
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'grant-forge-box', target.username, 'galaxy x25 + adamant x40');
+    res.json({ ok: true, box: FORGE_BOX, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- grant class gear ----------
+// Generates a mythic weapon/armor scaled to the target's stage with the
+// class-flavored name for the target's own class (same generator as loot).
+router.post(
+  '/gm/grant-class-gear',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, slot } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (slot !== 'weapon' && slot !== 'armor') {
+      return res.status(400).json({ error: 'Slot must be weapon or armor.' });
+    }
+    const blob = await loadBlob(target.id);
+    const eng = await serverEngine();
+    const stage = Math.max(1, Math.floor(Number(blob.stage) || 1));
+    const item = eng.makeLootItem(stage, 'mythic', slot, blob.playerClass || null);
+    if (!Array.isArray(blob.inventory)) blob.inventory = [];
+    blob.inventory.push(item);
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'grant-class-gear', target.username, `${item.name} [${slot}]`);
+    res.json({ ok: true, item: item.name, state: selfState(req, target, blob) });
   })
 );
 
