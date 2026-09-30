@@ -8,6 +8,7 @@
  *   GET  /api/status       (public — maintenance flag + message)
  *   GET  /api/changelog    (public — staff-only items stripped for players)
  *   GET  /api/settings     (public — tunables: goldCap)
+ *   GET  /api/realm-network (public — aggregate active-player counts per region)
  *   POST /api/redeem       (auth)
  *
  * Gift-code redemption runs inside a single Postgres transaction with
@@ -30,6 +31,7 @@ const {
   saveState,
   getLeaderboardRows,
   getGuildRankings,
+  getRealmNetworkCounts,
   redeemGiftCode,
   createGuild,
   getGuildByName,
@@ -325,6 +327,22 @@ router.get('/status', asyncHandler(async (req, res) => {
     // Deploy marker: Render injects RENDER_GIT_COMMIT for git-backed deploys.
     commit: process.env.RENDER_GIT_COMMIT || null,
   });
+}));
+
+// ---------- realm network ----------
+// Public aggregate powering the Global Player Origins view: counts of
+// players active within the last ~15 minutes, grouped by region.
+// Aggregate only — no usernames, no individual data. Server-side cache
+// of 60s keeps this cheap no matter how often clients open the modal.
+let _realmCache = null;
+let _realmCacheAt = 0;
+router.get('/realm-network', asyncHandler(async (req, res) => {
+  const now = Date.now();
+  if (!_realmCache || now - _realmCacheAt > 60 * 1000) {
+    _realmCache = await getRealmNetworkCounts();
+    _realmCacheAt = now;
+  }
+  res.json({ ok: true, regions: _realmCache, cachedAt: _realmCacheAt });
 }));
 
 // ---------- changelog ----------

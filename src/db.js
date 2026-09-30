@@ -1217,6 +1217,7 @@ module.exports = {
   saveState,
   getLeaderboardRows,
   getGuildRankings,
+  getRealmNetworkCounts,
   getGiftCode,
   createGiftCode,
   incrementCodeUses,
@@ -1676,4 +1677,31 @@ async function touchLastActive(userId) {
     'UPDATE users SET last_active = $1 WHERE id = $2 AND last_active < $3',
     [now, userId, now - 60000]
   );
+}
+
+// Active within this window counts as "online" for the Realm Network.
+const REALM_ACTIVE_MS = 15 * 60 * 1000;
+
+/**
+ * Global Player Origins aggregate: players whose save was updated within
+ * REALM_ACTIVE_MS, grouped by country code. Returns
+ * [{ region, count }] sorted by count desc. Aggregate only — no usernames,
+ * no individual data. Players without a valid country land in '??'.
+ */
+async function getRealmNetworkCounts() {
+  const { rows } = await pool.query(
+    'SELECT ps.state_json FROM player_state ps WHERE ps.updated_at > $1',
+    [Date.now() - REALM_ACTIVE_MS]
+  );
+  const counts = new Map();
+  for (const r of rows) {
+    let blob = {};
+    try { blob = JSON.parse(r.state_json || '{}'); } catch { /* treat as unknown */ }
+    const code = typeof blob.country === 'string' ? blob.country.toUpperCase() : '';
+    const region = /^[A-Z]{2}$/.test(code) ? code : '??';
+    counts.set(region, (counts.get(region) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([region, count]) => ({ region, count }))
+    .sort((a, b) => b.count - a.count || (a.region < b.region ? -1 : 1));
 }
