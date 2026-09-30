@@ -163,7 +163,7 @@ export const UI = {
       'set-dmgnums', 'set-motion', 'set-perf', 'set-sfx', 'set-music', 'set-music-track', 'set-follow-world', 'set-notif-level', 'set-notif-death',
       'set-notif-loot', 'set-notif-quest', 'logout-btn', 'modal-root', 'toast-root',
       'race-grid', 'class-grid', 'pet-grid', 'spec-grid', 'gm-back', 'meter-rows', 'total-dps',
-      'share-btn', 'changelog-btn', 'changelog-badge',
+      'share-btn', 'changelog-btn', 'changelog-badge', 'changelog-hud', 'changelog-badge-hud',
       'balance-log-btn', 'balance-log-badge', 'balance-log-hud', 'balance-log-badge-hud',
       'friends-hud', 'friend-req-badge-hud', 'social-hud', 'discord-login',
       'inn-btn', 'leave-inn-btn', 'inn-hpfill', 'inn-hptext', 'inn-status', 'inn-glow',
@@ -451,6 +451,9 @@ export const UI = {
       this.handlers.onShare && this.handlers.onShare();
     });
     listen('changelog-btn', 'click', () => {
+      this.handlers.onChangelog && this.handlers.onChangelog();
+    });
+    listen('changelog-hud', 'click', () => {
       this.handlers.onChangelog && this.handlers.onChangelog();
     });
     listen('balance-log-btn', 'click', () => {
@@ -4082,15 +4085,15 @@ export const UI = {
   // Shows the NEW badge on "What's New" when the changelog has an entry
   // newer than the player's last-seen one.
   checkChangelogBadge() {
-    const badge = this.els['changelog-badge'];
-    if (!badge) return;
+    const badges = [this.els['changelog-badge'], this.els['changelog-badge-hud']].filter(Boolean);
+    if (!badges.length) return;
     this.fetchChangelog()
       .then(log => {
         if (!Array.isArray(log) || !log.length) return;
         const latest = String(log[0].date || '');
         let seen = null;
         try { seen = localStorage.getItem('kop-changelog-seen'); } catch { /* ignore */ }
-        badge.classList.toggle('hidden', !latest || seen === latest);
+        badges.forEach(b => b.classList.toggle('hidden', !latest || seen === latest));
       })
       .catch(() => { /* offline-tolerant */ });
   },
@@ -4107,12 +4110,14 @@ export const UI = {
         <ul class="cl-list">${(e.changes || []).map(c => `<li>${esc(c)}</li>`).join('')}</ul>
       </div>`).join('');
     this.modal({
-      title: '📰 Update log',
+      title: '📰 Patch Notes',
       html: `<div class="cl-log">${html}</div>`,
       buttons: [{ label: 'Close', cls: 'gold' }],
     });
     try { localStorage.setItem('kop-changelog-seen', String(log[0].date || '')); } catch { /* ignore */ }
-    if (this.els['changelog-badge']) this.els['changelog-badge'].classList.add('hidden');
+    ['changelog-badge', 'changelog-badge-hud'].forEach(id => {
+      if (this.els[id]) this.els[id].classList.add('hidden');
+    });
   },
 
   // Balance log: static nerf/patch notes in public/data/balance-log.json
