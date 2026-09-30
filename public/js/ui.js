@@ -148,7 +148,7 @@ export const UI = {
 
     const ids = [
       'hud-emoji', 'hud-username', 'hud-role', 'hud-race', 'hud-gold', 'hud-stars',
-      'hud-stage', 'hud-level', 'hud-xpfill', 'hud-xptext', 'save-indicator',
+      'hud-stage', 'hud-level', 'hud-xpfill', 'hud-xptext', 'save-indicator', 'hud-hero-card',
       'mode-switch', 'enemy-card', 'enemy-sprite', 'enemy-name', 'enemy-stage',
       'boss-badge', 'enemy-hpfill', 'enemy-hptext', 'enemy-atk', 'float-layer',
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
@@ -415,6 +415,11 @@ export const UI = {
     if (this.els['modal-root']) this.els['modal-root'].addEventListener('keydown', friendKey);
     // HUD friends button (top bar 👥 icon).
     listen('friends-hud', 'click', () => { this.openFriendsModal(); });
+    // Hero switcher: tap the hero card on the main screen.
+    listen('hud-hero-card', 'click', () => { this.handlers.onOpenHeroes && this.handlers.onOpenHeroes(); });
+    listen('hud-hero-card', 'keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.handlers.onOpenHeroes && this.handlers.onOpenHeroes(); }
+    });
 
     // Discord login button — open the community server invite in a new tab.
     const openDiscord = () => { try { window.open(DISCORD_URL, '_blank', 'noopener'); } catch (e) {} };
@@ -1083,6 +1088,123 @@ export const UI = {
     paint();
   },
 
+  // ---------------- multi-hero ----------------
+  // 3-slot hero switcher. data: { heroes: [summary|null x3], activeSlot }.
+  // Switch/create actions route through handlers (app.js) — UI stays dumb.
+  showHeroesModal(data) {
+    const h = this.handlers;
+    const heroes = (data && data.heroes) || [];
+    const activeSlot = data ? data.activeSlot : 0;
+    const slotHtml = (slot) => {
+      const hero = heroes[slot];
+      if (!hero) {
+        return `<div class="hero-slot empty">
+          <div class="hero-slot-emoji">➕</div>
+          <div class="hero-slot-name">Empty slot</div>
+          <div class="muted small">A brand-new hero, level 1.</div>
+          <button class="btn gold" data-hero-create="${slot}" type="button">Create hero</button>
+        </div>`;
+      }
+      const race = Engine.RACES[hero.race] || {};
+      const cls = Engine.CLASSES[hero.playerClass] || {};
+      const spec = Engine.SPECS[hero.spec] || {};
+      const isActive = slot === activeSlot;
+      return `<div class="hero-slot${isActive ? ' active' : ''}">
+        <div class="hero-slot-emoji">${esc(race.emoji || '❓')}</div>
+        <div class="hero-slot-name">${esc(cls.emoji || '')} ${esc(cls.name || 'Hero')}</div>
+        <div class="muted small">${esc(race.name || '')} · ${esc(spec.name || '')} · Lv ${hero.level}</div>
+        ${isActive
+          ? `<div class="hero-active-badge">✅ Active</div>`
+          : `<button class="btn" data-hero-switch="${slot}" type="button">Switch</button>`}
+      </div>`;
+    };
+    const close = this.modal({
+      title: '🦸 Heroes',
+      html: `<p class="muted small">Up to 3 heroes per account. Each hero keeps its own progress — switching never logs you out.</p>
+             <div class="hero-slots">${[0, 1, 2].map(slotHtml).join('')}</div>`,
+      buttons: [{ label: 'Close' }],
+    });
+    const overlay = this.els['modal-root'].lastElementChild;
+    if (!overlay) return;
+    overlay.addEventListener('click', (e) => {
+      const sw = e.target.closest('[data-hero-switch]');
+      if (sw) { close(); h.onHeroSwitch && h.onHeroSwitch(Number(sw.dataset.heroSwitch)); return; }
+      const cr = e.target.closest('[data-hero-create]');
+      if (cr) { close(); h.onHeroCreate && h.onHeroCreate(Number(cr.dataset.heroCreate)); return; }
+    });
+  },
+
+  // New-hero creation inside the hero switcher: race → class → spec →
+  // (Hunter) starter pet. Permanent choices, like first-time creation.
+  heroCreateModal(onPick) {
+    const mkCards = (defs) => Object.entries(defs).map(([id, c]) => `
+      <button class="race-card class-card" data-pick="${id}">${this.classCardHtml(id, c)}</button>`).join('');
+    const mkRaceCards = () => Object.entries(Engine.RACES).map(([id, r]) => `
+      <button class="race-card class-card" data-pick="${id}">
+        <div class="race-emoji">${r.emoji}</div>
+        <div class="race-name">${esc(r.name)}</div>
+        <div class="race-trait">${esc(r.trait)}</div></button>`).join('');
+    const mkPetCards = () => Engine.HUNTER_STARTERS.map((id) => {
+      const sp = Engine.PET_SPECIES[id];
+      return `<button class="race-card class-card" data-pick="${id}">
+        <div class="race-emoji">${sp.emoji}</div>
+        <div class="race-name">${esc(sp.name)}</div>
+        <div class="race-trait">${esc(sp.flavor || Engine.rarityName(sp.rarity))}</div>
+        <div class="class-perks"><div>✦ ${esc(sp.style || 'A loyal beast')}</div></div></button>`;
+    }).join('');
+    const close = this.modal({
+      title: '🦸 Create a hero',
+      html: `<p class="muted">Your new hero starts <b>100% fresh</b> at level 1. Race, class, and specialization are <b>permanent</b> choices.</p>
+             <h3 class="pick-label">🧬 Choose your race</h3>
+             <div class="race-grid class-modal-grid" data-group="race">${mkRaceCards()}</div>
+             <h3 class="pick-label">⚔️ Choose your class</h3>
+             <div class="race-grid class-modal-grid" data-group="class">${mkCards(Engine.CLASSES)}</div>
+             <h3 class="pick-label">🛡️ Choose your specialization</h3>
+             <div class="race-grid class-modal-grid" data-group="spec">${mkCards(Engine.SPECS)}</div>
+             <div data-pet-section class="hidden">
+               <h3 class="pick-label">🐾 Choose your companion</h3>
+               <div class="race-grid class-modal-grid" data-group="pet">${mkPetCards()}</div>
+             </div>`,
+      buttons: [{ label: 'Cancel' }],
+    });
+    const overlay = this.els['modal-root'].lastElementChild;
+    if (!overlay) return;
+    let pickedRace = null, pickedClass = null, pickedSpec = null, pickedPet = null;
+    const petNeeded = () => pickedClass === 'hunter';
+    const paint = () => {
+      for (const grid of overlay.querySelectorAll('.class-modal-grid')) {
+        const group = grid.dataset.group;
+        for (const btn of grid.querySelectorAll('[data-pick]')) {
+          const active = (group === 'race' && btn.dataset.pick === pickedRace) ||
+                         (group === 'class' && btn.dataset.pick === pickedClass) ||
+                         (group === 'spec' && btn.dataset.pick === pickedSpec) ||
+                         (group === 'pet' && btn.dataset.pick === pickedPet);
+          btn.classList.toggle('picked', active);
+        }
+      }
+      const petSection = overlay.querySelector('[data-pet-section]');
+      if (petSection) {
+        const show = petNeeded();
+        petSection.classList.toggle('hidden', !show);
+        if (!show) pickedPet = null;
+      }
+    };
+    overlay.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pick]');
+      if (!btn) return;
+      const group = btn.closest('.class-modal-grid').dataset.group;
+      if (group === 'race') pickedRace = btn.dataset.pick;
+      else if (group === 'class') pickedClass = btn.dataset.pick;
+      else if (group === 'spec') pickedSpec = btn.dataset.pick;
+      else pickedPet = btn.dataset.pick;
+      paint();
+      if (pickedRace && pickedClass && pickedSpec && (!petNeeded() || pickedPet)) {
+        close();
+        onPick(pickedRace, pickedClass, pickedSpec, pickedPet || null);
+      }
+    });
+    paint();
+  },
   // ---------------- battle ----------------
   // Row of active skill buttons (unlocked + next locked). Re-render on
   // unlock; per-tick cooldown state is handled by updateBattle().
