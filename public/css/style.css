@@ -4104,9 +4104,12 @@ body:is(.perf, .os-reduced) .title-glow,
 body:is(.perf, .os-reduced) .title-rainbow,
 body:is(.perf, .os-reduced) .title-staff-gm,
 body:is(.perf, .os-reduced) .title-staff-admin,
-body:is(.perf, .os-reduced) .title-staff-owner { animation: none !important; }
+body:is(.perf, .os-reduced) .title-staff-owner,
+body:is(.perf, .os-reduced) .title-gm-gamemaster,
+body:is(.perf, .os-reduced) .title-gm-stormjudge,
+body:is(.perf, .os-reduced) .title-owner-shadowking { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  .pname, .title-glow, .title-rainbow, .title-staff-gm, .title-staff-admin, .title-staff-owner { animation: none !important; }
+  .pname, .title-glow, .title-rainbow, .title-staff-gm, .title-staff-admin, .title-staff-owner, .title-gm-gamemaster, .title-gm-stormjudge, .title-owner-shadowking { animation: none !important; }
 }
 
 /* ---- animated titles ---- */
@@ -4162,6 +4165,64 @@ body:is(.perf, .os-reduced) .title-staff-owner { animation: none !important; }
 @keyframes title-staff-owner {
   0%, 100% { background-position: 0 0, 100% 0; text-shadow: 0 0 10px rgba(170,90,255,.5), 0 0 24px rgba(120,40,200,.28); }
   50% { background-position: 15px 15px, 0% 0; text-shadow: 0 0 18px rgba(190,110,255,.95), 0 0 42px rgba(140,60,220,.5); }
+}
+
+/* ---- flagship titles: unique per-title animations ---- */
+.title-gm-gamemaster {
+  background-image:
+    radial-gradient(circle, #fff8dd 0 1.6px, transparent 2.6px),
+    linear-gradient(100deg, #6b4300 0%, #e8a020 22%, #fff6d8 40%, #ffe98a 50%, #fff6d8 60%, #e8a020 78%, #6b4300 100%);
+  background-size: 34px 34px, 300% 100%;
+  background-position: 0 0, 110% 0;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: title-gm-gamemaster 4.5s ease-in-out infinite;
+}
+@keyframes title-gm-gamemaster {
+  0%, 100% { background-position: 0 0, 110% 0; text-shadow: 0 0 10px rgba(255,190,70,.5), 0 0 26px rgba(255,150,30,.25); filter: brightness(1); }
+  20% { text-shadow: 0 0 18px rgba(255,205,100,.85), 0 0 44px rgba(255,160,40,.45); filter: brightness(1.2); }
+  40% { background-position: 17px 17px, 30% 0; }
+  50% { text-shadow: 0 0 30px rgba(255,235,170,1), 0 0 70px rgba(255,180,60,.7); filter: brightness(1.55); }
+  60% { background-position: 8px 8px, -10% 0; text-shadow: 0 0 10px rgba(255,190,70,.5); filter: brightness(1); }
+  80% { text-shadow: 0 0 18px rgba(255,205,100,.85), 0 0 44px rgba(255,160,40,.45); filter: brightness(1.2); }
+}
+.title-gm-stormjudge {
+  background-image:
+    linear-gradient(100deg, #1a2233 0%, #3a4f6e 30%, #9fc8e8 48%, #ffffff 50%, #9fc8e8 52%, #3a4f6e 70%, #1a2233 100%);
+  background-size: 280% 100%;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: title-gm-stormjudge 3.8s linear infinite;
+}
+@keyframes title-gm-stormjudge {
+  0% { background-position: 110% 0; text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
+  18% { background-position: 70% 0; text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
+  20% { text-shadow: 0 0 34px rgba(230,245,255,1), 0 0 70px rgba(150,200,255,.9); filter: brightness(2.1); }
+  23% { text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
+  45% { background-position: 30% 0; }
+  60% { background-position: 10% 0; text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
+  62% { text-shadow: 0 0 26px rgba(230,245,255,.95), 0 0 55px rgba(150,200,255,.7); filter: brightness(1.8); }
+  65% { text-shadow: 0 0 34px rgba(230,245,255,1), 0 0 70px rgba(150,200,255,.9); filter: brightness(2.1); }
+  68% { text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
+  100% { background-position: -20% 0; text-shadow: 0 0 8px rgba(120,170,220,.45); filter: brightness(.95); }
+}
+.title-owner-shadowking {
+  background-image:
+    radial-gradient(circle, rgba(255,90,60,.95) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle, rgba(190,110,255,.9) 0 1.3px, transparent 2.3px),
+    linear-gradient(135deg, #000000 0%, #1c0510 35%, #5a1020 50%, #1c0510 65%, #000000 100%);
+  background-size: 46px 46px, 60px 60px, 300% 100%;
+  background-position: 0 0, 30px 30px, 100% 0;
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  animation: title-owner-shadowking 5s ease-in-out infinite;
+}
+@keyframes title-owner-shadowking {
+  0%, 100% { background-position: 0 0, 30px 30px, 100% 0; text-shadow: 0 0 12px rgba(120,20,40,.6), 0 0 30px rgba(80,10,30,.35); filter: brightness(1); }
+  25% { text-shadow: 0 0 22px rgba(200,40,60,.85), 0 0 50px rgba(140,20,40,.5); filter: brightness(1.35); }
+  50% { background-position: 23px 23px, 0 0, 0% 0; text-shadow: 0 0 12px rgba(120,20,40,.6); filter: brightness(1); }
+  70% { text-shadow: 0 0 28px rgba(255,80,50,.95), 0 0 60px rgba(180,30,30,.55); filter: brightness(1.5); }
+  85% { background-position: 10px 40px, 45px 10px, 50% 0; }
 }
 /* Title-unlock toast: subtle glow only, stays readable. */
 .toast-title .toast-msg {
