@@ -1,6 +1,17 @@
 [
  {
   "date": "2026-09-30",
+  "title": "👑 Staff titles & name effects",
+  "staff": true,
+  "changes": [
+   "16 staff-only titles (7 GM, 6 Admin, 3 Owner) unlock automatically at login by role — equip them in the Titles tab, below the token titles",
+   "6 new staff-only name effects in Settings → Name Style: 🔨 Gavelstrike + 👁️ All-Seeing (GM), 🌍 Worldforge + 📐 Archlight (Admin), 👑 Shadowcrown + ♾️ Everflame (Owner)",
+   "Titles and name effects stack — e.g. wear 🌌 the Galaxywatcher with 👑 Shadowcrown",
+   "Players can never unlock or buy these; they never appear in the token shop"
+  ]
+ },
+ {
+  "date": "2026-09-30",
   "title": "📜 Character sheet, class backgrounds & staff titles",
   "changes": [
    "🧍 New character sheet: tap your hero panel for a WoW-style paper-doll view — gear slots, live stats, and your active pet (hover or long-press gear for details)",
