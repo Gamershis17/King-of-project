@@ -68,6 +68,12 @@ export const api = {
   // Player inspect (public gameplay profile)
   inspectPlayer: (username) => request('/api/player/' + encodeURIComponent(username) + '/inspect'),
 
+  // Multi-hero (auth required; 3 slots per account)
+  heroesList: () => request('/api/heroes'),
+  heroesCreate: (slot, race, playerClass, spec, petSpecies) =>
+    post('/api/heroes', { slot, race, playerClass, spec, petSpecies }),
+  heroesSwitch: (slot) => post('/api/heroes/switch', { slot }),
+
   // Friends (auth required)
   getFriends: () => request('/api/friends'),
   friendRequest: (username) => post('/api/friends/request', { username }),
