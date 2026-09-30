@@ -288,7 +288,7 @@ export function craftGalaxyItem(state, slot, tierId, statIds) {
   for (const s of picks) stats[s] = forgeStatValue(s, tier.mult);
   const item = {
     id: uid(), galaxy: true, unsellable: true, enchant: 0,
-    name: `${tier.emoji} ${tier.name} ${slot === 'weapon' ? 'Blade' : 'Aegis'}`,
+    name: `${tier.emoji} ${tier.name} ${slot === 'weapon' ? weaponNameFor(state.playerClass) : armorNameFor(state.playerClass)}`,
     slot, rarity: 'galaxy', forgeTier: tier.id, stats, value: 0,
   };
   state.forge[slot] = item;

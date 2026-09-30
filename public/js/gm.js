@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js?v=20260930e';
 import { UI, esc, formatNum } from './ui.js?v=20260930e';
-import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v=20260930i';
+import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v=20260930r';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
