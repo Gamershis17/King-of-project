@@ -2420,61 +2420,128 @@ export const ACHIEVEMENTS = [
 // ---------------- Titles ----------------
 // Hero titles: unlocked by feats, shown under the profile name and on the
 // leaderboard. No stat effect — pure glory.
-export const TITLES = [
-  { id: 'wanderer',        name: 'the Wanderer',        desc: 'Every hero starts somewhere.',              check: () => true },
-  { id: 'first-blood',     name: 'the Bloodied',        desc: 'Win your first battle.',                    check: (s) => (s.stats.kills || 0) >= 1 },
-  { id: 'tapstorm',        name: 'the Tapstorm',        desc: 'Reach a 50-tap combo.',                     check: (s) => (s.stats.maxCombo || 0) >= 50 },
-  { id: 'bossbane',        name: 'Bossbane',            desc: 'Slay 10 bosses.',                           check: (s) => (s.bossesKilled || 0) >= 10 },
-  { id: 'infernal-slayer', name: 'Slayer of the Infernal', desc: 'Slay 25 bosses.',                        check: (s) => (s.bossesKilled || 0) >= 25 },
-  { id: 'veteran',         name: 'the Veteran',         desc: 'Reach level 50.',                           check: (s) => (s.level || 1) >= 50 },
-  { id: 'unbroken',        name: 'the Unbroken',        desc: 'Reach stage 50.',                           check: (s) => (s.stage || 1) >= 50 },
-  { id: 'goldhoarder',     name: 'the Goldhoarder',     desc: 'Hold 100,000 gold at once.',                check: (s) => (s.gold || 0) >= 100000 },
-  { id: 'idle-king',       name: 'the Idle King',       desc: 'Rebirth once.',                             check: (s) => (s.rebirthCount || 0) >= 1 },
-  { id: 'dungeon-master',  name: 'the Dungeon Master',  desc: 'Fill your 3-companion dungeon party.',      check: (s) => (s.party || []).length >= MAX_PARTY },
-  { id: 'overlord',        name: 'the Overlord',        desc: 'Reach stage 100.',                          check: (s) => (s.stage || 1) >= 100 },
-  { id: 'sleepless',       name: 'the Sleepless',       desc: 'Play for 1 hour total.',                    check: (s) => (s.stats.playTimeSec || 0) >= 3600 },
-  { id: 'tireless',        name: 'the Tireless',        desc: 'Play for 5 hours total.',                   check: (s) => (s.stats.playTimeSec || 0) >= 18000 },
-  { id: 'eternal',         name: 'the Eternal',         desc: 'Play for 24 hours total.',                  check: (s) => (s.stats.playTimeSec || 0) >= 86400 },
-  { id: 'climber',         name: 'the Climber',         desc: 'Reach stage 25.',                           check: (s) => (s.stage || 1) >= 25 },
-  { id: 'ascendant',       name: 'the Ascendant',       desc: 'Reach stage 50.',                           check: (s) => (s.stage || 1) >= 50 },
-  { id: 'mythical',        name: 'the Mythical',        desc: 'Reach stage 100.',                          check: (s) => (s.stage || 1) >= 100 },
-  { id: 'slayer',          name: 'the Slayer',          desc: 'Slay 100 enemies.',                         check: (s) => (s.stats.kills || 0) >= 100 },
-  { id: 'butcher',         name: 'the Butcher',         desc: 'Slay 1,000 enemies.',                       check: (s) => (s.stats.kills || 0) >= 1000 },
-  { id: 'annihilator',     name: 'the Annihilator',     desc: 'Slay 10,000 enemies.',                      check: (s) => (s.stats.kills || 0) >= 10000 },
-  { id: 'reborn',          name: 'the Reborn',          desc: 'Rebirth twice.',                            check: (s) => (s.rebirthCount || 0) >= 2 },
-  { id: 'phoenix',         name: 'the Phoenix',         desc: 'Rebirth 3 times.',                         check: (s) => (s.rebirthCount || 0) >= 3 },
-  { id: 'immortal',        name: 'the Immortal',        desc: 'Rebirth 5 times.',                         check: (s) => (s.rebirthCount || 0) >= 5 },
-  { id: 'paragon',         name: 'the Paragon',         desc: 'Rebirth 10 times.',                        check: (s) => (s.rebirthCount || 0) >= 10 },
-  { id: 'demigod',         name: 'the Demigod',         desc: 'Rebirth 25 times.',                        check: (s) => (s.rebirthCount || 0) >= 25 },
-  { id: 'worldforger',     name: 'the Worldforger',     desc: 'Rebirth 50 times.',                        check: (s) => (s.rebirthCount || 0) >= 50 },
-  { id: 'beastfriend',      name: 'the Beastfriend',     desc: 'Hatch your first pet.',                     check: (s) => ((s.pets && s.pets.collection) || []).length >= 1 },
-  { id: 'packleader',       name: 'the Packleader',      desc: 'Hatch 5 pets.',                             check: (s) => ((s.pets && s.pets.collection) || []).length >= 5 },
-  { id: 'apexcompanion',    name: 'the Apex Companion',  desc: 'Raise a pet to level 25.',                  check: (s) => (((s.pets && s.pets.collection) || []).some(p => (p.level || 1) >= 25)) },
-  { id: 'executioner',     name: 'the Executioner',     desc: 'Slay 50 bosses.',                           check: (s) => (s.bossesKilled || 0) >= 50 },
-  { id: 'godslayer',       name: 'the Godslayer',       desc: 'Slay 100 bosses.',                          check: (s) => (s.bossesKilled || 0) >= 100 },
-  { id: 'hoarder',         name: 'the Hoarder',         desc: 'Earn 1,000,000 gold in total.',             check: (s) => (s.stats.totalGoldEarned || 0) >= 1000000 },
-  { id: 'magnate',         name: 'the Magnate',         desc: 'Earn 100,000,000 gold in total.',           check: (s) => (s.stats.totalGoldEarned || 0) >= 100000000 },
-  { id: 'raider',          name: 'the Raider',          desc: 'Reach wave 10 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 10 },
-  { id: 'stormcaller',     name: 'the Stormcaller',     desc: 'Reach wave 25 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 25 },
-  { id: 'tidebreaker',     name: 'the Tidebreaker',     desc: 'Reach wave 50 in a raid.',                  check: (s) => ((s.raid && s.raid.best) || 0) >= 50 },
-  // ---- Mining & Galaxy Forge titles (stream 3) ----
-  // Mine/forge counters may not exist yet (added by a parallel stream);
-  // every check below degrades to "locked" on a fresh/old save.
-  { id: 'delver',          name: '⛏️ the Delver',        desc: 'Reach depth 20 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 20 },
-  { id: 'deepdelver',      name: '🕳️ the Deepdelver',    desc: 'Reach depth 40 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 40 },
-  { id: 'corediver',       name: '🌋 the Corediver',      desc: 'Reach depth 60 in the Mine.',               check: (s) => (((s.mine || {}).maxDepth) || 0) >= 60 },
-  { id: 'rockbreaker',     name: '💥 the Rockbreaker',   desc: 'Tap the mining rock 1,000 times.',          check: (s) => (((s.mine || {}).totalTaps) || 0) >= 1000 },
-  { id: 'orehoarder',      name: '💰 the Orehoarder',     desc: 'Mine 1,000 ore in total.',                  check: (s) => (((s.mine || {}).totalMined) || 0) >= 1000 },
-  { id: 'prospector',      name: '🧭 the Prospector',     desc: 'Upgrade your pickaxe to tier 3.',           check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 3 },
-  { id: 'master-miner',    name: '⚒️ the Master Miner',   desc: 'Upgrade your pickaxe to the max tier.',     check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= MAX_PICKAXE_TIER },
-  { id: 'starforger',      name: '⭐ the Starforger',     desc: 'Craft an item in the Galaxy Forge.',        check: (s) => (((s.forge || {}).crafts) || 0) >= 1 },
-  { id: 'galaxyforger',    name: '🌌 the Galaxyforger',   desc: 'Craft 10 items in the Galaxy Forge.',       check: (s) => (((s.forge || {}).crafts) || 0) >= 10 },
-  { id: 'transcendent',    name: '✨ the Transcendent',   desc: 'Craft your first Super Galaxy item.',       check: (s) => ((s.forge || {}).superCrafted) === true },
-  { id: 'ever-reborn',     name: '🌀 the Ever-Reborn',    desc: 'Rebirth 100 times.',                        check: (s) => (s.rebirthCount || 0) >= 100 },
-  { id: 'true-capped',     name: '👑 the True Capped',    desc: 'Reach level 120, then rebirth at least once.', check: (s) => ((s.level || 1) >= MAX_LEVEL) && ((s.rebirthCount || 0) >= 1) },
-];
-export const TITLE_BY_ID = Object.fromEntries(TITLES.map(t => [t.id, t]));
-export function titleName(id) { return (TITLE_BY_ID[id] && TITLE_BY_ID[id].name) || id; }
+// ---------------- Titles ----------------
+// Hero titles: unlocked by feats, shown under the profile name and on the
+// leaderboard. No stat effect — pure glory.
+//
+// Single flat dictionary: id -> definition. This is the ONE source of truth
+// for every title in the game (achievements, token-shop, staff).
+//
+// Visual layers (priority order, applied low → high by TitleManager):
+//   1 = base text color / gradient  (.tl1-*)
+//   2 = text shadow / glow          (.tl2-*)
+//   3 = keyframe animation / motion (.tl3-*)
+// A title's `fx` maps layer number -> CSS class. Titles without `fx` get
+// FX_DEFAULT (gold glow + pulse). To restyle a title, change its `fx` here
+// and/or add layer classes in style.css — never branch on title ids in JS.
+const FX_DEFAULT = { 1: 'tl1-gold', 2: 'tl2-glow-gold', 3: 'tl3-pulse' };
+export const TITLE_DEFS = {
+  'wanderer': { name: 'the Wanderer', desc: 'Every hero starts somewhere.', check: () => true },
+  'first-blood': { name: 'the Bloodied', desc: 'Win your first battle.', check: (s) => (s.stats.kills || 0) >= 1 },
+  'tapstorm': { name: 'the Tapstorm', desc: 'Reach a 50-tap combo.', check: (s) => (s.stats.maxCombo || 0) >= 50 },
+  'bossbane': { name: 'Bossbane', desc: 'Slay 10 bosses.', check: (s) => (s.bossesKilled || 0) >= 10 },
+  'infernal-slayer': { name: 'Slayer of the Infernal', desc: 'Slay 25 bosses.', check: (s) => (s.bossesKilled || 0) >= 25 },
+  'veteran': { name: 'the Veteran', desc: 'Reach level 50.', check: (s) => (s.level || 1) >= 50 },
+  'unbroken': { name: 'the Unbroken', desc: 'Reach stage 50.', check: (s) => (s.stage || 1) >= 50 },
+  'goldhoarder': { name: 'the Goldhoarder', desc: 'Hold 100,000 gold at once.', check: (s) => (s.gold || 0) >= 100000 },
+  'idle-king': { name: 'the Idle King', desc: 'Rebirth once.', check: (s) => (s.rebirthCount || 0) >= 1 },
+  'dungeon-master': { name: 'the Dungeon Master', desc: 'Fill your 3-companion dungeon party.', check: (s) => (s.party || []).length >= MAX_PARTY },
+  'overlord': { name: 'the Overlord', desc: 'Reach stage 100.', check: (s) => (s.stage || 1) >= 100 },
+  'sleepless': { name: 'the Sleepless', desc: 'Play for 1 hour total.', check: (s) => (s.stats.playTimeSec || 0) >= 3600 },
+  'tireless': { name: 'the Tireless', desc: 'Play for 5 hours total.', check: (s) => (s.stats.playTimeSec || 0) >= 18000 },
+  'eternal': { name: 'the Eternal', desc: 'Play for 24 hours total.', check: (s) => (s.stats.playTimeSec || 0) >= 86400 },
+  'climber': { name: 'the Climber', desc: 'Reach stage 25.', check: (s) => (s.stage || 1) >= 25 },
+  'ascendant': { name: 'the Ascendant', desc: 'Reach stage 50.', check: (s) => (s.stage || 1) >= 50 },
+  'mythical': { name: 'the Mythical', desc: 'Reach stage 100.', check: (s) => (s.stage || 1) >= 100 },
+  'slayer': { name: 'the Slayer', desc: 'Slay 100 enemies.', check: (s) => (s.stats.kills || 0) >= 100 },
+  'butcher': { name: 'the Butcher', desc: 'Slay 1,000 enemies.', check: (s) => (s.stats.kills || 0) >= 1000 },
+  'annihilator': { name: 'the Annihilator', desc: 'Slay 10,000 enemies.', check: (s) => (s.stats.kills || 0) >= 10000 },
+  'reborn': { name: 'the Reborn', desc: 'Rebirth twice.', check: (s) => (s.rebirthCount || 0) >= 2 },
+  'phoenix': { name: 'the Phoenix', desc: 'Rebirth 3 times.', check: (s) => (s.rebirthCount || 0) >= 3 },
+  'immortal': { name: 'the Immortal', desc: 'Rebirth 5 times.', check: (s) => (s.rebirthCount || 0) >= 5 },
+  'paragon': { name: 'the Paragon', desc: 'Rebirth 10 times.', check: (s) => (s.rebirthCount || 0) >= 10 },
+  'demigod': { name: 'the Demigod', desc: 'Rebirth 25 times.', check: (s) => (s.rebirthCount || 0) >= 25 },
+  'worldforger': { name: 'the Worldforger', desc: 'Rebirth 50 times.', check: (s) => (s.rebirthCount || 0) >= 50, fx: { 1: 'tl1-rainbow', 2: 'tl2-none', 3: 'tl3-slide' } },
+  'beastfriend': { name: 'the Beastfriend', desc: 'Hatch your first pet.', check: (s) => ((s.pets && s.pets.collection) || []).length >= 1 },
+  'packleader': { name: 'the Packleader', desc: 'Hatch 5 pets.', check: (s) => ((s.pets && s.pets.collection) || []).length >= 5 },
+  'apexcompanion': { name: 'the Apex Companion', desc: 'Raise a pet to level 25.', check: (s) => (((s.pets && s.pets.collection) || []).some(p => (p.level || 1) >= 25)) },
+  'executioner': { name: 'the Executioner', desc: 'Slay 50 bosses.', check: (s) => (s.bossesKilled || 0) >= 50 },
+  'godslayer': { name: 'the Godslayer', desc: 'Slay 100 bosses.', check: (s) => (s.bossesKilled || 0) >= 100 },
+  'hoarder': { name: 'the Hoarder', desc: 'Earn 1,000,000 gold in total.', check: (s) => (s.stats.totalGoldEarned || 0) >= 1000000 },
+  'magnate': { name: 'the Magnate', desc: 'Earn 100,000,000 gold in total.', check: (s) => (s.stats.totalGoldEarned || 0) >= 100000000 },
+  'raider': { name: 'the Raider', desc: 'Reach wave 10 in a raid.', check: (s) => ((s.raid && s.raid.best) || 0) >= 10 },
+  'stormcaller': { name: 'the Stormcaller', desc: 'Reach wave 25 in a raid.', check: (s) => ((s.raid && s.raid.best) || 0) >= 25 },
+  'tidebreaker': { name: 'the Tidebreaker', desc: 'Reach wave 50 in a raid.', check: (s) => ((s.raid && s.raid.best) || 0) >= 50 },
+  'delver': { name: '⛏️ the Delver', desc: 'Reach depth 20 in the Mine.', check: (s) => (((s.mine || {}).maxDepth) || 0) >= 20 },
+  'deepdelver': { name: '🕳️ the Deepdelver', desc: 'Reach depth 40 in the Mine.', check: (s) => (((s.mine || {}).maxDepth) || 0) >= 40 },
+  'corediver': { name: '🌋 the Corediver', desc: 'Reach depth 60 in the Mine.', check: (s) => (((s.mine || {}).maxDepth) || 0) >= 60 },
+  'rockbreaker': { name: '💥 the Rockbreaker', desc: 'Tap the mining rock 1,000 times.', check: (s) => (((s.mine || {}).totalTaps) || 0) >= 1000 },
+  'orehoarder': { name: '💰 the Orehoarder', desc: 'Mine 1,000 ore in total.', check: (s) => (((s.mine || {}).totalMined) || 0) >= 1000 },
+  'prospector': { name: '🧭 the Prospector', desc: 'Upgrade your pickaxe to tier 3.', check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= 3 },
+  'master-miner': { name: '⚒️ the Master Miner', desc: 'Upgrade your pickaxe to the max tier.', check: (s) => Number((((s.mine || {}).pickaxe) || 0)) >= MAX_PICKAXE_TIER },
+  'starforger': { name: '⭐ the Starforger', desc: 'Craft an item in the Galaxy Forge.', check: (s) => (((s.forge || {}).crafts) || 0) >= 1 },
+  'galaxyforger': { name: '🌌 the Galaxyforger', desc: 'Craft 10 items in the Galaxy Forge.', check: (s) => (((s.forge || {}).crafts) || 0) >= 10 },
+  'transcendent': { name: '✨ the Transcendent', desc: 'Craft your first Super Galaxy item.', check: (s) => ((s.forge || {}).superCrafted) === true },
+  'ever-reborn': { name: '🌀 the Ever-Reborn', desc: 'Rebirth 100 times.', check: (s) => (s.rebirthCount || 0) >= 100, fx: { 1: 'tl1-rainbow', 2: 'tl2-none', 3: 'tl3-slide' } },
+  'true-capped': { name: '👑 the True Capped', desc: 'Reach level 120, then rebirth at least once.', check: (s) => ((s.level || 1) >= MAX_LEVEL) && ((s.rebirthCount || 0) >= 1), fx: { 1: 'tl1-rainbow', 2: 'tl2-none', 3: 'tl3-slide' } },
+  'token-sovereign': { name: '🌀 the Reborn Sovereign', desc: 'Token shop exclusive. Worn by those who cycle death itself.', check: () => false, tokenOnly: true },
+  'token-voidwalker': { name: '🕳️ the Voidwalker', desc: 'Token shop exclusive. Steps between worlds.', check: () => false, tokenOnly: true },
+  'token-starforged': { name: '🌠 the Starforged', desc: 'Token shop exclusive. Hammered from a fallen star.', check: () => false, tokenOnly: true },
+  'token-immortal': { name: '♾️ the Immortal', desc: 'Token shop exclusive. Death is a rumor.', check: () => false, tokenOnly: true },
+  'token-kingslayer': { name: '👑 the Kingslayer', desc: 'Token shop exclusive. Thrones fear this name.', check: () => false, tokenOnly: true },
+  'token-mythweaver': { name: '📖 the Mythweaver', desc: 'Token shop exclusive. Every legend starts with them.', check: () => false, tokenOnly: true },
+  'gm-gamemaster': { name: '🛡️ the Game Master', desc: 'Staff only. Wears the mantle of the realm\u2019s judge.', check: () => false, staffOnly: true, staffRole: 'gm', fx: { 1: 'tl1-grad-gamemaster', 2: 'tl2-none', 3: 'tl3-anim-gamemaster' } },
+  'gm-watcher': { name: '👁️ the Watcher', desc: 'Staff only. Sees all.', check: () => false, staffOnly: true, staffRole: 'gm', fx: { 1: 'tl1-grad-gm', 2: 'tl2-none', 3: 'tl3-sheen-gm' } },
+  'gm-arbiter': { name: '⚖️ the Arbiter', desc: 'Staff only. Settler of disputes.', check: () => false, staffOnly: true, staffRole: 'gm', fx: { 1: 'tl1-grad-gm', 2: 'tl2-none', 3: 'tl3-sheen-gm' } },
+  'gm-stormjudge': { name: '⛈️ the Stormjudge', desc: 'Staff only. Their word is thunder.', check: () => false, staffOnly: true, staffRole: 'gm', fx: { 1: 'tl1-grad-stormjudge', 2: 'tl2-none', 3: 'tl3-anim-stormjudge' } },
+  'gm-lawkeeper': { name: '🏰 the Lawkeeper', desc: 'Staff only. Keeper of the realm\u2019s law.', check: () => false, staffOnly: true, staffRole: 'gm', fx: { 1: 'tl1-grad-gm', 2: 'tl2-none', 3: 'tl3-sheen-gm' } },
+  'gm-mediator': { name: '🤝 the Mediator', desc: 'Staff only. Brings peace to the chaos.', check: () => false, staffOnly: true, staffRole: 'gm', fx: { 1: 'tl1-grad-gm', 2: 'tl2-none', 3: 'tl3-sheen-gm' } },
+  'gm-galaxywatcher': { name: '🌌 the Galaxywatcher', desc: 'Staff only. Watches over the entire galaxy.', check: () => false, staffOnly: true, staffRole: 'gm', fx: { 1: 'tl1-grad-gm', 2: 'tl2-none', 3: 'tl3-sheen-gm' } },
+  'admin-administrator': { name: '🏛️ the Administrator', desc: 'Staff only. Runs the realm behind the curtain.', check: () => false, staffOnly: true, staffRole: 'admin', fx: { 1: 'tl1-grad-admin', 2: 'tl2-none', 3: 'tl3-sheen-admin' } },
+  'admin-worldsmith': { name: '🔨 the Worldsmith', desc: 'Staff only. Forges the world itself.', check: () => false, staffOnly: true, staffRole: 'admin', fx: { 1: 'tl1-grad-admin', 2: 'tl2-none', 3: 'tl3-sheen-admin' } },
+  'admin-warden': { name: '🗡️ the Warden', desc: 'Staff only. Guardian of the gates.', check: () => false, staffOnly: true, staffRole: 'admin', fx: { 1: 'tl1-grad-admin', 2: 'tl2-none', 3: 'tl3-sheen-admin' } },
+  'admin-architect': { name: '📐 the Architect', desc: 'Staff only. Designs the realm\u2019s foundations.', check: () => false, staffOnly: true, staffRole: 'admin', fx: { 1: 'tl1-grad-admin', 2: 'tl2-none', 3: 'tl3-sheen-admin' } },
+  'admin-purgebearer': { name: '🔥 the Purgebearer', desc: 'Staff only. Cleanses what threatens the realm.', check: () => false, staffOnly: true, staffRole: 'admin', fx: { 1: 'tl1-grad-admin', 2: 'tl2-none', 3: 'tl3-sheen-admin' } },
+  'admin-overseer': { name: '🌟 the Overseer', desc: 'Staff only. Oversees all.', check: () => false, staffOnly: true, staffRole: 'admin', fx: { 1: 'tl1-grad-admin', 2: 'tl2-none', 3: 'tl3-sheen-admin' } },
+  'owner-thronekeeper': { name: '👑 the Thronekeeper', desc: 'Staff only. Keeper of the Throne of Shadows.', check: () => false, staffOnly: true, staffRole: 'owner', fx: { 1: 'tl1-grad-owner', 2: 'tl2-none', 3: 'tl3-sheen-owner' } },
+  'owner-shadowking': { name: '🌑 the Shadow King', desc: 'Staff only. The shadow behind the throne.', check: () => false, staffOnly: true, staffRole: 'owner', fx: { 1: 'tl1-grad-shadowking', 2: 'tl2-none', 3: 'tl3-anim-shadowking' } },
+  'owner-everlasting': { name: '♾️ the Everlasting', desc: 'Staff only. Eternal as the throne itself.', check: () => false, staffOnly: true, staffRole: 'owner', fx: { 1: 'tl1-grad-owner', 2: 'tl2-none', 3: 'tl3-sheen-owner' } },
+};
+// Every def carries its id (used by find/filter/map across the codebase).
+for (const [id, t] of Object.entries(TITLE_DEFS)) t.id = id;
+
+// Back-compat array views (insertion order = achievements, token, staff).
+export const TITLES = Object.values(TITLE_DEFS);
+export const TITLE_BY_ID = TITLE_DEFS;
+export const TOKEN_TITLES = TITLES.filter(t => t.tokenOnly);
+export const STAFF_TITLES = TITLES.filter(t => t.staffOnly);
+
+// TitleManager: the only supported way to resolve + style a title.
+// Pass a player profile (anything with `.activeTitle`); it looks up the
+// title and returns the layered CSS classes in priority order.
+function _escTitle(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+export const TitleManager = {
+  /** Raw def for a title id, or null. */
+  get(id) { return TITLE_DEFS[id] || null; },
+  /** Display name for a title id (falls back to the id, like before). */
+  name(id) { const t = TITLE_DEFS[id]; return (t && t.name) || id; },
+  /** Layered CSS classes for a profile's active title, priority order 1→2→3. */
+  classesFor(profile) {
+    const t = profile ? TITLE_DEFS[profile.activeTitle] : null;
+    const fx = (t && t.fx) || FX_DEFAULT;
+    return Object.keys(fx).map(Number).sort((a, b) => a - b)
+      .map(k => fx[k]).filter(Boolean).join(' ');
+  },
+  /** Ready-to-insert HTML: <span class="<layers>">name</span>. */
+  render(profile) {
+    const p = profile || {};
+    return `<span class="${this.classesFor(p)}">${_escTitle(this.name(p.activeTitle))}</span>`;
+  },
+};
+export function titleName(id) { return TitleManager.name(id); }
 
 // ---------------- Creator badges & country flags ----------------
 // Badges are granted by the owner/GM (GM console), shown next to the name
@@ -2517,43 +2584,13 @@ export function countryFlag(code) {
 
 // Token-exclusive titles. tokenOnly: never auto-unlocked by checkTitles()
 // (their check always fails); only buyTokenItem() can grant them.
-export const TOKEN_TITLES = [
-  { id: 'token-sovereign',   name: '🌀 the Reborn Sovereign', desc: 'Token shop exclusive. Worn by those who cycle death itself.', check: () => false, tokenOnly: true },
-  { id: 'token-voidwalker',  name: '🕳️ the Voidwalker',      desc: 'Token shop exclusive. Steps between worlds.',                 check: () => false, tokenOnly: true },
-  { id: 'token-starforged',  name: '🌠 the Starforged',       desc: 'Token shop exclusive. Hammered from a fallen star.',          check: () => false, tokenOnly: true },
-  { id: 'token-immortal',    name: '♾️ the Immortal',         desc: 'Token shop exclusive. Death is a rumor.',                     check: () => false, tokenOnly: true },
-  { id: 'token-kingslayer',  name: '👑 the Kingslayer',       desc: 'Token shop exclusive. Thrones fear this name.',               check: () => false, tokenOnly: true },
-  { id: 'token-mythweaver',  name: '📖 the Mythweaver',       desc: 'Token shop exclusive. Every legend starts with them.',        check: () => false, tokenOnly: true },
-];
-for (const t of TOKEN_TITLES) TITLES.push(t);
+// (token titles now live in TITLE_DEFS above)
 
 // Staff titles. staffOnly: never auto-unlocked by checkTitles()
 // (their check always fails) and never granted by "Grant all titles";
 // they unlock automatically at boot for accounts whose staff role
 // qualifies (owner → all tiers, admin → admin+gm, gm → gm).
-export const STAFF_TITLES = [
-  { id: 'gm-gamemaster',   name: '🛡️ the Game Master',  desc: 'Staff only. Wears the mantle of the realm\u2019s judge.',   check: () => false, staffOnly: true, staffRole: 'gm' },
-  { id: 'gm-watcher',      name: '👁️ the Watcher',       desc: 'Staff only. Sees all.',                                     check: () => false, staffOnly: true, staffRole: 'gm' },
-  { id: 'gm-arbiter',      name: '⚖️ the Arbiter',       desc: 'Staff only. Settler of disputes.',                         check: () => false, staffOnly: true, staffRole: 'gm' },
-  { id: 'gm-stormjudge',   name: '⛈️ the Stormjudge',    desc: 'Staff only. Their word is thunder.',                       check: () => false, staffOnly: true, staffRole: 'gm' },
-  { id: 'gm-lawkeeper',    name: '🏰 the Lawkeeper',     desc: 'Staff only. Keeper of the realm\u2019s law.',               check: () => false, staffOnly: true, staffRole: 'gm' },
-  { id: 'gm-mediator',     name: '🤝 the Mediator',      desc: 'Staff only. Brings peace to the chaos.',                   check: () => false, staffOnly: true, staffRole: 'gm' },
-  { id: 'gm-galaxywatcher', name: '🌌 the Galaxywatcher', desc: 'Staff only. Watches over the entire galaxy.',             check: () => false, staffOnly: true, staffRole: 'gm' },
-  { id: 'admin-administrator', name: '🏛️ the Administrator', desc: 'Staff only. Runs the realm behind the curtain.',      check: () => false, staffOnly: true, staffRole: 'admin' },
-  { id: 'admin-worldsmith',    name: '🔨 the Worldsmith',    desc: 'Staff only. Forges the world itself.',                check: () => false, staffOnly: true, staffRole: 'admin' },
-  { id: 'admin-warden',        name: '🗡️ the Warden',        desc: 'Staff only. Guardian of the gates.',                  check: () => false, staffOnly: true, staffRole: 'admin' },
-  { id: 'admin-architect',     name: '📐 the Architect',     desc: 'Staff only. Designs the realm\u2019s foundations.',   check: () => false, staffOnly: true, staffRole: 'admin' },
-  { id: 'admin-purgebearer',   name: '🔥 the Purgebearer',   desc: 'Staff only. Cleanses what threatens the realm.',      check: () => false, staffOnly: true, staffRole: 'admin' },
-  { id: 'admin-overseer',      name: '🌟 the Overseer',      desc: 'Staff only. Oversees all.',                           check: () => false, staffOnly: true, staffRole: 'admin' },
-  { id: 'owner-thronekeeper', name: '👑 the Thronekeeper', desc: 'Staff only. Keeper of the Throne of Shadows.',          check: () => false, staffOnly: true, staffRole: 'owner' },
-  { id: 'owner-shadowking',   name: '🌑 the Shadow King',  desc: 'Staff only. The shadow behind the throne.',             check: () => false, staffOnly: true, staffRole: 'owner' },
-  { id: 'owner-everlasting',  name: '♾️ the Everlasting',  desc: 'Staff only. Eternal as the throne itself.',             check: () => false, staffOnly: true, staffRole: 'owner' },
-];
-for (const t of STAFF_TITLES) TITLES.push(t);
-// TITLE_BY_ID was built before the token/staff pushes above; merge them in
-// so titleName() resolves everywhere (profile, leaderboard, server).
-for (const t of TOKEN_TITLES) TITLE_BY_ID[t.id] = t;
-for (const t of STAFF_TITLES) TITLE_BY_ID[t.id] = t;
+// (staff titles now live in TITLE_DEFS above)
 
 // Token-exclusive name effects (visual CSS classes .pname.fx-<id>).
 export const TOKEN_NAME_FX = [

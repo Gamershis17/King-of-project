@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930s';
-import { Audio } from './audio.js?v=20260930s';
+import * as Engine from './engine.js?v=20260930t';
+import { Audio } from './audio.js?v=20260930t';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -1401,10 +1401,13 @@ export const UI = {
       }
     }
     const el = document.createElement('div');
-    el.className = 'float-txt float-' + kind;
+    // Spawn lanes: popups alternate left/right and arc outward via CSS
+    // (.ft-lane-l/.ft-lane-r + ft-arc keyframes), so damage numbers never
+    // spawn over or drift across the enemy name/HP text. No inline
+    // positioning math — lanes and trajectories live in style.css.
+    this._ftLaneLeft = !this._ftLaneLeft;
+    el.className = 'float-txt float-' + kind + (this._ftLaneLeft ? ' ft-lane-l' : ' ft-lane-r');
     el.textContent = text;
-    el.style.left = (20 + Math.random() * 60) + '%';
-    el.style.setProperty('--tilt', (Math.random() * 16 - 8).toFixed(1) + 'deg');
     layer.appendChild(el);
     setTimeout(() => el.remove(), 1100);
     while (layer.children.length > (perf ? 8 : 12)) layer.firstChild.remove();
@@ -1545,20 +1548,11 @@ export const UI = {
     { id: 'champagne', name: '🍾 Champagne' },
     { id: 'midnight', name: '🌃 Midnight' },
   ],
-  // Rarest titles: these cycle rainbow in the Titles tab / profile.
-  RAINBOW_TITLES: ['ever-reborn', 'true-capped', 'worldforger'],
-
-  // Staff titles get their own animated tier style (title-staff-gm/admin/owner)
-  // instead of the generic gold glow. The three flagship titles get unique
-  // per-title animations. Returns '' for non-staff titles.
-  staffTitleCls(id) {
-    if (id === 'gm-gamemaster') return 'title-gm-gamemaster';
-    if (id === 'gm-stormjudge') return 'title-gm-stormjudge';
-    if (id === 'owner-shadowking') return 'title-owner-shadowking';
-    const t = (Engine.STAFF_TITLES || []).find(x => x.id === id);
-    if (!t) return '';
-    return t.staffRole === 'owner' ? 'title-staff-owner'
-         : t.staffRole === 'admin' ? 'title-staff-admin' : 'title-staff-gm';
+  // Title visuals are data-driven: Engine.TitleManager reads the title's
+  // `fx` layers from TITLE_DEFS and returns the CSS classes in priority
+  // order. No per-title branching here.
+  titleClsFor(profile) {
+    return Engine.TitleManager.classesFor(profile);
   },
 
   // Returns the local player's display name, HTML-escaped and wrapped
@@ -3302,7 +3296,8 @@ export const UI = {
       const dot = m.online ? '🟢' : '⚪';
       const crown = m.isLeader ? ' 👑' : '';
       const flag = (Engine.countryFlag && Engine.countryFlag(m.country)) || '';
-      const title = m.activeTitle ? `<div class="mp-title">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
+      const mTitleCls = m.activeTitle ? Engine.TitleManager.classesFor({ activeTitle: m.activeTitle }) : '';
+      const title = m.activeTitle ? `<div class="mp-title ${mTitleCls}">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
       const mIsMe = String(m.username) === me;
       const kick = (isLeader && !mIsMe)
         ? `<button class="btn small ghost icon-btn" data-action="mp-kick" data-id="${m.userId}" title="Kick ${esc(m.username)}">✕</button>`
@@ -4142,7 +4137,7 @@ export const UI = {
         <div>
           <div class="profile-name">${state.country ? Engine.countryFlag(state.country) + ' ' : ''}${badge ? badge.emoji + ' ' : ''}${this.nameHtml(user ? user.username : '—', state)}</div>
           <div class="profile-title-row">
-            <div class="profile-title ${this.staffTitleCls(state.activeTitle) || (this.RAINBOW_TITLES.includes(state.activeTitle) ? 'title-rainbow' : 'title-glow')}">${esc(Engine.titleName(state.activeTitle))}</div>
+            <div class="profile-title ${this.titleClsFor(state)}">${esc(Engine.TitleManager.name(state.activeTitle))}</div>
           </div>
           <div><span class="role-badge role-${role}">${esc(role)}</span>
           <span class="muted small">${cls.emoji ? cls.emoji + ' ' : ''}${esc(cls.name ? cls.name + ' · ' : '')}${spec.emoji ? spec.emoji + ' ' : ''}${esc(spec.name ? spec.name + ' · ' : '')}${esc(race.name || '')}</span></div>
@@ -4178,8 +4173,8 @@ export const UI = {
       const has = unlocked.has(t.id);
       const active = s.activeTitle === t.id;
       const rowCls = 'title-row' + (has ? ' unlocked' : ' locked') + (active ? ' active' : '');
-      // Unlocked titles get a subtle gold glow; the 3 rarest cycle rainbow; staff tiers get their own animation.
-      const glowCls = has ? (this.staffTitleCls(t.id) || (this.RAINBOW_TITLES.includes(t.id) ? 'title-rainbow' : 'title-glow')) : '';
+      // Title preview styling comes from TitleManager's data-driven layers.
+      const glowCls = has ? this.titleClsFor({ activeTitle: t.id }) : '';
       const nameHtml = (has && active ? '👑 ' : has ? '' : '🔒 ') + esc(t.name);
       return has
         ? `<button class="${rowCls}" data-id="${t.id}"><span class="title-row-name ${glowCls}">${nameHtml}</span><span class="title-row-desc">${esc(t.desc)}</span></button>`
