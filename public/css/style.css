@@ -17,6 +17,8 @@
   --tap-mid: #5b3ba8;
   --tap-lo: #2c1d52;
   --tap-glow: rgba(139,92,246,.55);
+  --tap-press-scale: .93;
+  --tap-ripple: rgba(255,215,120,.75);
   --gold: #ffd23f;
   --gold2: #d4a017;
   --text: #e8e4f0;
@@ -491,10 +493,28 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
   box-shadow: 0 0 26px var(--tap-glow), inset 0 -8px 18px rgba(0,0,0,.4);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
   user-select: none; touch-action: manipulation;
+  position: relative; overflow: hidden;
+  transition: transform .12s ease-out, filter .12s ease-out, box-shadow .12s ease-out;
 }
 .tap-btn span { font-size: 1rem; font-weight: 800; letter-spacing: 0.2em; }
-.tap-btn:active { transform: scale(0.94); }
+.tap-btn:active {
+  transform: scale(var(--tap-press-scale));
+  filter: brightness(1.25);
+  box-shadow: 0 0 44px var(--tap-glow), inset 0 -4px 10px rgba(0,0,0,.5);
+}
 .tap-btn:disabled { opacity: 0.4; }
+/* Spawned by UI.tapFeedback on each tap: an expanding ring contained by the
+   button's own circle. Removed on animationend (plus a timeout fallback). */
+.tap-btn .tap-ripple {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px;
+  padding: 0; border: 3px solid var(--tap-ripple); border-radius: 50%;
+  font-size: 0; letter-spacing: 0; pointer-events: none;
+  animation: tap-ripple .45s ease-out forwards;
+}
+@keyframes tap-ripple {
+  0% { transform: scale(1); opacity: .9; }
+  100% { transform: scale(9); opacity: 0; }
+}
 .skill-btn {
   display: block; margin: 0 auto 0.8rem; background: var(--stone2); color: var(--gold);
   border: 1px solid var(--gold2); border-radius: var(--radius); padding: 0.7rem 1.4rem;
@@ -4075,12 +4095,13 @@ body:is(.perf, .os-reduced) .tfx-starforged,
 body:is(.perf, .os-reduced) .tfx-immortal,
 body:is(.perf, .os-reduced) .tfx-kingslayer,
 body:is(.perf, .os-reduced) .tfx-mythweaver,
-body:is(.perf, .os-reduced) .tfxb { animation: none !important; }
+body:is(.perf, .os-reduced) .tfxb,
+body:is(.perf, .os-reduced) .tap-ripple { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   .pname, .tl3-pulse, .tl3-slide, .tl3-sheen-gm, .tl3-sheen-admin, .tl3-sheen-owner,
   .tl3-anim-gamemaster, .tl3-anim-stormjudge, .tl3-anim-shadowking,
   .tfx-sovereign, .tfx-voidwalker, .tfx-starforged, .tfx-immortal, .tfx-kingslayer, .tfx-mythweaver,
-  .tfxb { animation: none !important; }
+  .tfxb, .tap-ripple { animation: none !important; }
 }
 
 /* ============ TITLE VISUAL LAYERS ============
