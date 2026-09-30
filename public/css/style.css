@@ -918,14 +918,14 @@ body.reduce-motion .shop-card:hover { transform: none; }
 
 /* ---------- toasts ---------- */
 #toast-root {
-  position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px);
+  position: fixed; left: 0; right: 0; top: 132px; /* JS refines with real HUD height */
   z-index: 120; display: flex; flex-direction: column; align-items: center; gap: 0.45rem;
   pointer-events: none; padding: 0 1rem;
 }
 .toast {
   background: #241f33f2; border: 1px solid var(--stone2); color: var(--text);
   border-radius: 12px; padding: 0.65rem 1.1rem; font-size: 0.92rem; max-width: 480px;
-  opacity: 0; transform: translateY(12px); transition: all .25s; text-align: center;
+  opacity: 0; transform: translateY(-12px); transition: all .25s; text-align: center;
   box-shadow: 0 6px 20px rgba(0,0,0,.5);
 }
 .toast.show { opacity: 1; transform: translateY(0); }

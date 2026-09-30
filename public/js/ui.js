@@ -696,6 +696,9 @@ export const UI = {
   toast(msg, kind = 'info', ms = 2600, cls = '') {
     const root = this.els['toast-root'];
     if (!root) return;
+    // Dock toasts just under the sticky HUD so they never cover tab content.
+    const hud = document.getElementById('hud');
+    if (hud) root.style.top = (hud.getBoundingClientRect().height + 10) + 'px';
     const now = Date.now();
     // Anti-spam: an identical toast within ~4s bumps a counter on the
     // existing toast instead of stacking a duplicate.
