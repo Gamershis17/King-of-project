@@ -112,12 +112,13 @@
     <div id="maintenance-banner" class="maint-banner hidden"></div>
     <header id="hud">
       <div class="hud-row">
-        <div class="hud-id">
+        <div class="hud-id tappable" id="hud-hero-card" title="Heroes — tap to switch" role="button" tabindex="0" aria-label="Switch hero">
           <span class="hud-avatar"><img id="hud-avatar-img" src="img/avatar-knight.webp" alt="" width="44" height="44" onerror="this.remove()"><span id="hud-emoji">🛡️</span></span>
           <div>
             <div id="hud-username">—</div>
             <div id="hud-sub"><span id="hud-role" class="role-badge">player</span><span id="hud-race" class="muted"></span></div>
           </div>
+          <span class="hud-switch-hint" aria-hidden="true">⇄</span>
         </div>
         <div class="hud-currencies">
           <div>💰 <span id="hud-gold">0</span></div>
