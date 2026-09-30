@@ -32,6 +32,19 @@ function setText(el, txt) {
 function showEl(el) { if (el) el.classList.remove('hidden'); }
 function hideEl(el) { if (el) el.classList.add('hidden'); }
 
+// Signature visual FX for special (token-shop) titles. Presentation-only data:
+// engine.js is untouched; the text class is layered on top of TitleManager's
+// classes wherever titles render, and the banner class drives the condensed
+// combat aura on the battle hero panel.
+const TITLE_FX = {
+  'token-sovereign':  { text: 'tfx-sovereign',  banner: 'tfxb-sovereign' },
+  'token-voidwalker': { text: 'tfx-voidwalker', banner: 'tfxb-voidwalker' },
+  'token-starforged': { text: 'tfx-starforged', banner: 'tfxb-starforged' },
+  'token-immortal':   { text: 'tfx-immortal',   banner: 'tfxb-immortal' },
+  'token-kingslayer': { text: 'tfx-kingslayer', banner: 'tfxb-kingslayer' },
+  'token-mythweaver': { text: 'tfx-mythweaver', banner: 'tfxb-mythweaver' },
+};
+
 // Emoji per gear stat key, used for the compact stat chips on item cards.
 const STAT_EMOJI = {
   attack: '⚔️', defense: '🛡️', maxHp: '❤️',
@@ -1348,6 +1361,8 @@ export const UI = {
   // Light per-tick refresh: hero bars, chips, skill cooldown.
   updateBattle(state, stats, battle) {
     const e = this.els;
+    // Condensed title aura on the hero banner (change-detected internally).
+    this.syncCombatTitleFx(state);
     const pct = stats.maxHp > 0 ? Math.max(0, (state.hero.hp / stats.maxHp) * 100) : 0;
     const heroFill = e['hero-hpfill'];
     setBarFill(heroFill, pct);
@@ -1594,9 +1609,27 @@ export const UI = {
   ],
   // Title visuals are data-driven: Engine.TitleManager reads the title's
   // `fx` layers from TITLE_DEFS and returns the CSS classes in priority
-  // order. No per-title branching here.
+  // order. No per-title branching here. Signature FX (TITLE_FX) layers on
+  // top for special titles, so every surface gets them automatically.
   titleClsFor(profile) {
-    return Engine.TitleManager.classesFor(profile);
+    const base = Engine.TitleManager.classesFor(profile);
+    const fx = profile && TITLE_FX[profile.activeTitle];
+    return fx ? base + ' ' + fx.text : base;
+  },
+
+  // Condensed title aura on the battle hero banner during combat.
+  // Change-detected on activeTitle so class churn happens only when the
+  // title actually changes, not on every 250ms battle tick.
+  syncCombatTitleFx(state) {
+    const fx = state && TITLE_FX[state.activeTitle];
+    const key = fx ? state.activeTitle : '';
+    if (key === this._lastTitleFxKey) return;
+    this._lastTitleFxKey = key;
+    const panel = this._battlePanel || (this._battlePanel = document.querySelector('#tab-battle .hero-panel'));
+    if (!panel) return;
+    if (this._lastBannerCls) panel.classList.remove(this._lastBannerCls);
+    this._lastBannerCls = '';
+    if (fx) { panel.classList.add(fx.banner); this._lastBannerCls = fx.banner; }
   },
 
   // Returns the local player's display name, HTML-escaped and wrapped
@@ -3340,7 +3373,7 @@ export const UI = {
       const dot = m.online ? '🟢' : '⚪';
       const crown = m.isLeader ? ' 👑' : '';
       const flag = (Engine.countryFlag && Engine.countryFlag(m.country)) || '';
-      const mTitleCls = m.activeTitle ? Engine.TitleManager.classesFor({ activeTitle: m.activeTitle }) : '';
+      const mTitleCls = this.titleClsFor({ activeTitle: m.activeTitle });
       const title = m.activeTitle ? `<div class="mp-title ${mTitleCls}">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
       const mIsMe = String(m.username) === me;
       const kick = (isLeader && !mIsMe)
