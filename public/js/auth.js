@@ -17,13 +17,20 @@ export const Auth = {
     if (this._bound) return;
     this._bound = true;
 
-    const tabLogin = document.getElementById('auth-tab-login');
-    const tabRegister = document.getElementById('auth-tab-register');
-    const loginForm = document.getElementById('login-form');
-    const registerForm = document.getElementById('register-form');
-    const errBox = document.getElementById('auth-error');
+    // Null-safe DOM helpers: a missing auth node must degrade to an unwired
+    // (but non-crashing) screen — a throw here bricks login entirely.
+    const $id = (id) => document.getElementById(id) || null;
+    const val = (id) => { const el = $id(id); return el ? String(el.value || '') : ''; };
+    const on = (id, evt, fn) => { const el = $id(id); if (el) el.addEventListener(evt, fn); };
+
+    const tabLogin = $id('auth-tab-login');
+    const tabRegister = $id('auth-tab-register');
+    const loginForm = $id('login-form');
+    const registerForm = $id('register-form');
+    const errBox = $id('auth-error');
 
     const showError = (msg) => {
+      if (!errBox) return;
       errBox.textContent = msg || '';
       errBox.classList.toggle('hidden', !msg);
     };
@@ -36,20 +43,20 @@ export const Auth = {
 
     const switchTab = (which) => {
       const isLogin = which === 'login';
-      tabLogin.classList.toggle('active', isLogin);
-      tabRegister.classList.toggle('active', !isLogin);
-      loginForm.classList.toggle('hidden', !isLogin);
-      registerForm.classList.toggle('hidden', isLogin);
+      if (tabLogin) tabLogin.classList.toggle('active', isLogin);
+      if (tabRegister) tabRegister.classList.toggle('active', !isLogin);
+      if (loginForm) loginForm.classList.toggle('hidden', !isLogin);
+      if (registerForm) registerForm.classList.toggle('hidden', isLogin);
       showError('');
     };
-    tabLogin.addEventListener('click', () => switchTab('login'));
-    tabRegister.addEventListener('click', () => switchTab('register'));
+    on('auth-tab-login', 'click', () => switchTab('login'));
+    on('auth-tab-register', 'click', () => switchTab('register'));
 
-    loginForm.addEventListener('submit', async (e) => {
+    if (loginForm) loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       showError('');
-      const username = document.getElementById('login-username').value.trim();
-      const password = document.getElementById('login-password').value;
+      const username = val('login-username').trim();
+      const password = val('login-password');
       if (!username || !password) return showError('Enter your username and password.');
       setBusy(true);
       try {
@@ -62,12 +69,12 @@ export const Auth = {
       }
     });
 
-    registerForm.addEventListener('submit', async (e) => {
+    if (registerForm) registerForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       showError('');
-      const username = document.getElementById('reg-username').value.trim();
-      const password = document.getElementById('reg-password').value;
-      const confirm = document.getElementById('reg-password2').value;
+      const username = val('reg-username').trim();
+      const password = val('reg-password');
+      const confirm = val('reg-password2');
       if (!/^[A-Za-z0-9_]{3,20}$/.test(username)) {
         return showError('Username: 3–20 chars, letters/numbers/underscore.');
       }
@@ -86,30 +93,31 @@ export const Auth = {
 
     // ---------------- guest mode ----------------
     // Guests play locally with no account: zero server calls.
-    const guestNameInput = document.getElementById('guest-name');
-    const guestStart = document.getElementById('guest-start');
-    const guestContinue = document.getElementById('guest-continue');
+    const guestNameInput = $id('guest-name');
+    const guestStart = $id('guest-start');
+    const guestContinue = $id('guest-continue');
     const startGuest = (name) => {
       this.onGuest && this.onGuest(sanitizeGuestName(name));
     };
     const existing = loadGuest();
     if (existing) {
-      document.getElementById('guest-continue-name').textContent = existing.name;
-      guestContinue.classList.remove('hidden');
-      guestStart.classList.add('hidden');
-      document.getElementById('guest-continue-btn').addEventListener('click', () => {
+      const contName = $id('guest-continue-name');
+      if (contName) contName.textContent = existing.name;
+      if (guestContinue) guestContinue.classList.remove('hidden');
+      if (guestStart) guestStart.classList.add('hidden');
+      on('guest-continue-btn', 'click', () => {
         startGuest(existing.name);
       });
-      document.getElementById('guest-fresh-btn').addEventListener('click', () => {
+      on('guest-fresh-btn', 'click', () => {
         clearGuest();
-        guestContinue.classList.add('hidden');
-        guestStart.classList.remove('hidden');
+        if (guestContinue) guestContinue.classList.add('hidden');
+        if (guestStart) guestStart.classList.remove('hidden');
       });
     }
-    document.getElementById('guest-play-btn').addEventListener('click', () => {
-      startGuest(guestNameInput.value);
+    on('guest-play-btn', 'click', () => {
+      startGuest(guestNameInput ? guestNameInput.value : '');
     });
-    guestNameInput.addEventListener('keydown', (e) => {
+    if (guestNameInput) guestNameInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') startGuest(guestNameInput.value);
     });
   },
