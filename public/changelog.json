@@ -1,5 +1,28 @@
 [
   {
+    "date": "2026-09-30",
+    "title": "💀 Necromancer & 🩸 Berserker — new hero classes",
+    "changes": [
+      "✨ 2 new hero classes join the roster: 💀 Necromancer (+15% attack, +10% crit damage, −10% max HP) and 🩸 Berserker (+30% attack, +10% attack speed, −15% defense)",
+      "Both appear in character creation alongside Hunter, Warrior, Mage, and Assassin"
+    ]
+  },
+  {
+    "date": "2026-09-30",
+    "title": "🐛 Pet selling fixed",
+    "changes": [
+      "🐛 Fixed sold pets staying visible in the Pets tab — the tab now refreshes correctly after every sale",
+      "Sales were always going through (gold was added); only the display was stuck"
+    ]
+  },
+  {
+    "date": "2026-09-30",
+    "title": "👑 Throne of Shadows",
+    "changes": [
+      "🔧 The game is now officially Throne of Shadows — new name, same game, live at throne-of-shadows.onrender.com"
+    ]
+  },
+  {
     "date": "2026-09-28",
     "title": "🌀 Rebirth replaces Prestige · Hunters field 2 pets",
     "changes": [
