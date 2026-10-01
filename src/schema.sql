@@ -212,3 +212,30 @@ CREATE TABLE IF NOT EXISTS ideas (
 );
 CREATE INDEX IF NOT EXISTS ideas_status_idx ON ideas (status);
 CREATE INDEX IF NOT EXISTS ideas_created_idx ON ideas (created_at DESC);
+
+-- Staff social page (/social.html): owner/admin-only profiles + posts feed.
+-- avatars and media are data URLs (pictures only for now); post rows snapshot
+-- the author's name/avatar/accent so old posts keep their history.
+CREATE TABLE IF NOT EXISTS staff_profiles (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  username TEXT NOT NULL,
+  display_name TEXT NOT NULL DEFAULT '',
+  bio TEXT NOT NULL DEFAULT '',
+  avatar TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT '',
+  accent TEXT NOT NULL DEFAULT 'gold',
+  updated_at BIGINT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS social_posts (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  username TEXT NOT NULL,
+  display_name TEXT NOT NULL DEFAULT '',
+  avatar TEXT NOT NULL DEFAULT '',
+  accent TEXT NOT NULL DEFAULT 'gold',
+  role TEXT NOT NULL DEFAULT '',
+  body TEXT NOT NULL DEFAULT '',
+  media TEXT NOT NULL DEFAULT '[]',
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS social_posts_created_idx ON social_posts (created_at DESC);
