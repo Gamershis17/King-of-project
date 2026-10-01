@@ -1,12 +1,7 @@
-// /report.html — staff-only feedback inbox + Discord link for players.
 (function () {
-  var signinPane = document.getElementById('signin-pane');
-  var deniedPane = document.getElementById('denied-pane');
-  var inboxPane = document.getElementById('inbox-pane');
-  var signinErr = document.getElementById('signin-err');
-  var inboxErr = document.getElementById('inbox-err');
-
-  var REPORT_STATUSES = ['new', 'reviewing', 'fixed', 'closed'];
+  var kind = 'bug';
+  var kindBug = document.getElementById('kind-bug');
+  var kindFb = document.getElementById('kind-feedback');
 
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin',
@@ -26,97 +21,96 @@
     } catch (e) { return ''; }
   }
 
-  function showOnly(el) {
-    [signinPane, deniedPane, inboxPane].forEach(function (p) {
-      p.classList.toggle('hidden', p !== el);
-    });
-  }
+  kindBug.addEventListener('click', function () {
+    kind = 'bug';
+    kindBug.classList.add('active'); kindFb.classList.remove('active');
+  });
+  kindFb.addEventListener('click', function () {
+    kind = 'feedback';
+    kindFb.classList.add('active'); kindBug.classList.remove('active');
+  });
 
-  function statusOptions(cur) {
-    return REPORT_STATUSES.map(function (s) {
-      return '<option value="' + s + '"' + (s === cur ? ' selected' : '') + '>' + s + '</option>';
+  function renderMine(reports) {
+    var list = document.getElementById('mine-list');
+    if (!reports.length) {
+      list.innerHTML = '<div class="empty">No reports yet — yours will show up here.</div>';
+      return;
+    }
+    list.innerHTML = reports.map(function (r) {
+      var updated = (r.updated_at && r.updated_at !== r.created_at)
+        ? ' · updated ' + fmtTs(r.updated_at) : '';
+      return '<div class="rep">' +
+        '<div class="rep-head"><span class="rep-title">' + esc(r.title) + '</span>' +
+        '<span class="badge st-' + esc(r.status) + '">' + esc(r.status) + '</span></div>' +
+        '<div class="rep-kind">' + (r.kind === 'bug' ? '🐞 Bug' : '💬 Feedback') + '</div>' +
+        '<div class="rep-body">' + esc(r.body) + '</div>' +
+        '<div class="rep-ts">Sent ' + fmtTs(r.created_at) + updated + '</div>' +
+        '</div>';
     }).join('');
   }
 
-  function loadFeedback() {
-    api('/api/gm/reports?kind=feedback').then(function (r) { return r.json(); }).then(function (j) {
-      var reports = (j && j.ok && j.reports) || [];
-      var open = reports.filter(function (r) { return r.status === 'new' || r.status === 'reviewing'; }).length;
-      document.getElementById('fb-count').textContent = open ? '(' + open + ' open)' : '';
-      var list = document.getElementById('feedback-list');
-      if (!reports.length) { list.innerHTML = '<div class="empty">No feedback yet.</div>'; return; }
-      list.innerHTML = reports.map(function (r) {
-        var updated = (r.updated_at && r.updated_at !== r.created_at)
-          ? ' · status changed ' + fmtTs(r.updated_at) : '';
-        return '<div class="rep" data-id="' + r.id + '">' +
-          '<div class="rep-head"><span class="rep-title">' + esc(r.title) + '</span>' +
-          '<span class="badge st-' + esc(r.status) + '">' + esc(r.status) + '</span></div>' +
-          '<div class="rep-body">' + esc(r.body) + '</div>' +
-          '<div class="rep-meta">from <b>' + esc(r.username) + '</b> · sent ' + fmtTs(r.created_at) + updated + '</div>' +
-          '<div class="rep-actions"><label>Status:</label>' +
-          '<select class="rep-status">' + statusOptions(r.status) + '</select></div>' +
-          '</div>';
-      }).join('');
-      Array.prototype.forEach.call(list.querySelectorAll('.rep'), function (card) {
-        card.querySelector('.rep-status').addEventListener('change', function () {
-          inboxErr.textContent = '';
-          api('/api/gm/reports/' + card.dataset.id, {
-            method: 'PATCH', body: JSON.stringify({ status: this.value })
-          }).then(function (r) { return r.json().then(function (jj) { return { ok: r.ok, j: jj }; }); })
-            .then(function (res) {
-              if (!res.ok) { inboxErr.textContent = (res.j && res.j.error) || 'Update failed.'; }
-              loadFeedback();
-            })
-            .catch(function () { inboxErr.textContent = 'Could not reach server.'; });
-        });
-      });
-    }).catch(function () { inboxErr.textContent = 'Could not load feedback.'; });
+  function loadMine() {
+    api('/api/report/mine').then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.ok) renderMine(j.reports || []);
+    }).catch(function () {});
   }
 
-  function enterInbox(username, role) {
-    document.getElementById('who').textContent = 'Signed in as ' + username + ' (' + role + ')';
-    showOnly(inboxPane);
-    loadFeedback();
+  document.getElementById('send-btn').addEventListener('click', function () {
+    var errEl = document.getElementById('form-err');
+    var okEl = document.getElementById('form-ok');
+    errEl.textContent = ''; okEl.textContent = '';
+    var title = document.getElementById('f-title').value.trim();
+    var body = document.getElementById('f-body').value.trim();
+    if (!title) { errEl.textContent = 'Give your report a title.'; return; }
+    if (!body) { errEl.textContent = 'Add some details.'; return; }
+    var btn = this; btn.disabled = true;
+    api('/api/report', { method: 'POST', body: JSON.stringify({ kind: kind, title: title, body: body }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { errEl.textContent = (res.j && res.j.error) || 'Could not send.'; return; }
+        document.getElementById('f-title').value = '';
+        document.getElementById('f-body').value = '';
+        okEl.textContent = 'Report sent — thank you!';
+        loadMine();
+      })
+      .catch(function () { btn.disabled = false; errEl.textContent = 'Could not reach server.'; });
+  });
+
+  // Signed-in players only. The game and this page share the same session.
+  function showForm(username) {
+    document.getElementById('who').textContent = 'Signed in as ' + username;
+    document.getElementById('signin-pane').classList.add('hidden');
+    document.getElementById('form-pane').classList.remove('hidden');
+    loadMine();
   }
 
   document.getElementById('signin-btn').addEventListener('click', function () {
-    signinErr.textContent = '';
+    var errEl = document.getElementById('signin-err');
+    errEl.textContent = '';
     var u = document.getElementById('ru').value.trim();
     var p = document.getElementById('rp').value;
-    if (!u || !p) { signinErr.textContent = 'Enter username and password.'; return; }
+    if (!u || !p) { errEl.textContent = 'Enter username and password.'; return; }
     var btn = this; btn.disabled = true;
     api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) })
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         btn.disabled = false;
-        if (!res.ok) { signinErr.textContent = (res.j && res.j.error) || 'Sign-in failed.'; return; }
-        return api('/api/auth/me').then(function (r) { return r.json(); }).then(function (me) {
-          var role = me && me.user && me.user.role;
-          if (role !== 'owner' && role !== 'admin') {
-            // Signed in, but not staff: show the players-only view.
-            document.getElementById('denied-who').textContent =
-              'Signed in as ' + (me.user.username || u) + ' (player)';
-            showOnly(deniedPane);
-            return;
-          }
-          enterInbox(me.user.username || u, role);
-        });
+        if (!res.ok || !res.j || !res.j.user) {
+          errEl.textContent = (res.j && res.j.error) || 'Sign-in failed.';
+          return;
+        }
+        showForm(res.j.user.username || u);
       })
-      .catch(function () { btn.disabled = false; signinErr.textContent = 'Could not reach server.'; });
+      .catch(function () { btn.disabled = false; errEl.textContent = 'Could not reach server.'; });
   });
   document.getElementById('rp').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') document.getElementById('signin-btn').click();
   });
 
-  // Route on load: staff -> inbox, signed-in player -> denied view, signed out -> staff sign-in.
   api('/api/auth/me').then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
-    var role = me && me.user && me.user.role;
-    if (role === 'owner' || role === 'admin') { enterInbox(me.user.username || '', role); return; }
     if (me && me.user) {
-      document.getElementById('denied-who').textContent =
-        'Signed in as ' + (me.user.username || '') + ' (player)';
-      showOnly(deniedPane);
+      showForm(me.user.username);
     }
-    // else: signed out — staff sign-in form stays visible.
   }).catch(function () {});
 })();
