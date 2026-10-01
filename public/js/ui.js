@@ -855,6 +855,42 @@ export const UI = {
     }
   },
 
+  // Pre-update warning banner (slim, gold). Set from /staff.html before a
+  // deploy; the server drops it on its own once the new commit is live.
+  setUpdateBanner(message) {
+    const el = document.getElementById('update-banner');
+    if (!el) return;
+    if (message) {
+      el.textContent = '⚠️ ' + message;
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  },
+
+  // A new deploy is live: count down, then reload to the fresh version.
+  // The player can also refresh immediately; the timer keeps running.
+  showUpdateRefresh(seconds) {
+    let ov = document.getElementById('update-refresh');
+    if (!ov) return;
+    const num = ov.querySelector('.update-refresh-num');
+    const btn = ov.querySelector('.update-refresh-now');
+    let left = seconds;
+    const tick = () => {
+      if (num) num.textContent = String(Math.max(0, left));
+      if (left <= 0) { location.reload(); return; }
+      left -= 1;
+      ov._timer = setTimeout(tick, 1000);
+    };
+    if (btn && !btn.dataset.wired) {
+      btn.dataset.wired = '1';
+      btn.addEventListener('click', () => location.reload());
+    }
+    if (ov._timer) clearTimeout(ov._timer);
+    ov.classList.remove('hidden');
+    tick();
+  },
+
   showTab(name) {
     this.activeTab = name;
     if (name !== 'quests') { this._stopQuestCountdowns(); this._stopQuestSync(); }

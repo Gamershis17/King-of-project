@@ -87,21 +87,75 @@ function enterMaintenanceLoop() {
 }
 
 // While playing, poll for maintenance so a mid-session window shows a
-// banner and pauses autosaves instead of failing silently.
+// banner and pauses autosaves instead of failing silently. The same poll
+// carries the pre-update warning banner and the deploy version check: when
+// the server's commit changes, the game refreshes itself so nobody plays
+// on stale code.
 async function pollMaintenance() {
   if (!App.state) return;
   try {
     const st = await api.status();
+    // Scheduled maintenance: tick a countdown banner; at zero the server
+    // reports maintenance live and the maintenance page takes over.
+    if (!st.maintenance && st.maintenanceIn != null && st.maintenanceIn > 0) {
+      startMaintenanceCountdown(st.maintenanceIn);
+    } else {
+      stopMaintenanceCountdown();
+    }
     if (st.maintenance && !App.maintenanceMode) {
       App.maintenanceMode = true;
-      UI.setMaintenanceBanner(st.message || 'Server maintenance is starting — your progress is safe, saves paused.');
+      stopMaintenanceCountdown();
+      UI.setMaintenanceBanner(null);
+      try { saveNow(true); } catch { /* reload carries the last autosave */ }
+      UI.showMaintenance(st.message || 'The server is down for maintenance. Your progress is safe.');
     } else if (!st.maintenance && App.maintenanceMode) {
       App.maintenanceMode = false;
-      UI.setMaintenanceBanner(null);
-      UI.toast('Maintenance complete — saves resumed.', 'success');
-      saveNow();
+      // Back up — reboot cleanly, same as the boot-time maintenance loop.
+      location.reload();
+    }
+    // Pre-update warning (set from /staff.html before a deploy goes out).
+    UI.setUpdateBanner(st.updateNotice && st.updateNotice.message ? st.updateNotice.message : null);
+    // New deploy live → refresh to the new version after a short countdown.
+    if (st.commit) {
+      if (!App.bootCommit) App.bootCommit = st.commit;
+      else if (st.commit !== App.bootCommit && !App.updateReloading) {
+        App.updateReloading = true;
+        try { saveNow(); } catch { /* reload carries the last autosave */ }
+        UI.showUpdateRefresh(10);
+      }
     }
   } catch { /* unreachable — the save-failure toast already covers outages */ }
+}
+
+// Per-second maintenance countdown banner. The server timestamp is the
+// source of truth; this just renders the ticking display between polls.
+function startMaintenanceCountdown(seconds) {
+  const deadline = Date.now() + seconds * 1000;
+  if (!App.maintenanceCountdown) {
+    App.maintenanceCountdown = { deadline, timer: setInterval(tickMaintenanceCountdown, 1000) };
+  } else if (Math.abs(App.maintenanceCountdown.deadline - deadline) > 90000) {
+    App.maintenanceCountdown.deadline = deadline; // staff rescheduled
+  }
+  tickMaintenanceCountdown();
+}
+function tickMaintenanceCountdown() {
+  const cd = App.maintenanceCountdown;
+  if (!cd) return;
+  const left = Math.max(0, Math.ceil((cd.deadline - Date.now()) / 1000));
+  if (left <= 0) {
+    stopMaintenanceCountdown();
+    pollMaintenance(); // re-check immediately so the page takes over
+    return;
+  }
+  const mm = Math.floor(left / 60);
+  const ss = String(left % 60).padStart(2, '0');
+  UI.setMaintenanceBanner(`Maintenance in ${mm}:${ss} — finish up, your progress is safe.`);
+}
+function stopMaintenanceCountdown() {
+  if (App.maintenanceCountdown) {
+    clearInterval(App.maintenanceCountdown.timer);
+    App.maintenanceCountdown = null;
+  }
 }
 
 // ---------------- boot ----------------
