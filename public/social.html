@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Staff Social — Throne of Shadows</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0a14; color: #e8dfd0;
+    font-family: Georgia, 'Times New Roman', serif;
+    min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    width: 100%; max-width: 560px; background: #171224;
+    border: 1px solid #3a2f52; border-radius: 12px; padding: 28px 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6); margin-top: 4vh; margin-bottom: 4vh;
+  }
+  .logo-link { display: block; width: 76px; margin: 0 auto 10px; }
+  .game-logo { display: block; width: 76px; height: 76px; object-fit: cover;
+    border-radius: 20px; border: 1px solid rgba(240,199,94,.35);
+    box-shadow: 0 4px 18px rgba(0,0,0,.5); }
+  .logo-link:active .game-logo { transform: scale(.95); }
+  h1 { text-align: center; font-size: 20px; color: #f0c75e; margin-bottom: 4px; letter-spacing: .5px; }
+  .sub { text-align: center; color: #9a8fb5; font-size: 13px; margin-bottom: 20px; }
+  .who { text-align: center; color: #9a8fb5; font-size: 12px; margin-bottom: 12px; }
+  label { display: block; font-size: 13px; color: #b7abd4; margin: 12px 0 6px; }
+  input, textarea {
+    width: 100%; padding: 12px; border-radius: 8px; font-size: 16px; font-family: inherit;
+    background: #0d0a14; border: 1px solid #3a2f52; color: #e8dfd0;
+  }
+  input:focus, textarea:focus { outline: none; border-color: #f0c75e; }
+  textarea { min-height: 90px; resize: vertical; }
+  button.submit {
+    width: 100%; padding: 14px; margin-top: 18px; border: none; border-radius: 8px;
+    font-size: 16px; font-family: inherit; cursor: pointer; font-weight: bold;
+    background: linear-gradient(180deg, #f0c75e, #c9962e); color: #231a08;
+  }
+  button.submit:disabled { opacity: .5; cursor: default; }
+  button.ghost {
+    padding: 10px 16px; border-radius: 8px; font-size: 14px; font-family: inherit; cursor: pointer;
+    background: transparent; border: 1px solid #3a2f52; color: #b7abd4;
+  }
+  button.ghost:active { transform: scale(.97); }
+  .err { color: #ff8a8a; font-size: 14px; margin-top: 12px; text-align: center; min-height: 20px; }
+  .hidden { display: none !important; }
+  .back { display: block; text-align: center; margin-top: 16px; color: #9a8fb5; font-size: 13px; text-decoration: none; }
+  h2 { font-size: 16px; color: #f0c75e; margin: 26px 0 10px; letter-spacing: .5px; }
+
+  /* profile */
+  .profile { display: flex; gap: 14px; align-items: center; background: #0d0a14;
+    border: 1px solid #3a2f52; border-radius: 12px; padding: 14px; margin-bottom: 6px; }
+  .avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+    border: 2px solid #f0c75e; background: #231a08; }
+  .avatar.sm { width: 40px; height: 40px; border-width: 1px; }
+  .p-info { flex: 1; min-width: 0; }
+  .p-name { font-weight: bold; font-size: 16px; }
+  .p-role { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #f0c75e;
+    border: 1px solid rgba(240,199,94,.5); border-radius: 999px; padding: 1px 8px; margin-left: 8px; }
+  .p-bio { font-size: 13px; color: #9a8fb5; margin-top: 4px; white-space: pre-wrap; word-break: break-word; }
+  .p-status { font-size: 12px; font-style: italic; color: var(--ac, #f0c75e); margin-top: 2px; }
+  .accent-gold { --ac: #f0c75e; } .accent-purple { --ac: #b48cff; }
+  .accent-blue { --ac: #6cb2ff; } .accent-green { --ac: #7ddf8a; }
+  .accent-red { --ac: #ff7b7b; }
+  .avatar { border-color: var(--ac, #f0c75e); }
+  .accent-row { display: flex; gap: 10px; margin-top: 8px; }
+  .accent-dot { width: 34px; height: 34px; border-radius: 50%; background: var(--ac);
+    border: 2px solid transparent; cursor: pointer; padding: 0; }
+  .accent-dot.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--ac); }
+
+  /* composer */
+  .composer { background: #0d0a14; border: 1px solid #3a2f52; border-radius: 12px; padding: 14px; }
+  .previews { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .preview { position: relative; width: 76px; height: 76px; }
+  .preview img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; border: 1px solid #3a2f52; }
+  .preview button {
+    position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%;
+    border: none; background: #ff8a8a; color: #231a08; font-weight: bold; cursor: pointer; font-size: 14px; line-height: 1;
+  }
+  .composer-row { display: flex; gap: 10px; margin-top: 10px; }
+  .composer-row .submit { margin-top: 0; flex: 1; }
+
+  /* feed */
+  .post { background: #0d0a14; border: 1px solid #3a2f52; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+  .post-head { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .post-head .p-info { flex: 1; }
+  .post-ts { font-size: 11px; color: #7a7094; }
+  .post-body { font-size: 14px; color: #e8dfd0; white-space: pre-wrap; word-break: break-word; margin-bottom: 10px; }
+  .post-media { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .post-media img { width: 100%; border-radius: 8px; border: 1px solid #3a2f52; display: block; }
+  .post-media.single { grid-template-columns: 1fr; }
+  .post-del { background: none; border: none; color: #7a7094; font-size: 12px; cursor: pointer; padding: 4px; }
+  .empty { color: #7a7094; font-size: 13px; text-align: center; padding: 12px; }
+  .file-label { display: inline-block; padding: 10px 16px; border-radius: 8px; font-size: 14px;
+    cursor: pointer; background: transparent; border: 1px dashed #3a2f52; color: #b7abd4; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <a class="logo-link" href="/" title="Back to game"><img class="game-logo" src="img/icon-shadow-crown.webp" alt="Throne of Shadows"></a>
+  <h1>Staff Social</h1>
+  <p class="sub">Owners &amp; admins only.</p>
+
+  <div id="signin-pane">
+    <p class="sub">Staff sign-in (owners &amp; admins).</p>
+    <label for="su">Username</label>
+    <input id="su" type="text" autocomplete="username" autocapitalize="none">
+    <label for="sp">Password</label>
+    <input id="sp" type="password" autocomplete="current-password">
+    <button class="submit" id="signin-btn" style="margin-top:14px">Sign in</button>
+    <div class="err" id="signin-err"></div>
+  </div>
+
+  <div id="denied-pane" class="hidden">
+    <div class="who" id="denied-who"></div>
+    <p class="sub">This page is for owners and admins only.</p>
+  </div>
+
+  <div id="main-pane" class="hidden">
+    <div class="who" id="who"></div>
+
+    <h2>Your profile</h2>
+    <div class="profile">
+      <img class="avatar" id="p-avatar" alt="Profile avatar">
+      <div class="p-info">
+        <div><span class="p-name" id="p-name"></span><span class="p-role" id="p-role"></span></div>
+        <div class="p-status" id="p-status"></div>
+        <div class="p-bio" id="p-bio"></div>
+      </div>
+      <button class="ghost" id="edit-profile-btn">⚙ Settings</button>
+    </div>
+
+    <div id="profile-editor" class="hidden">
+      <h3 style="margin:0 0 8px">Profile settings</h3>
+      <label>Avatar picture</label>
+      <div style="display:flex;gap:12px;align-items:center">
+        <img class="avatar" id="pe-avatar-preview" alt="Avatar preview">
+        <label class="file-label" for="pe-avatar">Choose picture</label>
+        <input type="file" id="pe-avatar" accept="image/*">
+      </div>
+      <label for="pe-name">Display name</label>
+      <input id="pe-name" type="text" maxlength="40">
+      <label for="pe-status">Status</label>
+      <input id="pe-status" type="text" maxlength="60" placeholder="e.g. On duty — ask me anything">
+      <label for="pe-bio">Bio</label>
+      <textarea id="pe-bio" maxlength="200" style="min-height:70px"></textarea>
+      <label>Accent color</label>
+      <div class="accent-row" id="pe-accents">
+        <button type="button" class="accent-dot accent-gold" data-accent="gold" title="Gold"></button>
+        <button type="button" class="accent-dot accent-purple" data-accent="purple" title="Purple"></button>
+        <button type="button" class="accent-dot accent-blue" data-accent="blue" title="Blue"></button>
+        <button type="button" class="accent-dot accent-green" data-accent="green" title="Green"></button>
+        <button type="button" class="accent-dot accent-red" data-accent="red" title="Red"></button>
+      </div>
+      <div class="composer-row">
+        <button class="submit" id="save-profile-btn">Save profile</button>
+        <button class="ghost" id="cancel-profile-btn">Cancel</button>
+      </div>
+      <div class="err" id="profile-err"></div>
+    </div>
+
+    <h2>New post</h2>
+    <div class="composer">
+      <textarea id="post-body" maxlength="2000" placeholder="Share an update with the team…"></textarea>
+      <div class="previews" id="post-previews"></div>
+      <div class="composer-row">
+        <label class="file-label" for="post-files">📷 Add pictures</label>
+        <input type="file" id="post-files" accept="image/*" multiple>
+        <button class="submit" id="post-btn">Post</button>
+      </div>
+      <div class="err" id="post-err"></div>
+    </div>
+
+    <h2>Feed</h2>
+    <div id="feed"><div class="empty">Loading…</div></div>
+  </div>
+
+  <a class="back" href="/">← Back to game</a>
+</div>
+
+<script src="js/social.js?v=20261001c"></script>
+</body>
+</html>
