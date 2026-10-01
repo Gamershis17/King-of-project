@@ -1,14 +1,20 @@
-// /social.html — staff-only social feed: profiles, posts, pictures.
+// /social.html — community social feed for all players: profiles, posts, pictures.
 (function () {
-  var signinPane = document.getElementById('signin-pane');
-  var deniedPane = document.getElementById('denied-pane');
-  var mainPane = document.getElementById('main-pane');
+  var signinView = document.getElementById('signin-view');
+  var mainView = document.getElementById('main-view');
   var signinErr = document.getElementById('signin-err');
 
   var myUsername = '';
   var myRole = '';
+  var myDisplayName = '';
+  var myAvatar = '';
   var postMedia = [];   // data URLs attached to the composer
   var newAvatar = null; // data URL picked in the profile editor (null = unchanged)
+  var feedFilter = 'all'; // 'all' | 'staff'
+  var cachedPosts = [];
+
+  var STAFF_ROLES = ['owner', 'admin', 'gm', 'moderator'];
+  var STAFF_BADGE = { owner: '👑', admin: '🛡️', gm: '⚔️', moderator: '🔨' };
 
   function api(path, opts) {
     return fetch(path, Object.assign({ credentials: 'same-origin',
@@ -27,14 +33,15 @@
       });
     } catch (e) { return ''; }
   }
-  function showOnly(el) {
-    [signinPane, deniedPane, mainPane].forEach(function (p) {
-      p.classList.toggle('hidden', p !== el);
-    });
-  }
   function avatarHtml(url, cls) {
     if (url) return '<img class="' + cls + '" src="' + url + '" alt="">';
-    return '<div class="' + cls + '" style="display:flex;align-items:center;justify-content:center;font-size:28px">🛡️</div>';
+    return '<div class="' + cls + '" style="display:flex;align-items:center;justify-content:center;font-size:24px">🛡️</div>';
+  }
+  function staffBadge(role) {
+    if (STAFF_BADGE[role]) {
+      return '<span class="staff-badge sb-' + esc(role) + '">' + STAFF_BADGE[role] + ' ' + esc(role) + '</span>';
+    }
+    return '';
   }
 
   // Shrink a picked picture in the browser so uploads stay small.
@@ -65,10 +72,13 @@
   // ---------- profile ----------
   function renderProfile(p) {
     var ac = accentClass(p.accent);
-    document.getElementById('p-avatar').outerHTML =
-      avatarHtml(p.avatar, 'avatar ' + ac).replace('class="avatar ', 'id="p-avatar" class="avatar ');
-    document.getElementById('p-name').textContent = p.display_name || p.username;
+    myDisplayName = p.display_name || p.username;
+    myAvatar = p.avatar || '';
+    document.getElementById('p-avatar-slot').innerHTML = avatarHtml(p.avatar, 'avatar ' + ac);
+    document.getElementById('c-avatar-slot').innerHTML = avatarHtml(p.avatar, 'avatar sm ' + ac);
+    document.getElementById('p-name').textContent = myDisplayName;
     document.getElementById('p-role').textContent = myRole;
+    document.getElementById('composer-pill').textContent = "What's on your mind, " + myDisplayName + '?';
     var st = document.getElementById('p-status');
     st.textContent = p.status || '';
     st.style.display = p.status ? '' : 'none';
@@ -85,8 +95,7 @@
     api('/api/social/profile').then(function (r) { return r.json(); }).then(function (j) {
       if (!(j && j.ok)) return;
       var p = j.profile;
-      document.getElementById('pe-avatar-preview').outerHTML =
-        avatarHtml(p.avatar, 'avatar').replace('class="avatar"', 'id="pe-avatar-preview" class="avatar"');
+      document.getElementById('pe-avatar-slot').innerHTML = avatarHtml(p.avatar, 'avatar');
       document.getElementById('pe-name').value = p.display_name || '';
       document.getElementById('pe-status').value = p.status || '';
       document.getElementById('pe-bio').value = p.bio || '';
@@ -99,8 +108,7 @@
     if (!f) return;
     resizeImage(f, 256, 0.85).then(function (url) {
       newAvatar = url;
-      document.getElementById('pe-avatar-preview').outerHTML =
-        avatarHtml(url, 'avatar').replace('class="avatar"', 'id="pe-avatar-preview" class="avatar"');
+      document.getElementById('pe-avatar-slot').innerHTML = avatarHtml(url, 'avatar');
     }).catch(function () {
       document.getElementById('profile-err').textContent = 'That picture could not be read.';
     });
@@ -144,6 +152,10 @@
   });
 
   // ---------- composer ----------
+  document.getElementById('composer-pill').addEventListener('click', function () {
+    document.getElementById('composer-body').classList.remove('hidden');
+    document.getElementById('post-body').focus();
+  });
   function renderPreviews() {
     var box = document.getElementById('post-previews');
     box.innerHTML = '';
@@ -188,49 +200,73 @@
   });
 
   // ---------- feed ----------
+  function renderFeed() {
+    var posts = cachedPosts;
+    if (feedFilter === 'staff') {
+      posts = posts.filter(function (p) { return STAFF_ROLES.indexOf(p.role) >= 0; });
+    }
+    var feed = document.getElementById('feed');
+    if (!posts.length) {
+      feed.innerHTML = '<div class="empty">' +
+        (feedFilter === 'staff' ? 'No staff updates yet.' : 'No posts yet — say hi to everyone!') + '</div>';
+      return;
+    }
+    feed.innerHTML = posts.map(function (p) {
+      var media = (p.media || []).map(function (m) {
+        return '<img src="' + m + '" alt="" loading="lazy">';
+      }).join('');
+      var canDel = (p.username === myUsername) || (myRole === 'owner') || (myRole === 'admin');
+      var ac = accentClass(p.accent);
+      var staffCls = p.role === 'owner' ? ' staff-owner' : (p.role === 'admin' ? ' staff-admin' : '');
+      return '<div class="post ' + ac + staffCls + '" data-id="' + p.id + '">' +
+        '<div class="post-head">' + avatarHtml(p.avatar, 'avatar sm ' + ac) +
+        '<div class="p-info"><div><span class="p-name" style="color:var(--ac)">' + esc(p.display_name || p.username) + '</span>' +
+        staffBadge(p.role) + '</div>' +
+        '<div class="post-ts">' + fmtTs(p.created_at) + '</div></div>' +
+        (canDel ? '<button class="post-del" type="button">Delete</button>' : '') +
+        '</div>' +
+        (p.body ? '<div class="post-body">' + esc(p.body) + '</div>' : '') +
+        (media ? '<div class="post-media' + (p.media.length === 1 ? ' single' : '') + '">' + media + '</div>' : '') +
+        '</div>';
+    }).join('');
+    Array.prototype.forEach.call(feed.querySelectorAll('.post'), function (card) {
+      var del = card.querySelector('.post-del');
+      if (!del) return;
+      del.addEventListener('click', function () {
+        if (!confirm('Delete this post?')) return;
+        api('/api/social/posts/' + card.dataset.id, { method: 'DELETE' })
+          .then(function (r) { return r.json(); })
+          .then(function () { loadFeed(); })
+          .catch(function () {});
+      });
+    });
+  }
   function loadFeed() {
     api('/api/social/posts').then(function (r) { return r.json(); }).then(function (j) {
-      var posts = (j && j.ok && j.posts) || [];
-      var feed = document.getElementById('feed');
-      if (!posts.length) { feed.innerHTML = '<div class="empty">No posts yet — say hi to the team!</div>'; return; }
-      feed.innerHTML = posts.map(function (p) {
-        var media = (p.media || []).map(function (m) {
-          return '<img src="' + m + '" alt="" loading="lazy">';
-        }).join('');
-        var canDel = (p.username === myUsername) || (myRole === 'owner');
-        var ac = accentClass(p.accent);
-        return '<div class="post ' + ac + '" data-id="' + p.id + '">' +
-          '<div class="post-head">' + avatarHtml(p.avatar, 'avatar sm ' + ac) +
-          '<div class="p-info"><div><span class="p-name ' + ac + '" style="color:var(--ac)">' + esc(p.display_name || p.username) + '</span>' +
-          '<span class="p-role">' + esc(p.role) + '</span></div>' +
-          '<div class="post-ts">' + fmtTs(p.created_at) + '</div></div>' +
-          (canDel ? '<button class="post-del" type="button">Delete</button>' : '') +
-          '</div>' +
-          (p.body ? '<div class="post-body">' + esc(p.body) + '</div>' : '') +
-          (media ? '<div class="post-media' + (p.media.length === 1 ? ' single' : '') + '">' + media + '</div>' : '') +
-          '</div>';
-      }).join('');
-      Array.prototype.forEach.call(feed.querySelectorAll('.post'), function (card) {
-        var del = card.querySelector('.post-del');
-        if (!del) return;
-        del.addEventListener('click', function () {
-          if (!confirm('Delete this post?')) return;
-          api('/api/social/posts/' + card.dataset.id, { method: 'DELETE' })
-            .then(function (r) { return r.json(); })
-            .then(function () { loadFeed(); })
-            .catch(function () {});
-        });
-      });
+      cachedPosts = (j && j.ok && j.posts) || [];
+      renderFeed();
     }).catch(function () {
       document.getElementById('feed').innerHTML = '<div class="empty">Could not load feed.</div>';
     });
   }
+  document.getElementById('filter-all').addEventListener('click', function () {
+    feedFilter = 'all';
+    document.getElementById('filter-all').classList.add('active');
+    document.getElementById('filter-staff').classList.remove('active');
+    renderFeed();
+  });
+  document.getElementById('filter-staff').addEventListener('click', function () {
+    feedFilter = 'staff';
+    document.getElementById('filter-staff').classList.add('active');
+    document.getElementById('filter-all').classList.remove('active');
+    renderFeed();
+  });
 
-  // ---------- sign-in (staff only) ----------
+  // ---------- sign-in (any signed-in player) ----------
   function enterMain(username, role) {
     myUsername = username; myRole = role;
-    document.getElementById('who').textContent = 'Signed in as ' + username + ' (' + role + ')';
-    showOnly(mainPane);
+    signinView.classList.add('hidden');
+    mainView.classList.remove('hidden');
     loadProfile();
     loadFeed();
   }
@@ -244,17 +280,11 @@
       .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) {
         btn.disabled = false;
-        if (!res.ok) { signinErr.textContent = (res.j && res.j.error) || 'Sign-in failed.'; return; }
-        return api('/api/auth/me').then(function (r) { return r.json(); }).then(function (me) {
-          var role = me && me.user && me.user.role;
-          if (role !== 'owner' && role !== 'admin') {
-            document.getElementById('denied-who').textContent =
-              'Signed in as ' + (me.user.username || u) + ' (player)';
-            showOnly(deniedPane);
-            return;
-          }
-          enterMain(me.user.username || u, role);
-        });
+        if (!res.ok || !res.j || !res.j.user) {
+          signinErr.textContent = (res.j && res.j.error) || 'Sign-in failed.';
+          return;
+        }
+        enterMain(res.j.user.username || u, res.j.user.role || 'player');
       })
       .catch(function () { btn.disabled = false; signinErr.textContent = 'Could not reach server.'; });
   });
@@ -263,12 +293,9 @@
   });
 
   api('/api/auth/me').then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
-    var role = me && me.user && me.user.role;
-    if (role === 'owner' || role === 'admin') { enterMain(me.user.username || '', role); return; }
-    if (me && me.user) {
-      document.getElementById('denied-who').textContent =
-        'Signed in as ' + (me.user.username || '') + ' (player)';
-      showOnly(deniedPane);
-    }
-  }).catch(function () {});
+    if (me && me.user) { enterMain(me.user.username || '', me.user.role || 'player'); return; }
+    signinView.classList.remove('hidden');
+  }).catch(function () {
+    signinView.classList.remove('hidden');
+  });
 })();
