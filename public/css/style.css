@@ -3251,7 +3251,12 @@ body[data-uistyle="modern"] #view-auth .auth-fantasy .auth-tab.active{
   padding: 1rem;
   text-align: center;
   margin-bottom: 0.8rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
+.mine-rock:active .node-rock { transform: scale(.93); }
+.mine-taphint { margin-top: 0.15rem; }
 .node-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.4rem; }
 .node-ore { font-weight: 800; font-size: 1.05rem; color: #ffd97a; text-shadow: 0 0 12px rgba(255,140,26,0.45); }
 .mine-depth { font-size: 0.95rem; color: var(--muted); }
