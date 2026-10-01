@@ -182,3 +182,33 @@ CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_uidx ON friendships (pair_key
 -- once per minute per user (see touchLastActive in src/db.js); the friends
 -- list treats "active within 5 minutes" as online.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_active BIGINT NOT NULL DEFAULT 0;
+
+-- Player bug reports + feedback (submitted from /report.html, reviewed on
+-- /staff.html). Timestamps are BIGINT epoch ms, same convention as elsewhere.
+CREATE TABLE IF NOT EXISTS reports (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  username TEXT NOT NULL,
+  kind TEXT NOT NULL,            -- 'bug' | 'feedback'
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'new',  -- 'new' | 'reviewing' | 'fixed' | 'closed'
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS reports_status_idx ON reports (status);
+CREATE INDEX IF NOT EXISTS reports_created_idx ON reports (created_at DESC);
+
+-- Staff idea board (owner/admin brainstorming on /staff.html).
+CREATE TABLE IF NOT EXISTS ideas (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  username TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open',  -- 'open' | 'planned' | 'done' | 'dropped'
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ideas_status_idx ON ideas (status);
+CREATE INDEX IF NOT EXISTS ideas_created_idx ON ideas (created_at DESC);

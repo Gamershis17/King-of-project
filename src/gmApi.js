@@ -37,6 +37,14 @@
  *   POST /api/gm/reset-quests   (gm|owner|admin) — force re-roll of daily/weekly quests
  *   POST /api/gm/event-buff     (gm|owner|admin) — server-wide XP/gold multiplier w/ expiry
  *   GET  /api/gm/audit          (gm|owner|admin) — server-side staff action log
+ *   POST /api/report            (any signed-in player) — file a bug report / feedback
+ *   GET  /api/report/mine       (any signed-in player) — own reports w/ status
+ *   GET  /api/gm/reports        (owner|admin) — report inbox, ?kind=&status=
+ *   PATCH /api/gm/reports/:id   (owner|admin) — set report status
+ *   GET  /api/gm/ideas          (owner|admin) — idea board listing
+ *   POST /api/gm/ideas          (owner|admin) — add an idea
+ *   PATCH /api/gm/ideas/:id     (owner|admin) — edit idea status/title/body
+ *   DELETE /api/gm/ideas/:id    (owner|admin) — delete an idea
  *   POST /api/gm/clear-guild-chat (owner|admin|gm) — wipe the target player's guild chat history
  *   POST /api/gm/grant-forge-box (gm|owner|admin) — grant galaxy forge box (25 galaxy + 40 adamant ores)
  *   POST /api/gm/grant-class-gear (gm|owner|admin) — grant mythic class weapon/armor scaled to target's stage
@@ -50,7 +58,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
-const { requireRole, asyncHandler } = require('./auth');
+const { requireRole, requireAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, VALID_ROLES } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const { loadBlob, defaultStateBlob } = require('./gameApi');
@@ -1395,6 +1403,201 @@ router.get(
   asyncHandler(async (req, res) => {
     const entries = await readAudit();
     res.json({ ok: true, entries: entries.slice(0, 100) });
+  })
+);
+
+// ---------- player bug reports + feedback ----------
+// POST /api/report (any signed-in player) — file a bug report or feedback.
+// Reviewed by owner/admin on /staff.html.
+const reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => (req.user && req.user.id ? `u:${req.user.id}` : req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many reports. Try again later.' },
+});
+
+const REPORT_KINDS = ['bug', 'feedback'];
+const REPORT_STATUSES = ['new', 'reviewing', 'fixed', 'closed'];
+const IDEA_STATUSES = ['open', 'planned', 'done', 'dropped'];
+
+function cleanText(v, max) {
+  if (typeof v !== 'string') return '';
+  return v.trim().slice(0, max);
+}
+
+router.post(
+  '/report',
+  requireAuth,
+  reportLimiter,
+  asyncHandler(async (req, res) => {
+    const { kind, title, body } = req.body || {};
+    if (!REPORT_KINDS.includes(kind)) {
+      return res.status(400).json({ error: "kind must be 'bug' or 'feedback'." });
+    }
+    const t = cleanText(title, 120);
+    const b = cleanText(body, 2000);
+    if (!t) return res.status(400).json({ error: 'Give your report a title.' });
+    if (!b) return res.status(400).json({ error: 'Describe the issue or feedback.' });
+    const now = Date.now();
+    const r = await pool.query(
+      `INSERT INTO reports (user_id, username, kind, title, body, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'new', $6, $6) RETURNING id, created_at`,
+      [req.user.id, req.user.username, kind, t, b, now]
+    );
+    res.status(201).json({ ok: true, id: r.rows[0].id, created_at: r.rows[0].created_at });
+  })
+);
+
+// A player's own reports, so /report.html can show status + timestamps.
+router.get(
+  '/report/mine',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const r = await pool.query(
+      `SELECT id, kind, title, body, status, created_at, updated_at
+       FROM reports WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
+      [req.user.id]
+    );
+    res.json({ ok: true, reports: r.rows });
+  })
+);
+
+// ---------- staff: report inbox (owner|admin) ----------
+router.get(
+  '/gm/reports',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { kind, status } = req.query || {};
+    const conds = [];
+    const params = [];
+    if (REPORT_KINDS.includes(kind)) {
+      params.push(kind);
+      conds.push(`kind = $${params.length}`);
+    }
+    if (REPORT_STATUSES.includes(status)) {
+      params.push(status);
+      conds.push(`status = $${params.length}`);
+    }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+    const r = await pool.query(
+      `SELECT id, username, kind, title, body, status, created_at, updated_at
+       FROM reports ${where} ORDER BY created_at DESC LIMIT 200`,
+      params
+    );
+    res.json({ ok: true, reports: r.rows });
+  })
+);
+
+router.patch(
+  '/gm/reports/:id',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Bad report id.' });
+    }
+    const { status } = req.body || {};
+    if (!REPORT_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'Bad status.' });
+    }
+    const now = Date.now();
+    const r = await pool.query(
+      `UPDATE reports SET status = $1, updated_at = $2 WHERE id = $3
+       RETURNING id, username, kind, title, body, status, created_at, updated_at`,
+      [status, now, id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Report not found.' });
+    await logAudit(req, 'report-status', r.rows[0].username, `#${id} → ${status}`);
+    res.json({ ok: true, report: r.rows[0] });
+  })
+);
+
+// ---------- staff: idea board (owner|admin) ----------
+router.get(
+  '/gm/ideas',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const r = await pool.query(
+      `SELECT id, username, title, body, status, created_at, updated_at
+       FROM ideas ORDER BY created_at DESC LIMIT 200`
+    );
+    res.json({ ok: true, ideas: r.rows });
+  })
+);
+
+router.post(
+  '/gm/ideas',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const t = cleanText((req.body || {}).title, 120);
+    const b = cleanText((req.body || {}).body, 2000);
+    if (!t) return res.status(400).json({ error: 'Give the idea a title.' });
+    const now = Date.now();
+    const r = await pool.query(
+      `INSERT INTO ideas (user_id, username, title, body, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'open', $5, $5)
+       RETURNING id, username, title, body, status, created_at, updated_at`,
+      [req.user.id, req.user.username, t, b, now]
+    );
+    res.status(201).json({ ok: true, idea: r.rows[0] });
+  })
+);
+
+router.patch(
+  '/gm/ideas/:id',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Bad idea id.' });
+    }
+    const { status, title, body } = req.body || {};
+    const sets = [];
+    const params = [];
+    if (status !== undefined) {
+      if (!IDEA_STATUSES.includes(status)) {
+        return res.status(400).json({ error: 'Bad status.' });
+      }
+      params.push(status);
+      sets.push(`status = $${params.length}`);
+    }
+    if (title !== undefined) {
+      const t = cleanText(title, 120);
+      if (!t) return res.status(400).json({ error: 'Title cannot be empty.' });
+      params.push(t);
+      sets.push(`title = $${params.length}`);
+    }
+    if (body !== undefined) {
+      params.push(cleanText(body, 2000));
+      sets.push(`body = $${params.length}`);
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nothing to update.' });
+    params.push(Date.now());
+    sets.push(`updated_at = $${params.length}`);
+    params.push(id);
+    const r = await pool.query(
+      `UPDATE ideas SET ${sets.join(', ')} WHERE id = $${params.length}
+       RETURNING id, username, title, body, status, created_at, updated_at`,
+      params
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'Idea not found.' });
+    res.json({ ok: true, idea: r.rows[0] });
+  })
+);
+
+router.delete(
+  '/gm/ideas/:id',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Bad idea id.' });
+    }
+    const r = await pool.query('DELETE FROM ideas WHERE id = $1 RETURNING id', [id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Idea not found.' });
+    res.json({ ok: true, id });
   })
 );
 
