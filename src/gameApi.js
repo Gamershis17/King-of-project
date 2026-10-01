@@ -311,20 +311,47 @@ router.get('/status', asyncHandler(async (req, res) => {
   const override = await getSetting('maintenance_mode');
   let maintenance;
   let message;
+  // Scheduled maintenance: set from /maintenance.html ("in N minutes").
+  // While the start time is in the future the server reports maintenanceIn
+  // (seconds); once it passes, maintenance flips live on its own.
+  const startsAt = Number(await getSetting('maintenance_starts_at') || 0) || 0;
+  const nowMs = Date.now();
+  let maintenanceIn = null;
   if (override === '1' || override === '0') {
     maintenance = override === '1';
     const msg = await getSetting('maintenance_message');
     message = (typeof msg === 'string' && msg.trim())
       ? msg
       : (process.env.MAINTENANCE_MESSAGE || null);
+    if (!maintenance && startsAt > nowMs) {
+      maintenanceIn = Math.ceil((startsAt - nowMs) / 1000);
+    } else if (!maintenance && startsAt && startsAt <= nowMs) {
+      maintenance = true; // scheduled window arrived
+    }
   } else {
     maintenance = /^(1|true|yes)$/i.test(String(process.env.MAINTENANCE_MODE || ''));
     message = process.env.MAINTENANCE_MESSAGE || null;
   }
+  // Pre-update warning set from /staff.html. Tied to the commit that was
+  // live when it was set, so it drops out of the response on its own once
+  // the warned-about deploy lands.
+  let updateNotice = null;
+  try {
+    const raw = await getSetting('update_notice');
+    if (raw) {
+      const n = JSON.parse(raw);
+      if (n && n.message && (n.commit || null) === (process.env.RENDER_GIT_COMMIT || null)) {
+        updateNotice = { message: String(n.message).slice(0, 200), at: n.at || 0 };
+      }
+    }
+  } catch { /* a malformed notice must never break /api/status */ }
   res.json({
     ok: true,
     maintenance,
     message,
+    // Seconds until a scheduled maintenance window goes live (null when none).
+    maintenanceIn,
+    updateNotice,
     // Deploy marker: Render injects RENDER_GIT_COMMIT for git-backed deploys.
     commit: process.env.RENDER_GIT_COMMIT || null,
   });

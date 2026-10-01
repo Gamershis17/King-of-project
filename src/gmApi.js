@@ -531,15 +531,55 @@ router.post(
   '/gm/maintenance',
   adminPlus,
   asyncHandler(async (req, res) => {
-    const { enabled, message } = req.body || {};
+    const { enabled, message, delayMinutes } = req.body || {};
     if (typeof enabled !== 'boolean') {
       return res.status(400).json({ error: 'enabled must be a boolean.' });
     }
     const msg = typeof message === 'string' ? message.trim().slice(0, 500) : '';
+    // Scheduled maintenance: warn players first, go live when the countdown ends.
+    const delay = Number(delayMinutes);
+    if (enabled && Number.isFinite(delay) && delay > 0) {
+      const mins = Math.min(Math.max(Math.round(delay), 1), 180); // 1 minute .. 3 hours
+      const startsAt = Date.now() + mins * 60000;
+      await setSetting('maintenance_mode', '0');
+      await setSetting('maintenance_starts_at', String(startsAt));
+      await setSetting('maintenance_message', msg);
+      await logAudit(req, 'maintenance', '—', `SCHEDULED in ${mins}m: ${msg || 'no message'}`);
+      return res.json({ ok: true, maintenance: false, scheduledIn: mins * 60, message: msg || null });
+    }
     await setSetting('maintenance_mode', enabled ? '1' : '0');
+    await setSetting('maintenance_starts_at', '');
     await setSetting('maintenance_message', msg);
     await logAudit(req, 'maintenance', '—', enabled ? `ON: ${msg || 'no message'}` : 'OFF');
     res.json({ ok: true, maintenance: enabled, message: msg || null });
+  })
+);
+
+// ---------- pre-update warning (owner + admin) ----------
+// Warn players from /staff.html BEFORE a deploy goes out; the client shows
+// a banner. The notice is tied to the running commit so it vanishes from
+// /api/status on its own once the new commit is live.
+router.post(
+  '/gm/update-notice',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { message } = req.body || {};
+    const msg = typeof message === 'string' ? message.trim().slice(0, 200) : '';
+    if (!msg) return res.status(400).json({ error: 'Give the warning a message.' });
+    const notice = { message: msg, at: Date.now(), commit: process.env.RENDER_GIT_COMMIT || null };
+    await setSetting('update_notice', JSON.stringify(notice));
+    await logAudit(req, 'update-notice', '—', `WARN: ${msg}`);
+    res.json({ ok: true, notice: { message: notice.message, at: notice.at } });
+  })
+);
+
+router.delete(
+  '/gm/update-notice',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    await setSetting('update_notice', '');
+    await logAudit(req, 'update-notice', '—', 'cleared');
+    res.json({ ok: true });
   })
 );
 
