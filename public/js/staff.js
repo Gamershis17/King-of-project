@@ -92,6 +92,99 @@
       .catch(function () { fail('Could not disconnect webhook.'); });
   });
 
+  // ---------- Discord #bug-reports + #feedback webhooks ----------
+  function wirePlayerWebhook(prefix, path, emptyText) {
+    var statusEl = document.getElementById(prefix + '-webhook-status');
+    function refresh() {
+      api(path).then(function (r) { return r.json(); }).then(function (j) {
+        if (j && j.configured) {
+          statusEl.innerHTML = '✅ Connected: <span style="font-family:monospace">' + esc(j.masked || '') + '</span>';
+        } else {
+          statusEl.textContent = emptyText;
+        }
+      }).catch(function () { statusEl.textContent = ''; });
+    }
+    refresh();
+    document.getElementById(prefix + '-webhook-save').addEventListener('click', function () {
+      var url = document.getElementById(prefix + '-webhook-url').value;
+      api(path, { method: 'POST', body: JSON.stringify({ url: url }) })
+        .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+        .then(function (res) {
+          if (res.status === 200 && res.body.ok) {
+            document.getElementById(prefix + '-webhook-url').value = '';
+            refresh();
+            fail('');
+          } else {
+            fail((res.body && res.body.error) || 'Could not save webhook.');
+          }
+        }).catch(function () { fail('Could not save webhook.'); });
+    });
+    document.getElementById(prefix + '-webhook-clear').addEventListener('click', function () {
+      api(path, { method: 'DELETE' })
+        .then(function (r) { return r.json(); })
+        .then(function () { refresh(); fail(''); })
+        .catch(function () { fail('Could not disconnect webhook.'); });
+    });
+  }
+  wirePlayerWebhook('bug', '/api/gm/discord-bug-webhook',
+    'Not connected — new bug reports stay in the inbox only.');
+  wirePlayerWebhook('feedback', '/api/gm/discord-feedback-webhook',
+    'Not connected — new feedback stays in the inbox only.');
+
+  // ---------- Discord #patch-notes ----------
+  wirePlayerWebhook('patchnotes', '/api/gm/discord-patchnotes-webhook',
+    'Not connected — patch notes stay in-game only.');
+  // Show which entry the push button will send.
+  api('/api/changelog').then(function (r) { return r.json(); }).then(function (j) {
+    var latest = j && j.log && j.log[0];
+    var el = document.getElementById('patchnotes-latest');
+    if (latest) {
+      el.textContent = 'Latest entry: ' + (latest.title || '(untitled)') + ' (' + (latest.date || 'undated') + ')';
+    } else {
+      el.textContent = 'No changelog entries yet.';
+    }
+  }).catch(function () { /* leave blank */ });
+  document.getElementById('patchnotes-push').addEventListener('click', function () {
+    var el = document.getElementById('patchnotes-latest');
+    api('/api/gm/push-patch-notes', { method: 'POST' })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        if (res.status === 200 && res.body.ok) {
+          el.textContent = '✅ Pushed to #patch-notes: ' + (res.body.title || '(untitled)');
+          fail('');
+        } else {
+          fail((res.body && res.body.error) || 'Could not push patch notes.');
+        }
+      }).catch(function () { fail('Could not push patch notes.'); });
+
+  // ---------- Discord #balance-log ----------
+  wirePlayerWebhook('balance', '/api/gm/discord-balance-webhook',
+    'Not connected — balance log stays in-game only.');
+  // Show which entry the push button will send.
+  fetch('data/balance-log.json', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (log) {
+    var latest = log && log[0];
+    var el = document.getElementById('balance-latest');
+    if (latest) {
+      el.textContent = 'Latest entry: ' + (latest.title || '(untitled)') + ' (' + (latest.version || 'unversioned') + ')';
+    } else {
+      el.textContent = 'No balance entries yet.';
+    }
+  }).catch(function () { /* leave blank */ });
+  document.getElementById('balance-push').addEventListener('click', function () {
+    var el = document.getElementById('balance-latest');
+    api('/api/gm/push-balance-log', { method: 'POST' })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        if (res.status === 200 && res.body.ok) {
+          el.textContent = '✅ Pushed to #balance-log: ' + (res.body.title || '(untitled)');
+          fail('');
+        } else {
+          fail((res.body && res.body.error) || 'Could not push balance changes.');
+        }
+      }).catch(function () { fail('Could not push balance changes.'); });
+  });
+  });
+
   // ---------- reports inbox ----------
   function statusOptions(statuses, cur) {
     return statuses.map(function (s) {
