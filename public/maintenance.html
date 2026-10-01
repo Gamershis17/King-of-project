@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Maintenance Switch — Throne of Shadows</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0d0a14; color: #e8dfd0;
+    font-family: Georgia, 'Times New Roman', serif;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    width: 100%; max-width: 380px; background: #171224;
+    border: 1px solid #3a2f52; border-radius: 12px; padding: 28px 24px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  }
+  .logo { font-size: 44px; text-align: center; margin-bottom: 8px; }
+  h1 { text-align: center; font-size: 20px; color: #f0c75e; margin-bottom: 4px; letter-spacing: .5px; }
+  .sub { text-align: center; color: #9a8fb5; font-size: 13px; margin-bottom: 20px; }
+  label { display: block; font-size: 13px; color: #b7abd4; margin: 12px 0 6px; }
+  input {
+    width: 100%; padding: 12px; border-radius: 8px; font-size: 16px;
+    background: #0d0a14; border: 1px solid #3a2f52; color: #e8dfd0;
+  }
+  input:focus { outline: none; border-color: #f0c75e; }
+  button {
+    width: 100%; padding: 14px; margin-top: 18px; border: none; border-radius: 8px;
+    font-size: 16px; font-family: inherit; cursor: pointer;
+    background: linear-gradient(180deg, #f0c75e, #c9962e); color: #231a08; font-weight: bold;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button.danger { background: linear-gradient(180deg, #c0392b, #96281b); color: #ffe9e9; }
+  button.go { background: linear-gradient(180deg, #3fae5a, #2b7a3e); color: #eafff0; }
+  .err { color: #ff8a8a; font-size: 14px; margin-top: 12px; text-align: center; min-height: 20px; }
+  .status { text-align: center; margin: 8px 0 4px; font-size: 15px; }
+  .status .on { color: #ff8a8a; font-weight: bold; }
+  .status .off { color: #7fe08a; font-weight: bold; }
+  .msg { text-align: center; color: #9a8fb5; font-size: 13px; margin-bottom: 8px; word-break: break-word; }
+  .who { text-align: center; color: #9a8fb5; font-size: 12px; margin-bottom: 12px; }
+  .hidden { display: none !important; }
+  .back { display: block; text-align: center; margin-top: 16px; color: #9a8fb5; font-size: 13px; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">🛠️</div>
+  <h1>Maintenance Switch</h1>
+  <p class="sub">Owner &amp; admin only. Works even when the game is down.</p>
+
+  <div id="login-pane">
+    <label for="mu">Username</label>
+    <input id="mu" type="text" autocomplete="username" autocapitalize="none">
+    <label for="mp">Password</label>
+    <input id="mp" type="password" autocomplete="current-password">
+    <button id="login-btn">Sign in</button>
+    <div class="err" id="login-err"></div>
+  </div>
+
+  <div id="ops-pane" class="hidden">
+    <div class="who" id="who"></div>
+    <div class="status" id="status">Checking…</div>
+    <div class="msg" id="cur-msg"></div>
+    <label for="nm">Message shown to players (optional)</label>
+    <input id="nm" type="text" placeholder="e.g. Back shortly…" maxlength="120">
+    <button id="toggle-btn" class="danger">Turn maintenance ON</button>
+    <div class="err" id="ops-err"></div>
+    <a class="back" href="/">← Back to game</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  var loginPane = document.getElementById('login-pane');
+  var opsPane = document.getElementById('ops-pane');
+  var loginErr = document.getElementById('login-err');
+  var opsErr = document.getElementById('ops-err');
+  var statusEl = document.getElementById('status');
+  var msgEl = document.getElementById('cur-msg');
+  var toggleBtn = document.getElementById('toggle-btn');
+  var msgInput = document.getElementById('nm');
+  var current = null;
+
+  function api(path, opts) {
+    return fetch(path, Object.assign({ credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' } }, opts || {}));
+  }
+
+  function refresh() {
+    opsErr.textContent = '';
+    api('/api/status').then(function (r) { return r.json(); }).then(function (st) {
+      current = !!(st && st.maintenance);
+      statusEl.innerHTML = 'Maintenance is <span class="' + (current ? 'on">ON' : 'off">OFF') + '</span>';
+      msgEl.textContent = (st && st.message) ? '“' + st.message + '”' : '';
+      if (!msgInput.value && st && st.message) msgInput.value = st.message;
+      toggleBtn.textContent = current ? 'Turn maintenance OFF' : 'Turn maintenance ON';
+      toggleBtn.className = current ? 'go' : 'danger';
+    }).catch(function () { statusEl.textContent = 'Could not reach server.'; });
+  }
+
+  document.getElementById('login-btn').addEventListener('click', function () {
+    loginErr.textContent = '';
+    var u = document.getElementById('mu').value.trim();
+    var p = document.getElementById('mp').value;
+    if (!u || !p) { loginErr.textContent = 'Enter username and password.'; return; }
+    this.disabled = true;
+    var btn = this;
+    api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { loginErr.textContent = (res.j && res.j.error) || 'Login failed.'; return; }
+        return api('/api/auth/me').then(function (r) { return r.json(); }).then(function (me) {
+          var role = me && me.user && me.user.role;
+          if (role !== 'owner' && role !== 'admin') {
+            loginErr.textContent = 'This page is for owners and admins only.';
+            api('/api/auth/logout', { method: 'POST' });
+            return;
+          }
+          document.getElementById('who').textContent =
+            'Signed in as ' + (me.user.username || u) + ' (' + role + ')';
+          loginPane.classList.add('hidden');
+          opsPane.classList.remove('hidden');
+          refresh();
+        });
+      })
+      .catch(function () { btn.disabled = false; loginErr.textContent = 'Could not reach server.'; });
+  });
+
+  document.getElementById('mp').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('login-btn').click();
+  });
+
+  toggleBtn.addEventListener('click', function () {
+    opsErr.textContent = '';
+    this.disabled = true;
+    var btn = this;
+    api('/api/gm/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: !current, message: msgInput.value.trim() })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { opsErr.textContent = (res.j && res.j.error) || 'Toggle failed.'; return; }
+        refresh();
+      })
+      .catch(function () { btn.disabled = false; opsErr.textContent = 'Could not reach server.'; });
+  });
+
+  // If already signed in as staff, skip the login form.
+  api('/api/auth/me').then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
+    var role = me && me.user && me.user.role;
+    if (role === 'owner' || role === 'admin') {
+      document.getElementById('who').textContent =
+        'Signed in as ' + (me.user.username || '') + ' (' + role + ')';
+      loginPane.classList.add('hidden');
+      opsPane.classList.remove('hidden');
+      refresh();
+    }
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>
