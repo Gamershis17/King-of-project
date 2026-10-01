@@ -59,15 +59,26 @@ const os = require('os');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { requireRole, requireAuth, asyncHandler } = require('./auth');
-const { sanitizeStateBlob, VALID_ROLES } = require('./validation');
+const { sanitizeStateBlob, VALID_ROLES, VALID_CLASSES, VALID_SPECS, NAME_FX_IDS, xpForLevelServer } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
-const { loadBlob, defaultStateBlob } = require('./gameApi');
+const { loadBlob, defaultStateBlob, filterChangelog } = require('./gameApi');
 const { addBroadcast, latestBroadcast } = require('./broadcast');
 const {
   getWebhookUrl,
   setWebhookUrl,
+  getBugWebhookUrl,
+  setBugWebhookUrl,
+  getFeedbackWebhookUrl,
+  setFeedbackWebhookUrl,
+  getPatchnotesWebhookUrl,
+  setPatchnotesWebhookUrl,
+  getBalanceWebhookUrl,
+  setBalanceWebhookUrl,
   maskWebhookUrl,
   postModlog,
+  postReport,
+  postPatchNotes,
+  postBalanceLog,
 } = require('./discordWebhook');
 const {
   pool,
@@ -110,6 +121,16 @@ const broadcastLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many announcements. Try again later.' },
+});
+
+// Player bug-report spam protection: 10 reports per hour per staff member.
+const reportLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  keyGenerator: (req) => (req.user && req.user.id ? `u:${req.user.id}` : req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many reports. Try again later.' },
 });
 
 const VALID_ROLES_FOR_ROLES_ROUTE = VALID_ROLES.filter((r) => r !== 'owner');
@@ -185,31 +206,9 @@ router.get(
 );
 
 // ---------- grants ----------
-/**
- * Mirrors the client curve in public/js/engine.js (v19 mega-update: cap raised
- * to 120; kinks at 30, 60 and 90, 1.35^rebirths):
- *   xpForLevelBase: 1-30 -> 80*1.30^(l-1); 31-60 -> V30*1.35^(l-30);
- *                   61-90 -> V60*1.44^(l-60); 91-120 -> V90*1.47^(l-90)
- *                 (V30 = 80*1.30^29, V60 = V30*1.35^30, V90 = V60*1.44^30;
- *                  continuous at every kink)
- *   xpForLevel(level, rebirthCount) = round(base * 1.35^rebirthCount)
- * Keep in sync if the client formula ever changes.
- */
-const GM_XP_V30 = 80 * Math.pow(1.30, 29);
-const GM_XP_V60 = GM_XP_V30 * Math.pow(1.35, 30);
-const GM_XP_V90 = GM_XP_V60 * Math.pow(1.44, 30);
+// XP math lives in validation.js (xpForLevelServer) so the GM console,
+// save sanitizer, and client all use the same curve.
 const GM_MAX_LEVEL = 120;
-function xpForLevel(level, rebirthCount) {
-  const l = Math.max(1, Math.floor(Number(level) || 1));
-  const base = l <= 30
-    ? 80 * Math.pow(1.30, l - 1)
-    : l <= 60
-    ? GM_XP_V30 * Math.pow(1.35, l - 30)
-    : l <= 90
-    ? GM_XP_V60 * Math.pow(1.44, l - 60)
-    : GM_XP_V90 * Math.pow(1.47, l - 90);
-  return Math.max(1, Math.round(base * Math.pow(1.35, Math.max(0, Math.floor(Number(rebirthCount) || 0)))));
-}
 
 function ensureHero(blob) {
   if (!blob.hero || typeof blob.hero !== 'object') blob.hero = {};
@@ -234,7 +233,7 @@ function applyLevelGrant(blob, n) {
     granted += 1;
   }
   blob.xp = 0;
-  blob.xpNext = xpForLevel(blob.level, blob.rebirthCount);
+  blob.xpNext = xpForLevelServer(blob.level, blob.rebirthCount);
   hero.hp = hero.maxHp;
   return granted;
 }
@@ -244,7 +243,7 @@ function applyXpGrant(blob, amount) {
   blob.level = Math.max(1, Math.floor(Number(blob.level) || 1));
   blob.xp = Math.max(0, Number(blob.xp) || 0) + amount;
   if (!Number.isFinite(Number(blob.xpNext)) || Number(blob.xpNext) < 1) {
-    blob.xpNext = xpForLevel(blob.level, blob.rebirthCount);
+    blob.xpNext = xpForLevelServer(blob.level, blob.rebirthCount);
   }
   const hero = ensureHero(blob);
   let guard = 0;
@@ -254,7 +253,7 @@ function applyXpGrant(blob, amount) {
     hero.attack = (Number(hero.attack) || 0) + 3;
     hero.maxHp = (Number(hero.maxHp) || 0) + 25;
     hero.defense = (Number(hero.defense) || 0) + 2;
-    blob.xpNext = xpForLevel(blob.level, blob.rebirthCount);
+    blob.xpNext = xpForLevelServer(blob.level, blob.rebirthCount);
     if (blob.level % 10 === 0 && blob.mastery && typeof blob.mastery === 'object') {
       blob.mastery.points = Math.max(0, Math.floor(Number(blob.mastery.points) || 0)) + 1;
     }
@@ -523,9 +522,9 @@ router.post(
       await setSetting('gold_cap', String(Math.floor(goldCap)));
     }
     await refreshGoldCap();
-    const __newCap = await getGoldCap();
-    await logAudit(req, 'settings', '—', `goldCap → ${__newCap}`);
-    res.json({ ok: true, goldCap: __newCap });
+    const newCap = await getGoldCap();
+    await logAudit(req, 'settings', '—', `goldCap → ${newCap}`);
+    res.json({ ok: true, goldCap: newCap });
   })
 );
 
@@ -631,7 +630,7 @@ router.post(
     blob.level = level;
     blob.xp = 0;
     blob.rebirthCount = Math.max(0, Math.floor(Number(blob.rebirthCount) || 0));
-    blob.xpNext = xpForLevel(level, blob.rebirthCount);
+    blob.xpNext = xpForLevelServer(level, blob.rebirthCount);
     hero.hp = hero.maxHp;
     await persistMergedState(target.id, blob);
     await logAudit(req, 'set-level', target.username, `level → ${level}`);
@@ -807,8 +806,9 @@ router.post(
 );
 
 // ---------- name style ----------
-// Sets a player's name color / effect directly.
-const NAME_FX_IDS = ['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight'];
+// Sets a player's name color / effect directly. The valid effect ids come
+// from validation.js (NAME_FX_IDS) — the same allowlist the save sanitizer
+// uses, so the console can set anything the game itself accepts.
 router.post(
   '/gm/name-style',
   gmOrOwner,
@@ -819,8 +819,8 @@ router.post(
     if (color !== undefined && color !== '' && !/^#[0-9a-fA-F]{6}$/.test(color)) {
       return res.status(400).json({ error: 'color must be a hex like #ff8800, or empty to clear.' });
     }
-    if (fx !== undefined && !NAME_FX_IDS.includes(fx)) {
-      return res.status(400).json({ error: 'fx must be one of ' + NAME_FX_IDS.join(', ') + '.' });
+    if (fx !== undefined && !NAME_FX_IDS.has(fx)) {
+      return res.status(400).json({ error: 'fx must be a valid name effect id.' });
     }
     const blob = await loadBlob(target.id);
     if (color !== undefined) blob.nameColor = color || null;
@@ -979,9 +979,9 @@ router.post(
 );
 
 // ---------- ban / unban (gm+) ----------
-// STUB: the users table has no `banned` column and src/schema.sql is owned
-// by another agent, so enforcement at login is not possible yet. These
-// return 501 until the schema lands; the console UI marks them as pending.
+// Sets users.banned; requireAuth in auth.js destroys the session and
+// rejects further requests, so the ban takes effect immediately even on
+// pre-existing sessions. The owner can never be banned.
 router.post(
   '/gm/ban',
   ownerAdminGm,
@@ -1139,19 +1139,17 @@ router.get(
       [search, limit]
     );
     // Extract the player's class and spec from their save blob
-    // (mirrors Engine.CLASSES / Engine.SPECS).
-    const VALID_SPECS = ['tank', 'dps', 'healer', 'classic'];
+    // (canonical id sets live in validation.js).
     const players = rows.map((r) => {
       let playerClass = null;
       let spec = null;
       try {
         const raw = r.state_json;
         const blob = typeof raw === 'string' ? JSON.parse(raw) : raw;
-        if (blob && typeof blob.playerClass === 'string' &&
-            ['hunter', 'warrior', 'mage', 'assassin'].includes(blob.playerClass)) {
+        if (blob && typeof blob.playerClass === 'string' && VALID_CLASSES.has(blob.playerClass)) {
           playerClass = blob.playerClass;
         }
-        if (blob && typeof blob.spec === 'string' && VALID_SPECS.includes(blob.spec)) {
+        if (blob && typeof blob.spec === 'string' && VALID_SPECS.has(blob.spec)) {
           spec = blob.spec;
         }
       } catch { /* leave null */ }
@@ -1503,18 +1501,105 @@ router.delete(
   })
 );
 
+// ---------- Discord #bug-reports + #feedback + #patch-notes webhooks ----------
+// Same pattern as the mod-log webhook: player bug reports and feedback are
+// mirrored to their own channels, and staff can push the latest patch notes
+// to #patch-notes. sendTest(username) posts the "webhook connected" proof
+// embed for that channel.
+function registerPlayerWebhook(path, getUrl, setUrl, sendTest) {
+  router.get(
+    path,
+    gmOrOwner,
+    asyncHandler(async (req, res) => {
+      const url = await getUrl();
+      res.json({ ok: true, configured: !!url, masked: maskWebhookUrl(url) });
+    })
+  );
+  router.post(
+    path,
+    adminPlus,
+    asyncHandler(async (req, res) => {
+      const { url } = req.body || {};
+      try {
+        const saved = await setUrl(url);
+        if (saved) sendTest(req.user.username);
+        res.json({ ok: true, configured: !!saved, masked: maskWebhookUrl(saved) });
+      } catch (err) {
+        if (err.code === 'bad-url') return res.status(400).json({ error: err.message });
+        throw err;
+      }
+    })
+  );
+  router.delete(
+    path,
+    adminPlus,
+    asyncHandler(async (req, res) => {
+      await setUrl('');
+      res.json({ ok: true, configured: false });
+    })
+  );
+}
+registerPlayerWebhook('/gm/discord-bug-webhook', getBugWebhookUrl, setBugWebhookUrl,
+  (u) => postReport({ kind: 'bug', id: 0, username: u, title: 'Webhook connected', body: 'New player bug reports will appear here.' }));
+registerPlayerWebhook('/gm/discord-feedback-webhook', getFeedbackWebhookUrl, setFeedbackWebhookUrl,
+  (u) => postReport({ kind: 'feedback', id: 0, username: u, title: 'Webhook connected', body: 'New player feedback will appear here.' }));
+registerPlayerWebhook('/gm/discord-patchnotes-webhook', getPatchnotesWebhookUrl, setPatchnotesWebhookUrl,
+  () => postPatchNotes({ date: new Date().toISOString().slice(0, 10), title: 'Webhook connected', changes: ['Patch notes pushed from the staff page will appear here.'] }));
+registerPlayerWebhook('/gm/discord-balance-webhook', getBalanceWebhookUrl, setBalanceWebhookUrl,
+  () => postBalanceLog({ version: 'test', date: new Date().toISOString().slice(0, 10), title: 'Webhook connected', changes: [{ system: 'Balance log', before: '—', after: 'Balance changes pushed from the staff page will appear here.' }] }));
+
+// Push the latest changelog entry to #patch-notes. Manual on purpose:
+// patch notes are written by staff, so there is nothing automatic to hook.
+// The entry is player-filtered first — #patch-notes is a public channel,
+// so staff-flagged items must never leak there.
+const CHANGELOG_PATH = path.join(__dirname, '..', 'public', 'changelog.json');
+router.post(
+  '/gm/push-patch-notes',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const url = await getPatchnotesWebhookUrl();
+    if (!url) return res.status(400).json({ error: 'Patch-notes webhook is not connected yet.' });
+    let log = [];
+    try {
+      const raw = JSON.parse(fs.readFileSync(CHANGELOG_PATH, 'utf8'));
+      if (Array.isArray(raw)) log = raw;
+    } catch { /* serve empty on read/parse failure */ }
+    const latest = filterChangelog(log, false)[0];
+    if (!latest || !latest.changes || !latest.changes.length) {
+      return res.status(400).json({ error: 'No patch notes to push.' });
+    }
+    postPatchNotes(latest);
+    res.json({ ok: true, title: latest.title, date: latest.date });
+  })
+);
+
+// Push the latest balance-log entry to #balance-log. Manual on purpose:
+// the balance log is a static JSON file edited by staff, so there is no
+// runtime event to hook.
+const BALANCE_LOG_PATH = path.join(__dirname, '..', 'public', 'data', 'balance-log.json');
+router.post(
+  '/gm/push-balance-log',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const url = await getBalanceWebhookUrl();
+    if (!url) return res.status(400).json({ error: 'Balance-log webhook is not connected yet.' });
+    let log = [];
+    try {
+      const raw = JSON.parse(fs.readFileSync(BALANCE_LOG_PATH, 'utf8'));
+      if (Array.isArray(raw)) log = raw;
+    } catch { /* serve empty on read/parse failure */ }
+    const latest = log[0];
+    if (!latest || !Array.isArray(latest.changes) || !latest.changes.length) {
+      return res.status(400).json({ error: 'No balance changes to push.' });
+    }
+    postBalanceLog(latest);
+    res.json({ ok: true, title: latest.title, version: latest.version });
+  })
+);
+
 // ---------- player bug reports + feedback ----------
 // POST /api/report (any signed-in player) — file a bug report or feedback.
 // Reviewed by owner/admin on /staff.html.
-const reportLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  keyGenerator: (req) => (req.user && req.user.id ? `u:${req.user.id}` : req.ip),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many reports. Try again later.' },
-});
-
 const REPORT_KINDS = ['bug', 'feedback'];
 const REPORT_STATUSES = ['new', 'reviewing', 'fixed', 'closed'];
 const IDEA_STATUSES = ['open', 'planned', 'done', 'dropped'];
@@ -1543,6 +1628,9 @@ router.post(
        VALUES ($1, $2, $3, $4, $5, 'new', $6, $6) RETURNING id, created_at`,
       [req.user.id, req.user.username, kind, t, b, now]
     );
+    // Mirror to Discord (#bug-reports or #feedback) — fire-and-forget; a dead
+    // webhook never breaks the player's submission.
+    postReport({ kind, id: r.rows[0].id, username: req.user.username, title: t, body: b });
     res.status(201).json({ ok: true, id: r.rows[0].id, created_at: r.rows[0].created_at });
   })
 );

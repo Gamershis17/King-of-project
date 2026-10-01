@@ -7,6 +7,17 @@
 const USERNAME_RE = /^[A-Za-z0-9_]{3,20}$/;
 const MAX_BLOB_BYTES = 1024 * 1024; // 1 MB
 
+// Canonical name-effect ids. Mirrors the client's ALL_NAME_FX_IDS in
+// public/js/engine.js (BASE_NAME_FX_IDS + TOKEN_NAME_FX + STAFF_NAME_FX).
+// Single source of truth: db.js imports this instead of keeping its own
+// copy, so the server can never drift from the client list again.
+const NAME_FX_IDS = new Set([
+  'none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy',
+  'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight',
+  'voidborn', 'goldleaf', 'bloodmoon', 'stormsurge', 'celestial', 'throneflame',
+  'gavelstrike', 'allseeing', 'worldforge', 'archlight', 'shadowcrown', 'everflame',
+]);
+
 // Server gold cap (owner-adjustable via server_settings). sanitizeStateBlob
 // clamps player gold to it on every save. Refreshed from the DB at boot and
 // whenever the owner changes it (see db.refreshGoldCap).
@@ -42,6 +53,12 @@ function xpForLevelServer(level, rebirthCount) {
 
 // All roles recognized by the server, highest privilege first.
 const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'player'];
+
+// Valid class/spec ids (mirror Engine.CLASSES / Engine.SPECS in
+// public/js/engine.js; the client is ESM so the lists are duplicated here
+// for the CJS server). Single source of truth for gameApi.js and gmApi.js.
+const VALID_CLASSES = new Set(['hunter', 'warrior', 'mage', 'assassin', 'necromancer', 'berserker']);
+const VALID_SPECS = new Set(['tank', 'dps', 'healer', 'classic']);
 
 function validateUsername(username) {
   if (typeof username !== 'string') return 'Username is required.';
@@ -142,7 +159,7 @@ function sanitizeStateBlob(blob) {
   // Name styles are cosmetic: keep them only when well-formed so tampered
   // blobs can't smuggle junk (rendering escapes everything anyway).
   if (blob.nameColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(blob.nameColor))) delete blob.nameColor;
-  if (blob.nameFx !== undefined && !['none', 'fire', 'neon', 'rainbow', 'shine', 'galaxy', 'ice', 'lightning', 'shadow', 'glitch', 'falling-leaves', 'harvest-ember', 'autumn-mist', 'snowfall', 'aurora', 'frostbite', 'tidal', 'sunscorched', 'wildfire', 'fireworks', 'champagne', 'midnight', 'voidborn', 'goldleaf', 'bloodmoon', 'stormsurge', 'celestial', 'throneflame', 'gavelstrike', 'allseeing', 'worldforge', 'archlight', 'shadowcrown', 'everflame'].includes(blob.nameFx)) delete blob.nameFx;
+  if (blob.nameFx !== undefined && !NAME_FX_IDS.has(blob.nameFx)) delete blob.nameFx;
   // Battle background is cosmetic: keep only a known value.
   if (blob.battleBg !== undefined && !['world', 'mystyle', 'off'].includes(blob.battleBg)) delete blob.battleBg;
   if (typeof blob.bossesKilled !== 'number') blob.bossesKilled = 0;
@@ -151,7 +168,8 @@ function sanitizeStateBlob(blob) {
   if (!Array.isArray(blob.codesRedeemed)) blob.codesRedeemed = [];
   // Anti-spoof: never trust client-supplied xpNext — recompute it from
   // level + rebirthCount so tampered saves can't grant cheap levels.
-  // Mirrors public/js/engine.js xpForLevel (v18: kinks at 30 and 60, 1.35^rebirths).
+  // Mirrors public/js/engine.js xpForLevel (v19: kinks at 30/60/90 with
+  // 1.30/1.35/1.44/1.47 exponents, 1.35^rebirths capped at 200).
   blob.xpNext = xpForLevelServer(blob.level, blob.rebirthCount);
   // Mining + forge: keep legit saves passing. Ores are plain finite
   // non-negative counts (clamped); forged item stats are clamped to a
@@ -199,8 +217,12 @@ module.exports = {
   validateUsername,
   validatePassword,
   sanitizeStateBlob,
+  xpForLevelServer,
   setGoldCap,
   getGoldCapValue,
   MAX_BLOB_BYTES,
   VALID_ROLES,
+  VALID_CLASSES,
+  VALID_SPECS,
+  NAME_FX_IDS,
 };

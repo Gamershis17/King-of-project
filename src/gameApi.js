@@ -22,7 +22,7 @@ const os = require('os');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
 const { requireAuth, asyncHandler } = require('./auth');
-const { sanitizeStateBlob, validateUsername } = require('./validation');
+const { sanitizeStateBlob, validateUsername, VALID_CLASSES, VALID_SPECS } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const {
   getStateRow,
@@ -130,6 +130,16 @@ const friendLimiter = rateLimit({
   message: { error: 'Too many friend actions. Slow down a moment.' },
 });
 
+// Chat flood protection: 20 messages/min per user.
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: userKey,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Chatting too fast. Slow down a moment.' },
+});
+
 /**
  * Server-side copy of the client game engine (public/js/engine.js is pure
  * logic with no DOM access). Loaded once as an .mjs module so inspect and
@@ -143,7 +153,7 @@ function serverEngine() {
         path.join(__dirname, '..', 'public', 'js', 'engine.js'),
         'utf8'
       );
-      const tmp = path.join(os.tmpdir(), 'kop-engine-srv.mjs');
+      const tmp = path.join(os.tmpdir(), 'tos-engine-srv.mjs');
       fs.writeFileSync(tmp, src);
       return import(tmp);
     })();
@@ -553,13 +563,10 @@ router.get(
 );
 
 // ---------- leaderboard (public) ----------
-// Valid class/spec ids for leaderboard parsing (mirrors Engine.CLASSES and
-// Engine.SPECS; engine.js is ESM so the lists are duplicated here for the CJS server).
-const VALID_CLASSES = new Set(['hunter', 'warrior', 'mage', 'assassin']);
-const VALID_SPECS = new Set(['tank', 'dps', 'healer', 'classic']);
 // Ranking categories. Indexed columns sort in SQL; blob-derived stats
 // (kills, depth, titles) are extracted from server-stored state_json and
-// sorted in JS. Unknown keys are rejected with 400.
+// sorted in JS. Unknown keys are rejected with 400. Class/spec ids come
+// from validation.js (canonical sets mirroring Engine.CLASSES / SPECS).
 const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths'];
 const LB_INDEXED = new Set(['level', 'stage', 'bosses', 'rebirths']);
 const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles' };
@@ -1075,16 +1082,6 @@ function rankAtLeast(rank, need) {
   return (GUILD_RANKS[rank] || 0) >= (GUILD_RANKS[need] || 0);
 }
 
-// Chat flood protection: 20 messages/min per user.
-const chatLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  keyGenerator: userKey,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Chatting too fast. Slow down a moment.' },
-});
-
 router.get(
   '/guilds/chat',
   requireAuth,
@@ -1212,6 +1209,18 @@ router.post(
   })
 );
 
+router.post(
+  '/guilds/kick',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const target = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : '';
+    if (!target) return res.status(400).json({ error: 'Username is required.' });
+    try {
+      await kickGuildMember(ctx.guild.id, req.user.username, target);
+      res.json({ ok: true });
+
 // ---------- multiplayer parties ----------
 // Invite-code parties (max 4 humans). All member stats are read server-side
 // from stored saves — never trusted from the client.
@@ -1245,17 +1254,6 @@ router.post(
   })
 );
 
-router.post(
-  '/guilds/kick',
-  requireAuth,
-  asyncHandler(async (req, res) => {
-    const ctx = await guildContext(req, res);
-    if (!ctx) return;
-    const target = req.body && typeof req.body.username === 'string' ? req.body.username.trim() : '';
-    if (!target) return res.status(400).json({ error: 'Username is required.' });
-    try {
-      await kickGuildMember(ctx.guild.id, req.user.username, target);
-      res.json({ ok: true });
     } catch (err) {
       if (err.code === 'GUILD_SELF') return res.status(400).json({ error: 'You cannot kick yourself. Leave instead.' });
       if (err.code === 'GUILD_NOT_IN') return res.status(404).json({ error: 'That player is not in your guild.' });
@@ -1409,4 +1407,4 @@ router.get(
   })
 );
 
-module.exports = { gameRouter: router, defaultStateBlob, loadBlob };
+module.exports = { gameRouter: router, defaultStateBlob, loadBlob, filterChangelog };
