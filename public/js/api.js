@@ -33,6 +33,12 @@ export const api = {
   logout: () => post('/api/auth/logout', {}),
   me: () => request('/api/auth/me'),
 
+  // Self-service account management
+  changePassword: (currentPassword, newPassword) =>
+    post('/api/account/change-password', { currentPassword, newPassword }),
+  changeUsername: (newUsername, password) =>
+    post('/api/account/change-username', { newUsername, password }),
+
   // Server status (public — maintenance flag + message)
   status: () => request('/api/status'),
 

@@ -593,6 +593,21 @@ export const UI = {
     listen('logout-btn', 'click', () => {
       this.handlers.onLogout && this.handlers.onLogout();
     });
+    listen('acct-pass-btn', 'click', () => {
+      if (!this.handlers.onChangePassword) return;
+      this.handlers.onChangePassword(
+        document.getElementById('acct-cur-pass').value,
+        document.getElementById('acct-new-pass').value,
+        document.getElementById('acct-new-pass2').value
+      );
+    });
+    listen('acct-username-btn', 'click', () => {
+      if (!this.handlers.onChangeUsername) return;
+      this.handlers.onChangeUsername(
+        document.getElementById('acct-new-username').value,
+        document.getElementById('acct-username-pass').value
+      );
+    });
     if (this.els['set-dmgnums']) this.els['set-dmgnums'].checked = !!this.settings.damageNumbers;
     if (this.els['set-motion']) this.els['set-motion'].checked = !!this.settings.reduceMotion;
     listen('set-dmgnums', 'change', (e) => this.saveSetting('damageNumbers', e.target.checked));
@@ -1361,6 +1376,20 @@ export const UI = {
   },
 
   // ---------------- HUD ----------------
+  // Settings → 👤 Account card: shows who is signed in; the password /
+  // username forms are only for registered accounts (guests get the
+  // upgrade card instead).
+  refreshAccountCard(user, isGuest) {
+    const cur = document.getElementById('account-current');
+    if (cur) {
+      cur.innerHTML = isGuest
+        ? 'Playing as a <b>guest</b> — create an account to manage it here.'
+        : `Signed in as <b>${esc((user && user.username) || '—')}</b>`;
+    }
+    const forms = document.getElementById('acct-forms');
+    if (forms) forms.classList.toggle('hidden', !!isGuest);
+  },
+
   updateHUD(state, user) {
     const e = this.els;
     const race = Engine.RACES[state.race] || {};

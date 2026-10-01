@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930ar';
+import { api } from './api.js?v20261001k';
 import * as Engine from './engine.js?v=20260930ar';
-import { UI, esc, formatNum } from './ui.js?v=20261001e';
+import { UI, esc, formatNum } from './ui.js?v20261001k';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -223,6 +223,8 @@ async function boot() {
     onBuyTokenItem: doBuyTokenItem,
     onChangeClassOpen: openChangeClass,
     onChangeClass: doChangeClass,
+    onChangePassword: doChangePassword,
+    onChangeUsername: doChangeUsername,
     onBuyArmory: doBuyArmory,
     onRedeem: doRedeem,
     onLogout: doLogout,
@@ -881,6 +883,7 @@ function startGame() {
   if (upgradeCard) upgradeCard.classList.toggle('hidden', !isGuest());
   const logoutBtn = UI.el('logout-btn');
   if (logoutBtn) logoutBtn.textContent = isGuest() ? '🚪 Exit guest session' : 'Logout';
+  UI.refreshAccountCard(App.user, isGuest());
   const upBtn = UI.el('guest-upgrade-btn');
   if (upBtn) upBtn.addEventListener('click', openUpgradeModal);
   // Character sheet: tap the top hero panel (.hud-id) or the battle hero
@@ -2087,6 +2090,55 @@ function doChangeClass(newClass) {
   UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillCDs: App.skillCDs, potionCD: s.potionReadyAt || 0 });
   if (UI.activeTab === 'battle') UI.renderBattle(s);
   saveNow();
+}
+
+async function doChangePassword(cur, nw, nw2) {
+  if (isGuest()) return UI.toast('Guests have no password — create an account first.', 'warn');
+  if (!cur) return UI.toast('Enter your current password.', 'warn');
+  if (!nw || nw.length < 8) return UI.toast('New password must be at least 8 characters.', 'warn');
+  if (nw !== nw2) return UI.toast('New passwords do not match.', 'warn');
+  try {
+    await api.changePassword(cur, nw);
+    for (const id of ['acct-cur-pass', 'acct-new-pass', 'acct-new-pass2']) {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    }
+    UI.toast('🔑 Password changed. Other devices were signed out.', 'success');
+  } catch (e) {
+    UI.toast((e && e.message) || 'Could not change password.', 'error');
+  }
+}
+
+async function doChangeUsername(nu, pw) {
+  if (isGuest()) return UI.toast('Guests have no username — create an account first.', 'warn');
+  const clean = String(nu || '').trim();
+  if (!/^[A-Za-z0-9_]{3,20}$/.test(clean)) {
+    return UI.toast('Username must be 3–20 characters: letters, numbers, _ only.', 'warn');
+  }
+  if (App.user && clean.toLowerCase() === String(App.user.username).toLowerCase()) {
+    return UI.toast('That is already your username.', 'warn');
+  }
+  if (!pw) return UI.toast('Enter your current password to confirm.', 'warn');
+  const ok = await UI.confirm(
+    'Change username?',
+    `Your new username will be <b>${esc(clean)}</b> everywhere — guild, friends, leaderboard. Your progress and items stay exactly the same.`,
+    'Change it'
+  );
+  if (!ok) return;
+  try {
+    const r = await api.changeUsername(clean, pw);
+    App.user = r.user;
+    const unEl = document.getElementById('acct-new-username');
+    if (unEl) unEl.value = '';
+    const pwEl = document.getElementById('acct-username-pass');
+    if (pwEl) pwEl.value = '';
+    UI.refreshAccountCard(App.user, isGuest());
+    UI.updateHUD(App.state, App.user);
+    UI.renderStats(App.state, App.user);
+    UI.toast(`✏️ You are now <b>${esc(r.user.username)}</b>!`, 'success');
+  } catch (e) {
+    UI.toast((e && e.message) || 'Could not change username.', 'error');
+  }
 }
 
 // Potions run on their own 60s cooldown — never shared with spell cooldowns.
