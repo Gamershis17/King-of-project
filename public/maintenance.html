@@ -34,6 +34,11 @@
   button:disabled { opacity: .5; cursor: default; }
   button.danger { background: linear-gradient(180deg, #c0392b, #96281b); color: #ffe9e9; }
   button.go { background: linear-gradient(180deg, #3fae5a, #2b7a3e); color: #eafff0; }
+  button.ghost { background: #0d0a14; border: 1px solid #3a2f52; color: #b7abd4; font-weight: normal; }
+  input[type="number"] { width: 100px; display: inline-block; }
+  .sched-wrap { margin-top: 16px; border-top: 1px solid #3a2f52; padding-top: 16px; }
+  .sched-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+  .sched-row button { width: auto; margin-top: 0; flex: 1; }
   .err { color: #ff8a8a; font-size: 14px; margin-top: 12px; text-align: center; min-height: 20px; }
   .status { text-align: center; margin: 8px 0 4px; font-size: 15px; }
   .status .on { color: #ff8a8a; font-weight: bold; }
@@ -66,6 +71,16 @@
     <label for="nm">Message shown to players (optional)</label>
     <input id="nm" type="text" placeholder="e.g. Back shortly…" maxlength="120">
     <button id="toggle-btn" class="danger">Turn maintenance ON</button>
+    <div class="sched-wrap">
+      <label for="sched-min" style="margin-top:0">Or schedule it: warn players first, go live after the countdown</label>
+      <div class="sched-row">
+        <input id="sched-min" type="number" min="1" max="180" value="10" />
+        <span style="color:#9a8fb5; font-size:13px">min</span>
+        <button id="sched-btn">Schedule</button>
+      </div>
+      <div class="status" id="sched-status"></div>
+      <button id="sched-cancel" class="ghost hidden" style="width:100%">Cancel schedule</button>
+    </div>
     <div class="err" id="ops-err"></div>
     <a class="back" href="/">← Back to game</a>
   </div>
@@ -97,8 +112,51 @@
       if (!msgInput.value && st && st.message) msgInput.value = st.message;
       toggleBtn.textContent = current ? 'Turn maintenance OFF' : 'Turn maintenance ON';
       toggleBtn.className = current ? 'go' : 'danger';
+      // Scheduled window: show the live countdown and offer cancel.
+      var schedStatus = document.getElementById('sched-status');
+      var schedCancel = document.getElementById('sched-cancel');
+      var minsLeft = (st && !st.maintenance && st.maintenanceIn != null && st.maintenanceIn > 0)
+        ? Math.ceil(st.maintenanceIn / 60) : 0;
+      if (minsLeft > 0) {
+        schedStatus.innerHTML = 'Goes live in <span class="on">' + minsLeft + ' min</span> — players see a countdown.';
+        schedCancel.classList.remove('hidden');
+      } else {
+        schedStatus.textContent = '';
+        schedCancel.classList.add('hidden');
+      }
     }).catch(function () { statusEl.textContent = 'Could not reach server.'; });
   }
+  document.getElementById('sched-btn').addEventListener('click', function () {
+    opsErr.textContent = '';
+    var mins = Math.min(Math.max(parseInt(document.getElementById('sched-min').value, 10) || 0, 1), 180);
+    var btn = this; btn.disabled = true;
+    api('/api/gm/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: true, message: msgInput.value.trim(), delayMinutes: mins })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { opsErr.textContent = (res.j && res.j.error) || 'Schedule failed.'; return; }
+        refresh();
+      })
+      .catch(function () { btn.disabled = false; opsErr.textContent = 'Could not reach server.'; });
+  });
+  document.getElementById('sched-cancel').addEventListener('click', function () {
+    opsErr.textContent = '';
+    var btn = this; btn.disabled = true;
+    api('/api/gm/maintenance', {
+      method: 'POST',
+      body: JSON.stringify({ enabled: false, message: msgInput.value.trim() })
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { opsErr.textContent = (res.j && res.j.error) || 'Cancel failed.'; return; }
+        refresh();
+      })
+      .catch(function () { btn.disabled = false; opsErr.textContent = 'Could not reach server.'; });
+  });
 
   document.getElementById('login-btn').addEventListener('click', function () {
     loginErr.textContent = '';

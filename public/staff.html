@@ -95,6 +95,16 @@
 
   <div id="ops-pane" class="hidden">
     <div class="who" id="who"></div>
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 8px">📢 Update warning</h3>
+      <p style="margin:0 0 8px; font-size:13px; color:#9a8fb5">Warn players <b>before</b> a deploy or maintenance. The banner clears itself once the new version is live, and players' games refresh automatically.</p>
+      <div id="notice-current" style="font-size:13px; color:#9a8fb5; margin-bottom:8px"></div>
+      <input id="notice-msg" type="text" maxlength="200" placeholder="e.g. Update incoming in 2 minutes — your game will refresh" />
+      <div style="margin-top:8px; display:flex; gap:8px">
+        <button id="notice-warn">Warn players</button>
+        <button id="notice-clear" class="ghost">Clear</button>
+      </div>
+    </div>
     <div class="tabs">
       <button data-tab="audit" class="active">📋 Audit log</button>
       <button data-tab="bugs">🐞 Bugs <span id="cnt-bugs"></span></button>
@@ -301,6 +311,48 @@
     loadAudit();
     loadReports('bug');
     loadReports('feedback');
+    loadNotice();
+    wireNotice();
+  }
+
+  // ---------- pre-update warning ----------
+  function loadNotice() {
+    api('/api/status').then(function (r) { return r.json(); }).then(function (st) {
+      var el = document.getElementById('notice-current');
+      if (st && st.updateNotice && st.updateNotice.message) {
+        el.textContent = 'Currently warning: "' + st.updateNotice.message + '"';
+      } else {
+        el.textContent = 'No warning active.';
+      }
+    }).catch(function () { /* leave the previous text */ });
+  }
+  function wireNotice() {
+    var warn = document.getElementById('notice-warn');
+    var clear = document.getElementById('notice-clear');
+    if (warn.dataset.wired) return;
+    warn.dataset.wired = '1';
+    warn.addEventListener('click', function () {
+      var msg = document.getElementById('notice-msg').value.trim();
+      if (!msg) { fail('Type the warning message first.'); return; }
+      warn.disabled = true;
+      api('/api/gm/update-notice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg })
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (x) {
+          warn.disabled = false;
+          if (!x.ok) { fail(x.j.error || 'Could not set warning.'); return; }
+          document.getElementById('notice-msg').value = '';
+          loadNotice();
+        }).catch(function () { warn.disabled = false; fail('Could not set warning.'); });
+    });
+    clear.addEventListener('click', function () {
+      clear.disabled = true;
+      api('/api/gm/update-notice', { method: 'DELETE' })
+        .then(function () { clear.disabled = false; loadNotice(); })
+        .catch(function () { clear.disabled = false; fail('Could not clear warning.'); });
+    });
   }
   document.getElementById('login-btn').addEventListener('click', function () {
     loginErr.textContent = '';
