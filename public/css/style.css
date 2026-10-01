@@ -4702,15 +4702,26 @@ body.reduce-motion .quest-claim { animation: none; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 0 12px rgba(255,210,63,.35);
 }
 .lb-idtext { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
-/* Identity line: meta icons (flag/badge/class/guild) keep their width; only
-   the username truncates — nothing overlaps or clips its decorations. */
+/* Identity: the username owns line 1 (with the YOU pill) and is the only thing
+   that truncates; meta icons, title and the tier badge share line 2. Meta can
+   never crush the name again, and the tier badge can never collide with YOU. */
 .lb-row .lb-name {
-  font-size: 0.98rem; font-weight: 700;
-  display: flex; align-items: baseline; gap: 0.4rem; min-width: 0;
+  font-size: 1.02rem; font-weight: 800;
+  display: flex; align-items: center; gap: 0.45rem; min-width: 0;
 }
-.lb-name-meta { flex: none; white-space: nowrap; }
 .lb-name-user { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-row .lb-you { flex: none; }
+.lb-row .lb-sub {
+  display: flex; align-items: center; gap: 0.45rem; min-width: 0; margin-top: 0.18rem;
+}
+.lb-name-meta { flex: none; white-space: nowrap; font-size: 0.85rem; line-height: 1; }
+.lb-sub .lb-title { flex: 1 1 auto; min-width: 0; }
+/* Own-row highlight: the name keeps its FX but gets a dark hairline outline
+   so it stays readable on the gold highlight — or any background. */
+.lb-row.me-row .lb-name-user .pname {
+  -webkit-text-stroke: 0.5px rgba(24,14,4,.9);
+  paint-order: stroke fill;
+}
 .lb-tier {
   flex: none; margin-left: auto;
   font-size: 0.6rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
