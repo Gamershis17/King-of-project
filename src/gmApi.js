@@ -515,13 +515,13 @@ router.post(
   })
 );
 
-// ---------- maintenance mode (owner only) ----------
+// ---------- maintenance mode (owner + admin) ----------
 // Runtime override for GET /api/status. When a maintenance_mode setting is
 // present ('1'/'0') it wins over the MAINTENANCE_MODE env var; deleting the
 // override is done by turning maintenance off (writes '0').
 router.post(
   '/gm/maintenance',
-  ownerOnly,
+  adminPlus,
   asyncHandler(async (req, res) => {
     const { enabled, message } = req.body || {};
     if (typeof enabled !== 'boolean') {
