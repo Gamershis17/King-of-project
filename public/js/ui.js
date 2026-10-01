@@ -3,9 +3,9 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930ap';
-import { Audio } from './audio.js?v=20260930ap';
-import { api } from './api.js?v=20260930ap';
+import * as Engine from './engine.js?v=20260930aq';
+import { Audio } from './audio.js?v=20260930aq';
+import { api } from './api.js?v=20260930aq';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -339,6 +339,12 @@ export const UI = {
     });
     // Mine: tap the rock
     listen('mine-btn', 'click', () => {
+      if (this.handlers.onMine) this.handlers.onMine();
+    });
+    // Mine: the ore node itself is also a tap target. It's what players
+    // naturally tap, and on small screens the MINE button sits below the
+    // pickaxe ladder — a tap on the rock must never feel dead.
+    listen('mine-rock', 'click', () => {
       if (this.handlers.onMine) this.handlers.onMine();
     });
     // Mine: pickaxe upgrade (button is re-rendered inside the card, so the
@@ -3579,6 +3585,7 @@ export const UI = {
           <span class="mine-depth">Depth <b>${m.depth}</b>${m.depth >= E.MAX_MINE_DEPTH ? ' <span class="muted">(max)</span>' : ''}</span>
         </div>
         <div class="node-visual"><span class="node-rock">🪨</span><span class="node-crack" style="opacity:${crack.toFixed(2)}">⚡</span></div>
+        <div class="mine-taphint muted tiny">👆 Tap the rock to mine</div>
         <div class="bar hp"><div class="fill" style="width:${pct}%"></div></div>
         <div class="mine-hptext muted small">${Math.max(0, Math.ceil(m.rockHp))} / ${m.rockMaxHp} HP · ⛏️ ${E.mineDamage(state)} dmg/tap</div>
         <div class="depth-track" title="Depth progress"><div class="depth-fill" style="width:${depthPct}%"></div></div>
