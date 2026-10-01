@@ -143,13 +143,21 @@ router.put('/social/profile', adminPlus, asyncHandler(async (req, res) => {
   const bio = String((req.body && req.body.bio) || '').slice(0, 200).trim();
   const status = String((req.body && req.body.status) || '').slice(0, MAX_STATUS).trim();
   const accent = ACCENTS.includes(req.body && req.body.accent) ? req.body.accent : 'gold';
-  let avatar = '';
-  if (req.body && req.body.avatar) {
-    const ok = cleanImage(req.body.avatar, MAX_AVATAR_BYTES);
-    if (ok === null) {
-      return res.status(400).json({ error: 'Avatar must be a JPEG/PNG/WebP picture within the size limit.' });
+  let avatar;
+  if (req.body && req.body.avatar !== undefined && req.body.avatar !== null) {
+    if (req.body.avatar === '') {
+      avatar = ''; // explicit clear
+    } else {
+      const ok = cleanImage(req.body.avatar, MAX_AVATAR_BYTES);
+      if (ok === null) {
+        return res.status(400).json({ error: 'Avatar must be a JPEG/PNG/WebP picture within the size limit.' });
+      }
+      avatar = ok;
     }
-    avatar = ok;
+  } else {
+    // Avatar omitted (settings saved without picking a new picture): keep the existing one.
+    const existing = await getProfile(req.user.id, req.user.username);
+    avatar = existing.avatar || '';
   }
   const now = Date.now();
   await pool.query(
