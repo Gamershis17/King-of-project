@@ -3,9 +3,9 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930aq';
-import { Audio } from './audio.js?v=20260930aq';
-import { api } from './api.js?v=20260930aq';
+import * as Engine from './engine.js?v=20260930ar';
+import { Audio } from './audio.js?v=20260930ar';
+import { api } from './api.js?v=20260930ar';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -4457,7 +4457,7 @@ export const UI = {
       const race = Engine.RACES[en.race] || {};
       const cls = Engine.CLASSES[en.playerClass] || {};
       const spec = Engine.SPECS[en.spec] || {};
-      const title = en.title ? `<div class="lb-title">${esc(Engine.titleName(en.title))}</div>` : '';
+      const title = en.title ? `<span class="lb-title">${esc(Engine.titleName(en.title))}</span>` : '';
       const flag = en.country ? Engine.countryFlag(en.country) : '';
       const badge = en.badge ? Engine.badgeDef(en.badge) : null;
       const badgeHtml = badge ? `<span class="lb-badge" title="${esc(badge.name)}">${badge.emoji}</span> ` : '';
@@ -4467,9 +4467,10 @@ export const UI = {
         ? `<span class="lb-class" title="${esc(en.spec)}">${UI_SPEC_EMOJI[en.spec]}</span> ` : '';
       const guildTag = en.guildTag
         ? `<span class="lb-guildtag" title="Guild: ${esc(en.guildTag)}">[${esc(en.guildTag)}]</span> ` : '';
-      // Identity block: meta icons (flag, badge, class, spec, guild tag) stay
-      // fixed-width; only the username span truncates, so names never overlap
-      // or clip their decorations.
+      // Identity block: the username owns line 1 (with the YOU pill) and is the
+      // only thing that truncates; meta icons, title and tier badge share
+      // line 2 — meta can never crush the name, and YOU can never collide
+      // with the tier badge.
       const flagHtml = flag ? `<span class="lb-flag" aria-hidden="true">${flag}</span> ` : '';
       const metaHtml = `${flagHtml}${badgeHtml}${clsHtml}${specHtml}${guildTag}`;
       const nameUser = this.nameHtml(en.username, isMe ? meState : en);
@@ -4489,10 +4490,9 @@ export const UI = {
           <div class="lb-identity">
             <div class="lb-avatar" aria-hidden="true">${race.emoji || '❓'}</div>
             <div class="lb-idtext">
-              <div class="lb-name"><span class="lb-name-meta">${metaHtml}</span><span class="lb-name-user">${nameUser}</span>${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
-              ${title}
+              <div class="lb-name"><span class="lb-name-user">${nameUser}</span>${isMe ? '<span class="lb-you">YOU</span>' : ''}</div>
+              <div class="lb-sub"><span class="lb-name-meta">${metaHtml}</span>${title}<span class="lb-tier tier-${badgeCls}">${tierName}</span></div>
             </div>
-            <span class="lb-tier tier-${badgeCls}">${tierName}</span>
           </div>
           <div class="lb-stats">${stats}</div>
         </div>`;
@@ -4531,10 +4531,9 @@ export const UI = {
           <div class="lb-identity">
             <div class="lb-avatar" aria-hidden="true">🏰</div>
             <div class="lb-idtext">
-              <div class="lb-name"><span class="lb-name-meta"><span class="lb-guildtag guild-row-tag">[${esc(g.tag)}]</span> </span><span class="lb-name-user">${esc(g.name)}</span></div>
-              <div class="lb-title">Lv ${g.level} guild · ${g.memberCount} member${g.memberCount === 1 ? '' : 's'}</div>
+              <div class="lb-name"><span class="lb-name-user">${esc(g.name)}</span></div>
+              <div class="lb-sub"><span class="lb-name-meta"><span class="lb-guildtag guild-row-tag">[${esc(g.tag)}]</span></span><span class="lb-title">Lv ${g.level} guild · ${g.memberCount} member${g.memberCount === 1 ? '' : 's'}</span><span class="lb-tier tier-${tierCls}">${tierName}</span></div>
             </div>
-            <span class="lb-tier tier-${tierCls}">${tierName}</span>
           </div>
           <div class="lb-stats lb-stats-guild">${stats}</div>
         </div>`;
