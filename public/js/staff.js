@@ -60,6 +60,38 @@
     }).catch(function () { fail('Could not load audit log.'); });
   }
 
+  // ---------- Discord #mod-logs webhook ----------
+  function refreshWebhookStatus() {
+    var statusEl = document.getElementById('webhook-status');
+    api('/api/gm/discord-webhook').then(function (r) { return r.json(); }).then(function (j) {
+      if (j && j.configured) {
+        statusEl.innerHTML = '✅ Connected: <span style="font-family:monospace">' + esc(j.masked || '') + '</span>';
+      } else {
+        statusEl.textContent = 'Not connected — staff actions stay in the audit log only.';
+      }
+    }).catch(function () { statusEl.textContent = ''; });
+  }
+  document.getElementById('webhook-save').addEventListener('click', function () {
+    var url = document.getElementById('webhook-url').value;
+    api('/api/gm/discord-webhook', { method: 'POST', body: JSON.stringify({ url: url }) })
+      .then(function (r) { return r.json().then(function (j) { return { status: r.status, body: j }; }); })
+      .then(function (res) {
+        if (res.status === 200 && res.body.ok) {
+          document.getElementById('webhook-url').value = '';
+          refreshWebhookStatus();
+          fail('');
+        } else {
+          fail((res.body && res.body.error) || 'Could not save webhook.');
+        }
+      }).catch(function () { fail('Could not save webhook.'); });
+  });
+  document.getElementById('webhook-clear').addEventListener('click', function () {
+    api('/api/gm/discord-webhook', { method: 'DELETE' })
+      .then(function (r) { return r.json(); })
+      .then(function () { refreshWebhookStatus(); fail(''); })
+      .catch(function () { fail('Could not disconnect webhook.'); });
+  });
+
   // ---------- reports inbox ----------
   function statusOptions(statuses, cur) {
     return statuses.map(function (s) {
@@ -174,6 +206,7 @@
     loadReports('feedback');
     loadNotice();
     wireNotice();
+    refreshWebhookStatus();
   }
 
   // ---------- pre-update warning ----------
