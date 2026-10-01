@@ -4904,10 +4904,9 @@ export const UI = {
     this._renderNameStylePickers(state); // refresh token-fx lock badges
     const canGM = role === 'owner' || role === 'gm' || role === 'admin' || role === 'moderator';
     this.els['gm-entry-card'].classList.toggle('hidden', !canGM);
-    // Staff Social page (/social.html): owner/admin only, same gate as the API.
-    const canSocial = role === 'owner' || role === 'admin';
+    // Social page (/social.html): open to all signed-in players, same gate as the API.
     const socialBtn = this.el('staff-social-btn');
-    if (socialBtn) socialBtn.classList.toggle('hidden', !canSocial);
+    if (socialBtn) socialBtn.classList.remove('hidden');
     // Staff tab in the main nav: visible to staff only, opens the GM console.
     const staffBtn = document.getElementById('tabbtn-staff');
     if (staffBtn) staffBtn.classList.toggle('hidden', !canGM);
