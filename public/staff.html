@@ -73,6 +73,9 @@
   .st-planned { background: rgba(196,181,253,.12); color: #c4b5fd; border: 1px solid rgba(196,181,253,.45); }
   .empty { color: #7a7094; font-size: 13px; text-align: center; padding: 20px; }
   /* Admin chat */
+  #adminchat-list { max-height: 340px; overflow-y: auto; padding-right: 4px; }
+  #adminchat-list .entry { margin-bottom: 8px; }
+  #adminchat-list .entry-head .entry-title { flex: 1; }
   .chat-row { display: flex; gap: 8px; margin-top: 12px; }
   .chat-row input { flex: 1; margin: 0; }
   .chat-row button { width: auto; white-space: nowrap; margin: 0; }
@@ -140,6 +143,7 @@
       <button data-tab="bugs">🐞 Bugs <span id="cnt-bugs"></span></button>
       <button data-tab="feedback">💬 Feedback <span id="cnt-feedback"></span></button>
       <button data-tab="ideas">💡 Ideas</button>
+      <button data-tab="adminchat">💬 Admin chat</button>
     </div>
     <div class="err" id="ops-err"></div>
 
@@ -197,10 +201,19 @@
       <div id="ideas-list"><div class="empty">Loading…</div></div>
     </div>
 
+    <div class="tab-pane hidden" id="tab-adminchat">
+      <p class="sub" style="text-align:left; margin-bottom:10px">🔒 Private staff channel — only owners and admins can see or post here. Normal players have no access.</p>
+      <div id="adminchat-list"><div class="empty">Loading…</div></div>
+      <div class="chat-row">
+        <input id="adminchat-input" type="text" maxlength="500" placeholder="Message the staff…" autocomplete="off">
+        <button id="adminchat-send">Send</button>
+      </div>
+    </div>
+
     <a class="back" href="/">← Back to game</a>
   </div>
 </div>
 
-<script src="js/staff.js?v=20261001h"></script>
+<script src="js/staff.js?v=20261001j"></script>
 </body>
 </html>
