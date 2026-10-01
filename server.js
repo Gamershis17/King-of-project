@@ -29,6 +29,7 @@ const {
 const { authRouter } = require('./src/auth');
 const { gameRouter } = require('./src/gameApi');
 const { gmRouter } = require('./src/gmApi');
+const { accountRouter } = require('./src/accountApi');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -90,6 +91,7 @@ app.use('/api/auth/', authLimiter);
 app.use('/api/auth', authRouter);
 app.use('/api', gameRouter);
 app.use('/api', gmRouter);
+app.use('/api', accountRouter);
 
 // --- static frontend ---
 app.use(express.static(path.join(__dirname, 'public')));
