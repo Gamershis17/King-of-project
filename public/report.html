@@ -72,8 +72,14 @@
   <p class="sub">Found something broken? Got an idea for the game? Tell us here.</p>
 
   <div id="signin-pane">
-    <p class="sub">You need to be signed in to send a report.</p>
-    <a class="back" href="/">← Back to the game to sign in</a>
+    <p class="sub">Sign in to send a report.</p>
+    <label for="ru">Username</label>
+    <input id="ru" type="text" autocomplete="username" autocapitalize="none">
+    <label for="rp">Password</label>
+    <input id="rp" type="password" autocomplete="current-password">
+    <button class="submit" id="signin-btn" style="margin-top:14px">Sign in</button>
+    <div class="err" id="signin-err"></div>
+    <a class="back" href="/">← Back to game</a>
   </div>
 
   <div id="form-pane" class="hidden">
@@ -178,12 +184,39 @@
   });
 
   // Signed-in players only. The game and this page share the same session.
+  function showForm(username) {
+    document.getElementById('who').textContent = 'Signed in as ' + username;
+    document.getElementById('signin-pane').classList.add('hidden');
+    document.getElementById('form-pane').classList.remove('hidden');
+    loadMine();
+  }
+
+  document.getElementById('signin-btn').addEventListener('click', function () {
+    var errEl = document.getElementById('signin-err');
+    errEl.textContent = '';
+    var u = document.getElementById('ru').value.trim();
+    var p = document.getElementById('rp').value;
+    if (!u || !p) { errEl.textContent = 'Enter username and password.'; return; }
+    var btn = this; btn.disabled = true;
+    api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: u, password: p }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        btn.disabled = false;
+        if (!res.ok || !res.j || !res.j.user) {
+          errEl.textContent = (res.j && res.j.error) || 'Sign-in failed.';
+          return;
+        }
+        showForm(res.j.user.username || u);
+      })
+      .catch(function () { btn.disabled = false; errEl.textContent = 'Could not reach server.'; });
+  });
+  document.getElementById('rp').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('signin-btn').click();
+  });
+
   api('/api/auth/me').then(function (r) { return r.ok ? r.json() : null; }).then(function (me) {
     if (me && me.user) {
-      document.getElementById('who').textContent = 'Signed in as ' + me.user.username;
-      document.getElementById('signin-pane').classList.add('hidden');
-      document.getElementById('form-pane').classList.remove('hidden');
-      loadMine();
+      showForm(me.user.username);
     }
   }).catch(function () {});
 })();
