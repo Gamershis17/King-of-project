@@ -3499,6 +3499,12 @@ body:is(.perf, .os-reduced) .node-crack, body:is(.perf, .os-reduced) .depth-fill
   background: #0e0c14; border: 1px solid var(--stone2); color: var(--text); font-size: 1rem;
 }
 .friend-input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 8px rgba(255,210,63,.25); }
+/* Account card (Settings → 👤 Account): stacked change-password / change-username forms. */
+.acct-section { margin: 0.9rem 0 0.2rem; padding-top: 0.9rem; border-top: 1px solid var(--stone2); }
+.acct-section:first-of-type { border-top: none; padding-top: 0; }
+.acct-section h4 { margin: 0 0 0.5rem; font-size: 0.95rem; }
+.acct-input { display: block; width: 100%; box-sizing: border-box; margin-bottom: 0.45rem; }
+.acct-section .btn.wide { margin-top: 0.15rem; }
 .friends-guest { text-align: center; }
 @media (max-width: 560px) {
   /* request rows: username gets its own line so it is never crushed by the
