@@ -45,6 +45,9 @@
  *   POST /api/gm/ideas          (owner|admin) — add an idea
  *   PATCH /api/gm/ideas/:id     (owner|admin) — edit idea status/title/body
  *   DELETE /api/gm/ideas/:id    (owner|admin) — delete an idea
+ *   GET  /api/gm/admin-chat     (owner|admin) — staff-only chat history, ?after=
+ *   POST /api/gm/admin-chat     (owner|admin) — post a staff-chat message
+ *   DELETE /api/gm/admin-chat/:id (owner|admin) — delete a staff-chat message
  *   POST /api/gm/clear-guild-chat (owner|admin|gm) — wipe the target player's guild chat history
  *   POST /api/gm/grant-forge-box (gm|owner|admin) — grant galaxy forge box (25 galaxy + 40 adamant ores)
  *   POST /api/gm/grant-class-gear (gm|owner|admin) — grant mythic class weapon/armor scaled to target's stage
@@ -96,6 +99,9 @@ const {
   getSetting,
   refreshGoldCap,
   bumpSessionVersion,
+  addAdminChat,
+  getAdminChat,
+  deleteAdminChat,
 } = require('./db');
 
 const router = express.Router();
@@ -1786,5 +1792,52 @@ router.delete(
   })
 );
 
+
+// ---------- staff: admin chat (owner|admin) ----------
+// Private staff channel on /staff.html. Normal players have no route to it:
+// every endpoint below requires the owner|admin role.
+const adminChatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: (req) => (req.user && req.user.id ? `u:${req.user.id}` : req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Chatting too fast. Slow down a moment.' },
+});
+
+router.get(
+  '/gm/admin-chat',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const after = Math.max(0, Math.floor(Number((req.query && req.query.after) || 0)));
+    res.json({ ok: true, messages: await getAdminChat(after) });
+  })
+);
+
+router.post(
+  '/gm/admin-chat',
+  adminPlus,
+  adminChatLimiter,
+  asyncHandler(async (req, res) => {
+    const raw = cleanText(req.body && req.body.message, 500);
+    if (!raw) return res.status(400).json({ error: 'Message is empty.' });
+    const msg = await addAdminChat(req.user.username, raw);
+    res.json({ ok: true, message: { id: msg.id, username: req.user.username, message: raw, created_at: msg.created_at } });
+  })
+);
+
+router.delete(
+  '/gm/admin-chat/:id',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Bad message id.' });
+    }
+    const ok = await deleteAdminChat(id);
+    if (!ok) return res.status(404).json({ error: 'Message not found.' });
+    res.json({ ok: true, id });
+  })
+);
 
 module.exports = { gmRouter: router };

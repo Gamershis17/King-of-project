@@ -100,6 +100,15 @@ CREATE TABLE IF NOT EXISTS guild_chat (
 );
 CREATE INDEX IF NOT EXISTS idx_guild_chat_guild ON guild_chat (guild_id, id DESC);
 
+-- Staff-only admin chat (owner + admin). Pruned to the newest 200 messages.
+CREATE TABLE IF NOT EXISTS admin_chat (
+  id SERIAL PRIMARY KEY,
+  username TEXT NOT NULL,
+  message TEXT NOT NULL,
+  created_at BIGINT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_admin_chat_id ON admin_chat (id DESC);
+
 -- Guild news / activity feed: server-generated entries, pruned to newest 100.
 CREATE TABLE IF NOT EXISTS guild_news (
   id SERIAL PRIMARY KEY,

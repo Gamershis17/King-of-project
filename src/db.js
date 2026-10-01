@@ -1281,6 +1281,9 @@ module.exports = {
   addGuildChat,
   getGuildChat,
   deleteGuildChat,
+  addAdminChat,
+  getAdminChat,
+  deleteAdminChat,
   addGuildNews,
   getGuildNews,
   getGuildChallenges,
@@ -1351,6 +1354,60 @@ async function getGuildChat(guildId, afterId = 0, limit = 100) {
      LEFT JOIN player_state ps ON ps.user_id = u.id
      WHERE c.guild_id = $1 AND c.id > $2 ORDER BY c.id ASC LIMIT $3`,
     [guildId, Math.max(0, Math.floor(afterId || 0)), Math.min(100, Math.max(1, limit || 100))]
+  );
+  return rows.map((r) => {
+    let nameColor = null;
+    let nameFx = 'none';
+    if (r.state_json) {
+      try {
+        const style = nameStyleOf(JSON.parse(r.state_json));
+        nameColor = style.nameColor;
+        nameFx = style.nameFx;
+      } catch { /* ignore corrupt blob */ }
+    }
+    return {
+      id: r.id,
+      username: r.username,
+      message: r.message,
+      created_at: r.created_at,
+      nameColor,
+      nameFx,
+    };
+  });
+}
+
+
+// ---------- staff admin chat (owner + admin only) ----------
+async function addAdminChat(username, message) {
+  const { rows } = await pool.query(
+    'INSERT INTO admin_chat (username, message, created_at) VALUES ($1, $2, $3) RETURNING id, created_at',
+    [username, message, Date.now()]
+  );
+  // Prune to the newest 200 messages.
+  await pool.query(
+    `DELETE FROM admin_chat WHERE id NOT IN
+     (SELECT id FROM admin_chat ORDER BY id DESC LIMIT 200)`
+  );
+  return rows[0];
+}
+
+/** Delete one admin-chat message. Returns true when a row was removed. */
+async function deleteAdminChat(messageId) {
+  const { rowCount } = await pool.query(
+    'DELETE FROM admin_chat WHERE id = $1',
+    [messageId]
+  );
+  return rowCount > 0;
+}
+
+async function getAdminChat(afterId = 0, limit = 100) {
+  const { rows } = await pool.query(
+    `SELECT c.id, c.username, c.message, c.created_at, ps.state_json
+     FROM admin_chat c
+     LEFT JOIN users u ON LOWER(u.username) = LOWER(c.username)
+     LEFT JOIN player_state ps ON ps.user_id = u.id
+     WHERE c.id > $1 ORDER BY c.id ASC LIMIT $2`,
+    [Math.max(0, Math.floor(afterId || 0)), Math.min(100, Math.max(1, limit || 100))]
   );
   return rows.map((r) => {
     let nameColor = null;
