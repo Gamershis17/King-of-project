@@ -1,11 +1,11 @@
 'use strict';
 
 /**
- * Staff social page (/social.html) — owner/admin only:
+ * Social page (/social.html) — open to all signed-in players:
  *   GET    /api/social/posts       — feed, newest first (limit 50)
  *   POST   /api/social/posts       — new post: { body, media[] }
- *   DELETE /api/social/posts/:id   — author or owner can delete
- *   GET    /api/social/profile     — own staff profile (auto-created)
+ *   DELETE /api/social/posts/:id   — author, owner or admin can delete
+ *   GET    /api/social/profile     — own social profile (auto-created)
  *   PUT    /api/social/profile     — { display_name, bio, avatar }
  *
  * Pictures are stored as data URLs (client resizes before upload).
@@ -14,10 +14,10 @@
 
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const { requireRole, asyncHandler } = require('./auth');
+const { requireAuth, asyncHandler } = require('./auth');
 const { pool } = require('./db');
 
-const adminPlus = requireRole('owner', 'admin');
+const signedIn = requireAuth;
 const router = express.Router();
 
 const MAX_BODY = 2000;
@@ -67,7 +67,7 @@ async function getProfile(userId, username) {
   return r.rows[0];
 }
 
-// Posting spam protection: 20 posts/hour per staff member.
+// Posting spam protection: 20 posts/hour per player.
 const postLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
@@ -78,7 +78,7 @@ const postLimiter = rateLimit({
 });
 
 // ---------- feed ----------
-router.get('/social/posts', adminPlus, asyncHandler(async (req, res) => {
+router.get('/social/posts', signedIn, asyncHandler(async (req, res) => {
   const r = await pool.query(
     `SELECT id, username, display_name, avatar, accent, role, body, media, created_at
      FROM social_posts ORDER BY created_at DESC LIMIT 50`
@@ -99,7 +99,7 @@ router.get('/social/posts', adminPlus, asyncHandler(async (req, res) => {
   });
 }));
 
-router.post('/social/posts', adminPlus, postLimiter, asyncHandler(async (req, res) => {
+router.post('/social/posts', signedIn, postLimiter, asyncHandler(async (req, res) => {
   const body = String((req.body && req.body.body) || '').slice(0, MAX_BODY).trim();
   const media = parseMediaList(req.body && req.body.media);
   if (!body && (!media || !media.length)) {
@@ -120,25 +120,25 @@ router.post('/social/posts', adminPlus, postLimiter, asyncHandler(async (req, re
   res.json({ ok: true, id: r.rows[0].id, created_at: r.rows[0].created_at });
 }));
 
-router.delete('/social/posts/:id', adminPlus, asyncHandler(async (req, res) => {
+router.delete('/social/posts/:id', signedIn, asyncHandler(async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'Bad post id.' });
   const r = await pool.query('SELECT user_id FROM social_posts WHERE id = $1', [id]);
   if (!r.rows.length) return res.status(404).json({ error: 'Post not found.' });
-  const isOwner = req.user.role === 'owner';
+  const canMod = req.user.role === 'owner' || req.user.role === 'admin';
   const isAuthor = r.rows[0].user_id === req.user.id;
-  if (!isOwner && !isAuthor) return res.status(403).json({ error: 'Only the author or owner can delete this.' });
+  if (!canMod && !isAuthor) return res.status(403).json({ error: 'Only the author or staff can delete this.' });
   await pool.query('DELETE FROM social_posts WHERE id = $1', [id]);
   res.json({ ok: true });
 }));
 
 // ---------- profiles ----------
-router.get('/social/profile', adminPlus, asyncHandler(async (req, res) => {
+router.get('/social/profile', signedIn, asyncHandler(async (req, res) => {
   const prof = await getProfile(req.user.id, req.user.username);
   res.json({ ok: true, profile: prof });
 }));
 
-router.put('/social/profile', adminPlus, asyncHandler(async (req, res) => {
+router.put('/social/profile', signedIn, asyncHandler(async (req, res) => {
   const displayName = String((req.body && req.body.display_name) || '').slice(0, 40).trim();
   const bio = String((req.body && req.body.bio) || '').slice(0, 200).trim();
   const status = String((req.body && req.body.status) || '').slice(0, MAX_STATUS).trim();
