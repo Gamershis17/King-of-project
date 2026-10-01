@@ -32,13 +32,15 @@
     b.addEventListener('click', function () {
       tabBtns.forEach(function (x) { x.classList.remove('active'); });
       b.classList.add('active');
-      ['audit', 'bugs', 'feedback', 'ideas'].forEach(function (t) {
+      stopAdminChatPoll();
+      ['audit', 'bugs', 'feedback', 'ideas', 'adminchat'].forEach(function (t) {
         document.getElementById('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab);
       });
       if (b.dataset.tab === 'audit') loadAudit();
       if (b.dataset.tab === 'bugs') loadReports('bug');
       if (b.dataset.tab === 'feedback') loadReports('feedback');
       if (b.dataset.tab === 'ideas') loadIdeas();
+      if (b.dataset.tab === 'adminchat') loadAdminChat();
     });
   });
 
@@ -287,6 +289,76 @@
         loadIdeas();
       })
       .catch(function () { btn.disabled = false; fail('Could not reach server.'); });
+  });
+
+  // ---------- admin chat (owner/admin only) ----------
+  var adminChatTimer = null;
+  var adminChatLastId = 0;
+  function stopAdminChatPoll() {
+    if (adminChatTimer) { clearInterval(adminChatTimer); adminChatTimer = null; }
+  }
+  function adminChatMsgHtml(m) {
+    var color = m.nameColor ? ' style="color:' + esc(m.nameColor) + '"' : '';
+    return '<div class="entry" data-id="' + m.id + '">' +
+      '<div class="entry-head"><span class="entry-title"' + color + '>' + esc(m.username) + '</span>' +
+      '<button class="ghost small adminchat-del" title="Delete message" aria-label="Delete message">✕</button></div>' +
+      '<div class="entry-body">' + esc(m.message) + '</div>' +
+      '<div class="entry-meta">sent ' + fmtTs(m.created_at) + '</div>' +
+      '</div>';
+  }
+  function pollAdminChat() {
+    var list = document.getElementById('adminchat-list');
+    if (!list || document.getElementById('tab-adminchat').classList.contains('hidden')) return;
+    api('/api/gm/admin-chat?after=' + adminChatLastId).then(function (r) { return r.json(); }).then(function (j) {
+      var msgs = (j && j.ok && j.messages) || [];
+      if (!msgs.length) return;
+      var empty = list.querySelector('.empty');
+      if (empty) list.innerHTML = '';
+      for (var i = 0; i < msgs.length; i++) {
+        adminChatLastId = Math.max(adminChatLastId, Number(msgs[i].id) || 0);
+        list.insertAdjacentHTML('beforeend', adminChatMsgHtml(msgs[i]));
+      }
+      list.scrollTop = list.scrollHeight;
+    }).catch(function () { /* offline-tolerant; keep polling */ });
+  }
+  function loadAdminChat() {
+    adminChatLastId = 0;
+    var list = document.getElementById('adminchat-list');
+    if (list) list.innerHTML = '<div class="empty">Loading…</div>';
+    pollAdminChat();
+    stopAdminChatPoll();
+    adminChatTimer = setInterval(pollAdminChat, 5000);
+  }
+  document.getElementById('adminchat-send').addEventListener('click', function () {
+    var input = document.getElementById('adminchat-input');
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    opsErr.textContent = '';
+    api('/api/gm/admin-chat', { method: 'POST', body: JSON.stringify({ message: text }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { fail((res.j && res.j.error) || 'Could not send.'); input.value = text; return; }
+        pollAdminChat();
+      })
+      .catch(function () { fail('Could not reach server.'); input.value = text; });
+  });
+  document.getElementById('adminchat-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('adminchat-send').click();
+  });
+  document.getElementById('adminchat-list').addEventListener('click', function (e) {
+    var btn = e.target.closest('.adminchat-del');
+    if (!btn) return;
+    var card = btn.closest('.entry');
+    var id = card && Number(card.dataset.id);
+    if (!id) return;
+    api('/api/gm/admin-chat/' + id, { method: 'DELETE' })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { fail((res.j && res.j.error) || 'Delete failed.'); return; }
+        if (card) card.remove();
+      })
+      .catch(function () { fail('Could not reach server.'); });
   });
 
   // ---------- login (owner/admin only) ----------
