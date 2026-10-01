@@ -2402,7 +2402,8 @@ async function doRedeem() {
     App.state.gold = fresh.gold;
     App.state.stars = fresh.stars;
     App.state.codesRedeemed = fresh.codesRedeemed;
-    input.value = '';
+    const _redeemEl = document.getElementById('redeem-input');
+    if (_redeemEl) _redeemEl.value = '';
     UI.renderGear(App.state);
     UI.renderMore(App.state, App.user);
     UI.updateHUD(App.state, App.user);
