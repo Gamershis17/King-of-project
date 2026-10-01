@@ -72,6 +72,10 @@
   .st-closed, .st-dropped { background: rgba(154,154,165,.12); color: #9a9aa5; border: 1px solid rgba(154,154,165,.4); }
   .st-planned { background: rgba(196,181,253,.12); color: #c4b5fd; border: 1px solid rgba(196,181,253,.45); }
   .empty { color: #7a7094; font-size: 13px; text-align: center; padding: 20px; }
+  /* Admin chat */
+  .chat-row { display: flex; gap: 8px; margin-top: 12px; }
+  .chat-row input { flex: 1; margin: 0; }
+  .chat-row button { width: auto; white-space: nowrap; margin: 0; }
   .new-idea { background: #0d0a14; border: 1px dashed #3a2f52; border-radius: 8px; padding: 14px; margin-bottom: 16px; }
   .new-idea button { margin-top: 10px; }
   .count { font-size: 12px; color: #7a7094; margin-bottom: 10px; }
@@ -114,6 +118,17 @@
     <div class="err" id="ops-err"></div>
 
     <div class="tab-pane" id="tab-audit">
+      <div class="card" id="webhook-card" style="margin-top:0; margin-bottom:16px">
+        <h1 style="text-align:left; font-size:17px; margin-bottom:2px">🔗 Discord #mod-logs</h1>
+        <p class="sub" style="text-align:left; margin-bottom:8px">Paste a channel webhook URL — every staff action is mirrored to Discord as an embed. No bot needed.</p>
+        <label for="webhook-url">Webhook URL</label>
+        <input id="webhook-url" type="url" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+        <div class="sub" id="webhook-status" style="text-align:left; margin:8px 0 0"></div>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+          <button id="webhook-save">Save webhook</button>
+          <button id="webhook-clear" class="ghost">Disconnect</button>
+        </div>
+      </div>
       <div class="count" id="audit-count"></div>
       <div id="audit-list"><div class="empty">Loading…</div></div>
     </div>
@@ -136,6 +151,6 @@
   </div>
 </div>
 
-<script src="js/staff.js?v=20261001a"></script>
+<script src="js/staff.js?v=20261001c"></script>
 </body>
 </html>
