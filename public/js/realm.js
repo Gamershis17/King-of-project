@@ -17,8 +17,8 @@
 //  A failed fetch keeps the last good data instead of erroring out.
 // ============================================================
 
-import { api } from './api.js?v=20260930ao';
-import { COUNTRIES, countryFlag } from './engine.js?v=20260930ao';
+import { api } from './api.js?v=20260930ap';
+import { COUNTRIES, countryFlag } from './engine.js?v=20260930ap';
 
 const NAMES = Object.fromEntries(COUNTRIES);
 const MAX_DPR = 2;

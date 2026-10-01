@@ -3,8 +3,9 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930ao';
-import { Audio } from './audio.js?v=20260930ao';
+import * as Engine from './engine.js?v=20260930ap';
+import { Audio } from './audio.js?v=20260930ap';
+import { api } from './api.js?v=20260930ap';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -811,6 +812,31 @@ export const UI = {
     const el = document.getElementById('maintenance-message');
     if (el && message) el.textContent = message;
     this.showView('maintenance');
+    // Staff escape hatch: a signed-in owner/admin gets a one-tap OFF button
+    // right on this screen, so nobody gets locked out again.
+    try {
+      api.me().then((me) => {
+        const role = me && me.user && me.user.role;
+        const btn = document.getElementById('maintenance-off-btn');
+        if (!btn) return;
+        const staff = role === 'owner' || role === 'admin';
+        btn.classList.toggle('hidden', !staff);
+        if (staff && !btn.dataset.wired) {
+          btn.dataset.wired = '1';
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.textContent = 'Turning off…';
+            try {
+              await api.gmMaintenance(false, '');
+              // The app's maintenance loop reloads on its own once the server reports OFF.
+            } catch {
+              btn.disabled = false;
+              btn.textContent = 'Turn maintenance OFF';
+            }
+          });
+        }
+      }).catch(() => { /* not signed in — players just see the screen */ });
+    } catch { /* never let the escape hatch break the maintenance screen */ }
   },
   setMaintenanceBanner(message) {
     const el = document.getElementById('maintenance-banner');
