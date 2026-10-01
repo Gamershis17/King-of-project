@@ -71,6 +71,46 @@ h3 { font-size: 1rem; margin: 0 0 0.6rem; color: var(--gold); }
   text-overflow: ellipsis;
 }
 
+/* ---------- pre-update warning banner ---------- */
+.update-banner {
+  background: linear-gradient(90deg, #8a5a00, #c98a12);
+  color: #fff6dd;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.45rem 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border-bottom: 1px solid #6b4500;
+}
+
+/* ---------- update refresh overlay ---------- */
+.update-refresh {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 5, 16, 0.82);
+  padding: 1rem;
+}
+.update-refresh.hidden { display: none; }
+.update-refresh-card {
+  background: #1d1530;
+  border: 1px solid #c98a12;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+  max-width: 320px;
+  width: 100%;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+.update-refresh-title { font-size: 1.1rem; font-weight: 700; color: #ffd76a; margin-bottom: 0.4rem; }
+.update-refresh-sub { font-size: 0.85rem; color: #b9a8d9; margin-bottom: 1rem; }
+.update-refresh-num { font-weight: 700; color: #ffd76a; }
+
 /* Pause-while-browsing indicator: the world tick is frozen, nothing
    advances (no enemy attacks, regen, cooldowns, or timers). */
 .pause-pill {
