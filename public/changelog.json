@@ -1,5 +1,16 @@
 [
   {
+    "date": "2026-10-01",
+    "title": "📣 Discord webhooks — bugs, feedback, patch notes & balance log",
+    "changes": [
+      "🐞 New bug reports now mirror instantly to the #bug-reports Discord channel",
+      "💬 Player feedback mirrors to #feedback the moment it is submitted",
+      "📜 Staff can push the latest patch notes to #patch-notes (read-only for players) with one button",
+      "⚖️ Staff can push the latest Balance Log entry to #balance-log the same way",
+      "🔗 Each channel webhook URL is configured on the staff page (owner/admin only)"
+    ]
+  },
+  {
     "date": "2026-09-30",
     "title": "⚔️ Forge rework & spellbooks",
     "changes": [

@@ -109,6 +109,32 @@
         <button id="notice-clear" class="ghost">Clear</button>
       </div>
     </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 8px">📜 Patch notes → Discord</h3>
+      <p style="margin:0 0 8px; font-size:13px; color:#9a8fb5">Push the latest changelog entry to the <b>#patch-notes</b> channel as an embed. Do it after a ship so players see what changed.</p>
+      <label for="patchnotes-webhook-url">Webhook URL</label>
+      <input id="patchnotes-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+      <div class="sub" id="patchnotes-webhook-status" style="text-align:left; margin:8px 0 0"></div>
+      <div class="sub" id="patchnotes-latest" style="text-align:left; margin:8px 0 0"></div>
+      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+        <button id="patchnotes-webhook-save">Save webhook</button>
+        <button id="patchnotes-webhook-clear" class="ghost">Disconnect</button>
+        <button id="patchnotes-push">📜 Push latest patch notes</button>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px">
+      <h3 style="margin:0 0 8px">⚖️ Balance log → Discord</h3>
+      <p style="margin:0 0 8px; font-size:13px; color:#9a8fb5">Push the latest balance-log entry to the <b>#balance-log</b> channel as an embed. Do it whenever the in-game Balance Log gets a new entry.</p>
+      <label for="balance-webhook-url">Webhook URL</label>
+      <input id="balance-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+      <div class="sub" id="balance-webhook-status" style="text-align:left; margin:8px 0 0"></div>
+      <div class="sub" id="balance-latest" style="text-align:left; margin:8px 0 0"></div>
+      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+        <button id="balance-webhook-save">Save webhook</button>
+        <button id="balance-webhook-clear" class="ghost">Disconnect</button>
+        <button id="balance-push">⚖️ Push latest balance changes</button>
+      </div>
+    </div>
     <div class="tabs">
       <button data-tab="audit" class="active">📋 Audit log</button>
       <button data-tab="bugs">🐞 Bugs <span id="cnt-bugs"></span></button>
@@ -133,8 +159,32 @@
       <div id="audit-list"><div class="empty">Loading…</div></div>
     </div>
 
-    <div class="tab-pane hidden" id="tab-bugs"><div id="bugs-list"><div class="empty">Loading…</div></div></div>
-    <div class="tab-pane hidden" id="tab-feedback"><div id="feedback-list"><div class="empty">Loading…</div></div></div>
+    <div class="tab-pane hidden" id="tab-bugs">
+      <div class="card" id="bug-webhook-card" style="margin-top:0; margin-bottom:16px">
+        <h1 style="text-align:left; font-size:17px; margin-bottom:2px">🔗 Discord #bug-reports</h1>
+        <p class="sub" style="text-align:left; margin-bottom:8px">Paste a channel webhook URL — every new bug report is mirrored to Discord as an embed. No bot needed.</p>
+        <label for="bug-webhook-url">Webhook URL</label>
+        <input id="bug-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+        <div class="sub" id="bug-webhook-status" style="text-align:left; margin:8px 0 0"></div>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+          <button id="bug-webhook-save">Save webhook</button>
+          <button id="bug-webhook-clear" class="ghost">Disconnect</button>
+        </div>
+      </div>
+      <div id="bugs-list"><div class="empty">Loading…</div></div></div>
+    <div class="tab-pane hidden" id="tab-feedback">
+      <div class="card" id="feedback-webhook-card" style="margin-top:0; margin-bottom:16px">
+        <h1 style="text-align:left; font-size:17px; margin-bottom:2px">🔗 Discord #feedback</h1>
+        <p class="sub" style="text-align:left; margin-bottom:8px">Paste a channel webhook URL — every new player feedback is mirrored to Discord as an embed. No bot needed.</p>
+        <label for="feedback-webhook-url">Webhook URL</label>
+        <input id="feedback-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/…" autocomplete="off" spellcheck="false">
+        <div class="sub" id="feedback-webhook-status" style="text-align:left; margin:8px 0 0"></div>
+        <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+          <button id="feedback-webhook-save">Save webhook</button>
+          <button id="feedback-webhook-clear" class="ghost">Disconnect</button>
+        </div>
+      </div>
+      <div id="feedback-list"><div class="empty">Loading…</div></div></div>
 
     <div class="tab-pane hidden" id="tab-ideas">
       <div class="new-idea">
@@ -151,6 +201,6 @@
   </div>
 </div>
 
-<script src="js/staff.js?v=20261001c"></script>
+<script src="js/staff.js?v=20261001h"></script>
 </body>
 </html>
