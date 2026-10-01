@@ -1,17 +1,17 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v=20260930al';
-import * as Engine from './engine.js?v=20260930al';
-import { UI, esc, formatNum } from './ui.js?v=20260930al';
-import { Auth } from './auth.js?v=20260930al';
-import { GM } from './gm.js?v=20260930al';
+import { api } from './api.js?v=20260930ao';
+import * as Engine from './engine.js?v=20260930ao';
+import { UI, esc, formatNum } from './ui.js?v=20260930ao';
+import { Auth } from './auth.js?v=20260930ao';
+import { GM } from './gm.js?v=20260930ao';
 
-import { Raid } from './raid.js?v=20260930al';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930al';
-import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930al';
-import { Realm } from './realm.js?v=20260930al';
-import { Audio } from './audio.js?v=20260930al';
+import { Raid } from './raid.js?v=20260930ao';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20260930ao';
+import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ao';
+import { Realm } from './realm.js?v=20260930ao';
+import { Audio } from './audio.js?v=20260930ao';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
@@ -122,6 +122,15 @@ async function boot() {
   UI.handlers = {
     onTap: doTap,
     onSkill: (id) => useSkill(id),
+    onSpell: (id) => useSpell(id),
+    onDrinkPotion: doDrinkPotion,
+    onOpenSpellbook: () => UI.openSpellbook(App.state),
+    onSetSpellSlots: (slots) => {
+      if (!Engine.setSpellSlots(App.state, slots)) { UI.toast('Invalid spell loadout.', 'warn'); return; }
+      saveNow();
+      UI.renderSkillRow(App.state);
+      UI.toast('📖 Spell loadout updated!', 'success');
+    },
     onClaimQuest: doClaimQuest,
     onEnchant: doEnchant,
     onMode: setMode,
@@ -133,7 +142,6 @@ async function boot() {
     onMine: doMine,
     onPickaxeUpgrade: doPickaxeUpgrade,
     onForgeTier: doForgeTier,
-    onForgeStat: doForgeStat,
     onForgeCraft: doForgeCraft,
     onGalaxyEquip: doGalaxyEquip,
     onGalaxyUnequip: doGalaxyUnequip,
@@ -159,9 +167,9 @@ async function boot() {
     onBreedPets: doBreedPets,
     onCombinePets: doCombinePets,
     onBuyTokenItem: doBuyTokenItem,
-    onBuyGear: doBuyGear,
+    onChangeClassOpen: openChangeClass,
+    onChangeClass: doChangeClass,
     onBuyArmory: doBuyArmory,
-    onGotoPetShop: doGotoPetShop,
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
@@ -911,6 +919,7 @@ function spawnEnemy() {
     : Engine.enemyFor(s.stage, Engine.computeStats(s));
   App.enemyTimer = 0;
   App.heroTimer = 0;
+  App.enemySlow = null; // a fresh enemy never inherits the last one's frost slow
   App.companionTimers = {};
   App.healerTimers = {};
   // revive downed companions on a fresh enemy
@@ -995,6 +1004,8 @@ function heroStrike(stats, mult = 1) {
   const final = Math.max(1, Math.round(dmg * mult));
   meterHit('hero', (App.user && App.user.username) || 'You', final);
   damageEnemy(final, crit ? 'CRIT ' : '', 'hero');
+  // Warriors build rage on every landed strike.
+  if (Engine.resourceIdFor(App.state) === 'rage') Engine.gainRage(App.state, Engine.RAGE_PER_STRIKE);
   // lifesteal
   if (stats.lifesteal > 0 && !App.dead) {
     const heal = final * (stats.lifesteal / 100);
@@ -1071,6 +1082,11 @@ function onKillEnemy() {
   s.stats.kills += 1;
   // Kill streak: +1 per kill, boosts loot drop chance; resets on defeat.
   s.streak = (s.streak || 0) + 1;
+  // Potion drops: 8% chance, independent of all other loot.
+  if (Math.random() < Engine.POTION_DROP_CHANCE) {
+    const kind = Engine.grantPotionDrop(s);
+    if (kind) UI.combatLog(`🧪 A ${kind === 'health' ? 'health' : 'resource'} potion dropped!`, 'loot');
+  }
   const streakBonus = Engine.streakDropBonus(s.streak);
   // Radiant enemies: guaranteed loot + triple gold.
   const radiant = !!enemy.radiant;
@@ -1182,8 +1198,12 @@ function enemyStrikeTick(stats) {
     finalDmg = Math.max(1, Math.round(res.dmg * tStats.damageTakenMult));
   }
   if (target.kind === 'hero') {
-    s.hero.hp -= finalDmg;
-    UI.floatText(`-${formatNum(finalDmg)}`, 'hurt');
+    // Shield Block absorbs first, then damage-taken buffs (challenging shout).
+    let heroDmg = Engine.absorbShield(s, finalDmg);
+    heroDmg = Math.max(0, Math.round(heroDmg * Engine.damageTakenMult(s)));
+    if (Engine.resourceIdFor(s) === 'rage') Engine.gainRage(s, Engine.RAGE_PER_HIT_TAKEN);
+    s.hero.hp -= heroDmg;
+    UI.floatText(`-${formatNum(heroDmg)}`, 'hurt');
     if (s.hero.hp <= 0) { s.hero.hp = 0; onDefeat(); }
   } else {
     target.c.hp -= finalDmg;
@@ -1338,6 +1358,10 @@ function tick() {
   if (stats.regen > 0 && s.hero.hp < stats.maxHp) {
     s.hero.hp = Math.min(stats.maxHp, s.hero.hp + stats.regen * dt);
   }
+  // Class resources: focus/mana/energy regen via the generic ticker
+  // (rage has no passive regen — it builds on strikes and hits taken).
+  Engine.tickResources(s, dt);
+  if (App.dead || App.inInn || !App.enemy) Engine.decayRage(s, dt);
   for (const c of s.party) {
     if (c.hp > 0 && c.hp < c.maxHp && c.regen > 0) c.hp = Math.min(c.maxHp, c.hp + c.regen * dt);
   }
@@ -1398,14 +1422,19 @@ function tick() {
     Engine.decayPetHunger(s, 1);
   }
 
-  // enemy counter-attacks
+  // Enemy damage-over-time (traps, blizzard).
+  tickEnemyFx(stats);
+
+  // enemy counter-attacks (slowed by frost effects)
   App.enemyTimer += dt;
-  if (App.enemyTimer >= ENEMY_ATTACK_S) {
+  const slowPct = App.enemySlow && Date.now() < App.enemySlow.until ? App.enemySlow.pct : 0;
+  const atkInterval = ENEMY_ATTACK_S / (1 - Math.min(90, slowPct) / 100);
+  if (App.enemyTimer >= atkInterval) {
     App.enemyTimer = 0;
     if (!App.dead) enemyStrikeTick(stats);
   }
 
-  UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillCDs: App.skillCDs });
+  UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillCDs: App.skillCDs, potionCD: s.potionReadyAt || 0 });
   // keep chips / hero panel fresh at low frequency
   if (!tick._n) tick._n = 0;
   if (++tick._n % 8 === 0) {
@@ -1464,7 +1493,7 @@ function checkAch() {
 function announceSkillUnlocks(skillIds) {
   if (!skillIds || !skillIds.length) return;
   for (const id of skillIds) {
-    const def = Engine.SKILLS[id];
+    const def = Engine.SKILLS[id] || Engine.spellById(id);
     if (!def) continue;
     UI.notify('level', `${def.emoji} New skill unlocked: ${def.name}! (${def.desc})`, 'success');
     UI.combatLog(`${def.emoji} Skill unlocked: ${def.name} — ${def.desc}`, 'level');
@@ -1558,6 +1587,123 @@ function useSkill(id) {
     UI.floatText(def.name.toUpperCase(), 'skill');
     heroStrike(stats, mult);
   }
+}
+
+// Class spellbook casting. Rogues/necromancers/berserkers still use
+// useSkill() until their spellbooks are designed.
+function useSpell(id) {
+  const s = App.state;
+  const def = Engine.spellById(id);
+  if (!s || App.dead || App._paused || !def || def.classId !== s.playerClass) return;
+  if (!Engine.unlockedSpells(s).includes(id)) return;
+  const now = Date.now();
+  if (now < (App.skillCDs[id] || 0)) { UI.toast('Still on cooldown.', 'warn'); return; }
+  const resId = Engine.resourceIdFor(s);
+  const cost = def.cost || 0;
+  if (cost > 0 && (s[resId] || 0) < cost) {
+    UI.toast(`Not enough ${Engine.resDef(resId).name} — ${Math.floor(s[resId] || 0)}/${cost}.`, 'warn');
+    return;
+  }
+  if (cost > 0) Engine.spendRes(s, resId, cost);
+  if (def.gain) Engine.gainRes(s, resId, def.gain);
+  App.skillCDs[id] = now + def.cdMs;
+  s.stats.taps += 1;
+  // Mastery (kept): same track as skills, keyed by spell id.
+  const mast = Engine.recordSkillUse(s, id) || { level: 0, leveledUp: false };
+  const mMult = 1 + mast.level * Engine.MASTERY_PCT_PER_LEVEL;
+  if (mast.leveledUp) {
+    UI.toast(`🎯 ${def.name} Mastery ${mast.level}! +${Math.round(mast.level * Engine.MASTERY_PCT_PER_LEVEL * 100)}% effectiveness`, 'success');
+  }
+  const stats = Engine.applyBuffs(Engine.computeStats(s), s);
+  const fx = def.effect;
+  UI.floatText(def.name.toUpperCase(), 'skill');
+  switch (fx.kind) {
+    case 'strike':
+      heroStrike(stats, fx.mult * mMult);
+      break;
+    case 'strikeInt':
+      heroStrike(stats, fx.mult * mMult);
+      App.enemyTimer = Math.max(0, App.enemyTimer - (fx.interruptSec || 0));
+      UI.combatLog(`👊 Pummel interrupts the enemy's next attack!`, 'skill');
+      break;
+    case 'execute': {
+      const healthy = App.enemy && App.enemy.maxHp > 0 && App.enemy.hp / App.enemy.maxHp >= fx.threshold;
+      heroStrike(stats, (healthy ? fx.weakMult : fx.mult) * mMult);
+      if (!healthy) UI.combatLog(`⚔️ Execute! ${fx.mult}× damage on the weakened foe.`, 'skill');
+      break;
+    }
+    case 'heal': {
+      const amount = Math.round(stats.maxHp * (fx.healPct / 100) * mMult);
+      s.hero.hp = Math.min(stats.maxHp, s.hero.hp + amount);
+      UI.floatText(`+${formatNum(amount)}`, 'heal');
+      break;
+    }
+    case 'mendPet': {
+      // Pets have no HP — mending restores hunger and inspires them.
+      const p = Engine.ensurePets(s);
+      for (const uid of [p.activeUid, p.secondUid]) {
+        const pet = (p.collection || []).find(x => x.uid === uid);
+        if (pet) pet.hunger = 100;
+      }
+      if (fx.petDmgPct) Engine.addBuff(s, 'petDmgPct', fx.petDmgPct, fx.sec);
+      UI.floatText('MENDED', 'heal');
+      UI.combatLog(`💚 Mend Pet! Pets restored and inspired (+${fx.petDmgPct || 0}% damage).`, 'heal');
+      break;
+    }
+    case 'petStrike': {
+      const dmg = Math.max(1, Math.round(Engine.petStrikeDamage(s, stats) * fx.mult * mMult));
+      meterHit('pet', 'Pet', dmg);
+      damageEnemy(dmg, '', '🐾 ');
+      UI.combatLog(`🐺 Kill Command! Your pet strikes for ${formatNum(dmg)}.`, 'skill');
+      break;
+    }
+    case 'trap':
+    case 'dot':
+    case 'slow': {
+      if (fx.mult) heroStrike(stats, fx.mult * mMult);
+      if (App.enemy) {
+        App.enemy.fx = App.enemy.fx || [];
+        if (fx.dotMult) App.enemy.fx.push({ kind: 'dot', mult: fx.dotMult * mMult,
+          ticksLeft: fx.dotTicks, everyMs: fx.dotEveryMs, nextAt: Date.now() + fx.dotEveryMs });
+        if (fx.slowPct) App.enemySlow = { pct: fx.slowPct, until: Date.now() + (fx.slowSec || 0) * 1000 };
+      }
+      break;
+    }
+    case 'shield': {
+      Engine.addShield(s, Math.round(stats.maxHp * (fx.pct / 100)), fx.sec);
+      UI.combatLog(`🛡️ Shield Block! Absorbing damage for ${fx.sec}s.`, 'skill');
+      break;
+    }
+    case 'shout': {
+      if (fx.atkPct) Engine.addBuff(s, 'atkPct', fx.atkPct, fx.sec);
+      if (fx.dmgTakenPct) Engine.addBuff(s, 'dmgTakenPct', fx.dmgTakenPct, fx.sec);
+      UI.combatLog(`📯 ${def.name}!`, 'skill');
+      break;
+    }
+    case 'dodge': {
+      Engine.addBuff(s, 'dodgePct', fx.pct, fx.sec);
+      UI.combatLog(`💫 Blink! +${fx.pct}% dodge for ${fx.sec}s.`, 'skill');
+      break;
+    }
+  }
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+// Enemy damage-over-time from traps and blizzard.
+function tickEnemyFx(stats) {
+  const enemy = App.enemy;
+  if (!enemy || !enemy.fx || !enemy.fx.length || App.dead) return;
+  const now = Date.now();
+  for (const f of enemy.fx) {
+    if (f.kind === 'dot' && f.ticksLeft > 0 && now >= f.nextAt) {
+      f.ticksLeft -= 1;
+      f.nextAt = now + f.everyMs;
+      const dmg = Math.max(1, Math.round(stats.attack * f.mult));
+      damageEnemy(dmg, '', '🔥 ');
+    }
+  }
+  enemy.fx = enemy.fx.filter(f => f.kind !== 'dot' || f.ticksLeft > 0);
 }
 
 function setMode(mode) {
@@ -1660,30 +1806,20 @@ function doPickaxeUpgrade() {
 
 function doForgeTier(slot, tier) {
   if (UI.forgeSel[slot]) UI.forgeSel[slot].tier = tier;
-  UI.renderGear(App.state);
-}
-
-function doForgeStat(slot, stat) {
-  const sel = UI.forgeSel[slot];
-  if (!sel || !Engine.FORGE_STATS.includes(stat)) return;
-  const i = sel.stats.indexOf(stat);
-  if (i >= 0) sel.stats.splice(i, 1);
-  else if (sel.stats.length < Engine.MAX_FORGE_PICKS) sel.stats.push(stat);
-  else UI.toast(`Pick at most ${Engine.MAX_FORGE_PICKS} stats.`, 'error');
-  UI.renderGear(App.state);
+  UI.renderArmory(App.state);
 }
 
 function doForgeCraft(slot) {
   const s = App.state;
   const sel = UI.forgeSel[slot];
   if (!s || !sel) return;
-  const res = Engine.craftGalaxyItem(s, slot, sel.tier, sel.stats);
+  const res = Engine.craftGalaxyItem(s, slot, sel.tier);
   if (typeof res === 'string') {
     UI.toast(res, 'error');
     return;
   }
   UI.toast(`🌌 Forged ${res.name}!`, 'success');
-  UI.renderGear(s);
+  UI.renderArmory(s);
   UI.updateHUD(s, App.user);
   saveNow();
 }
@@ -1693,7 +1829,7 @@ function doGalaxyEquip(slot) {
   if (Engine.equipGalaxy(s, slot)) {
     const item = Engine.galaxyItemFor(s, slot);
     UI.toast(`Equipped ${item ? item.name : 'galaxy gear'}.`, 'success');
-    UI.renderGear(s);
+    UI.renderArmory(s);
     UI.updateHUD(s, App.user);
     saveNow();
   }
@@ -1702,7 +1838,7 @@ function doGalaxyEquip(slot) {
 function doGalaxyUnequip(slot) {
   const s = App.state;
   if (Engine.unequipGalaxy(s, slot)) {
-    UI.renderGear(s);
+    UI.renderArmory(s);
     UI.updateHUD(s, App.user);
     saveNow();
   }
@@ -1868,6 +2004,57 @@ function doBuyTokenItem(itemId) {
   UI.toast(`🌀 Bought ${item.name || item.id}! Yours forever.`, 'success');
   UI.combatLog(`🌀 Token shop: bought ${item.name || item.id}.`, 'loot');
   UI.renderTokenShop(s);
+  saveNow();
+}
+
+function openChangeClass() {
+  const s = App.state;
+  if (!s) return;
+  if ((s.classTokens || 0) < 1) {
+    UI.toast('No 🔄 Class Change Tokens — grab one in the 🌀 Token Shop.', 'warn');
+    return;
+  }
+  UI.openChangeClassModal(s, (newClass) => doChangeClass(newClass));
+}
+
+function doChangeClass(newClass) {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.changeClass(s, newClass);
+  if (!res.ok) {
+    UI.toast(res.reason === 'tokens' ? 'No 🔄 Class Change Tokens left.' : 'Could not change class.', 'warn');
+    return;
+  }
+  const cls = Engine.CLASSES[newClass] || {};
+  UI.toast(`${cls.emoji || ''} You are now a ${cls.name || newClass}!`, 'success');
+  UI.combatLog(`🔄 Changed class to ${cls.emoji || ''} ${cls.name || newClass}.`, 'loot');
+  const stats = Engine.computeStats(s);
+  UI.updateHUD(s, App.user);
+  UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillCDs: App.skillCDs, potionCD: s.potionReadyAt || 0 });
+  if (UI.activeTab === 'battle') UI.renderBattle(s);
+  saveNow();
+}
+
+// Potions run on their own 60s cooldown — never shared with spell cooldowns.
+function doDrinkPotion(kind) {
+  const s = App.state;
+  if (!s || App.dead || App._paused) return;
+  const now = Date.now();
+  const readyAt = s.potionReadyAt || 0;
+  if (now < readyAt) {
+    UI.toast(`Potion ready in ${Math.ceil((readyAt - now) / 1000)}s.`, 'warn');
+    return;
+  }
+  const res = Engine.drinkPotion(s, kind, Engine.computeStats(s));
+  if (!res.ok) { UI.toast('No potions left — they drop from enemies.', 'warn'); return; }
+  s.potionReadyAt = now + Engine.POTION_CD_MS;
+  if (kind === 'health') {
+    UI.floatText(`+${formatNum(res.amount)}`, 'heal');
+    UI.combatLog(`🧪 Potion restored ${formatNum(res.amount)} HP.`, 'heal');
+  } else {
+    UI.toast(`🧪 +${res.amount} ${Engine.resDef(res.res).name}!`, 'success');
+  }
+  UI.updateHUD(s, App.user);
   saveNow();
 }
 
@@ -2054,22 +2241,6 @@ function doMpCopy() {
   }
 }
 
-function doBuyGear(stockId) {
-  const s = App.state;
-  if (!s) return;
-  const res = Engine.buyGearItem(s, stockId);
-  if (!res.ok) {
-    UI.toast(res.reason === 'gold' ? 'Not enough gold for that gear.' : 'That item is not for sale.', 'error');
-    return;
-  }
-  const entry = Engine.GEAR_SHOP_STOCK.find(e => e.id === stockId);
-  const priceNote = s.infGold ? ' (∞ gold)' : ` for 💰${formatNum(entry.price)} gold`;
-  UI.toast(`${entry.emoji} Bought ${res.item.name}${priceNote}!`, 'success');
-  UI.combatLog(`🛒 Bought ${entry.emoji} ${res.item.name} (${res.item.rarity}) from the Gear Shop.`, 'loot');
-  UI.renderGear(s);
-  saveNow();
-}
-
 function doBuyArmory(stockId) {
   const s = App.state;
   if (!s) return;
@@ -2085,10 +2256,6 @@ function doBuyArmory(stockId) {
   UI.renderArmory(s);
   UI.updateHUD(s, App.user);
   saveNow();
-}
-
-function doGotoPetShop() {
-  UI.showTab('pets');
 }
 
 function doFeedPet(petUid) {

@@ -3,8 +3,8 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v=20260930al';
-import { Audio } from './audio.js?v=20260930al';
+import * as Engine from './engine.js?v=20260930ao';
+import { Audio } from './audio.js?v=20260930ao';
 
 const $ = (sel, root) => (root || document).querySelector(sel);
 const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
@@ -156,7 +156,7 @@ export const UI = {
     { id: 'class-hunter', name: "🏹 Hunter's Dawn", css: "url('img/bg/class-hunter.jpg') center/cover", photo: 'img/bg/class-hunter.jpg', animated: true },
     { id: 'class-warrior', name: "⚔️ Warrior's Stand", css: "url('img/bg/class-warrior.jpg') center/cover", photo: 'img/bg/class-warrior.jpg', animated: true },
     { id: 'class-mage', name: '🔮 Mage Spire', css: "url('img/bg/class-mage.jpg') center/cover", photo: 'img/bg/class-mage.jpg', animated: true },
-    { id: 'class-assassin', name: "🗡️ Assassin's Night", css: "url('img/bg/class-assassin.jpg') center/cover", photo: 'img/bg/class-assassin.jpg', animated: true },
+    { id: 'class-assassin', name: "🗡️ Rogue's Night", css: "url('img/bg/class-assassin.jpg') center/cover", photo: 'img/bg/class-assassin.jpg', animated: true },
     { id: 'class-necromancer', name: '💀 Necropolis', css: "url('img/bg/class-necromancer.jpg') center/cover", photo: 'img/bg/class-necromancer.jpg', animated: true },
     { id: 'class-berserker', name: '🪓 Bloodrage Field', css: "url('img/bg/class-berserker.jpg') center/cover", photo: 'img/bg/class-berserker.jpg', animated: true },
   ],
@@ -215,7 +215,7 @@ export const UI = {
       'boss-badge', 'enemy-hpfill', 'enemy-hptext', 'enemy-atk', 'float-layer',
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
-      'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'gear-shop', 'inventory-grid', 'inv-count', 'set-progress',
+      'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'inventory-grid', 'inv-count', 'set-progress',
       'armory-stock', 'armory-sell',
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
       'party-slots', 'recruit-list', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
@@ -246,8 +246,8 @@ export const UI = {
     // Bottom tab bar
     $$('#tabbar .tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        // 🌐 Realm Network and 👤 Character are modal triggers, not tabs (wired separately below).
-        if (btn.id === 'realm-open' || btn.id === 'character-open') return;
+        // 🌐 Realm Network, 👤 Character and 📖 Spellbook are modal triggers, not tabs (wired separately below).
+        if (btn.id === 'realm-open' || btn.id === 'character-open' || btn.id === 'spellbook-open') return;
         // Staff tab is a shortcut into the GM console (role-checked on open).
         if (btn.dataset.tab === 'staff') { this.handlers.onOpenGM && this.handlers.onOpenGM(); return; }
         this.showTab(btn.dataset.tab);
@@ -263,9 +263,20 @@ export const UI = {
       this.handlers.onTap && this.handlers.onTap();
     });
     listen('skill-row', 'click', (e) => {
+      const sp = e.target.closest('button[data-spell]');
+      if (sp && !sp.disabled) { this.handlers.onSpell && this.handlers.onSpell(sp.dataset.spell); return; }
+      const bk = e.target.closest('button[data-spellbook]');
+      if (bk) { this.handlers.onOpenSpellbook && this.handlers.onOpenSpellbook(); return; }
       const btn = e.target.closest('button[data-skill]');
       if (!btn || btn.disabled) return;
       this.handlers.onSkill && this.handlers.onSkill(btn.dataset.skill);
+    });
+    listen('spellbook-open', 'click', () => this.handlers.onOpenSpellbook && this.handlers.onOpenSpellbook());
+    // Potion buttons are rendered dynamically inside #potion-row — delegate on battle tab.
+    document.getElementById('tab-battle').addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-potion]');
+      if (!btn || btn.disabled) return;
+      this.handlers.onDrinkPotion && this.handlers.onDrinkPotion(btn.dataset.potion);
     });
     listen('tab-quests', 'click', (e) => {
       const btn = e.target.closest('button[data-claim]');
@@ -306,10 +317,7 @@ export const UI = {
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;
       const h = this.handlers;
-      if (btn.dataset.action === 'buy-gear' && h.onBuyGear) h.onBuyGear(btn.dataset.id);
-      if (btn.dataset.action === 'goto-petshop' && h.onGotoPetShop) h.onGotoPetShop();
       if (btn.dataset.action === 'forge-tier' && h.onForgeTier) h.onForgeTier(btn.dataset.slot, btn.dataset.tier);
-      if (btn.dataset.action === 'forge-stat' && h.onForgeStat) h.onForgeStat(btn.dataset.slot, btn.dataset.stat);
       if (btn.dataset.action === 'forge-craft' && h.onForgeCraft) h.onForgeCraft(btn.dataset.slot);
       if (btn.dataset.action === 'galaxy-equip' && h.onGalaxyEquip) h.onGalaxyEquip(btn.dataset.slot);
       if (btn.dataset.action === 'galaxy-unequip' && h.onGalaxyUnequip) h.onGalaxyUnequip(btn.dataset.slot);
@@ -322,6 +330,11 @@ export const UI = {
       const h = this.handlers;
       if (btn.dataset.action === 'buy-armory' && h.onBuyArmory) h.onBuyArmory(btn.dataset.id);
       if (btn.dataset.action === 'sell' && h.onSell) h.onSell(btn.dataset.id);
+      // Galaxy Forge lives in the Armory now.
+      if (btn.dataset.action === 'forge-tier' && h.onForgeTier) h.onForgeTier(btn.dataset.slot, btn.dataset.tier);
+      if (btn.dataset.action === 'forge-craft' && h.onForgeCraft) h.onForgeCraft(btn.dataset.slot);
+      if (btn.dataset.action === 'galaxy-equip' && h.onGalaxyEquip) h.onGalaxyEquip(btn.dataset.slot);
+      if (btn.dataset.action === 'galaxy-unequip' && h.onGalaxyUnequip) h.onGalaxyUnequip(btn.dataset.slot);
     });
     // Mine: tap the rock
     listen('mine-btn', 'click', () => {
@@ -1133,7 +1146,11 @@ export const UI = {
         + section('GAINS', ['xpBonus', 'goldBonus'])
         + `<div class="gear-tip hidden" id="gear-tip"></div>`
         + `</div>`,
-      buttons: [{ label: 'Close' }],
+      buttons: (state.classTokens || 0) > 0
+        ? [{ label: `🔄 Change Class (${state.classTokens})`, cls: 'gold',
+             onClick: (close) => { close(); const h = this.handlers || {}; if (h.onChangeClassOpen) h.onChangeClassOpen(); } },
+           { label: 'Close' }]
+        : [{ label: 'Close' }],
     });
 
     // Tooltip wiring: hover on desktop, long-press on touch.
@@ -1444,13 +1461,54 @@ export const UI = {
     paint();
   },
 
+  // Class-change picker: class cards only — no spec or pet re-pick.
+  // onPick(id) is called after the confirm step (app.js spends the token).
+  openChangeClassModal(state, onPick) {
+    const cur = state.playerClass;
+    const cards = Object.entries(Engine.CLASSES).map(([id, c]) => {
+      const isCur = id === cur;
+      return `<button class="race-card class-card${isCur ? ' picked' : ''}" data-pick="${id}"${isCur ? ' disabled' : ''}>`
+        + this.classCardHtml(id, c)
+        + (isCur ? `<div class="lv-tag">current</div>` : '')
+        + `</button>`;
+    }).join('');
+    const close = this.modal({
+      title: '🔄 Change Class',
+      html: `<p class="muted small">Costs <b>1 🔄 token</b> (${state.classTokens || 0} owned). Level, gear, and progress stay — only your class and its perks change.</p>
+             <div class="race-grid class-modal-grid">${cards}</div>`,
+      buttons: [{ label: 'Cancel' }],
+    });
+    const overlay = this.els['modal-root'].lastElementChild;
+    if (!overlay) return;
+    overlay.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pick]');
+      if (!btn || btn.disabled) return;
+      const id = btn.dataset.pick;
+      const c = Engine.CLASSES[id] || {};
+      this.modal({
+        title: `Become a ${c.name}?`,
+        html: `<p class="muted">Spend <b>1 🔄 token</b> to become ${c.emoji || ''} <b>${esc(c.name || id)}</b>? You'll need another token to change again.</p>`,
+        buttons: [
+          { label: 'Cancel' },
+          { label: `Yes, become ${esc(c.name || id)}`, cls: 'gold',
+            onClick: (close2) => { close2(); close(); onPick(id); } },
+        ],
+      });
+    });
+  },
+
   // ---------------- battle ----------------
   // Row of active skill buttons (unlocked + next locked). Re-render on
   // unlock; per-tick cooldown state is handled by updateBattle().
+  // Classes with a spellbook get their 6 customizable spell slots instead.
   renderSkillRow(state) {
     const row = this.els['skill-row'];
     if (!row) return;
     row.innerHTML = '';
+    if (Engine.hasSpellbook(state.playerClass)) {
+      this.renderSpellRow(state, row);
+      return;
+    }
     for (const id of Engine.SKILL_ORDER) {
       const def = Engine.SKILLS[id];
       if (!def) continue;
@@ -1473,9 +1531,167 @@ export const UI = {
     }
   },
 
+  // Battle row for spellbook classes: the 6 active spell slots + a teaser
+  // for the next locked spell (opens the spellbook).
+  renderSpellRow(state, row) {
+    const slots = Engine.ensureSpellSlots(state);
+    const unlocked = Engine.unlockedSpells(state);
+    const rdef = Engine.resDef(Engine.resourceIdFor(state));
+    for (let i = 0; i < Engine.SPELL_SLOT_COUNT; i++) {
+      const def = slots[i] && Engine.spellById(slots[i]);
+      const b = document.createElement('button');
+      if (!def) {
+        b.className = 'skill-btn locked';
+        b.disabled = true;
+        b.innerHTML = `<span class="sk-emoji">✨</span><span class="sk-name">Empty</span>`;
+        row.appendChild(b);
+        continue;
+      }
+      const mast = Engine.skillMastery(state, def.id);
+      b.className = 'skill-btn spell-btn';
+      b.dataset.spell = def.id;
+      b.title = `${def.desc}\nCost: ${def.cost ? `${def.cost} ${rdef.name}` : 'free'} · Cooldown ${Math.round(def.cdMs / 1000)}s`;
+      b.innerHTML = `<span class="sk-emoji">${def.emoji}</span>` +
+        `<span class="sk-name">${esc(def.name)}</span>` +
+        `<span class="mastery-badge" title="Mastery ${mast.level}: +${Math.round(mast.pct * 100)}% effectiveness · ${mast.uses}/${mast.nextAt} casts to next level">M${mast.level}</span>` +
+        (def.cost ? `<span class="cost-tag">${rdef.emoji} ${def.cost}</span>` : `<span class="cost-tag free">free</span>`) +
+        `<span class="skill-cd"></span>`;
+      row.appendChild(b);
+    }
+    const nextLocked = Engine.spellsForClass(state.playerClass).find(d => !unlocked.includes(d.id));
+    if (nextLocked) {
+      const t = document.createElement('button');
+      t.className = 'skill-btn locked spell-teaser';
+      t.dataset.spellbook = '1';
+      t.title = `${nextLocked.name} — unlocks at level ${nextLocked.unlockLevel}. Tap to open your spellbook.`;
+      t.innerHTML = `<span class="sk-emoji">📖</span><span class="sk-name">Spells</span><span class="lv-tag">🔒 Lv ${nextLocked.unlockLevel}</span>`;
+      row.appendChild(t);
+    }
+  },
+
+  // Potion controls: two compact buttons (health / resource) with counts.
+  // Created once beside the skill row; per-tick refresh handles cooldown.
+  renderPotionRow(state) {
+    let prow = document.getElementById('potion-row');
+    const row = this.els['skill-row'];
+    if (!prow && row && row.parentElement) {
+      prow = document.createElement('div');
+      prow.id = 'potion-row';
+      prow.className = 'potion-row';
+      row.parentElement.insertBefore(prow, row.nextSibling);
+    }
+    if (prow) this.updatePotionRow(state, null);
+  },
+
+  updatePotionRow(state, battle) {
+    const prow = document.getElementById('potion-row');
+    if (!prow || !state) return;
+    const p = state.potions || { health: 0, resource: 0 };
+    // Seed the buttons on first render.
+    if (!prow.querySelector('button[data-potion]')) {
+      prow.innerHTML =
+        `<button class="potion-btn" data-potion="health" title="Health potion">🧪 <span>${p.health || 0}</span></button>` +
+        `<button class="potion-btn" data-potion="resource" title="Resource potion">🔷 <span>${p.resource || 0}</span></button>`;
+    }
+    const now = Date.now();
+    const remain = battle && battle.potionCD ? Math.max(0, battle.potionCD - now) : 0;
+    prow.querySelectorAll('button[data-potion]').forEach(btn => {
+      const kind = btn.dataset.potion;
+      const n = p[kind] || 0;
+      btn.disabled = n <= 0 || remain > 0;
+      btn.classList.toggle('cooling', remain > 0);
+      btn.innerHTML = (kind === 'health' ? '🧪' : '🔷') + ` <span>${n}</span>` +
+        (remain > 0 ? `<span class="potion-cd">${Math.ceil(remain / 1000)}s</span>` : '');
+      btn.title = kind === 'health'
+        ? `Health potion: restores 40% max HP (${n} owned)`
+        : `Resource potion: restores 50% ${Engine.resDef(Engine.resourceIdFor(state)).name} (${n} owned)`;
+    });
+  },
+
+  // Spellbook modal: 6 customizable slots up top, spells grouped by school
+  // below. Tap a slot, then tap an unlocked spell to assign it.
+  openSpellbook(state) {
+    if (!state || !Engine.hasSpellbook(state.playerClass)) {
+      this.toast('Your class does not have a spellbook yet.', 'warn');
+      return;
+    }
+    const classId = state.playerClass;
+    const c = Engine.CLASSES[classId] || {};
+    const rdef = Engine.resDef(Engine.resourceIdFor(state));
+    let slots = Engine.ensureSpellSlots(state).slice();
+    let selSlot = 0;
+    const spells = Engine.spellsForClass(classId);
+    const unlocked = new Set(Engine.unlockedSpells(state));
+    const schools = [...new Set(spells.map(d => d.school))];
+    const close = this.modal({
+      title: `${c.emoji || '📖'} ${c.name || ''} Spellbook`,
+      wide: true,
+      html: `<p class="muted small">Tap a slot, then tap an unlocked spell to assign it. Costs ${rdef.emoji} ${rdef.name}.</p>
+        <div class="spell-slots" id="sb-slots"></div>
+        <div class="spell-schools" id="sb-schools"></div>`,
+      buttons: [
+        { label: 'Reset to default', onClick: () => {
+          slots = spells.filter(d => unlocked.has(d.id))
+            .sort((a, b) => a.unlockLevel - b.unlockLevel)
+            .slice(0, Engine.SPELL_SLOT_COUNT).map(d => d.id);
+          paintSlots();
+        } },
+        { label: 'Done', cls: 'gold', onClick: (c2) => {
+          this.handlers.onSetSpellSlots && this.handlers.onSetSpellSlots(slots);
+          c2();
+        } },
+      ],
+    });
+    const overlay = this.els['modal-root'].lastElementChild;
+    if (!overlay) return;
+    const paintSlots = () => {
+      const el = overlay.querySelector('#sb-slots');
+      if (!el) return;
+      el.innerHTML = slots.map((id, i) => {
+        const d = Engine.spellById(id);
+        return `<button class="spell-slot${i === selSlot ? ' sel' : ''}" data-slot="${i}" title="Slot ${i + 1}">` +
+          (d ? `<span class="sk-emoji">${d.emoji}</span><span class="sk-name">${esc(d.name)}</span>`
+              : `<span class="muted">empty</span>`) + `</button>`;
+      }).join('');
+    };
+    const paintSchools = () => {
+      const el = overlay.querySelector('#sb-schools');
+      if (!el) return;
+      el.innerHTML = schools.map(sch => {
+        const cards = spells.filter(d => d.school === sch).map(d => {
+          const un = unlocked.has(d.id);
+          const mast = Engine.skillMastery(state, d.id);
+          return `<button class="spell-card${un ? '' : ' locked'}" data-spellpick="${d.id}"${un ? '' : ' disabled'}>` +
+            `<span class="sk-emoji">${d.emoji}</span>` +
+            `<span class="sk-name">${esc(d.name)}</span>` +
+            (un ? `<span class="cost-tag">${d.cost ? `${rdef.emoji} ${d.cost}` : 'free'}</span><span class="mastery-badge">M${mast.level}</span>`
+                : `<span class="lv-tag">🔒 Lv ${d.unlockLevel}</span>`) +
+            `<span class="spell-desc">${esc(d.desc)}</span></button>`;
+        }).join('');
+        return `<div class="spell-school"><h4>${esc(sch)}</h4><div class="spell-grid">${cards}</div></div>`;
+      }).join('');
+    };
+    overlay.addEventListener('click', (ev) => {
+      const slotBtn = ev.target.closest('[data-slot]');
+      if (slotBtn) { selSlot = +slotBtn.dataset.slot; paintSlots(); return; }
+      const pick = ev.target.closest('[data-spellpick]');
+      if (pick && !pick.disabled) {
+        slots[selSlot] = pick.dataset.spellpick;
+        selSlot = Math.min(Engine.SPELL_SLOT_COUNT - 1, selSlot + 1);
+        paintSlots();
+      }
+    });
+    paintSlots();
+    paintSchools();
+  },
+
   renderBattle(state) {
     this.setMode(state.mode);
     this.renderSkillRow(state);
+    this.renderPotionRow(state);
+    // The 📖 Spells nav button only exists for classes with a spellbook.
+    const sbBtn = document.getElementById('spellbook-open');
+    if (sbBtn) sbBtn.classList.toggle('hidden', !Engine.hasSpellbook(state.playerClass));
     const showRebirth = state.level >= Engine.MAX_LEVEL;
     this.els['rebirth-box'].classList.toggle('hidden', !showRebirth);
     if (showRebirth) {
@@ -1532,12 +1748,42 @@ export const UI = {
     // Low HP warning: pulse the hero HP bar red under 30%.
     const hpFrac = stats.maxHp > 0 ? state.hero.hp / stats.maxHp : 1;
     if (heroFill && heroFill.parentElement) heroFill.parentElement.classList.toggle('hp-low', hpFrac < 0.3 && hpFrac > 0);
+    // Class resource bar — created once, refreshed per tick.
+    // (Focus / Rage / Mana / Energy depending on class.)
+    let rbar = document.getElementById('hero-resbar');
+    const resId = Engine.resourceIdFor(state);
+    if (resId) {
+      const rdef = Engine.resDef(resId);
+      if (!rbar) {
+        rbar = document.createElement('div');
+        rbar.id = 'hero-resbar';
+        rbar.className = 'bar res';
+        rbar.innerHTML = `<div class="fill" id="hero-resfill"></div><span class="bar-text" id="hero-restext"></span>`;
+        const hpFillEl = e['hero-hpfill'];
+        const panel = hpFillEl && hpFillEl.parentElement && hpFillEl.parentElement.parentElement;
+        if (panel) panel.insertBefore(rbar, hpFillEl.parentElement.nextSibling);
+      }
+      rbar.classList.remove('hidden');
+      const rval = Math.max(0, state[resId] || 0);
+      const rfill = document.getElementById('hero-resfill');
+      if (rfill) {
+        rfill.style.background = rdef.color;
+        setBarFill(rfill, Math.max(0, Math.min(100, (rval / rdef.max) * 100)));
+      }
+      setText(document.getElementById('hero-restext'),
+        `${rdef.emoji} ${Math.floor(rval)} / ${rdef.max} ${rdef.name}`);
+    } else if (rbar) {
+      rbar.classList.add('hidden');
+    }
     if (battle && battle.enemy) this.updateEnemy(battle.enemy);
-    // per-skill cooldowns
+    // potion counts + shared 60s cooldown
+    this.updatePotionRow(state, battle);
+    // per-skill / per-spell cooldowns
     if (battle && battle.skillCDs && e['skill-row']) {
       const now = Date.now();
-      e['skill-row'].querySelectorAll('button[data-skill]').forEach(btn => {
-        const remain = Math.max(0, (battle.skillCDs[btn.dataset.skill] || 0) - now);
+      e['skill-row'].querySelectorAll('button[data-skill],button[data-spell]').forEach(btn => {
+        const sid = btn.dataset.skill || btn.dataset.spell;
+        const remain = Math.max(0, (battle.skillCDs[sid] || 0) - now);
         btn.disabled = remain > 0;
         btn.classList.toggle('cooling', remain > 0);
         const cd = btn.querySelector('.skill-cd');
@@ -1545,7 +1791,7 @@ export const UI = {
         // Keep the mastery badge fresh as casts accumulate.
         const mb = btn.querySelector('.mastery-badge');
         if (mb && state) {
-          const m = Engine.skillMastery(state, btn.dataset.skill);
+          const m = Engine.skillMastery(state, sid);
           mb.textContent = `M${m.level}`;
           mb.title = `Mastery ${m.level}: +${Math.round(m.pct * 100)}% effectiveness · ${m.uses}/${m.nextAt} casts to next level`;
         }
@@ -2994,31 +3240,37 @@ export const UI = {
   },
 
   // ---------------- gear ----------------
-  // Forge UI selections (not persisted): chosen tier + picked stats per slot.
+  // Forge UI selections (not persisted): chosen tier per slot.
   forgeSel: {
-    weapon: { tier: 'star', stats: [] },
-    armor: { tier: 'star', stats: [] },
+    weapon: { tier: 'star' },
+    armor: { tier: 'star' },
+    helmet: { tier: 'star' },
+    boots: { tier: 'star' },
+    trinket: { tier: 'star' },
   },
 
   renderForge(state) {
     const el = this.els['forge-section'];
     if (!el) return;
     const E = Engine;
-    el.innerHTML = ['weapon', 'armor'].map(slot => {
-      const sel = this.forgeSel[slot];
+    const cf = E.CLASS_FORGE[state.playerClass] || E.CLASS_FORGE.warrior;
+    el.innerHTML = E.FORGE_SLOTS.map(slot => {
+      let sel = this.forgeSel[slot];
+      if (!sel) sel = this.forgeSel[slot] = { tier: 'star' };
       if (!E.FORGE_TIER_BY_ID[sel.tier]) sel.tier = 'star';
-      sel.stats = (sel.stats || []).filter(s => E.FORGE_STATS.includes(s)).slice(0, E.MAX_FORGE_PICKS);
       const tier = E.FORGE_TIER_BY_ID[sel.tier];
       const current = E.galaxyItemFor(state, slot);
       const equipped = state.equipped && state.equipped[slot] === E.GALAXY_EQUIP_ID;
-      const slotName = slot === 'weapon' ? 'Weapon' : 'Armor';
-      const slotEmoji = slot === 'weapon' ? '⚔️' : '🛡️';
+      const slotName = (E.SLOT_INFO[slot] || {}).name || slot;
+      const slotEmoji = (E.SLOT_INFO[slot] || {}).emoji || '⚒️';
+      const primaryName = (current && current.primaryName) || cf.primaryName;
+      const statLabel = k => k === 'attack' ? primaryName : (E.FORGE_STAT_LABELS[k] || E.STAT_LABELS[k] || k);
 
       const currentHtml = current ? `
         <div class="galaxy-card r-galaxy">
           <div class="galaxy-name">${esc(current.name)}</div>
           <div class="stat-chips">${Object.entries(current.stats || {}).map(([k, v]) =>
-            `<span class="stat-chip">${E.FORGE_STAT_EMOJI[k] || '✨'} +${formatStatVal(k, v)} ${(E.STAT_LABELS[k] || k)}</span>`).join('')}</div>
+            `<span class="stat-chip">${E.FORGE_STAT_EMOJI[k] || '✨'} +${formatStatVal(k, v)} ${esc(statLabel(k))}</span>`).join('')}</div>
           ${equipped
             ? `<button class="btn small" data-action="galaxy-unequip" data-slot="${slot}">Unequip</button>`
             : `<button class="btn small gold" data-action="galaxy-equip" data-slot="${slot}">Equip</button>`}
@@ -3038,66 +3290,35 @@ export const UI = {
         </button>`;
       }).join('');
 
-      const statHtml = E.FORGE_STATS.map(s => {
-        const picked = sel.stats.includes(s);
+      // Auto stat block: class primary + stamina + crit + haste, tier-scaled.
+      const autoStats = [
+        ['attack', primaryName],
+        ['maxHp', E.FORGE_STAT_LABELS.maxHp],
+        ['critChance', E.FORGE_STAT_LABELS.critChance],
+        ['attackSpeed', E.FORGE_STAT_LABELS.attackSpeed],
+      ].map(([s, label]) => {
         const val = s === 'attackSpeed' ? E.round1((E.FORGE_STAT_BASE[s] || 0) * tier.mult)
           : Math.round((E.FORGE_STAT_BASE[s] || 0) * tier.mult);
-        return `<button class="stat-pick${picked ? ' picked' : ''}" data-action="forge-stat" data-slot="${slot}" data-stat="${s}"
-          title="${esc(E.STAT_LABELS[s] || s)}">
-          ${E.FORGE_STAT_EMOJI[s] || '✨'} ${(E.STAT_LABELS[s] || s)} <b>+${formatStatVal(s, val)}</b>
-        </button>`;
+        return `<span class="stat-chip">${E.FORGE_STAT_EMOJI[s] || '✨'} ${esc(label)} <b>+${formatStatVal(s, val)}</b></span>`;
       }).join('');
 
       const afford = E.canCraft(state, sel.tier);
-      const canDo = afford && sel.stats.length > 0;
       return `
       <div class="forge-panel">
-        <h3>${slotEmoji} Galaxy ${slotName}</h3>
+        <h3>${slotEmoji} ${esc(tier.name)} ${slotName}</h3>
         ${currentHtml}
+        <div class="muted small">Forged for your class: <b>${esc(cf.armor)}</b> · <b>${esc(cf.primaryName)}</b></div>
         <div class="forge-tier-row">${tierHtml}</div>
-        <div class="muted small">Pick up to ${E.MAX_FORGE_PICKS} stats (${sel.stats.length}/${E.MAX_FORGE_PICKS}):</div>
-        <div class="stat-pick-row">${statHtml}</div>
-        <button class="btn gold" data-action="forge-craft" data-slot="${slot}" ${canDo ? '' : 'disabled'}>
+        <div class="stat-chips">${autoStats}</div>
+        <button class="btn gold" data-action="forge-craft" data-slot="${slot}" ${afford ? '' : 'disabled'}>
           ${current ? '🔨 Reforge' : '🔨 Forge'} ${esc(tier.name)} ${slotName}
         </button>
         ${!afford ? '<div class="muted small">Not enough ores — go mining! ⛏️</div>' : ''}
-        ${afford && !sel.stats.length ? '<div class="muted small">Pick at least 1 stat.</div>' : ''}
       </div>`;
-    }).join('') + `<p class="muted small">Only <b>one</b> forged weapon and <b>one</b> forged armor can exist — reforging replaces the old one. Forged gear survives rebirth.</p>`;
+    }).join('') + `<p class="muted small">One forged item per slot — reforging replaces the old one. Forged gear survives rebirth.</p>`;
   },
 
   renderGear(state) {
-    // Galaxy Forge lives at the top of the Gear tab.
-    this.renderForge(state);
-    // --- Gear Shop: buy armor & weapons with gold (guaranteed rarity,
-    // stage-scaled stats). Set pieces and legendary/mythic stay drop-only.
-    const gs = this.els['gear-shop'];
-    if (gs && Engine.GEAR_SHOP_STOCK) {
-      const cards = Engine.GEAR_SHOP_STOCK.map(entry => {
-        const rc = (Engine.RARITY_BY_ID[entry.rarity] || {}).color || '#9aa0a6';
-        const slotName = (Engine.SLOT_INFO[entry.slot] || {}).name || entry.slot;
-        const afford = state.infGold === true || state.gold >= entry.price;
-        const priceLabel = state.infGold === true ? '∞ FREE' : `💰 ${formatNum(entry.price)}`;
-        return `
-          <div class="shop-card r-${entry.rarity}">
-            <div class="shop-emoji">${entry.emoji}</div>
-            <div class="shop-name">${esc(entry.name)}</div>
-            <div class="muted small shop-desc">${esc(entry.desc)}</div>
-            <div class="shop-rarity" style="color:${rc}">${esc(Engine.rarityName(entry.rarity))} · ${esc(slotName)}</div>
-            <button class="btn small" data-action="buy-gear" data-id="${entry.id}" ${afford ? '' : 'disabled'}>
-              ${afford ? `Buy · ${priceLabel}` : `Need ${priceLabel}`}
-            </button>
-          </div>`;
-      }).join('');
-      gs.innerHTML = `
-        <div class="shop-head">
-          <span class="shop-title">🛒 Gear Shop</span>
-          <span class="muted small">guaranteed rarity — set pieces stay boss-drop only</span>
-          <button class="btn small ghost" data-action="goto-petshop">🐾 Pet Shop</button>
-        </div>
-        <div class="shop-grid">${cards}</div>`;
-    }
-
     // loadout strip: one card per slot showing the equipped item
     const strip = this.els['loadout-strip'];
     if (strip && Engine.SLOTS) {
@@ -3262,6 +3483,8 @@ export const UI = {
         }).join('');
       }
     }
+    // Galaxy Forge lives at the bottom of the Armory tab.
+    this.renderForge(state);
   },
 
   // ---------------- mine ----------------
@@ -4082,6 +4305,9 @@ export const UI = {
       owned = Engine.fxIsUnlocked(state, item.ref);
     } else {
       title = item.name; desc = item.desc || '';
+      if (item.kind === 'classToken' && (state.classTokens || 0) > 0) {
+        desc += ` <span class="gold-text">(You own ${state.classTokens})</span>`;
+      }
     }
     const afford = (state.rebirthTokens || 0) >= item.cost;
     const btn = owned

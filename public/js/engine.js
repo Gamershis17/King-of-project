@@ -87,6 +87,22 @@ export const FORGE_TIERS = [
   { id: 'super',  name: 'Super Galaxy', emoji: '💜', mult: 30, cost: { galaxy: 10, supergalaxy: 5 } },
 ];
 export const FORGE_TIER_BY_ID = Object.fromEntries(FORGE_TIERS.map(t => [t.id, t]));
+// Forgeable equipment slots — weapon & armor plus helmets, boots, trinkets.
+export const FORGE_SLOTS = ['weapon', 'armor', 'helmet', 'boots', 'trinket'];
+// Class-driven forge identity: the forge reads your class and assigns what
+// it needs — no stat picking. Primary converts to attack at craft time
+// (agility/strength = attack power; intellect is "spell power" in name only,
+// spells still scale off attack — see File 2 proposal).
+export const CLASS_FORGE = {
+  hunter:      { armor: 'Mail',    primary: 'agility',   primaryName: 'Agility' },
+  assassin:    { armor: 'Leather', primary: 'agility',   primaryName: 'Agility' },
+  mage:        { armor: 'Cloth',   primary: 'intellect', primaryName: 'Intellect' },
+  warrior:     { armor: 'Plate',   primary: 'strength',  primaryName: 'Strength' },
+  necromancer: { armor: 'Shroud',  primary: 'intellect', primaryName: 'Intellect' },
+  berserker:   { armor: 'Hide',    primary: 'strength',  primaryName: 'Strength' },
+};
+// Display labels for auto-forged stats (primary label lives on the item).
+export const FORGE_STAT_LABELS = { maxHp: 'Stamina', critChance: 'Critical Strike', attackSpeed: 'Haste' };
 // Craftable custom stats (pick up to MAX_FORGE_PICKS per item).
 export const FORGE_STATS = ['attack', 'defense', 'maxHp', 'critChance', 'critDamage', 'lifesteal', 'attackSpeed', 'xpBonus', 'goldBonus'];
 export const FORGE_STAT_BASE = {
@@ -197,7 +213,7 @@ export function ensureMine(s) {
   const cr = Math.floor(Number(f.crafts));
   f.crafts = Number.isFinite(cr) ? Math.max(0, cr) : 0;
   f.superCrafted = f.superCrafted === true;
-  for (const slot of ['weapon', 'armor']) {
+  for (const slot of FORGE_SLOTS) {
     const it = s.forge[slot];
     if (!it || typeof it !== 'object' || it.slot !== slot || !it.galaxy) {
       s.forge[slot] = null;
@@ -267,15 +283,15 @@ function forgeStatValue(stat, mult) {
   const r = (stat === 'attackSpeed') ? round1(v) : Math.round(v);
   return Math.min(CRAFT_STAT_CAP, r);
 }
-// Craft a galaxy item into the forge slot (weapon|armor). Reforging replaces
-// the old item. Returns the item, or an error string.
-export function craftGalaxyItem(state, slot, tierId, statIds) {
+// Craft a class-forged item into the forge slot (weapon|armor|helmet|boots|
+// trinket). Stats are automatic — primary (class) + stamina + crit + haste,
+// scaled by tier. Reforging replaces the old item. Returns the item, or an
+// error string.
+export function craftGalaxyItem(state, slot, tierId) {
   ensureMine(state);
-  if (slot !== 'weapon' && slot !== 'armor') return 'Invalid forge slot.';
+  if (!FORGE_SLOTS.includes(slot)) return 'Invalid forge slot.';
   const tier = FORGE_TIER_BY_ID[tierId];
   if (!tier) return 'Invalid forge tier.';
-  const picks = [...new Set((statIds || []).filter(s => FORGE_STATS.includes(s)))].slice(0, MAX_FORGE_PICKS);
-  if (!picks.length) return 'Pick at least 1 stat to forge.';
   const cost = forgeCost(tierId);
   for (const [ore, n] of Object.entries(cost)) {
     if ((state.mine.ores[ore] || 0) < n) {
@@ -284,12 +300,22 @@ export function craftGalaxyItem(state, slot, tierId, statIds) {
     }
   }
   for (const [ore, n] of Object.entries(cost)) state.mine.ores[ore] -= n;
-  const stats = {};
-  for (const s of picks) stats[s] = forgeStatValue(s, tier.mult);
+  const cf = CLASS_FORGE[state.playerClass] || CLASS_FORGE.warrior;
+  const stats = {
+    attack: forgeStatValue('attack', tier.mult),
+    maxHp: forgeStatValue('maxHp', tier.mult),
+    critChance: forgeStatValue('critChance', tier.mult),
+    attackSpeed: forgeStatValue('attackSpeed', tier.mult),
+  };
+  const slotLabel = (SLOT_INFO[slot] || {}).name || slot;
+  const itemName = slot === 'weapon'
+    ? `${tier.emoji} ${tier.name} ${weaponNameFor(state.playerClass)}`
+    : `${tier.emoji} ${tier.name} ${cf.armor} ${slotLabel}`;
   const item = {
     id: uid(), galaxy: true, unsellable: true, enchant: 0,
-    name: `${tier.emoji} ${tier.name} ${slot === 'weapon' ? weaponNameFor(state.playerClass) : armorNameFor(state.playerClass)}`,
+    name: itemName,
     slot, rarity: 'galaxy', forgeTier: tier.id, stats, value: 0,
+    primaryName: cf.primaryName, // display label for the attack stat
   };
   state.forge[slot] = item;
   // Lifetime forge counters (read by title unlocks).
@@ -306,7 +332,7 @@ export function galaxyItemFor(state, slot) {
   return state.forge[slot];
 }
 export function equipGalaxy(state, slot) {
-  if (slot !== 'weapon' && slot !== 'armor') return false;
+  if (!FORGE_SLOTS.includes(slot)) return false;
   if (!galaxyItemFor(state, slot)) return false;
   if (!state.equipped) state.equipped = {};
   state.equipped[slot] = GALAXY_EQUIP_ID;
@@ -359,10 +385,11 @@ export const CLASSES = {
     atkMult: 1.25, critChBonus: 10, hpMult: 0.90,
   },
   assassin: {
-    name: 'Assassin', emoji: '🌙',
+    name: 'Rogue', emoji: '🗡️',
     desc: 'Strikes from shadow. Every hit could be the last one.',
     perks: ['+40% crit damage', '+10% dodge', '+5% attack speed'],
     critDmgBonus: 40, dodgeBonus: 10, atkSpdBonus: 0.05,
+    resource: 'energy',
   },
   necromancer: {
     name: 'Necromancer', emoji: '💀',
@@ -493,6 +520,14 @@ export function defaultState(race) {
     infGold: false,   // owner-only perk: infinite gold (purchases never deduct)
     restedUntil: 0,
     playerClass: null, // permanent class choice: hunter|warrior|mage|assassin|necromancer|berserker (null = not chosen)
+    // NOTE: the 'assassin' key displays as Rogue (renamed 2026-09-30) — the key is kept so existing saves keep working.
+    classTokens: 0,   // 🔄 class-change tokens (Token Shop); spent in the character sheet
+    energy: 100,      // rogue resource — refills to full on load (see ensureState backfill)
+    focus: 100, rage: 0, mana: 100, // hunter/warrior/mage resources (rage builds in combat)
+    spellSlots: [],   // customizable 6-slot spell loadout (auto-filled per class)
+    buffs: [],        // transient timed buffs (shouts, shields, blink)
+    potions: { health: 0, resource: 0 },
+    potionReadyAt: 0, // timestamp (ms) when the potion cooldown ends — survives reloads
     spec: null,       // permanent specialization: tank|dps|healer|classic (null = not chosen)
     pets: { collection: [], activeUid: null, eggs: 0 }, // pet system (all players)
     mine: { depth: 1, rockHp: 30, rockMaxHp: 30, ores: {} }, // mining (backfilled by ensureMine)
@@ -517,6 +552,16 @@ export function ensureState(raw) {
   s.mastery = { points: 0, spent: {}, ...(raw.mastery || {}) };
   s.mastery.spent = { might: 0, vitality: 0, fortune: 0, ...(s.mastery.spent || {}) };
   s.mastery.points = Math.max(0, Math.floor(s.mastery.points || 0));
+  if (!Number.isFinite(s.classTokens)) s.classTokens = 0;
+  s.energy = ENERGY_MAX; // energy always refills to full on load
+  if (!Number.isFinite(s.focus)) s.focus = 100;
+  s.rage = 0; // rage never persists between sessions — it builds in combat
+  if (!Number.isFinite(s.mana)) s.mana = 100;
+  if (!Array.isArray(s.spellSlots)) s.spellSlots = [];
+  ensureSpellSlots(s);
+  if (!Array.isArray(s.buffs)) s.buffs = [];
+  if (!s.potions || typeof s.potions !== 'object') s.potions = { health: 0, resource: 0 };
+  if (typeof s.potionReadyAt !== 'number') s.potionReadyAt = 0;
   s.professions = { herbalism: 1, smithing: 1, ...(raw.professions || {}) };
   if (!Array.isArray(s.achievements)) s.achievements = [];
   if (!Array.isArray(s.titlesUnlocked) || !s.titlesUnlocked.length) s.titlesUnlocked = ['wanderer'];
@@ -717,6 +762,182 @@ export const SKILLS = {
 };
 export const SKILL_ORDER = ['power-strike', 'fireball', 'heal', 'execute'];
 
+// ---------------- Class spellbooks ----------------
+// Per-class kits replacing the old class-blind SKILLS for hunter/warrior/
+// mage. Rogue/necromancer/berserker keep SKILLS until their books land.
+//
+// Effect kinds: strike {mult} · execute {mult, threshold, weakMult}
+// · heal {healPct} · petHeal {healPct} · petStrike {mult}
+// · trap {mult, dotMult?, dotTicks?, dotEveryMs?, slowPct?, slowSec?}
+// · slow {mult, slowPct, slowSec} · dot {mult, dotMult, dotTicks, dotEveryMs}
+// · shield {pct, sec} · shout {atkPct?, dmgTakenPct?, sec} · dodge {pct, sec}
+// · strikeInt {mult, interruptSec}
+// cost = resource spent (default 0); gain = resource generated on cast.
+export const SPELL_SLOT_COUNT = 6;
+export const CLASS_SPELLS = {
+  hunter: [
+    { id: 'steady-shot', name: 'Steady Shot', emoji: '🏹', school: 'Marksmanship', gain: 15, cdMs: 5000, unlockLevel: 1,
+      effect: { kind: 'strike', mult: 1.0 }, desc: 'Deal 1× damage. Generates 15 Focus.' },
+    { id: 'arcane-shot', name: 'Arcane Shot', emoji: '✨', school: 'Marksmanship', cost: 20, cdMs: 8000, unlockLevel: 1,
+      effect: { kind: 'strike', mult: 2.5 }, desc: 'Deal 2.5× damage as Arcane.' },
+    { id: 'mend-pet', name: 'Mend Pet', emoji: '💚', school: 'Beast Mastery', cost: 25, cdMs: 20000, unlockLevel: 10,
+      effect: { kind: 'mendPet', petDmgPct: 25, sec: 15 }, desc: 'Restore your pets to full hunger and inspire them: +25% pet damage for 15s.' },
+    { id: 'aimed-shot', name: 'Aimed Shot', emoji: '🎯', school: 'Marksmanship', cost: 35, cdMs: 15000, unlockLevel: 15,
+      effect: { kind: 'strike', mult: 4.0 }, desc: 'A careful shot dealing 4× damage.' },
+    { id: 'frost-trap', name: 'Frost Trap', emoji: '🧊', school: 'Survival', cost: 25, cdMs: 20000, unlockLevel: 20,
+      effect: { kind: 'trap', mult: 1.5, slowPct: 40, slowSec: 10 }, desc: '1.5× damage and the enemy attacks 40% slower for 10s.' },
+    { id: 'multi-shot', name: 'Multi-Shot', emoji: '🌪️', school: 'Marksmanship', cost: 30, cdMs: 12000, unlockLevel: 25,
+      effect: { kind: 'strike', mult: 2.0 }, desc: 'A volley dealing 2× damage.' },
+    { id: 'kill-command', name: 'Kill Command', emoji: '🐺', school: 'Beast Mastery', cost: 20, cdMs: 10000, unlockLevel: 30,
+      effect: { kind: 'petStrike', mult: 3.0 }, desc: 'Your pet strikes for 3× its normal damage.' },
+    { id: 'explosive-trap', name: 'Explosive Trap', emoji: '💥', school: 'Survival', cost: 30, cdMs: 25000, unlockLevel: 35,
+      effect: { kind: 'trap', mult: 2.0, dotMult: 1.0, dotTicks: 4, dotEveryMs: 2000 }, desc: '2× damage plus 1× burn every 2s, 4 times.' },
+  ],
+  warrior: [
+    { id: 'charge', name: 'Charge', emoji: '💨', school: 'Arms', gain: 10, cdMs: 8000, unlockLevel: 1,
+      effect: { kind: 'strike', mult: 1.5 }, desc: 'Charge in for 1.5× damage. Generates 10 Rage.' },
+    { id: 'slam', name: 'Slam', emoji: '🔨', school: 'Arms', cost: 15, cdMs: 8000, unlockLevel: 1,
+      effect: { kind: 'strike', mult: 2.5 }, desc: 'Slam for 2.5× damage.' },
+    { id: 'shield-block', name: 'Shield Block', emoji: '🛡️', school: 'Protection', cost: 20, cdMs: 25000, unlockLevel: 15,
+      effect: { kind: 'shield', pct: 30, sec: 8 }, desc: 'Absorb damage up to 30% of max HP for 8s.' },
+    { id: 'w-exec', name: 'Execute', emoji: '⚔️', school: 'Arms', cost: 25, cdMs: 20000, unlockLevel: 20,
+      effect: { kind: 'execute', mult: 6, threshold: 0.3, weakMult: 1.5 }, desc: '6× damage below 30% HP, else 1.5×.' },
+    { id: 'whirlwind', name: 'Whirlwind', emoji: '🌀', school: 'Fury', cost: 30, cdMs: 15000, unlockLevel: 20,
+      effect: { kind: 'strike', mult: 3.0 }, desc: 'Spin for 3× damage.' },
+    { id: 'battle-shout', name: 'Battle Shout', emoji: '📯', school: 'Fury', cost: 15, cdMs: 30000, unlockLevel: 25,
+      effect: { kind: 'shout', atkPct: 20, sec: 12 }, desc: '+20% attack for 12s.' },
+    { id: 'pummel', name: 'Pummel', emoji: '👊', school: 'Arms', cost: 10, cdMs: 12000, unlockLevel: 30,
+      effect: { kind: 'strikeInt', mult: 1.5, interruptSec: 3 }, desc: "1.5× damage and delay the enemy's next attack by 3s." },
+    { id: 'challenging-shout', name: 'Challenging Shout', emoji: '🗣️', school: 'Protection', cost: 15, cdMs: 25000, unlockLevel: 35,
+      effect: { kind: 'shout', dmgTakenPct: -30, sec: 10 }, desc: 'Take 30% less damage for 10s.' },
+  ],
+  mage: [
+    { id: 'arcane-blast', name: 'Arcane Blast', emoji: '🔮', school: 'Arcane', cost: 15, cdMs: 6000, unlockLevel: 1,
+      effect: { kind: 'strike', mult: 2.0 }, desc: 'Blast for 2× Arcane damage.' },
+    { id: 'fireball', name: 'Fireball', emoji: '🔥', school: 'Fire', cost: 25, cdMs: 10000, unlockLevel: 1,
+      effect: { kind: 'strike', mult: 3.0 }, desc: 'Hurl a fireball for 3× damage.' },
+    { id: 'frostbolt', name: 'Frostbolt', emoji: '❄️', school: 'Frost', cost: 20, cdMs: 8000, unlockLevel: 10,
+      effect: { kind: 'slow', mult: 2.5, slowPct: 30, slowSec: 8 }, desc: '2.5× damage and the enemy attacks 30% slower for 8s.' },
+    { id: 'arcane-missiles', name: 'Arcane Missiles', emoji: '🌠', school: 'Arcane', cost: 35, cdMs: 14000, unlockLevel: 15,
+      effect: { kind: 'strike', mult: 4.0 }, desc: 'A barrage dealing 4× Arcane damage.' },
+    { id: 'frost-nova', name: 'Frost Nova', emoji: '🧊', school: 'Frost', cost: 30, cdMs: 25000, unlockLevel: 20,
+      effect: { kind: 'slow', mult: 1.5, slowPct: 60, slowSec: 8 }, desc: "1.5× damage and slow the enemy's attacks 60% for 8s." },
+    { id: 'pyroblast', name: 'Pyroblast', emoji: '☄️', school: 'Fire', cost: 50, cdMs: 20000, unlockLevel: 25,
+      effect: { kind: 'strike', mult: 5.5 }, desc: 'A massive pyroblast for 5.5× damage.' },
+    { id: 'blizzard', name: 'Blizzard', emoji: '🌨️', school: 'Frost', cost: 45, cdMs: 22000, unlockLevel: 30,
+      effect: { kind: 'dot', mult: 2.0, dotMult: 0.75, dotTicks: 4, dotEveryMs: 2000 }, desc: '2× damage plus 0.75× chill every 2s, 4 times.' },
+    { id: 'blink', name: 'Blink', emoji: '💫', school: 'Arcane', cost: 20, cdMs: 30000, unlockLevel: 35,
+      effect: { kind: 'dodge', pct: 40, sec: 6 }, desc: '+40% dodge for 6s.' },
+  ],
+};
+
+export function spellsForClass(classId) { return CLASS_SPELLS[classId] || []; }
+export function hasSpellbook(classId) { return spellsForClass(classId).length > 0; }
+export function spellById(id) {
+  for (const [cls, list] of Object.entries(CLASS_SPELLS)) {
+    const d = list.find(x => x.id === id);
+    if (d) return { ...d, classId: cls };
+  }
+  return null;
+}
+export function unlockedSpells(s) {
+  if (!s) return [];
+  return spellsForClass(s.playerClass)
+    .filter(d => (s.level || 1) >= (d.unlockLevel || 1)).map(d => d.id);
+}
+// The customizable loadout: up to 6 unlocked spell ids. Auto-fills on
+// unlock; the Spell Book UI writes via setSpellSlots.
+export function ensureSpellSlots(s) {
+  if (!s) return [];
+  if (!Array.isArray(s.spellSlots)) s.spellSlots = [];
+  const unlocked = new Set(unlockedSpells(s));
+  s.spellSlots = s.spellSlots.filter(id => unlocked.has(id)).slice(0, SPELL_SLOT_COUNT);
+  for (const id of unlocked) {
+    if (s.spellSlots.length >= SPELL_SLOT_COUNT) break;
+    if (!s.spellSlots.includes(id)) s.spellSlots.push(id);
+  }
+  return s.spellSlots;
+}
+export function setSpellSlots(s, slots) {
+  if (!s || !Array.isArray(slots) || !slots.length || slots.length > SPELL_SLOT_COUNT) return false;
+  const unlocked = new Set(unlockedSpells(s));
+  if (!slots.every(id => typeof id === 'string' && unlocked.has(id))) return false;
+  s.spellSlots = slots.slice();
+  return true;
+}
+
+// ---- transient timed buffs (kept out of computeStats so core math is
+// untouched; app.js applies them via applyBuffs after computeStats) ----
+export function pruneBuffs(s) {
+  if (!s || !Array.isArray(s.buffs)) return;
+  const now = Date.now();
+  s.buffs = s.buffs.filter(b => b && b.until > now && (b.kind !== 'shield' || b.amount > 0));
+}
+export function addBuff(s, kind, pct, sec) {
+  if (!s) return;
+  if (!Array.isArray(s.buffs)) s.buffs = [];
+  const until = Date.now() + sec * 1000;
+  const ex = s.buffs.find(b => b.kind === kind);
+  if (ex) { ex.pct = pct; ex.until = until; } else s.buffs.push({ kind, pct, until });
+}
+export function addShield(s, amount, sec) {
+  if (!s) return;
+  if (!Array.isArray(s.buffs)) s.buffs = [];
+  s.buffs.push({ kind: 'shield', amount, until: Date.now() + sec * 1000 });
+}
+export function applyBuffs(stats, s) {
+  if (!stats) return stats;
+  pruneBuffs(s);
+  for (const b of (s.buffs || [])) {
+    if (b.kind === 'atkPct') stats.attack *= 1 + b.pct / 100;
+    else if (b.kind === 'dodgePct') stats.dodge = (stats.dodge || 0) + b.pct;
+  }
+  return stats;
+}
+export function damageTakenMult(s) {
+  let m = 1;
+  for (const b of ((s && s.buffs) || [])) {
+    if (b.kind === 'dmgTakenPct' && b.until > Date.now()) m *= 1 + b.pct / 100;
+  }
+  return m;
+}
+export function absorbShield(s, dmg) {
+  let rem = dmg;
+  for (const b of ((s && s.buffs) || [])) {
+    if (b.kind !== 'shield' || b.until <= Date.now() || b.amount <= 0) continue;
+    const take = Math.min(b.amount, rem);
+    b.amount -= take; rem -= take;
+    if (rem <= 0) break;
+  }
+  pruneBuffs(s);
+  return rem;
+}
+
+// ---- potions: independent 60s cooldown (app.js), never shared with spells ----
+export const POTION_CD_MS = 60000;
+export const POTION_DROP_CHANCE = 0.08;
+export function grantPotionDrop(s) {
+  if (!s) return null;
+  if (!s.potions || typeof s.potions !== 'object') s.potions = { health: 0, resource: 0 };
+  const kind = Math.random() < 0.5 ? 'health' : 'resource';
+  s.potions[kind] = (s.potions[kind] || 0) + 1;
+  return kind;
+}
+export function drinkPotion(s, kind, stats) {
+  if (!s || !s.potions || (s.potions[kind] || 0) < 1) return { ok: false, reason: 'none' };
+  s.potions[kind] -= 1;
+  if (kind === 'health') {
+    const amount = Math.round(((stats && stats.maxHp) || 1) * 0.4);
+    s.hero.hp = Math.min(stats.maxHp, s.hero.hp + amount);
+    return { ok: true, kind, amount };
+  }
+  const id = resourceIdFor(s);
+  const d = resDef(id);
+  if (!id || !d) { s.potions[kind] += 1; return { ok: false, reason: 'none' }; }
+  gainRes(s, id, d.max * 0.5);
+  return { ok: true, kind, amount: Math.round(d.max * 0.5), res: id };
+}
+
 // ---------------- Skill mastery ----------------
 // Each active skill tracks lifetime casts in state.skillUses[id].
 // Mastery level = min(10, floor(uses / 25)); each level grants +2%
@@ -740,13 +961,75 @@ export function skillMastery(state, id) {
   };
 }
 export function recordSkillUse(state, id) {
-  if (!state || !SKILLS[id]) return null;
+  // Mastery tracks both legacy skills and spellbook spells.
+  if (!state || !(SKILLS[id] || spellById(id))) return null;
   if (!state.skillUses || typeof state.skillUses !== 'object') state.skillUses = {};
   const before = skillMastery(state, id).level;
   state.skillUses[id] = skillUses(state, id) + 1;
   const after = skillMastery(state, id);
   return { ...after, leveledUp: after.level > before };
 }
+
+// ---------------- Class resources ----------------
+// Generic resource pools. Rogue energy came first; this table drives
+// Focus (hunter), Rage (warrior/berserker) and Mana (mage/necromancer).
+//
+// Resource formulas (v1):
+//   Focus:  +8/s in battle; Steady Shot generates +15 on cast.
+//   Mana:   +6/s in battle.
+//   Energy: +10/s in battle (unchanged).
+//   Rage:   +2 per hero strike landed, +5 per enemy hit taken;
+//           decays 5/s with no active enemy (dead / between spawns / inn);
+//           resets to 0 on load and on class change.
+export const ENERGY_MAX = 100;
+export const ENERGY_REGEN = 10;
+export const RAGE_PER_STRIKE = 2;
+export const RAGE_PER_HIT_TAKEN = 5;
+export const RAGE_DECAY_PER_SEC = 5;
+
+export const RESOURCES = {
+  focus:  { name: 'Focus',  emoji: '🎯', max: 100, regen: 8 },
+  rage:   { name: 'Rage',   emoji: '😡', max: 100, regen: 0 }, // combat-built only
+  mana:   { name: 'Mana',   emoji: '🔷', max: 100, regen: 6 },
+  energy: { name: 'Energy', emoji: '⚡', max: 100, regen: 10 },
+};
+export const CLASS_RESOURCE = {
+  hunter: 'focus', warrior: 'rage', mage: 'mana',
+  assassin: 'energy', necromancer: 'mana', berserker: 'rage',
+};
+
+// The 'assassin' key displays as Rogue (renamed 2026-09-30); the key is
+// kept so existing saves keep working.
+export function isRogue(s) { return !!s && s.playerClass === 'assassin'; }
+
+export function resourceIdFor(s) { return (s && CLASS_RESOURCE[s.playerClass]) || null; }
+export function resDef(id) { return RESOURCES[id] || null; }
+export function gainRes(s, id, n) {
+  const d = resDef(id);
+  if (!s || !d) return 0;
+  s[id] = Math.min(d.max, Math.max(0, (s[id] || 0) + n));
+  return s[id];
+}
+export function spendRes(s, id, n) {
+  const d = resDef(id);
+  if (!s || !d || (s[id] || 0) < n) return false;
+  s[id] -= n;
+  return true;
+}
+// Per-second regen for focus/mana/energy. Rage never regens — app.js
+// grants it on dealing/taking damage and decays it out of combat.
+export function tickResources(s, dt) {
+  const id = resourceIdFor(s);
+  if (!id || id === 'rage') return;
+  const d = resDef(id);
+  if (d.regen > 0) gainRes(s, id, d.regen * dt);
+}
+export function gainRage(s, n) { return gainRes(s, 'rage', n); }
+export function decayRage(s, dt) { return gainRes(s, 'rage', -RAGE_DECAY_PER_SEC * dt); }
+// Rogue wrappers now delegate (same API as before, already tested).
+export function gainEnergy(s, n) { return gainRes(s, 'energy', n); }
+export function spendEnergy(s, n) { return spendRes(s, 'energy', n); }
+export function tickEnergy(s, dt) { if (isRogue(s)) gainRes(s, 'energy', ENERGY_REGEN * dt); }
 
 export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
   const race = RACES[state.race] || {};
@@ -781,14 +1064,22 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
     state.hero.hp = Math.min(s2.maxHp, state.hero.hp + s2.maxHp * 0.25);
   }
   // Auto-unlock active skills whose level requirement was just met.
+  // Spellbook classes (hunter/warrior/mage) unlock spells instead, via
+  // ensureSpellSlots — they never draw from the generic SKILLS table.
   if (!Array.isArray(state.skills)) state.skills = ['power-strike'];
   const newSkills = [];
-  for (const id of SKILL_ORDER) {
-    const def = SKILLS[id];
-    if (def.unlockLevel <= state.level && !state.skills.includes(id)) {
-      state.skills.push(id);
-      newSkills.push(id);
+  if (!hasSpellbook(state.playerClass)) {
+    for (const id of SKILL_ORDER) {
+      const def = SKILLS[id];
+      if (def.unlockLevel <= state.level && !state.skills.includes(id)) {
+        state.skills.push(id);
+        newSkills.push(id);
+      }
     }
+  } else {
+    const before = new Set(state.spellSlots || []);
+    ensureSpellSlots(state);
+    for (const id of state.spellSlots) if (!before.has(id)) newSkills.push(id);
   }
   return { gained: amount, levels, skills: newSkills };
 }
@@ -1686,26 +1977,6 @@ export function rollSetDrop(stage, { boss = false, dungeonBoss = false, raidBoss
 // drops). Legendary/mythic rolls and earnable set pieces are NOT sold: those
 // stay drop-only. Privileged gear (GM sets) is never sold or dropped —
 // GM-grant only.
-export const GEAR_SHOP_STOCK = [
-  { id: 'magic-weapon', slot: 'weapon', rarity: 'magic', price: 8000,   emoji: '⚔️', name: 'Fine Weapon',   desc: 'Solid magic weapon, scaled to your stage.' },
-  { id: 'magic-armor',  slot: 'armor',  rarity: 'magic', price: 8000,   emoji: '🛡️', name: 'Fine Armor',    desc: 'Solid magic armor, scaled to your stage.' },
-  { id: 'rare-weapon',  slot: 'weapon', rarity: 'rare',  price: 40000,  emoji: '🗡️', name: 'Gilded Weapon', desc: 'Guaranteed rare weapon with bonus stats.' },
-  { id: 'rare-armor',   slot: 'armor',  rarity: 'rare',  price: 40000,  emoji: '🥋', name: 'Gilded Armor',  desc: 'Guaranteed rare armor with bonus stats.' },
-  { id: 'epic-weapon',  slot: 'weapon', rarity: 'epic',  price: 150000, emoji: '🔱', name: 'Arcane Weapon', desc: 'Guaranteed epic weapon — a real upgrade.' },
-  { id: 'epic-armor',   slot: 'armor',  rarity: 'epic',  price: 150000, emoji: '🦾', name: 'Arcane Armor',  desc: 'Guaranteed epic armor — a real upgrade.' },
-];
-
-// Buys a shop item for gold; the item lands in the inventory. Purchases go
-// through spendGold so the owner infinite-gold perk and the gold cap apply.
-export function buyGearItem(s, stockId) {
-  const entry = GEAR_SHOP_STOCK.find(e => e.id === stockId);
-  if (!entry) return { ok: false, reason: 'bad-item' };
-  if (!spendGold(s, entry.price)) return { ok: false, reason: 'gold' };
-  const item = makeLootItem(Math.max(1, s.stage || 1), entry.rarity, entry.slot, s.playerClass);
-  (s.inventory || (s.inventory = [])).push(item);
-  return { ok: true, item };
-}
-
 // ---------------- Armory ----------------
 // Premium class-gear shop in the Armory tab. Items are generated on purchase
 // (guaranteed rarity, stage-scaled stats — same stat budget as drops) via
@@ -1724,7 +1995,7 @@ export const ARMORY_STOCK = [
   { id: 'armory-mythic-armor',     slot: 'armor',  rarity: 'mythic',    price: 25000000, emoji: '🌟', name: 'Eternal Armor',    desc: 'Guaranteed mythic class armor — the finest steel.' },
 ];
 
-// Buys an Armory item for gold; mirrors buyGearItem. The item lands in the
+// Buys an Armory item for gold. The item lands in the
 // inventory. Purchases go through spendGold so the owner infinite-gold perk
 // and the gold cap apply. Selling needs no new code: the Armory sell list
 // reuses the existing sellItem() (same Sell buttons as the Gear tab), which
@@ -2161,6 +2432,10 @@ export function petStrikeDamage(s, stats) {
   const pets = activePets(s);
   if (!pets.length) return 0;
   const classMult = (s && CLASSES[s.playerClass] && CLASSES[s.playerClass].petDmgMult) || 1;
+  let buffMult = 1; // Mend Pet inspiration
+  for (const b of ((s && s.buffs) || [])) {
+    if (b.kind === 'petDmgPct' && b.until > Date.now()) buffMult *= 1 + b.pct / 100;
+  }
   let total = 0;
   for (const pet of pets) {
     const mult = petHungerMult(pet);
@@ -2171,7 +2446,7 @@ export function petStrikeDamage(s, stats) {
     // Pets stay meaningful without ever outshining the hero.
     const base = stats.attack * Math.min(0.25 + 0.04 * (pet.level - 1), 1.5);
     const speciesMult = 1 + (sp.baseDmg / 200); // rarer species hit a touch harder
-    total += Math.max(1, Math.round(base * mult * speciesMult * classMult));
+    total += Math.max(1, Math.round(base * mult * speciesMult * classMult * buffMult));
   }
   return total;
 }
@@ -2682,6 +2957,9 @@ export const TOKEN_SHOP_CATALOG = [
   { id: 'ts-fx-stormsurge',  kind: 'fx', ref: 'stormsurge',  cost: 2 },
   { id: 'ts-fx-celestial',   kind: 'fx', ref: 'celestial',   cost: 3 },
   { id: 'ts-fx-throneflame', kind: 'fx', ref: 'throneflame', cost: 3 },
+  { id: 'ts-class-token', kind: 'classToken', name: '🔄 Class Change Token',
+    desc: 'Change your class anytime — from the Character sheet. Level, gear, and progress stay.',
+    cost: 3, staple: true },
 ];
 const TOKEN_SHOP_BY_ID = Object.fromEntries(TOKEN_SHOP_CATALOG.map(i => [i.id, i]));
 
@@ -2732,8 +3010,27 @@ export function buyTokenItem(s, itemId, nowMs = Date.now()) {
   } else if (item.kind === 'eggs') {
     const p = ensurePets(s);
     p.eggs = (p.eggs || 0) + 5;
+  } else if (item.kind === 'classToken') {
+    s.classTokens = (s.classTokens || 0) + 1;
   }
   return { ok: true, item };
+}
+
+// Consumes one class-change token and switches the hero's class.
+// Level, gear, stats, and quests are untouched — only the class (and its
+// perks) changes. The spell loadout is rebuilt for the new class so no
+// invalid spell survives the swap; resources start fresh.
+export function changeClass(s, newClass) {
+  if (!s || !CLASSES[newClass]) return { ok: false, reason: 'bad-class' };
+  if (s.playerClass === newClass) return { ok: false, reason: 'same' };
+  if ((s.classTokens || 0) < 1) return { ok: false, reason: 'tokens' };
+  s.classTokens -= 1;
+  s.playerClass = newClass;
+  s.energy = ENERGY_MAX; s.focus = 100; s.mana = 100; s.rage = 0;
+  s.buffs = [];
+  s.spellSlots = [];
+  ensureSpellSlots(s);
+  return { ok: true };
 }
 
 // Returns newly unlocked title defs (mutates state.titlesUnlocked).

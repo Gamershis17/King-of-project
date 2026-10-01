@@ -33,7 +33,7 @@ import {
   isRaidBoss,
   raidWaveScaling,
   ensureRaidState,
-} from './engine.js?v=20260930al';
+} from './engine.js?v=20260930ao';
 
 // Module-level run state (not saved; the run always restarts at wave 1).
 let _active = false;
