@@ -1,6 +1,20 @@
 [
   {
     "date": "2026-09-30",
+    "title": "⚔️ Forge rework & spellbooks",
+    "changes": [
+      "🌌 Galaxy Forge moved into the Armory (Buy → Sell → Forge) — now forges all 5 slots: weapon, armor, helmet, boots, and trinket",
+      "🛠️ No more stat picking: the forge reads your class and builds the right gear automatically — primary stat, Stamina, Critical Strike, and Haste",
+      "🗑️ Old Gear Shop removed — the Inventory tab is now just Loadout, Upgrades, and loot",
+      "📖 Hunter, Warrior, and Mage now have full 8-spell books with 6 customizable spell slots",
+      "✨ New class resources: Focus (Hunter), Rage (Warrior), Mana (Mage), Energy (Rogue)",
+      "🧪 Enemies now drop potions (separate 8% chance) — restore health or class resource, 60s cooldown",
+      "🐾 Mend Pet now also grants +25% pet damage for 15s",
+      "🎟️ Class Change Tokens in the Token Shop (3 rebirth tokens) — swap class and keep your level, gear, and quests"
+    ]
+  },
+  {
+    "date": "2026-09-30",
     "title": "✨ Polish & Immersion update",
     "changes": [
       "🌙 Circadian realms: the game shifts to a deep-night palette from 10 PM–6 AM, with subtle seasonal tints through the year",
