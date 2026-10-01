@@ -130,6 +130,79 @@ async function setUserRole(userId, role) {
   await pool.query('UPDATE users SET role = $1 WHERE id = $2', [role, userId]);
 }
 
+
+/**
+ * Replace a user's password hash and bump session_version, signing out every
+ * other device. Returns the new session_version so the caller can keep the
+ * current session alive by syncing it.
+ */
+async function updatePasswordHash(userId, passwordHash) {
+  const { rows } = await pool.query(
+    'UPDATE users SET password_hash = $2, session_version = session_version + 1 WHERE id = $1 RETURNING session_version',
+    [userId, passwordHash]
+  );
+  return rows[0] ? Number(rows[0].session_version) : null;
+}
+
+/**
+ * Rename a user's account. The users row is the identity; every table that
+ * keys membership or relationships off the raw username text is updated in
+ * one transaction:
+ *   - guilds.owner_username, guild_members.username, guild_invites.username
+ *   - staff_profiles.username
+ *   - friendships.requester / .addressee, plus pair_key (derived from the
+ *     two lowercased usernames, so it must be recomputed or the friendship
+ *     becomes unfindable)
+ * Deliberately untouched: player_state (keyed by user_id), party_members
+ * (user_id), and historical records (guild_chat, reports, ideas) which keep
+ * the name as it was when written.
+ * Throws an Error with code 'taken' when the new name is already in use.
+ */
+async function renameUserAccount(userId, newUsername) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cur = await client.query('SELECT username FROM users WHERE id = $1', [userId]);
+    if (!cur.rows.length) throw new Error('no-user');
+    const oldUsername = cur.rows[0].username;
+    if (oldUsername.toLowerCase() === String(newUsername).toLowerCase()) {
+      await client.query('ROLLBACK');
+      return { oldUsername, newUsername: oldUsername, unchanged: true };
+    }
+    const taken = await client.query(
+      'SELECT id FROM users WHERE LOWER(username) = LOWER($1) AND id <> $2',
+      [newUsername, userId]
+    );
+    if (taken.rows.length) {
+      const err = new Error('Username is already taken.');
+      err.code = 'taken';
+      throw err;
+    }
+    await client.query('UPDATE users SET username = $2 WHERE id = $1', [userId, newUsername]);
+    await client.query('UPDATE guilds SET owner_username = $2 WHERE LOWER(owner_username) = LOWER($1)', [oldUsername, newUsername]);
+    await client.query('UPDATE guild_members SET username = $2 WHERE LOWER(username) = LOWER($1)', [oldUsername, newUsername]);
+    await client.query('UPDATE guild_invites SET username = $2 WHERE LOWER(username) = LOWER($1)', [oldUsername, newUsername]);
+    await client.query('UPDATE staff_profiles SET username = $2 WHERE user_id = $1', [userId, newUsername]);
+    await client.query('UPDATE friendships SET requester = $2 WHERE LOWER(requester) = LOWER($1)', [oldUsername, newUsername]);
+    await client.query('UPDATE friendships SET addressee = $2 WHERE LOWER(addressee) = LOWER($1)', [oldUsername, newUsername]);
+    await client.query(
+      `UPDATE friendships SET pair_key = CASE
+         WHEN LOWER(requester) < LOWER(addressee) THEN LOWER(requester) || '|' || LOWER(addressee)
+         ELSE LOWER(addressee) || '|' || LOWER(requester)
+       END
+       WHERE LOWER(requester) = LOWER($1) OR LOWER(addressee) = LOWER($1)`,
+      [newUsername]
+    );
+    await client.query('COMMIT');
+    return { oldUsername, newUsername };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /**
  * Bump a user's session_version, invalidating all of their existing
  * sessions. The next authenticated request carrying an older version is
@@ -1238,6 +1311,8 @@ module.exports = {
   createUserWithRole,
   setUserRole,
   bumpSessionVersion,
+  updatePasswordHash,
+  renameUserAccount,
   ownerExists,
   getPlayerCount,
   getUsernamesByRole,
