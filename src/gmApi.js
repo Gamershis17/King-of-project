@@ -64,6 +64,12 @@ const { makeGearItems, isValidSetId } = require('./gearSets');
 const { loadBlob, defaultStateBlob } = require('./gameApi');
 const { addBroadcast, latestBroadcast } = require('./broadcast');
 const {
+  getWebhookUrl,
+  setWebhookUrl,
+  maskWebhookUrl,
+  postModlog,
+} = require('./discordWebhook');
+const {
   pool,
   getUserByUsername,
   setUserRole,
@@ -1276,15 +1282,18 @@ async function readAudit() {
 async function logAudit(req, action, targetUsername, detail) {
   try {
     const entries = await readAudit();
-    entries.unshift({
+    const entry = {
       ts: Date.now(),
       actor: (req.user && req.user.username) || '?',
       actorRole: (req.user && req.user.role) || '?',
       action,
       target: targetUsername || '—',
       detail: detail === undefined || detail === null ? '' : String(detail).slice(0, 300),
-    });
+    };
+    entries.unshift(entry);
     await setSetting('gm_audit', JSON.stringify(entries.slice(0, AUDIT_MAX)));
+    // Mirror to Discord #mod-logs (fire-and-forget; never blocks the action).
+    postModlog(entry);
   } catch (e) { /* audit must never break the action itself */ }
 }
 
@@ -1443,6 +1452,54 @@ router.get(
   asyncHandler(async (req, res) => {
     const entries = await readAudit();
     res.json({ ok: true, entries: entries.slice(0, 100) });
+  })
+);
+
+// ---------- Discord #mod-logs webhook ----------
+// Staff paste a channel webhook URL; every audit entry is then mirrored to
+// Discord as an embed — no bot needed. Reading the (masked) config is open
+// to the audit-log tier; changing it is owner/admin only.
+router.get(
+  '/gm/discord-webhook',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const url = await getWebhookUrl();
+    res.json({ ok: true, configured: !!url, masked: maskWebhookUrl(url) });
+  })
+);
+
+router.post(
+  '/gm/discord-webhook',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    const { url } = req.body || {};
+    try {
+      const saved = await setWebhookUrl(url);
+      if (saved) {
+        // Immediate proof it works: a test embed lands in the channel.
+        postModlog({
+          ts: Date.now(),
+          actor: req.user.username,
+          actorRole: req.user.role,
+          action: 'webhook-test',
+          target: '—',
+          detail: 'Mod-log webhook connected. Staff actions will appear here.',
+        });
+      }
+      res.json({ ok: true, configured: !!saved, masked: maskWebhookUrl(saved) });
+    } catch (err) {
+      if (err.code === 'bad-url') return res.status(400).json({ error: err.message });
+      throw err;
+    }
+  })
+);
+
+router.delete(
+  '/gm/discord-webhook',
+  adminPlus,
+  asyncHandler(async (req, res) => {
+    await setWebhookUrl('');
+    res.json({ ok: true, configured: false });
   })
 );
 
@@ -1640,5 +1697,6 @@ router.delete(
     res.json({ ok: true, id });
   })
 );
+
 
 module.exports = { gmRouter: router };
