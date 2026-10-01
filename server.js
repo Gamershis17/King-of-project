@@ -29,6 +29,7 @@ const {
 const { authRouter } = require('./src/auth');
 const { gameRouter } = require('./src/gameApi');
 const { gmRouter } = require('./src/gmApi');
+const { socialRouter } = require('./src/socialApi');
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -41,7 +42,8 @@ app.use(helmet());
 app.disable('x-powered-by');
 
 // --- body parsing ---
-app.use(express.json({ limit: '1mb' }));
+// 8mb: staff social page uploads pictures as data URLs (client resizes first).
+app.use(express.json({ limit: '8mb' }));
 
 // --- session (PostgreSQL-backed via connect-pg-simple) ---
 let sessionSecret = process.env.SESSION_SECRET;
@@ -89,6 +91,7 @@ app.use('/api/auth/', authLimiter);
 app.use('/api/auth', authRouter);
 app.use('/api', gameRouter);
 app.use('/api', gmRouter);
+app.use('/api', socialRouter);
 
 // --- static frontend ---
 app.use(express.static(path.join(__dirname, 'public')));
