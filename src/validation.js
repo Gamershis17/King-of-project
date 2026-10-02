@@ -57,7 +57,7 @@ const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'player'];
 // Valid class/spec ids (mirror Engine.CLASSES / Engine.SPECS in
 // public/js/engine.js; the client is ESM so the lists are duplicated here
 // for the CJS server). Single source of truth for gameApi.js and gmApi.js.
-const VALID_CLASSES = new Set(['hunter', 'warrior', 'mage', 'assassin', 'necromancer', 'berserker']);
+const VALID_CLASSES = new Set(['hunter', 'warrior', 'mage', 'assassin', 'necromancer', 'berserker', 'druid']);
 const VALID_SPECS = new Set(['tank', 'dps', 'healer', 'classic']);
 
 function validateUsername(username) {
