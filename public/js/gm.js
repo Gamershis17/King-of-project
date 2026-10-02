@@ -20,6 +20,17 @@ function describeReward(kind, amount, set) {
   return (PRIVILEGED_SETS[set] || {}).name || set || 'gear';
 }
 
+// ID reference panel (lazy-loaded to avoid circular imports).
+let IdRef = null;
+async function loadIdRef() {
+  if (!IdRef) {
+    try {
+      IdRef = await import('./id-reference.js?v20261003a');
+    } catch (e) { console.error('Failed to load id-reference:', e); }
+  }
+  return IdRef;
+}
+
 export const GM = {
   me: null,
 
@@ -38,6 +49,37 @@ export const GM = {
     const $ = (id) => root.querySelector('#' + id);
     // Cards render per role tier; elements for other tiers are absent.
     const on = (id, evt, fn) => { const el = $(id); if (el) el.addEventListener(evt, fn); };
+    // ID reference toggle
+    let idrefLoaded = false;
+    on('gm-idref-toggle', 'click', async () => {
+      const panel = $('gm-idref-panel');
+      if (!panel) return;
+      const show = panel.classList.contains('hidden');
+      panel.classList.toggle('hidden', !show);
+      if (show && !idrefLoaded) {
+        idrefLoaded = true;
+        const mod = await loadIdRef();
+        if (mod && mod.renderIdReference) {
+          // Auto-fill: clicking an ID populates the focused GM input, else copies.
+          mod.renderIdReference(panel, {
+            onCopy: (id) => {
+              const active = document.activeElement;
+              if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+                const start = active.selectionStart || 0;
+                const end = active.selectionEnd || 0;
+                const val = active.value || '';
+                active.value = val.slice(0, start) + id + val.slice(end);
+                active.focus();
+                try { active.setSelectionRange(start + id.length, start + id.length); } catch {}
+              } else {
+                try { if (navigator.clipboard) navigator.clipboard.writeText(id); } catch {}
+              }
+              UI.toast(`Copied: ${id}`, 'success');
+            },
+          });
+        }
+      }
+    });
     const isGm = canGm(this.me.role);
 
     // Quick-jump chips in the sticky target bar: smooth-scroll to each section.
@@ -871,6 +913,11 @@ export const GM = {
         <div class="gm-card"><div class="gm-num">${num(ov.playerCount)}</div><div class="muted small">players</div></div>
         <div class="gm-card"><div class="gm-num">${num(ov.codeCount)}</div><div class="muted small">gift codes</div></div>
         <div class="gm-card"><div class="gm-num">${esc(ov.role)}</div><div class="muted small">your role</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <button id="gm-idref-toggle" class="btn small" style="width:100%">📋 ID Reference (pets, items, titles, quests)</button>
+        <div id="gm-idref-panel" class="hidden" style="margin-top:8px"></div>
       </div>
 
       ${canTarget ? `
