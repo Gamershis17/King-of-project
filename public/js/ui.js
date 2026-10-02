@@ -1188,12 +1188,13 @@ export const UI = {
         + (item.setName ? `<div class="tip-set">Set: ${esc(item.setName)}</div>` : '');
     };
 
-    const statCell = (k) => {
+    const statRow = (k) => {
       const label = ((E.STAT_LABELS || {})[k] || k).replace(' %', '');
-      return `<span><span class="k">${esc(label)}</span> <span class="v">${esc(formatStatVal(k, stats[k] || 0))}</span></span>`;
+      return `<div class="char-stat-row"><span class="k">${esc(label)}</span>`
+        + `<span class="v">${esc(formatStatVal(k, stats[k] || 0))}</span></div>`;
     };
     const section = (title, keys) =>
-      `<div class="char-sec-title">${title}</div><div class="char-stat-grid">${keys.map(statCell).join('')}</div>`;
+      `<div class="char-sec-title">${title}</div><div class="char-stat-rows">${keys.map(statRow).join('')}</div>`;
 
     const pets = (state.pets && state.pets.collection) || [];
     const active = pets.find(p => p.uid === (state.pets && state.pets.activeUid));
@@ -1206,18 +1207,38 @@ export const UI = {
         + `<span>${esc(sp.name || 'Pet')}<br><span style="color:${esc(pc)}">Lv ${active.level || 1}</span></span></div>`;
     }
 
-    const leftSlots = ['helmet', 'weapon', 'trinket'];
-    const rightSlots = ['armor', 'boots'];
+    // WoW-style arrangement: armor down the left, boots/trinket/weapon down the
+    // right, hero portrait on the class background in the center.
+    const leftSlots = ['helmet', 'armor'];
+    const rightSlots = ['boots', 'trinket', 'weapon'];
+    const classBg = `img/bg/class-${state.playerClass || 'hunter'}.jpg`;
+    // Gear composite: equipped items orbit the class emoji, each glowing in its
+    // rarity color; the portrait ring takes the best equipped rarity.
+    const gearOrbit = ['helmet', 'weapon', 'armor', 'boots'];
+    const gearPos = ['pos-tl', 'pos-tr', 'pos-bl', 'pos-br'];
+    let bestRarIdx = -1, bestRarColor = '#c9a227';
+    const gearBadges = gearOrbit.map((slot, i) => {
+      const item = gearBySlot[slot];
+      if (!item) return '';
+      const info = (E.SLOT_INFO || {})[slot] || {};
+      const rar = (E.RARITY_BY_ID && E.RARITY_BY_ID[item.rarity]) || {};
+      const idx = (E.RARITIES || []).findIndex(r => r.id === item.rarity);
+      if (idx > bestRarIdx) { bestRarIdx = idx; bestRarColor = rar.color || bestRarColor; }
+      return `<span class="gear-badge ${gearPos[i]}" style="filter:drop-shadow(0 0 6px ${esc(rar.color || '#fff')})">${esc(info.emoji || '▫️')}</span>`;
+    }).join('');
     this.modal({
       title: 'Character',
       wide: true,
-      html: `<div class="char-sheet">`
+      html: `<div class="char-sheet wow-sheet">`
+        + `<div class="wow-head">`
+        + `<div class="wow-name">${esc(heroName)}</div>`
+        + `<div class="wow-sub">Level ${state.level || 1} ${esc(cls.name || '')}</div>`
+        + `</div>`
         + `<div class="paper-doll">`
         + `<div class="paper-col">${leftSlots.map(slotHTML).join('')}</div>`
         + `<div class="paper-center">`
-        + `<div class="paper-portrait">${esc(cls.emoji || '🦸')}</div>`
-        + `<div class="paper-name">${esc(heroName)}</div>`
-        + `<div class="paper-sub">Level ${state.level || 1} ${esc(cls.name || '')}</div>`
+        + `<div class="paper-portrait wow-portrait gear-composite" style="background-image:url('${esc(classBg)}');border-color:${esc(bestRarColor)}">`
+        + `<span class="wow-portrait-emoji">${esc(cls.emoji || '🦸')}</span>${gearBadges}</div>`
         + `<div class="paper-hpbar"><div style="width:${Math.min(100, (hp / maxHp) * 100)}%"></div></div>`
         + `<div class="paper-hptext">❤️ ${formatNum(hp)} / ${formatNum(maxHp)}</div>`
         + petHTML
