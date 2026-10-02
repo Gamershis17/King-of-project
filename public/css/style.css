@@ -5134,3 +5134,32 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   .sell-row { flex-wrap: wrap; }
   .sell-rarity { flex: 1 1 100%; }
 }
+
+/* ---------------- Class talent trees ---------------- */
+.talent-topbar { display: flex; align-items: center; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+.talent-points { font-size: 15px; color: #ffd23f; }
+.talent-tabs { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; }
+.talent-tree { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
+.talent-row-wrap.row-locked { opacity: 0.55; }
+.talent-row-label { font-size: 12px; color: #c9a227; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 1px; }
+.talent-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.talent-node {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 108px; max-width: 150px; flex: 1 1 108px;
+  background: #241f33; border: 2px solid #4a4358; border-radius: 12px;
+  padding: 10px 8px; color: #e8e4f0; cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .1s;
+}
+.talent-node:not([disabled]):active { transform: scale(.96); }
+.talent-node.learned { border-color: #8b5cf6; box-shadow: 0 0 10px rgba(139,92,246,.45); }
+.talent-node.capstone { border-color: #c9a227; }
+.talent-node.capstone.learned { box-shadow: 0 0 14px rgba(201,162,39,.6); }
+.talent-node.locked { cursor: not-allowed; }
+.talent-node[disabled] { cursor: not-allowed; }
+.tn-emoji { font-size: 28px; }
+.tn-name { font-size: 12px; font-weight: bold; text-align: center; }
+.tn-pips { display: flex; gap: 3px; margin: 2px 0; }
+.tn-pip { width: 10px; height: 6px; border-radius: 3px; background: #3a3448; }
+.tn-pip.on { background: #8b5cf6; box-shadow: 0 0 4px rgba(139,92,246,.8); }
+.tn-rank { font-size: 11px; color: #9a93b3; }
+.tn-desc { font-size: 10px; color: #9a93b3; text-align: center; line-height: 1.3; }
