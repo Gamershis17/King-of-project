@@ -3834,7 +3834,8 @@ export function raidEnemyFor(wave, playerStage) {
   const baseStage = (!boss && isBossStage(stage)) ? stage + 1 : stage;
   const base = enemyFor(baseStage);
   const s = raidWaveScaling(w);
-  const hp = Math.max(1, Math.round(base.hp * s.hpMult * (boss ? 2.5 : 1)));
+  // v26: raid boss HP 2.5 -> 1.75 (30% reduction, matches dungeon balance).
+  const hp = Math.max(1, Math.round(base.hp * s.hpMult * (boss ? 1.75 : 1)));
   return {
     name: boss ? pick(BOSS_NAMES) : base.name,
     stage, boss, raidWave: w,
