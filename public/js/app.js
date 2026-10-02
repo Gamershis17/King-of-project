@@ -1,14 +1,14 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261003a';
-import * as Engine from './engine.js?v20261002x';
-import { UI, esc, formatNum } from './ui.js?v20261003a';
+import { api } from './api.js?v=20260930ar';
+import * as Engine from './engine.js?v=20260930ar';
+import { UI, esc, formatNum } from './ui.js?v=20261001e';
 import { Auth } from './auth.js?v=20260930ar';
-import { GM } from './gm.js?v=20261001e';
+import { GM } from './gm.js?v20261003b';
 
-import { Raid } from './raid.js?v=20261002r';
-import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261002x';
+import { Raid } from './raid.js?v=20260930ar';
+import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
 import { Realm } from './realm.js?v=20260930ar';
 import { Audio } from './audio.js?v=20260930ar';
@@ -217,18 +217,14 @@ async function boot() {
     onSetActivePet: doSetActivePet,
     onSetSecondPet: doSetSecondPet,
     onRemoveSecondPet: doRemoveSecondPet,
-    onRecruitHealer: doRecruitHealer,
-    onDismissHealer: doDismissHealer,
-    onRecruitTank: doRecruitTank,
-    onDismissTank: doDismissTank,
-    onSpendClassTalent: doSpendClassTalent,
-    onRespecClassTalents: doRespecClassTalents,
     onBuyEgg: doBuyEgg,
     onBreedPets: doBreedPets,
     onCombinePets: doCombinePets,
     onBuyTokenItem: doBuyTokenItem,
     onChangeClassOpen: openChangeClass,
     onChangeClass: doChangeClass,
+    onChangeHeroNameOpen: openChangeHeroName,
+    onChangeHeroName: doChangeHeroName,
     onChangePassword: doChangePassword,
     onChangeUsername: doChangeUsername,
     onBuyArmory: doBuyArmory,
@@ -244,7 +240,7 @@ async function boot() {
     // Social: inspect + friends
     onInspect: (username) => UI.openInspect(username, App.state),
     onInspectCompare: (username) => UI.openInspect(username, App.state, true),
-    onFetchInspect: (username) => api.inspectPlayer(username).catch(() => null),
+    onFetchInspect: (username) => api.inspectPlayer(username),
     onRanksSubtab: (which) => {
       App.ranksSubtab = which;
       UI.switchRanksSubtab(which);
@@ -402,13 +398,7 @@ const isGuest = () => App.user && App.user.role === GUEST_ROLE;
 async function persistNow() {
   if (!App.state) return;
   if (isGuest()) { saveGuest(App.user.username, App.state); return; }
-  // Safety: catch network failures so callers don't get unhandled rejections.
-  // Next autosave will retry.
-  try {
-    await api.saveState(App.state);
-  } catch (e) {
-    console.warn('persistNow failed:', e);
-  }
+  await api.saveState(App.state);
 }
 
 // "This needs an account" prompt for server-gated features in guest mode.
@@ -576,24 +566,6 @@ async function enterAppWithState(user, raw, lastSeenAt) {
 
 // Everything after race/class selection: init raid, show the app,
 // apply offline earnings, start the game loop.
-// Presence heartbeat: marks the player online and refreshes the header badge.
-async function pingPresence() {
-  try { await api.ping(); } catch { /* offline-tolerant */ }
-}
-async function refreshOnlineCount() {
-  try {
-    const r = await api.onlineCount();
-    const el = document.getElementById('online-count');
-    if (el && r && typeof r.onlineCount === 'number') el.textContent = r.onlineCount;
-  } catch { /* offline-tolerant */ }
-}
-function startPresenceHeartbeat() {
-  if (App.presenceTimer) return;
-  pingPresence();
-  refreshOnlineCount();
-  App.presenceTimer = setInterval(() => { pingPresence(); refreshOnlineCount(); }, 60000);
-}
-
 async function continueBoot(state, lastSeenAt) {
   Raid.init(state);
   grantStaffTitles();
@@ -602,13 +574,6 @@ async function continueBoot(state, lastSeenAt) {
   // and guildless players). Fire-and-forget; the engine defaults to zero.
   if (!isGuest()) {
     try { syncGuildPerks(api); } catch { /* offline-tolerant */ }
-    // Guild pill: fetch guild info for the header badge.
-    try {
-      const r = await api.getGuildMine();
-      if (r && r.guild) {
-        UI.updateGuildPill(r.guild, (r.members || []).length);
-      }
-    } catch { /* offline-tolerant: pill stays hidden */ }
   }
 
   // Offline earnings (lastSeenAt null on brand-new accounts).
@@ -964,8 +929,6 @@ function startGame() {
   App.statusTimer = setInterval(() => pollMaintenance(), 60000);
   pollBroadcast();
   App.broadcastTimer = setInterval(() => pollBroadcast(), 60000);
-  if (!isGuest()) startPresenceHeartbeat();
-  else refreshOnlineCount();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
     // FPS/battery: pause ambient CSS animations while the tab is hidden.
@@ -982,11 +945,8 @@ function startGame() {
 
 // ---------------- saving ----------------
 let _saving = false;
-let _saveQueued = false; // Safety: queue saves requested while one is in-flight.
 async function saveNow(beaconOnly = false) {
-  if (!App.state) return;
-  // Safety: queue instead of silently dropping when a save is in-flight.
-  if (_saving) { _saveQueued = true; return; }
+  if (!App.state || _saving) return;
   // Stamp leaderboard "power" (hero attack) so /api/leaderboard can show it.
   try { App.state.power = Math.round(Engine.computeStats(App.state).attack); } catch { /* leave unset */ }
   if (isGuest()) {
@@ -1004,15 +964,8 @@ async function saveNow(beaconOnly = false) {
     UI.setSaveIndicator('● saved');
   } catch (e) {
     UI.setSaveIndicator('● save failed', false);
-    // Safety: emergency local backup — preserves state if tab closes before retry.
-    try {
-      localStorage.setItem('kop-emergency-backup', JSON.stringify(App.state));
-      localStorage.setItem('kop-emergency-backup-time', String(Date.now()));
-    } catch { /* storage full/blocked — nothing more we can do */ }
   } finally {
     _saving = false;
-    // Safety: flush any save queued while we were busy.
-    if (_saveQueued) { _saveQueued = false; saveNow(); }
   }
 }
 
@@ -1023,22 +976,13 @@ function spawnEnemy() {
   App.enemy = s.mode === 'raid'
     ? (Raid.isActive() ? Raid.spawnEnemy(s) : Raid.enter(s))
     : Engine.enemyFor(s.stage, Engine.computeStats(s));
-  // Safety: fallback to normal enemy if raid spawn returned null/undefined.
-  if (!App.enemy) App.enemy = Engine.enemyFor(s.stage, Engine.computeStats(s));
-  // Dungeon balance: bosses have 40% less HP in dungeons (party challenge, not solo).
-  if (s.mode === 'dungeon' && App.enemy.boss) {
-    App.enemy.hp = Math.round(App.enemy.hp * 0.6);
-    App.enemy.maxHp = Math.round(App.enemy.maxHp * 0.6);
-  }
   App.enemyTimer = 0;
   App.heroTimer = 0;
   App.enemySlow = null; // a fresh enemy never inherits the last one's frost slow
   App.companionTimers = {};
   App.healerTimers = {};
-  Engine.healerNewBattle(s); // NPC healer: refresh once-per-battle resurrect
   // revive downed companions on a fresh enemy
-  // Safety: guard against missing/corrupted party array.
-  if (Array.isArray(s.party)) for (const c of s.party) if (c && c.hp <= 0) c.hp = c.maxHp;
+  for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
   // Boss-fight music: Dread Sovereign while a boss is up, restore after.
   try { if (audioOf(s).combatMusic !== false) Audio.setCombat(!!(App.enemy && App.enemy.boss)); } catch {}
@@ -1154,15 +1098,6 @@ function petStrike(stats) {
 function damageEnemy(dmg, prefix, sourceLabel) {
   const enemy = App.enemy;
   if (!enemy || App.dead || App.spawnPending) return;
-  // Class talent (Marksmanship: Kill Shot): execute — bonus damage to
-  // enemies below 20% HP, on the hunter's own strikes and spells.
-  const st = App.state;
-  if (st && st.playerClass === 'hunter' && (sourceLabel === 'hero' || sourceLabel === '🔥 ' || sourceLabel === '🩸 ')) {
-    const execPct = Engine.classTalentEffects(st).executePct || 0;
-    if (execPct > 0 && dmg > 0 && enemy.maxHp > 0 && enemy.hp / enemy.maxHp < 0.2) {
-      dmg = Math.round(dmg * (1 + execPct / 100));
-    }
-  }
   enemy.hp -= dmg;
   UI.enemyHitFlash();
   const isCrit = String(prefix).includes('CRIT');
@@ -1227,7 +1162,7 @@ function onKillEnemy() {
     UI.combatLog(`👹 Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'boss');
     UI.toast(`Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'success');
   }
-  const killXp = Engine.killXpFor(s, stage); // 5%-of-level cap (level-system rework)
+  const killXp = Math.floor(Engine.xpForKill(stage) * Engine.eventXpMult());
   const xpRes = Engine.gainXp(s, killXp, Date.now(), pb.xpPct);
   // The active pet earns 15% of the kill's XP.
   const petXpRes = Engine.gainPetXp(s, Math.floor(killXp * 0.15));
@@ -1269,14 +1204,6 @@ function onKillEnemy() {
       UI.notify('level', `🧠 +${mp} Mastery point${mp > 1 ? 's' : ''}! Spend in Settings → Mastery.`, 'success');
       if (UI.activeTab === 'settings') UI.renderMore(s, App.user);
     }
-    for (const m of (xpRes.milestones || [])) {
-      const t = Engine.TITLE_DEFS['milestone-' + m];
-      UI.notify('level', `🏆 Milestone! Level ${m}${t ? ` — title earned: ${t.name}` : ''}!`, 'success');
-    }
-    if ((xpRes.talentPoints || 0) > 0) {
-      UI.notify('level', `🌳 +${xpRes.talentPoints} talent point${xpRes.talentPoints > 1 ? 's' : ''}! Spend in the 🌳 Talents tab.`, 'success');
-      if (UI.activeTab === 'talents') UI.renderTalents(s);
-    }
   }
   announceSkillUnlocks(xpRes.skills);
   checkAch();
@@ -1308,13 +1235,7 @@ function enemyStrikeTick(stats) {
     target = pickId === 'hero' ? { kind: 'hero' } : { kind: 'comp', c: s.party.find(c => c.id === pickId) };
   }
   const tStats = target.kind === 'hero' ? stats : Engine.companionStats(target.c);
-  // Dungeon balance: companions take 80% reduced damage so they survive.
-  // (Boss attack is scaled to player HP, which one-shots companions.)
-  let enemyAtk = enemy.attack;
-  if (s.mode === 'dungeon' && target.kind === 'comp') {
-    enemyAtk = Math.round(enemyAtk * 0.2);
-  }
-  const res = Engine.enemyStrike(tStats, enemyAtk);
+  const res = Engine.enemyStrike(tStats, enemy.attack);
   const tName = target.kind === 'hero' ? 'You' : target.c.name;
 
   if (res.dodged) {
@@ -1328,15 +1249,6 @@ function enemyStrikeTick(stats) {
     damageEnemy(res.counter, '', 'counter');
     return;
   }
-  // Class talent (Survival: Counterattack): flat chance to strike back for
-  // 50% attack when hit (dodge/parry already handled above).
-  if (target.kind === 'hero' && res.dmg > 0 && (stats.talentCounterCh || 0) > 0 && Math.random() * 100 < stats.talentCounterCh) {
-    const counterDmg = Math.max(1, Math.round(stats.attack * 0.5));
-    UI.floatText('COUNTER', 'counter');
-    UI.combatLog(`⚔️ You counterattack for ${formatNum(counterDmg)}!`, 'skill');
-    meterHit('hero', (App.user && App.user.username) || 'You', counterDmg);
-    damageEnemy(counterDmg, '', 'counter');
-  }
   if (res.dmg <= 0) return;
   // Role-based toughness: companions take scaled damage (tanks shrug off
   // far more than DPS). Applied after dodge/parry, before HP subtraction.
@@ -1349,21 +1261,7 @@ function enemyStrikeTick(stats) {
     let heroDmg = Engine.absorbShield(s, finalDmg);
     heroDmg = Math.max(0, Math.round(heroDmg * Engine.damageTakenMult(s)));
     if (Engine.resourceIdFor(s) === 'rage') Engine.gainRage(s, Engine.RAGE_PER_HIT_TAKEN);
-    // NPC Tank (Bromm) absorbs 25% of incoming hero damage.
-    if (Engine.hasTank && Engine.hasTank(s)) {
-      const tankDmg = Math.round(heroDmg * Engine.TANK_ABSORB_FRAC);
-      heroDmg = Math.max(0, heroDmg - tankDmg);
-      if (tankDmg > 0) UI.combatLog(`🛡️ ${Engine.TANK_NAME} absorbs ${formatNum(tankDmg)} damage!`, 'info');
-    }
     s.hero.hp -= heroDmg;
-    // Active pet shares 5% of the blow (so pet HP matters + healer has work).
-    const ap = Engine.activePet(s);
-    if (ap) {
-      Engine.ensurePetHp(ap, stats.maxHp, stats.talentPetHpPct || 0);
-      const petDmg = Math.max(1, Math.round(heroDmg * 0.05));
-      ap.hp = Math.max(0, ap.hp - petDmg);
-      if (ap.hp <= 0) UI.combatLog(`💔 Your pet is knocked out!`, 'death');
-    }
     UI.floatText(`-${formatNum(heroDmg)}`, 'hurt');
     if (s.hero.hp <= 0) { s.hero.hp = 0; onDefeat(); }
   } else {
@@ -1378,16 +1276,6 @@ function enemyStrikeTick(stats) {
 
 function onDefeat() {
   const s = App.state;
-  // NPC healer Sylvara: resurrect once per battle (5-min cooldown) at 50% HP.
-  if (Engine.healerCanResurrect(s)) {
-    const stats = Engine.computeStats(s);
-    if (Engine.healerResurrect(s, stats)) {
-      UI.toast(`🌿 ${Engine.HEALER_NAME} brings you back to life!`, 'success');
-      UI.combatLog(`🌿 ${Engine.HEALER_NAME} resurrects you at 50% HP!`, 'heal');
-      UI.updateHUD(s, App.user);
-      return; // not dead after all
-    }
-  }
   App.dead = true;
   App.respawnAt = Date.now() + RESPAWN_MS;
   // Death breaks the kill streak.
@@ -1529,17 +1417,6 @@ function tick() {
   if (stats.regen > 0 && s.hero.hp < stats.maxHp) {
     s.hero.hp = Math.min(stats.maxHp, s.hero.hp + stats.regen * dt);
   }
-
-  // NPC healer Sylvara: heals the lowest-HP party member every 5 seconds.
-  if (Engine.hasHealer(s) && !App.dead) {
-    App.healerTimer = (App.healerTimer || 0) + dt;
-    if (App.healerTimer >= Engine.HEALER_TICK_SEC) {
-      App.healerTimer = 0;
-      const msg = Engine.healerTick(s, stats);
-      if (msg) UI.combatLog(`🌿 ${msg}`, 'heal');
-    }
-  }
-
   // Class resources: focus/mana/energy regen via the generic ticker
   // (rage has no passive regen — it builds on strikes and hits taken).
   Engine.tickResources(s, dt);
@@ -1606,10 +1483,6 @@ function tick() {
 
   // Enemy damage-over-time (traps, blizzard).
   tickEnemyFx(stats);
-
-  // Druid heals-over-time.
-  const hotHealed = Engine.tickHots(s);
-  if (hotHealed > 0) UI.floatText('+' + formatNum(hotHealed), 'heal');
 
   // enemy counter-attacks (slowed by frost effects)
   App.enemyTimer += dt;
@@ -1825,44 +1698,22 @@ function useSpell(id) {
       break;
     }
     case 'mendPet': {
-      // Revives knocked-out pets at 50% HP (+Mend Mastery), heals injured
-      // pets, restores hunger, inspires +dmg (also boosted by Mend Mastery).
+      // Pets have no HP — mending restores hunger and inspires them.
       const p = Engine.ensurePets(s);
-      const pMaxH = (stats && stats.maxHp) || s.hero.maxHp || 1;
-      const reviveBonus = stats.talentReviveFrac || 0;
-      const petHpPct = stats.talentPetHpPct || 0;
       for (const uid of [p.activeUid, p.secondUid]) {
         const pet = (p.collection || []).find(x => x.uid === uid);
-        if (pet) {
-          pet.hunger = 100;
-          Engine.ensurePetHp(pet, pMaxH, petHpPct);
-          const max = Engine.petMaxHp(pet, pMaxH, petHpPct);
-          if (pet.hp <= 0) {
-            pet.hp = Math.ceil(max * (0.5 + reviveBonus));
-            UI.combatLog(`💚 Mend Pet revives ${pet.name || 'your pet'}!`, 'heal');
-          } else if (pet.hp < max) {
-            pet.hp = max;
-          }
-        }
+        if (pet) pet.hunger = 100;
       }
-      if (fx.petDmgPct) Engine.addBuff(s, 'petDmgPct', fx.petDmgPct + (stats.talentMendInspirePct || 0), fx.sec);
+      if (fx.petDmgPct) Engine.addBuff(s, 'petDmgPct', fx.petDmgPct, fx.sec);
       UI.floatText('MENDED', 'heal');
       UI.combatLog(`💚 Mend Pet! Pets restored and inspired (+${fx.petDmgPct || 0}% damage).`, 'heal');
       break;
     }
     case 'petStrike': {
-      const petDmg = Engine.petStrikeDamage(s, stats);
-      const dmg = Math.max(1, Math.round(petDmg * fx.mult * mMult));
+      const dmg = Math.max(1, Math.round(Engine.petStrikeDamage(s, stats) * fx.mult * mMult));
       meterHit('pet', 'Pet', dmg);
       damageEnemy(dmg, '', '🐾 ');
       UI.combatLog(`🐺 Kill Command! Your pet strikes for ${formatNum(dmg)}.`, 'skill');
-      if (App.enemy && fx.bleedTicks) {
-        App.enemy.fx = App.enemy.fx || [];
-        App.enemy.fx.push({ kind: 'dot', petMult: (fx.bleedMult || 0) * mMult,
-          ticksLeft: fx.bleedTicks, everyMs: fx.bleedEveryMs || 2000,
-          nextAt: Date.now() + (fx.bleedEveryMs || 2000) });
-        UI.combatLog('🩸 Bleeding wound opened!', 'skill');
-      }
       break;
     }
     case 'trap':
@@ -1871,7 +1722,7 @@ function useSpell(id) {
       if (fx.mult) heroStrike(stats, fx.mult * mMult);
       if (App.enemy) {
         App.enemy.fx = App.enemy.fx || [];
-        if (fx.dotMult) App.enemy.fx.push({ kind: 'dot', mult: fx.dotMult * mMult, bleed: !!fx.bleed,
+        if (fx.dotMult) App.enemy.fx.push({ kind: 'dot', mult: fx.dotMult * mMult,
           ticksLeft: fx.dotTicks, everyMs: fx.dotEveryMs, nextAt: Date.now() + fx.dotEveryMs });
         if (fx.slowPct) App.enemySlow = { pct: fx.slowPct, until: Date.now() + (fx.slowSec || 0) * 1000 };
       }
@@ -1893,20 +1744,6 @@ function useSpell(id) {
       UI.combatLog(`💫 Blink! +${fx.pct}% dodge for ${fx.sec}s.`, 'skill');
       break;
     }
-    case 'hot': {
-      Engine.addHot(s, fx);
-      const parts = [];
-      if (fx.instantPct) parts.push(`${fx.instantPct}% now`);
-      if (fx.healPct) parts.push(`${fx.healPct}% every 2s`);
-      UI.floatText('HEALED', 'heal');
-      UI.combatLog(`🌿 ${def.name}! Healing ${parts.join(' + ')}.`, 'heal');
-      break;
-    }
-    case 'form': {
-      Engine.addForm(s, fx);
-      UI.combatLog(`🐾 ${def.name}! Shapeshifted for ${fx.sec}s.`, 'skill');
-      break;
-    }
   }
   UI.updateHUD(s, App.user);
   saveNow();
@@ -1921,10 +1758,8 @@ function tickEnemyFx(stats) {
     if (f.kind === 'dot' && f.ticksLeft > 0 && now >= f.nextAt) {
       f.ticksLeft -= 1;
       f.nextAt = now + f.everyMs;
-      const dmg = f.petMult
-        ? Math.max(1, Math.round(Engine.petStrikeDamage(App.state, stats) * f.petMult))
-        : Math.max(1, Math.round(stats.attack * f.mult));
-      damageEnemy(dmg, '', f.petMult ? '🩸 ' : (f.bleed ? '🩸 ' : '🔥 '));
+      const dmg = Math.max(1, Math.round(stats.attack * f.mult));
+      damageEnemy(dmg, '', '🔥 ');
     }
   }
   enemy.fx = enemy.fx.filter(f => f.kind !== 'dot' || f.ticksLeft > 0);
@@ -1991,7 +1826,6 @@ function doSell(id) {
   if (gold > 0) {
     UI.toast(`Sold ${item.name} for 💰${formatNum(gold)}.`, 'success');
     UI.renderGear(s);
-    if (UI.activeTab === 'armory' && UI.renderArmory) UI.renderArmory(s);
     UI.updateHUD(s, App.user);
     saveNow();
   }
@@ -2000,7 +1834,18 @@ function doSell(id) {
 // ---------------- Mining & Forging ----------------
 function doMine() {
   const s = App.state;
-  if (!s || App.dead) return;
+  if (!s) return;
+  if (App.dead) {
+    // The "You fell!" overlay only lives on the battle tab — tapping the rock
+    // while dead on the mine tab otherwise gives zero feedback and feels like
+    // mining is broken. Throttled so rapid taps don't spam toasts.
+    const now = Date.now();
+    if (!App._deadMineToastAt || now - App._deadMineToastAt > 3000) {
+      App._deadMineToastAt = now;
+      UI.toast('💀 You fell! Reviving…', 'error');
+    }
+    return;
+  }
   const res = Engine.mineTap(s);
   const oreDef = Engine.ORE_BY_ID[res.ore] || {};
   let msg = `+1 ${oreDef.emoji || ''} ${oreDef.name || res.ore}`;
@@ -2092,46 +1937,6 @@ function doTalent(id) {
   } else {
     UI.toast('Need a Mastery point — earn 1 per 10 levels.', 'error');
   }
-}
-
-// Class talent trees (Hunter prototype): spend one point on a talent node.
-function doSpendClassTalent(treeId, talentId) {
-  const s = App.state;
-  if (!s) return;
-  const classId = s.playerClass;
-  const res = Engine.spendClassTalent(s, classId, treeId, talentId);
-  if (res.ok) {
-    const tree = Engine.TALENT_TREES[classId][treeId];
-    const def = tree.talents.find(t => t.id === talentId);
-    UI.renderTalents(s);
-    UI.updateHUD(s, App.user);
-    UI.toast(`🌳 ${def.name} ranked up!`, 'success');
-    saveNow();
-  } else {
-    const msgs = {
-      'no-trees': 'Talent trees are not available yet.',
-      'wrong-class': 'You cannot use these talent trees.',
-      'no-tree': 'Unknown talent tree.',
-      'no-talent': 'Unknown talent.',
-      'maxed': 'That talent is already maxed out.',
-      'row-locked': 'Spend more points in this tree to unlock that row.',
-      'no-points': 'No talent points — earn 1 per 5 levels from level 10.',
-    };
-    UI.toast(msgs[res.reason] || 'Could not spend talent point.', 'error');
-  }
-}
-
-// Free respec while tuning: refund all spent class-talent ranks.
-function doRespecClassTalents() {
-  const s = App.state;
-  if (!s) return;
-  const used = Engine.classTalentSpentTotal(s);
-  if (!used) { UI.toast('No talent points spent.', 'warn'); return; }
-  Engine.refundClassTalents(s);
-  UI.renderTalents(s);
-  UI.updateHUD(s, App.user);
-  UI.toast(`🌳 Talents reset — ${used} point${used > 1 ? 's' : ''} refunded (free while tuning).`, 'success');
-  saveNow();
 }
 
 function doProfession(id) {
@@ -2297,6 +2102,33 @@ function doChangeClass(newClass) {
   UI.updateHUD(s, App.user);
   UI.updateBattle(s, stats, { enemy: App.enemy, user: App.user, skillCDs: App.skillCDs, potionCD: s.potionReadyAt || 0 });
   if (UI.activeTab === 'battle') UI.renderBattle(s);
+  saveNow();
+}
+
+function openChangeHeroName() {
+  const s = App.state;
+  if (!s) return;
+  if ((s.nameTokens || 0) < 1) {
+    UI.toast('No 📝 Name Change Tokens — grab one in the 🌀 Token Shop.', 'warn');
+    return;
+  }
+  UI.openHeroNameModal(s, (name) => doChangeHeroName(name));
+}
+
+function doChangeHeroName(name) {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.changeHeroName(s, name);
+  if (!res.ok) {
+    UI.toast(res.reason === 'tokens' ? 'No 📝 Name Change Tokens left.'
+      : res.reason === 'length' ? 'Hero name must be 2–16 characters.'
+      : 'Letters, numbers, spaces and _ - \' only.', 'warn');
+    // Reopen so they can fix the name without spending another tap.
+    openChangeHeroName();
+    return;
+  }
+  UI.toast(`📝 Your hero is now known as ${res.name}!`, 'success');
+  UI.combatLog(`📝 Hero renamed to ${res.name}.`, 'loot');
   saveNow();
 }
 
@@ -2598,65 +2430,6 @@ function doSetActivePet(petUid) {
   saveNow();
 }
 
-function doRecruitHealer() {
-  const s = App.state;
-  if (!s) return;
-  if (Engine.hasHealer(s)) {
-    UI.toast(`${Engine.HEALER_NAME} is already in your party!`, 'info');
-    return;
-  }
-  if (Engine.recruitHealer(s)) {
-    UI.toast(`🌿 ${Engine.HEALER_NAME} the druid joins your party!`, 'success');
-    UI.combatLog(`🌿 ${Engine.HEALER_NAME} joins the party — she will heal and can resurrect once per battle.`, 'heal');
-  } else {
-    UI.toast(`Need ${formatNum(Engine.HEALER_RECRUIT_COST)} gold to recruit ${Engine.HEALER_NAME}.`, 'error');
-  }
-  // Re-render the character tab so the badge/button updates.
-  if (UI.activeTab === 'character' && UI.renderCharacter) UI.renderCharacter(s, Engine.computeStats(s));
-  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
-  UI.updateHUD(s, App.user);
-  saveNow();
-}
-
-function doDismissHealer() {
-  const s = App.state;
-  if (!s || !Engine.hasHealer(s)) return;
-  s.npcHealer = null;
-  UI.toast(`🌿 ${Engine.HEALER_NAME} leaves the party.`, 'info');
-  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
-  if (UI.activeTab === 'character' && UI.renderCharacter) UI.renderCharacter(s, Engine.computeStats(s));
-  UI.updateHUD(s, App.user);
-  saveNow();
-}
-
-function doRecruitTank() {
-  const s = App.state;
-  if (!s) return;
-  if (Engine.hasTank(s)) {
-    UI.toast(`${Engine.TANK_NAME} is already in your party!`, 'info');
-    return;
-  }
-  if (Engine.recruitTank(s)) {
-    UI.toast(`🛡️ ${Engine.TANK_NAME} the warrior joins your party!`, 'success');
-    UI.combatLog(`🛡️ ${Engine.TANK_NAME} joins the party — he will absorb 25% of damage.`, 'info');
-  } else {
-    UI.toast(`Need ${formatNum(Engine.TANK_RECRUIT_COST)} gold to recruit ${Engine.TANK_NAME}.`, 'error');
-  }
-  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
-  UI.updateHUD(s, App.user);
-  saveNow();
-}
-
-function doDismissTank() {
-  const s = App.state;
-  if (!s || !Engine.hasTank(s)) return;
-  s.npcTank = null;
-  UI.toast(`🛡️ ${Engine.TANK_NAME} leaves the party.`, 'info');
-  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
-  UI.updateHUD(s, App.user);
-  saveNow();
-}
-
 // A GM grant targeted this session's player: swap in the updated saved state
 // and refresh every view so the grant is visible immediately.
 function applyExternalState(srv) {
@@ -2816,7 +2589,6 @@ async function onTabSwitch(tab, force = false) {
   else if (tab === 'titles') UI.renderTitles(s);
   else if (tab === 'guild') { mountGuild(); }
   else if (tab === 'quests') UI.renderQuests(s);
-  else if (tab === 'talents') UI.renderTalents(s);
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);

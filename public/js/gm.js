@@ -198,24 +198,146 @@ export const GM = {
       return info;
     }));
 
-    // ---- dossier: read-only full view of the target player's account ----
+    // ---- dossier: full view of the target player's account + inspector ----
     const renderDossier = (d) => {
       const el = $('gm-dossier');
       if (!el) return;
       const row = (k, v) => `<div class="gm-dossier-row"><span class="muted">${esc(k)}</span><b>${v}</b></div>`;
-      const equipped = Object.entries(d.equipped || {}).map(([s, n]) => `${esc(s)}: ${esc(n)}`).join('<br>') || '—';
       const inv = (d.inventorySample || []).map(esc).join('<br>') || '—';
       const muteNote = d.muted ? ` 🔇 muted` : '';
+      // Presence indicator
+      const pres = d.presence || {};
+      const presIcon = pres.online ? '🟢' : '🔴';
+      const presText = pres.online ? 'Online' : 'Offline';
+      const lastSeen = pres.lastSeen ? new Date(pres.lastSeen).toLocaleString() : 'never';
+      const isOwner = GM.me && GM.me.role === 'owner';
+      // Equipped gear inspector (owner-only mod buttons)
+      const gearRows = Object.entries(d.equippedGear || {}).map(([slot, item]) => {
+        if (!item) return `<div class="gm-dossier-row"><span class="muted">${esc(slot)}</span><b>— empty —</b></div>`;
+        const stats = Object.entries(item.stats || {}).map(([k, v]) => `${k}:${formatNum(v)}`).join(' ');
+        const modBtn = isOwner ? ` <button class="btn small ghost" data-mod-item="${esc(item.id)}" data-item-name="${esc(item.name)}">⚙️ Mod</button>` : '';
+        return `<div class="gm-dossier-row"><span class="muted">${esc(slot)}</span><b>${esc(item.name)} <span class="muted small">[${esc(item.rarity || '?')}]</span><br><span class="muted small">${esc(stats)}</span>${modBtn}</b></div>`;
+      }).join('') || '<div class="muted">No gear data</div>';
+      // Pet inspector (owner-only mod/remove buttons)
+      const petRows = (d.petInspector && d.petInspector.pets || []).map(p => {
+        const active = d.petInspector.activeUid === p.uid ? ' ⭐' : '';
+        const modBtn = isOwner ? ` <button class="btn small ghost" data-mod-pet="${esc(p.uid)}">⚙️ Mod</button> <button class="btn small ghost" data-remove-pet="${esc(p.uid)}" style="color:#f66">🗑️</button>` : '';
+        return `<div class="gm-dossier-row"><span class="muted">${esc(p.species)}${active}</span><b>Lv ${p.level} · Hunger ${p.hunger}%${modBtn}</b></div>`;
+      }).join('') || '<div class="muted">No pets</div>';
       el.innerHTML = `
         <h4 class="gm-sub" style="margin-top:0.8rem">📋 Dossier — ${esc(d.username)}${muteNote}</h4>
+        <div class="gm-dossier-row"><span class="muted">Presence</span><b>${presIcon} ${presText} <span class="muted small">(last seen: ${esc(lastSeen)})</span></b></div>
         <div class="gm-dossier-grid">
           <div>${row('Role', esc(d.role))}${row('Class', esc(d.playerClass + ' / ' + d.spec))}${row('Level', d.level + ' · ' + formatNum(d.xp) + '/' + formatNum(d.xpNext) + ' XP')}${row('Stage', d.stage)}${row('Rebirths', d.rebirthCount)}${row('Banned', d.banned ? 'yes' : 'no')}</div>
           <div>${row('💰 Gold', formatNum(d.gold))}${row('⭐ Stars', formatNum(d.stars))}${row('❤️ HP', formatNum(d.hero.hp) + '/' + formatNum(d.hero.maxHp))}${row('⚔️ Attack', formatNum(d.hero.attack))}${row('🛡️ Defense', formatNum(d.hero.defense))}${row('👑 Title', esc(d.activeTitle) + ' (' + d.titlesUnlocked + ' unlocked)')}${row('🏅 Badge', esc(d.badge))}</div>
           <div>${row('🎒 Inventory', d.inventoryCount + ' items')}${row('🐾 Pets', d.pets.eggs + ' eggs · ' + d.pets.active + ' active')}${row('⛏️ Mine', 'depth ' + d.mine.depth + ' · pickaxe ' + d.mine.pickaxe)}${row('🔥 Forge', d.forge.crafts + ' crafts')}${row('💀 Kills', formatNum(d.kills) + ' · ' + formatNum(d.bossesKilled) + ' bosses')}${row('🎨 Name style', esc(String(d.nameStyle.color || 'default')) + ' / ' + esc(d.nameStyle.fx))}</div>
         </div>
-        <div class="gm-dossier-row"><span class="muted">Equipped</span><b>${equipped}</b></div>
+        <h4 class="gm-sub">⚔️ Equipped Gear Inspector</h4>
+        ${gearRows}
+        <h4 class="gm-sub">🐾 Pet Inspector</h4>
+        ${petRows}
         <div class="gm-dossier-row"><span class="muted">Recent items</span><b>${inv}</b></div>`;
       el.classList.remove('hidden');
+      // Wire mod/remove buttons
+      el.querySelectorAll('[data-mod-item]').forEach(btn => {
+        btn.addEventListener('click', () => openItemModder(btn.dataset.modItem, btn.dataset.itemName));
+      });
+      el.querySelectorAll('[data-mod-pet]').forEach(btn => {
+        btn.addEventListener('click', () => openPetModder(btn.dataset.modPet));
+      });
+      el.querySelectorAll('[data-remove-pet]').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (!confirm(`Remove pet ${btn.dataset.removePet}?`)) return;
+          const username = needTarget();
+          await api.gmRemovePet(username, btn.dataset.removePet);
+          UI.toast('Pet removed', 'success');
+          // Refresh dossier
+          const res = await api.gmInspect(username);
+          renderDossier(res.dossier);
+        });
+      });
+    };
+
+    // ---- Item modder modal ----
+    const openItemModder = (itemId, itemName) => {
+      const stats = ['attack', 'defense', 'maxHp', 'critChance', 'critDamage', 'parry', 'dodge', 'lifesteal', 'attackSpeed', 'regen', 'goldBonus', 'xpBonus'];
+      const fields = stats.map(s => `<label class="fld"><span>${s}</span><input type="number" data-stat="${s}" placeholder="—" style="width:100%"></label>`).join('');
+      const html = `
+        <div class="modal-overlay" id="item-modder-modal">
+          <div class="modal" style="max-width:500px">
+            <h3>⚙️ Mod Item: ${esc(itemName)}</h3>
+            <p class="muted small">Enter custom values (no caps). Leave blank to keep current.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${fields}</div>
+            <label class="fld" style="margin-top:8px"><span>Rename (optional)</span><input type="text" id="mod-item-name" placeholder="—" style="width:100%"></label>
+            <div class="row" style="margin-top:12px">
+              <button class="btn gold" id="mod-item-save">💾 Apply</button>
+              <button class="btn ghost" id="mod-item-cancel">Cancel</button>
+            </div>
+          </div>
+        </div>`;
+      document.body.insertAdjacentHTML('beforeend', html);
+      const modal = document.getElementById('item-modder-modal');
+      modal.querySelector('#mod-item-cancel').addEventListener('click', () => modal.remove());
+      modal.querySelector('#mod-item-save').addEventListener('click', async () => {
+        const statVals = {};
+        modal.querySelectorAll('[data-stat]').forEach(inp => {
+          if (inp.value !== '') statVals[inp.dataset.stat] = Number(inp.value);
+        });
+        const newName = modal.querySelector('#mod-item-name').value.trim() || undefined;
+        if (Object.keys(statVals).length === 0 && !newName) {
+          UI.toast('No changes entered', 'error');
+          return;
+        }
+        const username = needTarget();
+        await api.gmModItem(username, itemId, statVals, newName);
+        UI.toast('Item modded', 'success');
+        modal.remove();
+        const res = await api.gmInspect(username);
+        renderDossier(res.dossier);
+      });
+    };
+
+    // ---- Pet modder modal ----
+    const openPetModder = (petUid) => {
+      const html = `
+        <div class="modal-overlay" id="pet-modder-modal">
+          <div class="modal" style="max-width:400px">
+            <h3>⚙️ Mod Pet</h3>
+            <p class="muted small">UID: ${esc(petUid)}</p>
+            <label class="fld"><span>Level (1-9999)</span><input type="number" id="mod-pet-level" placeholder="—" style="width:100%"></label>
+            <label class="fld"><span>Species ID</span><input type="text" id="mod-pet-species" placeholder="—" style="width:100%"></label>
+            <label class="fld"><span>Hunger (0-100)</span><input type="number" id="mod-pet-hunger" placeholder="—" style="width:100%"></label>
+            <label class="fld"><span>XP</span><input type="number" id="mod-pet-xp" placeholder="—" style="width:100%"></label>
+            <div class="row" style="margin-top:12px">
+              <button class="btn gold" id="mod-pet-save">💾 Apply</button>
+              <button class="btn ghost" id="mod-pet-cancel">Cancel</button>
+            </div>
+          </div>
+        </div>`;
+      document.body.insertAdjacentHTML('beforeend', html);
+      const modal = document.getElementById('pet-modder-modal');
+      modal.querySelector('#mod-pet-cancel').addEventListener('click', () => modal.remove());
+      modal.querySelector('#mod-pet-save').addEventListener('click', async () => {
+        const mods = {};
+        const lv = modal.querySelector('#mod-pet-level').value;
+        const sp = modal.querySelector('#mod-pet-species').value.trim();
+        const hu = modal.querySelector('#mod-pet-hunger').value;
+        const xp = modal.querySelector('#mod-pet-xp').value;
+        if (lv !== '') mods.level = Number(lv);
+        if (sp) mods.species = sp;
+        if (hu !== '') mods.hunger = Number(hu);
+        if (xp !== '') mods.xp = Number(xp);
+        if (Object.keys(mods).length === 0) {
+          UI.toast('No changes entered', 'error');
+          return;
+        }
+        const username = needTarget();
+        await api.gmModPet(username, petUid, mods);
+        UI.toast('Pet modded', 'success');
+        modal.remove();
+        const res = await api.gmInspect(username);
+        renderDossier(res.dossier);
+      });
     };
 
     on('gm-target-dossier', 'click', () => runAction('gm-target-dossier', 'Dossier', async () => {

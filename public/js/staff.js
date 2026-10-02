@@ -33,7 +33,7 @@
       tabBtns.forEach(function (x) { x.classList.remove('active'); });
       b.classList.add('active');
       stopAdminChatPoll();
-      ['audit', 'bugs', 'feedback', 'ideas', 'adminchat'].forEach(function (t) {
+      ['audit', 'bugs', 'feedback', 'ideas', 'adminchat', 'inspector'].forEach(function (t) {
         document.getElementById('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab);
       });
       if (b.dataset.tab === 'audit') loadAudit();
@@ -361,11 +361,255 @@
       .catch(function () { fail('Could not reach server.'); });
   });
 
+  // ---------- 🔍 Player Inspector (owner only) ----------
+  var ITEM_STAT_KEYS = ['attack', 'defense', 'maxHp', 'critChance', 'critDamage',
+    'parry', 'dodge', 'lifesteal', 'attackSpeed', 'regen', 'goldBonus', 'xpBonus'];
+  var inspTarget = null; // username of the currently inspected player
+
+  function fmtNum(v) {
+    var n = Number(v);
+    if (!isFinite(n)) return '—';
+    if (Math.abs(n) >= 1e12) return (n / 1e12).toFixed(2) + 'T';
+    if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+    if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(Math.round(n * 100) / 100);
+  }
+
+  document.getElementById('insp-lookup').addEventListener('click', function () {
+    var name = document.getElementById('insp-username').value.trim();
+    if (!name) { fail('Enter a player username.'); return; }
+    opsErr.textContent = '';
+    var box = document.getElementById('insp-results');
+    box.innerHTML = '<div class="empty">Searching…</div>';
+    api('/api/gm/players?search=' + encodeURIComponent(name) + '&limit=10')
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var players = (j && j.players) || [];
+        if (!players.length) { box.innerHTML = '<div class="empty">No player found for "' + esc(name) + '".</div>'; return; }
+        box.innerHTML = players.map(function (p) {
+          return '<div class="entry"><div class="entry-head"><span class="entry-title">' + esc(p.username) + '</span>' +
+            '<span class="badge st-open">' + esc(p.role || 'player') + '</span></div>' +
+            '<div class="entry-meta">Lv ' + esc(p.level) + ' · Stage ' + esc(p.stage) +
+            (p.playerClass ? ' · ' + esc(p.playerClass) : '') + '</div>' +
+            '<div class="entry-actions"><button class="small insp-pick" data-u="' + esc(p.username) + '">📋 Inspect</button></div></div>';
+        }).join('');
+        Array.prototype.forEach.call(box.querySelectorAll('.insp-pick'), function (btn) {
+          btn.addEventListener('click', function () {
+            document.getElementById('insp-username').value = btn.dataset.u;
+            loadDossier(btn.dataset.u);
+          });
+        });
+      })
+      .catch(function () { fail('Could not search players.'); });
+  });
+
+  document.getElementById('insp-dossier').addEventListener('click', function () {
+    var name = document.getElementById('insp-username').value.trim();
+    if (!name) { fail('Enter a player username.'); return; }
+    loadDossier(name);
+  });
+  document.getElementById('insp-username').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') document.getElementById('insp-dossier').click();
+  });
+
+  function loadDossier(username) {
+    opsErr.textContent = '';
+    var box = document.getElementById('insp-results');
+    box.innerHTML = '<div class="empty">Loading dossier…</div>';
+    api('/api/gm/inspect', { method: 'POST', body: JSON.stringify({ username: username }) })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok || !res.j.ok) { fail((res.j && res.j.error) || 'Dossier load failed.'); box.innerHTML = ''; return; }
+        inspTarget = username;
+        box.innerHTML = renderDossier(res.j.dossier || {});
+        wireDossier(box);
+      })
+      .catch(function () { fail('Could not reach server.'); });
+  }
+
+  function renderDossier(d) {
+    var html = '';
+    // Presence
+    var pres = d.presence || {};
+    var online = !!pres.online;
+    html += '<div class="insp-sec"><span class="insp-presence ' + (online ? 'insp-online' : 'insp-offline') + '">' +
+      (online ? '🟢 Online' : '🔴 Offline') + '</span> ' +
+      '<span class="entry-meta">last seen ' + esc(pres.lastSeen ? fmtTs(pres.lastSeen) : 'unknown') + '</span></div>';
+    // Identity
+    html += '<div class="insp-sec"><h3>👤 ' + esc(d.username || '—') + ' <span class="badge st-open">' + esc(d.role || 'player') + '</span></h3>' +
+      '<div class="entry-meta">' + esc(d.playerClass || '') + (d.spec ? ' · ' + esc(d.spec) : '') + '</div></div>';
+    // Stats
+    var fs = d.fullStats || {};
+    var stats = [
+      ['DPS', fmtNum(fs.dps)], ['HP', fmtNum(fs.hp) + ' / ' + fmtNum(fs.maxHp)],
+      ['Gold', fmtNum(fs.gold != null ? fs.gold : d.gold)], ['Stage', fmtNum(fs.stage != null ? fs.stage : d.stage)],
+      ['Level', fmtNum(fs.level != null ? fs.level : d.level)], ['Attack', fmtNum(fs.attack)],
+      ['Defense', fmtNum(fs.defense)], ['Crit', fmtNum(fs.critChance) + '%']
+    ];
+    html += '<div class="insp-sec"><h3>📊 Stats</h3><div class="insp-grid">' +
+      stats.map(function (s) {
+        return '<div class="insp-stat"><div class="k">' + esc(s[0]) + '</div><div class="v">' + esc(s[1]) + '</div></div>';
+      }).join('') + '</div></div>';
+    // Equipped gear
+    var gear = d.equippedGear || d.equipped || {};
+    html += '<div class="insp-sec"><h3>⚔️ Equipped Gear</h3>';
+    var slots = Object.keys(gear);
+    if (!slots.length) {
+      html += '<div class="empty">Nothing equipped.</div>';
+    } else {
+      html += slots.map(function (slot) {
+        var it = gear[slot] || {};
+        var nm = (it && it.name) || String(it) || '—';
+        var id = (it && (it.id || it.itemId || it.uid)) || '';
+        return '<div class="gear-row" data-slot="' + esc(slot) + '" data-id="' + esc(id) + '">' +
+          '<span class="slot">' + esc(slot) + '</span><span class="nm">' + esc(nm) + '</span>' +
+          '<span class="acts"><button class="small insp-mod-item">✏️ Mod</button></span></div>';
+      }).join('');
+    }
+    html += '</div>';
+    // Pets
+    var pets = d.petInspector || d.pets || {};
+    var petList = Array.isArray(pets) ? pets : (Array.isArray(pets.active) ? pets.active : []);
+    html += '<div class="insp-sec"><h3>🐾 Pets</h3>';
+    if (!petList.length) {
+      html += '<div class="empty">No pets.</div>';
+    } else {
+      html += petList.map(function (p) {
+        var nm = (p && (p.name || p.species)) || 'pet';
+        var uid = (p && (p.uid || p.id)) || '';
+        var meta = 'Lv ' + (p && p.level != null ? p.level : '?');
+        return '<div class="pet-row" data-uid="' + esc(uid) + '">' +
+          '<span class="slot">pet</span><span class="nm">' + esc(nm) + ' <span class="entry-meta">(' + esc(meta) + ')</span></span>' +
+          '<span class="acts"><button class="small insp-mod-pet">✏️ Mod</button>' +
+          '<button class="small danger insp-rm-pet">🗑 Remove</button></span></div>';
+      }).join('');
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function wireDossier(box) {
+    // Mod item
+    Array.prototype.forEach.call(box.querySelectorAll('.insp-mod-item'), function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.gear-row');
+        openItemModal(inspTarget, row.dataset.slot, row.dataset.id,
+          row.querySelector('.nm').textContent.trim());
+      });
+    });
+    // Mod pet
+    Array.prototype.forEach.call(box.querySelectorAll('.insp-mod-pet'), function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.pet-row');
+        openPetModal(inspTarget, row.dataset.uid);
+      });
+    });
+    // Remove pet
+    Array.prototype.forEach.call(box.querySelectorAll('.insp-rm-pet'), function (btn) {
+      btn.addEventListener('click', function () {
+        var row = btn.closest('.pet-row');
+        var uid = row.dataset.uid;
+        if (!uid) { fail('Pet has no id — cannot remove.'); return; }
+        if (!confirm('Remove this pet from ' + inspTarget + '? This cannot be undone.')) return;
+        opsErr.textContent = '';
+        api('/api/gm/remove-pet', { method: 'POST', body: JSON.stringify({ username: inspTarget, petUid: uid }) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { fail((res.j && res.j.error) || 'Remove failed.'); return; }
+            loadDossier(inspTarget);
+          })
+          .catch(function () { fail('Could not reach server.'); });
+      });
+    });
+  }
+
+  // ---------- modals ----------
+  function closeModal() {
+    document.getElementById('insp-modal-root').innerHTML = '';
+  }
+  function openModal(title, bodyHtml, onSave) {
+    var root = document.getElementById('insp-modal-root');
+    root.innerHTML = '<div class="modal-backdrop"><div class="modal"><h3>' + esc(title) + '</h3>' +
+      bodyHtml +
+      '<div class="actions"><button id="insp-modal-save">💾 Save</button>' +
+      '<button id="insp-modal-cancel" class="ghost">Cancel</button></div></div></div>';
+    document.getElementById('insp-modal-cancel').addEventListener('click', closeModal);
+    root.querySelector('.modal-backdrop').addEventListener('click', function (e) {
+      if (e.target === this) closeModal();
+    });
+    document.getElementById('insp-modal-save').addEventListener('click', onSave);
+  }
+
+  function openItemModal(username, slot, itemId, curName) {
+    var fields = ITEM_STAT_KEYS.map(function (k) {
+      return '<div class="fld"><label for="im-' + k + '">' + esc(k) + ' <span style="color:#7a7094">(blank = leave)</span></label>' +
+        '<input id="im-' + k + '" type="number" step="any" placeholder="—"></div>';
+    }).join('');
+    var body = '<div class="fld"><label for="im-name">Custom name (optional)</label>' +
+      '<input id="im-name" type="text" maxlength="60" placeholder="' + esc(curName || '') + '"></div>' +
+      '<p class="entry-meta" style="margin-bottom:10px">Slot: <b>' + esc(slot) + '</b> · Item id: <b>' + esc(itemId || '—') + '</b></p>' +
+      fields;
+    openModal('✏️ Mod item — ' + username, body, function () {
+      var stats = {};
+      ITEM_STAT_KEYS.forEach(function (k) {
+        var v = document.getElementById('im-' + k).value.trim();
+        if (v !== '' && isFinite(Number(v))) stats[k] = Number(v);
+      });
+      var name = document.getElementById('im-name').value.trim();
+      if (!Object.keys(stats).length && !name) { fail('Enter at least one stat or a name.'); return; }
+      opsErr.textContent = '';
+      api('/api/gm/mod-item', { method: 'POST', body: JSON.stringify({ username: username, itemId: itemId, stats: stats, name: name || undefined }) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { fail((res.j && res.j.error) || 'Mod failed.'); return; }
+          closeModal();
+          loadDossier(username);
+        })
+        .catch(function () { fail('Could not reach server.'); });
+    });
+  }
+
+  function openPetModal(username, petUid) {
+    var body =
+      '<div class="fld"><label for="pm-level">Level</label><input id="pm-level" type="number" step="1" min="1" placeholder="—"></div>' +
+      '<div class="fld"><label for="pm-species">Species (optional)</label><input id="pm-species" type="text" maxlength="40" placeholder="—" autocapitalize="none"></div>' +
+      '<div class="fld"><label for="pm-hunger">Hunger (0–100)</label><input id="pm-hunger" type="number" step="1" min="0" max="100" placeholder="—"></div>' +
+      '<div class="fld"><label for="pm-xp">XP</label><input id="pm-xp" type="number" step="1" min="0" placeholder="—"></div>' +
+      '<p class="entry-meta">Pet id: <b>' + esc(petUid || '—') + '</b></p>';
+    openModal('✏️ Mod pet — ' + username, body, function () {
+      var mods = {};
+      var lv = document.getElementById('pm-level').value.trim();
+      var sp = document.getElementById('pm-species').value.trim();
+      var hu = document.getElementById('pm-hunger').value.trim();
+      var xp = document.getElementById('pm-xp').value.trim();
+      if (lv !== '' && isFinite(Number(lv))) mods.level = Math.max(1, Math.floor(Number(lv)));
+      if (sp !== '') mods.species = sp;
+      if (hu !== '' && isFinite(Number(hu))) mods.hunger = Math.max(0, Math.min(100, Number(hu)));
+      if (xp !== '' && isFinite(Number(xp))) mods.xp = Math.max(0, Number(xp));
+      if (!Object.keys(mods).length) { fail('Enter at least one field.'); return; }
+      opsErr.textContent = '';
+      api('/api/gm/mod-pet', { method: 'POST', body: JSON.stringify({ username: username, petUid: petUid, mods: mods }) })
+        .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { fail((res.j && res.j.error) || 'Mod failed.'); return; }
+          closeModal();
+          loadDossier(username);
+        })
+        .catch(function () { fail('Could not reach server.'); });
+    });
+  }
+
   // ---------- login (owner/admin only) ----------
+  var currentRole = null;
   function enterOps(username, role) {
+    currentRole = role;
     document.getElementById('who').textContent = 'Signed in as ' + username + ' (' + role + ')';
     loginPane.classList.add('hidden');
     opsPane.classList.remove('hidden');
+    // Inspector tab is owner-only.
+    var inspBtn = document.getElementById('tabbtn-inspector');
+    if (inspBtn) inspBtn.classList.toggle('hidden', role !== 'owner');
     loadAudit();
     loadReports('bug');
     loadReports('feedback');
