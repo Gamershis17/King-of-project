@@ -278,8 +278,14 @@ export const UI = {
     // Potion buttons are rendered dynamically inside #potion-row — delegate on battle tab.
     document.getElementById('tab-battle').addEventListener('click', (e) => {
       const btn = e.target.closest('button[data-potion]');
-      if (!btn || btn.disabled) return;
-      this.handlers.onDrinkPotion && this.handlers.onDrinkPotion(btn.dataset.potion);
+      if (btn && !btn.disabled) {
+        this.handlers.onDrinkPotion && this.handlers.onDrinkPotion(btn.dataset.potion);
+        return;
+      }
+      const sweepBtn = e.target.closest('button[data-action="tower-sweep"]');
+      if (sweepBtn && !sweepBtn.disabled) {
+        this.handlers.onTowerSweep && this.handlers.onTowerSweep();
+      }
     });
     listen('tab-quests', 'click', (e) => {
       const btn = e.target.closest('button[data-claim]');
@@ -1805,6 +1811,40 @@ export const UI = {
     if (prow) this.updatePotionRow(state, null);
   },
 
+  // Tower of Shadows panel: shows highest floor, weekly checkpoint,
+  // and the daily Sweep button. Only visible in tower mode.
+  renderTowerPanel(state) {
+    let panel = document.getElementById('tower-panel');
+    const modeSwitch = document.getElementById('mode-switch');
+    if (state.mode !== 'tower') {
+      if (panel) panel.classList.add('hidden');
+      return;
+    }
+    if (!panel && modeSwitch && modeSwitch.parentElement) {
+      panel = document.createElement('div');
+      panel.id = 'tower-panel';
+      panel.className = 'tower-panel';
+      modeSwitch.parentElement.insertBefore(panel, modeSwitch.nextSibling);
+    }
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    Engine.ensureTowerState(state);
+    const t = state.tower;
+    const nextMilestone = [25, 50, 75, 100].find(m => m > t.floor);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const canSweep = t.floor > 0 && (!t.lastSweep || Date.now() - t.lastSweep >= dayMs);
+    panel.innerHTML = `
+      <div class="tower-head">🗼 <b>Tower of Shadows</b></div>
+      <div class="tower-stats">
+        <span>🏆 Highest: <b>Floor ${t.floor}</b></span>
+        <span>📍 Checkpoint: <b>Floor ${t.checkpoint}</b></span>
+        ${nextMilestone ? `<span>🎯 Next milestone: <b>Floor ${nextMilestone}</b></span>` : `<span>👑 <b>All milestones cleared!</b></span>`}
+      </div>
+      <button class="btn small tower-sweep" data-action="tower-sweep" ${canSweep ? '' : 'disabled'}>
+        🧹 Sweep Daily Rewards${canSweep ? '' : ' (claimed)'}
+      </button>`;
+  },
+
   updatePotionRow(state, battle) {
     const prow = document.getElementById('potion-row');
     if (!prow || !state) return;
@@ -1911,6 +1951,8 @@ export const UI = {
     this.setMode(state.mode);
     this.renderSkillRow(state);
     this.renderPotionRow(state);
+    // Tower panel: floor progress + sweep button (only in tower mode).
+    this.renderTowerPanel(state);
     // The 📖 Spells nav button only exists for classes with a spellbook.
     const sbBtn = document.getElementById('spellbook-open');
     if (sbBtn) sbBtn.classList.toggle('hidden', !Engine.hasSpellbook(state.playerClass));
@@ -1943,9 +1985,16 @@ export const UI = {
     e['enemy-name'].textContent = enemy.radiant ? `Radiant ${enemy.name}` : enemy.name;
     e['enemy-card'].classList.toggle('radiant', !!enemy.radiant);
     // Raid waves show the wave counter instead of the stage.
-    e['enemy-stage'].textContent = enemy.raidWave
-      ? `🌀 Raid — Wave ${enemy.raidWave}`
-      : `Stage ${enemy.stage} · ${world.emoji} ${world.name}`;
+    // Tower floors show the floor number and hazard.
+    if (enemy.towerFloor) {
+      const hazard = enemy.hazard ? Engine.TOWER_HAZARDS[enemy.hazard] : null;
+      e['enemy-stage'].textContent = `🗼 Tower — Floor ${enemy.towerFloor}` +
+        (hazard ? ` · ${hazard.emoji} ${hazard.name}` : '');
+    } else {
+      e['enemy-stage'].textContent = enemy.raidWave
+        ? `🌀 Raid — Wave ${enemy.raidWave}`
+        : `Stage ${enemy.stage} · ${world.emoji} ${world.name}`;
+    }
     e['boss-badge'].classList.toggle('hidden', !enemy.boss);
     e['enemy-card'].classList.toggle('boss', !!enemy.boss);
     // Boss progress tracker: bosses every 10 stages.
