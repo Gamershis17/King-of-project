@@ -119,7 +119,7 @@ export const CRAFT_STAT_CAP = 1e9; // sane upper bound: never Infinity
 export const GALAXY_EQUIP_ID = 'galaxy'; // sentinel id in state.equipped
 
 export function mineRockMaxHp(depth) {
-  return Math.max(10, Math.round(30 * Math.pow(1.22, Math.max(1, depth) - 1)));
+  return Math.max(10, Math.round(30 * Math.pow(1.15, Math.max(1, depth) - 1)));
 }
 export function mineDamage(state) {
   const tapLvl = (state.upgrades && state.upgrades.tap) || 1;
