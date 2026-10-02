@@ -5297,3 +5297,31 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     margin-left: auto;
   }
 }
+
+/* Armory overhaul: filter tabs, rarity glows, restock timer */
+.armory-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.armory-chip {
+  white-space: nowrap;
+}
+.armory-restock {
+  text-align: center;
+  padding: 8px;
+  margin-bottom: 12px;
+  background: rgba(255, 215, 0, 0.08);
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: #ffd700;
+}
+/* Rarity glow frames */
+.shop-card.r-rare { box-shadow: 0 0 12px rgba(66, 135, 245, 0.3); border-color: #4287f5; }
+.shop-card.r-epic { box-shadow: 0 0 12px rgba(156, 39, 176, 0.4); border-color: #9c27b0; }
+.shop-card.r-legendary { box-shadow: 0 0 16px rgba(255, 152, 0, 0.5); border-color: #ff9800; }
+.shop-card.r-mythic { box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); border-color: #ffd700; }
+.shop-card.r-divine { box-shadow: 0 0 20px rgba(0, 255, 255, 0.6); border-color: #00ffff; }
+.shop-card.r-cosmic { box-shadow: 0 0 24px rgba(255, 0, 255, 0.6); border-color: #ff00ff; }
