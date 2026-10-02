@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002e';
+import * as Engine from './engine.js?v20261002f';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -4115,10 +4115,11 @@ export const UI = {
       slots.appendChild(div);
     }
 
-    // Healer NPC (Sylvara) — special party member section
-    const healerSec = document.createElement('div');
-    healerSec.className = 'healer-party-sec';
+    // Healer NPC (Sylvara) — shown in party slots when recruited.
+    // (Recruit option is in the Recruit list below.)
     if (Engine.hasHealer && Engine.hasHealer(state)) {
+      const healerSec = document.createElement('div');
+      healerSec.className = 'healer-party-sec';
       healerSec.innerHTML = `
         <div class="member healer-member">
           <div class="member-card">
@@ -4132,24 +4133,14 @@ export const UI = {
             <button class="btn small ghost icon-btn" data-action="dismiss-healer" title="Dismiss Sylvara">✕ Dismiss</button>
           </div>
         </div>`;
-    } else {
-      const cost = (Engine.HEALER_RECRUIT_COST || 10000);
-      healerSec.innerHTML = `
-        <div class="member empty healer-recruit">
-          <div class="empty-slot-inner">
-            <span class="empty-plus">🌿</span>
-            <span>Recruit Healer</span>
-            <span class="muted small">Sylvara · ${formatNum(cost)} gold</span>
-            <button class="btn small" data-action="recruit-healer" ${(state.gold || 0) >= cost ? '' : 'disabled'}>Recruit</button>
-          </div>
-        </div>`;
+      slots.appendChild(healerSec);
     }
-    slots.appendChild(healerSec);
 
-    // Tank NPC (Bromm) — special party member section
-    const tankSec = document.createElement('div');
-    tankSec.className = 'tank-party-sec';
+    // Tank NPC (Bromm) — shown in party slots when recruited.
+    // (Recruit option is in the Recruit list below.)
     if (Engine.hasTank && Engine.hasTank(state)) {
+      const tankSec = document.createElement('div');
+      tankSec.className = 'tank-party-sec';
       tankSec.innerHTML = `
         <div class="member tank-member">
           <div class="member-card">
@@ -4163,22 +4154,40 @@ export const UI = {
             <button class="btn small ghost icon-btn" data-action="dismiss-tank" title="Dismiss Bromm">✕ Dismiss</button>
           </div>
         </div>`;
-    } else {
-      const cost = (Engine.TANK_RECRUIT_COST || 15000);
-      tankSec.innerHTML = `
-        <div class="member empty tank-recruit">
-          <div class="empty-slot-inner">
-            <span class="empty-plus">🛡️</span>
-            <span>Recruit Tank</span>
-            <span class="muted small">Bromm · ${formatNum(cost)} gold</span>
-            <button class="btn small" data-action="recruit-tank" ${(state.gold || 0) >= cost ? '' : 'disabled'}>Recruit</button>
-          </div>
-        </div>`;
+      slots.appendChild(tankSec);
     }
-    slots.appendChild(tankSec);
 
     const list = this.els['recruit-list'];
     list.innerHTML = '';
+    // NPC recruits (Sylvara, Bromm) at the top of the Recruit list.
+    if (Engine.hasHealer && !Engine.hasHealer(state)) {
+      const cost = (Engine.HEALER_RECRUIT_COST || 10000);
+      const afford = (state.gold || 0) >= cost;
+      const row = document.createElement('div');
+      row.className = 'recruit-row recruit-npc';
+      row.innerHTML = `
+        <div class="recruit-info"><span class="comp-emoji">🌿</span>
+          <div><div class="comp-name">Sylvara <span class="tier-badge tier-npc">NPC</span> <span class="role-badge role-healer">HEALER</span></div>
+          <div class="muted small">Heals party every 5s · Resurrects once per battle</div></div></div>
+        <button class="btn small" data-action="recruit-healer" ${afford ? '' : 'disabled'}>
+          ${afford ? `💰 ${formatNum(cost)}` : 'Need 💰'}
+        </button>`;
+      list.appendChild(row);
+    }
+    if (Engine.hasTank && !Engine.hasTank(state)) {
+      const cost = (Engine.TANK_RECRUIT_COST || 15000);
+      const afford = (state.gold || 0) >= cost;
+      const row = document.createElement('div');
+      row.className = 'recruit-row recruit-npc';
+      row.innerHTML = `
+        <div class="recruit-info"><span class="comp-emoji">🛡️</span>
+          <div><div class="comp-name">Bromm <span class="tier-badge tier-npc">NPC</span> <span class="role-badge role-tank">TANK</span></div>
+          <div class="muted small">Absorbs 25% of damage taken</div></div></div>
+        <button class="btn small" data-action="recruit-tank" ${afford ? '' : 'disabled'}>
+          ${afford ? `💰 ${formatNum(cost)}` : 'Need 💰'}
+        </button>`;
+      list.appendChild(row);
+    }
     const ownedIds = new Set(state.party.map(c => c.id));
     for (const r of Engine.RECRUITS) {
       const owned = state.party.some(c => c.name === r.name);
