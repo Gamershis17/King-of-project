@@ -1475,6 +1475,56 @@ export const UI = {
     const pct = state.xpNext > 0 ? Math.min(100, (state.xp / state.xpNext) * 100) : 0;
     setBarFill(e['hud-xpfill'], pct);
     setText(e['hud-xptext'], `${formatNum(state.xp)} / ${formatNum(state.xpNext)} XP`);
+    try { this.updateBuffBar(state); } catch { /* ignore */ }
+  },
+
+  // Buff bar: shows active timed buffs (rested XP, event buffs) and potion counts.
+  updateBuffBar(state) {
+    const bar = document.getElementById('buff-bar');
+    if (!bar || !state) return;
+    const chips = [];
+    const now = Date.now();
+    // Rested XP (+25% for 30 min after returning)
+    if (state.restedUntil && state.restedUntil > now) {
+      const mins = Math.ceil((state.restedUntil - now) / 60000);
+      chips.push(`<span class="buff-chip">😴 Rested XP <span class="buff-timer">${mins}m</span></span>`);
+    }
+    // Server event buff (double XP/gold weekends)
+    try {
+      const ev = Engine.eventBuff && Engine.eventBuff();
+      if (ev && ev.endsAt && new Date(ev.endsAt).getTime() > now) {
+        const mins = Math.ceil((new Date(ev.endsAt).getTime() - now) / 60000);
+        chips.push(`<span class="buff-chip">🎉 ${esc(ev.label || 'Event')} <span class="buff-timer">${mins}m</span></span>`);
+      }
+    } catch { /* ignore */ }
+    // Potions
+    const hp = (state.potions && state.potions.health) || 0;
+    const res = (state.potions && state.potions.resource) || 0;
+    if (hp > 0) chips.push(`<span class="buff-chip">🧪 HP ×${hp}</span>`);
+    if (res > 0) chips.push(`<span class="buff-chip">🔮 ×${res}</span>`);
+    bar.innerHTML = chips.join('');
+    bar.parentElement.style.display = chips.length ? '' : 'none';
+  },
+
+  // Guild pill: shows guild tag + member count, links to Guild tab.
+  // Called with guild data from /api/guilds/mine.
+  updateGuildPill(guild, memberCount) {
+    const pill = document.getElementById('hud-guild-pill');
+    if (!pill) return;
+    if (!guild) {
+      pill.classList.add('hidden');
+      return;
+    }
+    const tag = guild.tag || '?';
+    const lvl = Number(guild.level) || 1;
+    const members = memberCount != null ? memberCount : '?';
+    pill.innerHTML = `🛡️ ${esc(tag)} Lv${lvl} (${members}/50)`;
+    pill.classList.remove('hidden');
+    pill.title = `${esc(guild.name || 'Guild')} — click to open Guild tab`;
+    pill.onclick = () => {
+      const tab = document.querySelector('[data-tab="guild"]');
+      if (tab) tab.click();
+    };
   },
 
   setSaveIndicator(text, ok = true) {
@@ -1892,6 +1942,29 @@ export const UI = {
       : `Stage ${enemy.stage} · ${world.emoji} ${world.name}`;
     e['boss-badge'].classList.toggle('hidden', !enemy.boss);
     e['enemy-card'].classList.toggle('boss', !!enemy.boss);
+    // Boss progress tracker: bosses every 10 stages.
+    try {
+      const bpFill = document.getElementById('boss-progress-fill');
+      const bpText = document.getElementById('boss-progress-text');
+      const bpWrap = document.getElementById('boss-progress');
+      if (bpFill && bpText && bpWrap && !enemy.raidWave) {
+        const stage = Number(enemy.stage) || 1;
+        if (stage % 10 === 0) {
+          bpFill.style.width = '100%';
+          bpText.textContent = '👹 BOSS STAGE!';
+          bpWrap.style.display = '';
+        } else {
+          const nextBoss = Math.ceil(stage / 10) * 10;
+          const remaining = nextBoss - stage;
+          const progress = ((10 - remaining) / 10) * 100;
+          bpFill.style.width = progress.toFixed(0) + '%';
+          bpText.textContent = `👹 Boss in ${remaining} stage${remaining === 1 ? '' : 's'}`;
+          bpWrap.style.display = '';
+        }
+      } else if (bpWrap) {
+        bpWrap.style.display = 'none'; // hidden during raids
+      }
+    } catch { /* ignore */ }
     e['enemy-atk'].textContent = `⚔️ ${formatNum(enemy.attack)} attack`;
     this.updateEnemy(enemy);
   },

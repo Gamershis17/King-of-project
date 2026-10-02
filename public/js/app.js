@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002v';
+import { api } from './api.js?v20261003a';
 import * as Engine from './engine.js?v20261002x';
-import { UI, esc, formatNum } from './ui.js?v20261002v';
+import { UI, esc, formatNum } from './ui.js?v20261003a';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -602,6 +602,13 @@ async function continueBoot(state, lastSeenAt) {
   // and guildless players). Fire-and-forget; the engine defaults to zero.
   if (!isGuest()) {
     try { syncGuildPerks(api); } catch { /* offline-tolerant */ }
+    // Guild pill: fetch guild info for the header badge.
+    try {
+      const r = await api.getGuildMine();
+      if (r && r.guild) {
+        UI.updateGuildPill(r.guild, (r.members || []).length);
+      }
+    } catch { /* offline-tolerant: pill stays hidden */ }
   }
 
   // Offline earnings (lastSeenAt null on brand-new accounts).

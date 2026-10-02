@@ -49,6 +49,7 @@ export const api = {
   getState: () => request('/api/state'),
   ping: () => post('/api/ping', {}),
   onlineCount: () => request('/api/online-count'),
+  getGuildMine: () => request('/api/guilds/mine'),
   saveState: (state) => post('/api/state', { state }),
   // Best-effort save during page unload (sendBeacon includes same-origin cookies).
   saveStateBeacon: (state) => {
