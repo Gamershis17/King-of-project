@@ -2,8 +2,8 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003i';
-import { UI, esc, formatNum } from './ui.js?v20261003i';
+import * as Engine from './engine.js?v20261003h';
+import { UI, esc, formatNum } from './ui.js?v20261003h';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v20261003b';
 
@@ -203,10 +203,6 @@ async function boot() {
     onRecruit: doRecruit,
     onDismiss: doDismiss,
     onLevelUpCompanion: doLevelUpCompanion,
-    onRecruitHealer: doRecruitHealer,
-    onDismissHealer: doDismissHealer,
-    onRecruitTank: doRecruitTank,
-    onDismissTank: doDismissTank,
     onMpCreate: doMpCreate,
     onMpJoin: doMpJoin,
     onMpLeave: doMpLeave,
@@ -933,6 +929,17 @@ function startGame() {
   App.statusTimer = setInterval(() => pollMaintenance(), 60000);
   pollBroadcast();
   App.broadcastTimer = setInterval(() => pollBroadcast(), 60000);
+  // Online presence: ping every 60s, refresh count every 60s
+  const updateOnlineCount = async () => {
+    try {
+      await api.ping();
+      const { count } = await api.onlineCount();
+      const el = document.getElementById('online-count');
+      if (el) el.textContent = count ?? '–';
+    } catch (e) { /* ignore - offline or error */ }
+  };
+  updateOnlineCount();
+  App.presenceTimer = setInterval(updateOnlineCount, 60000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
     // FPS/battery: pause ambient CSS animations while the tab is hidden.
@@ -1082,11 +1089,6 @@ function companionStrike(c) {
   const { dmg, crit } = Engine.playerAttack(cs, App.enemy);
   const final = Math.max(1, Math.round(dmg * (cs.damageMult || 1)));
   meterHit(c.id, c.name, final);
-  // Track DPS per companion
-  c._dmgTotal = (c._dmgTotal || 0) + final;
-  c._dmgStart = c._dmgStart || Date.now();
-  const secs = Math.max(1, (Date.now() - c._dmgStart) / 1000);
-  c._dps = Math.round(c._dmgTotal / secs);
   damageEnemy(final, crit ? 'CRIT ' : '', c.emoji + ' ');
 }
 
@@ -1470,11 +1472,6 @@ function tick() {
           if (healed > 0) {
             UI.floatText(`+${formatNum(healed)}`, 'heal');
             UI.combatLog(`💚 ${c.name} mended you for ${formatNum(healed)} HP.`);
-            // Track HPS per companion
-            c._healTotal = (c._healTotal || 0) + healed;
-            c._healStart = c._healStart || Date.now();
-            const hsecs = Math.max(1, (Date.now() - c._healStart) / 1000);
-            c._healing = Math.round(c._healTotal / hsecs);
           }
         }
       }
@@ -2005,51 +2002,6 @@ function doDismiss(id) {
   delete App.companionTimers[id];
   renderPartyTab();
   UI.toast(`${c.name} left the party.`, 'info');
-  saveNow();
-}
-
-function doRecruitHealer() {
-  const s = App.state;
-  const res = Engine.recruitHealer(s);
-  if (!res.ok) {
-    if (res.reason === 'gold') UI.toast('Not enough gold.', 'error');
-    else if (res.reason === 'owned') UI.toast('Sylvara already recruited.', 'error');
-    else UI.toast('Could not recruit.', 'error');
-    return;
-  }
-  renderPartyTab();
-  UI.updateHUD(s, App.user);
-  UI.toast('🌿 Sylvara joined as your healer!', 'success');
-  saveNow();
-}
-function doDismissHealer() {
-  const s = App.state;
-  s.npcHealer = null;
-  renderPartyTab();
-  UI.updateHUD(s, App.user);
-  UI.toast('Sylvara dismissed.', 'info');
-  saveNow();
-}
-function doRecruitTank() {
-  const s = App.state;
-  const res = Engine.recruitTank(s);
-  if (!res.ok) {
-    if (res.reason === 'gold') UI.toast('Not enough gold.', 'error');
-    else if (res.reason === 'owned') UI.toast('Bromm already recruited.', 'error');
-    else UI.toast('Could not recruit.', 'error');
-    return;
-  }
-  renderPartyTab();
-  UI.updateHUD(s, App.user);
-  UI.toast('🛡️ Bromm joined as your tank!', 'success');
-  saveNow();
-}
-function doDismissTank() {
-  const s = App.state;
-  s.npcTank = null;
-  renderPartyTab();
-  UI.updateHUD(s, App.user);
-  UI.toast('Bromm dismissed.', 'info');
   saveNow();
 }
 
