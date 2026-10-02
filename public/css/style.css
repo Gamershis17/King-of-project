@@ -5270,11 +5270,8 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     width: 100%;
   }
   /* Header: currencies left, quick-nav buttons right */
+  /* Hide identity block on mobile to free up room (avatar + name) */
   #hud .hud-id {
-    order: 0;
-  }
-  /* Hide avatar on mobile to free up room for the 5 buttons */
-  #hud .hud-avatar {
     display: none !important;
   }
   .hud-currencies {
