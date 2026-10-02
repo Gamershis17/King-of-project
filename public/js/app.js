@@ -2,7 +2,7 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v20261001k';
-import * as Engine from './engine.js?v20261001l';
+import * as Engine from './engine.js?v20261001m';
 import { UI, esc, formatNum } from './ui.js?v20261001k';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
@@ -1160,7 +1160,7 @@ function onKillEnemy() {
     UI.combatLog(`👹 Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'boss');
     UI.toast(`Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'success');
   }
-  const killXp = Math.floor(Engine.xpForKill(stage) * Engine.eventXpMult());
+  const killXp = Engine.killXpFor(s, stage); // 5%-of-level cap (level-system rework)
   const xpRes = Engine.gainXp(s, killXp, Date.now(), pb.xpPct);
   // The active pet earns 15% of the kill's XP.
   const petXpRes = Engine.gainPetXp(s, Math.floor(killXp * 0.15));
@@ -1201,6 +1201,10 @@ function onKillEnemy() {
     if (mp > 0) {
       UI.notify('level', `🧠 +${mp} Mastery point${mp > 1 ? 's' : ''}! Spend in Settings → Mastery.`, 'success');
       if (UI.activeTab === 'settings') UI.renderMore(s, App.user);
+    }
+    for (const m of (xpRes.milestones || [])) {
+      const t = Engine.TITLE_DEFS['milestone-' + m];
+      UI.notify('level', `🏆 Milestone! Level ${m} — +1 class talent point${t ? `, title earned: ${t.name}` : ''}!`, 'success');
     }
   }
   announceSkillUnlocks(xpRes.skills);

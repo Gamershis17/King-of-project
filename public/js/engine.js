@@ -552,6 +552,16 @@ export function ensureState(raw) {
   s.mastery = { points: 0, spent: {}, ...(raw.mastery || {}) };
   s.mastery.spent = { might: 0, vitality: 0, fortune: 0, ...(s.mastery.spent || {}) };
   s.mastery.points = Math.max(0, Math.floor(s.mastery.points || 0));
+  // Class talent points (level-system rework): banked for the per-class talent
+  // trees. First run grants 1 point per milestone already cleared.
+  if (!raw.classTalents) {
+    let banked = 0;
+    for (const m of MILESTONE_LEVELS) if ((s.level || 1) >= m) banked += 1;
+    s.classTalents = { points: banked, spent: {} };
+  } else {
+    s.classTalents = { points: 0, spent: {}, ...raw.classTalents };
+    s.classTalents.points = Math.max(0, Math.floor(s.classTalents.points || 0));
+  }
   if (!Number.isFinite(s.classTokens)) s.classTokens = 0;
   s.energy = ENERGY_MAX; // energy always refills to full on load
   if (!Number.isFinite(s.focus)) s.focus = 100;
@@ -691,6 +701,17 @@ export const rebirthXpMult = (rebirthCount) =>
 export const xpForLevel = (level, rebirthCount = 0) =>
   Math.max(1, Math.round(xpForLevelBase(level) * rebirthXpMult(rebirthCount)));
 export const xpForKill = (stage) => Math.max(1, Math.round(10 * Math.pow(1.12, stage)));
+// Level-system rework: no single kill can grant more than this fraction of the
+// XP needed for the current level. Late-game kill XP outran level requirements
+// (nearly a full level per kill); this caps the pace at 20 kills/level minimum.
+// Early game is untouched (kills there are worth far less than the cap).
+// Tune freely — lower is slower.
+export const KILL_XP_CAP_FRAC = 0.05;
+export function killXpFor(state, stage) {
+  const raw = Math.floor(xpForKill(stage) * eventXpMult());
+  const cap = Math.max(1, Math.floor((state.xpNext || 1) * KILL_XP_CAP_FRAC));
+  return Math.max(1, Math.min(raw, cap));
+}
 // Deducts gold for a purchase. Returns false when the player can't afford
 // it. Infinite-gold perk holders never pay.
 export function spendGold(s, cost) {
@@ -1047,6 +1068,7 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
   ));
   state.xp += amount;
   const levels = [];
+  const milestones = [];
   let guard = 0;
   while (state.xp >= state.xpNext && guard++ < 10000 && state.level < MAX_LEVEL) {
     state.xp -= state.xpNext;
@@ -1057,6 +1079,10 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
     state.xpNext = xpForLevel(state.level, state.rebirthCount);
     levels.push(state.level);
     if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
+    if (MILESTONE_LEVELS.includes(state.level)) {
+      ensureClassTalents(state).points += 1;
+      milestones.push(state.level);
+    }
   }
   if (state.level >= MAX_LEVEL) state.xp = 0; // cap reached: bank no XP past it
   if (levels.length) {
@@ -1081,7 +1107,7 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
     ensureSpellSlots(state);
     for (const id of state.spellSlots) if (!before.has(id)) newSkills.push(id);
   }
-  return { gained: amount, levels, skills: newSkills };
+  return { gained: amount, levels, milestones, skills: newSkills };
 }
 
 // ---------------- Quests ----------------
@@ -2657,7 +2683,7 @@ export function offlineEarnings(state, lastSeenAt, nowMs) {
   const kills = Math.max(1, Math.floor(minutes * 6)); // estimated kills/min
   const stats = computeStats(state);
   const gold = Math.floor(kills * goldForKill(state.stage, stats.goldBonus + (stats.talentGoldPct || 0)) * eventGoldMult());
-  const xp = Math.floor(kills * xpForKill(state.stage) * eventXpMult()); // gainXp applies race/gear mults
+  const xp = kills * killXpFor(state, state.stage); // capped per-kill XP; gainXp applies race/gear mults
   return { minutes, kills, gold, xp, capped: elapsedMs > 8 * 3600 * 1000 };
 }
 
@@ -2693,6 +2719,21 @@ export function spendTalent(state, id) {
   state.mastery.points -= 1;
   state.mastery.spent[id] = spent + 1;
   return true;
+}
+
+// ---------------- Class talent milestones (level-system rework) ----------------
+// Hitting one of these levels grants +1 class talent point (banked for the
+// per-class talent trees) plus a commemorative title (auto-unlocked via
+// TITLE_DEFS checks). Points persist through rebirth, like mastery.
+export const MILESTONE_LEVELS = [25, 50, 75, 100];
+export function ensureClassTalents(state) {
+  if (!state.classTalents || typeof state.classTalents !== 'object') {
+    state.classTalents = { points: 0, spent: {} };
+  }
+  const ct = state.classTalents;
+  ct.points = Math.max(0, Math.floor(ct.points || 0));
+  if (!ct.spent || typeof ct.spent !== 'object') ct.spent = {};
+  return ct;
 }
 
 // ---------------- Professions ----------------
@@ -2754,6 +2795,10 @@ export const TITLE_DEFS = {
   'bossbane': { name: 'Bossbane', desc: 'Slay 10 bosses.', check: (s) => (s.bossesKilled || 0) >= 10 },
   'infernal-slayer': { name: 'Slayer of the Infernal', desc: 'Slay 25 bosses.', check: (s) => (s.bossesKilled || 0) >= 25 },
   'veteran': { name: 'the Veteran', desc: 'Reach level 50.', check: (s) => (s.level || 1) >= 50 },
+  'milestone-25': { name: 'the Rising', desc: 'Reach level 25. (+1 class talent point)', check: (s) => (s.level || 1) >= 25 },
+  'milestone-50': { name: 'the Proven', desc: 'Reach level 50. (+1 class talent point)', check: (s) => (s.level || 1) >= 50 },
+  'milestone-75': { name: 'the Unyielding', desc: 'Reach level 75. (+1 class talent point)', check: (s) => (s.level || 1) >= 75 },
+  'milestone-100': { name: 'the Paragon', desc: 'Reach level 100. (+1 class talent point)', check: (s) => (s.level || 1) >= 100 },
   'unbroken': { name: 'the Unbroken', desc: 'Reach stage 50.', check: (s) => (s.stage || 1) >= 50 },
   'goldhoarder': { name: 'the Goldhoarder', desc: 'Hold 100,000 gold at once.', check: (s) => (s.gold || 0) >= 100000 },
   'idle-king': { name: 'the Idle King', desc: 'Rebirth once.', check: (s) => (s.rebirthCount || 0) >= 1 },
