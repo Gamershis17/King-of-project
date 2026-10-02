@@ -387,8 +387,8 @@ export const CLASSES = {
   warrior: {
     name: 'Warrior', emoji: '⚔️',
     desc: 'An unbreakable wall. Outlasts anything the dark throws at you.',
-    perks: ['+30% max HP', '+15% defense'],
-    hpMult: 1.30, defMult: 1.15,
+    perks: ['+50% max HP', '+30% defense', '+15% attack'],
+    hpMult: 1.50, defMult: 1.30, atkMult: 1.15,
   },
   mage: {
     name: 'Mage', emoji: '🔮',
