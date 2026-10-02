@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js?v20261001k';
 import * as Engine from './engine.js?v20261001s';
-import { UI, esc, formatNum } from './ui.js?v20261001t';
+import { UI, esc, formatNum } from './ui.js?v20261001v';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
