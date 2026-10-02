@@ -5259,37 +5259,33 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   color: #ff6b6b;
 }
 
-/* Mobile header fix: profile left, currencies centered, buttons pinned right */
+/* Mobile header: 2 compact rows (identity+buttons / currencies) */
 @media (max-width: 600px) {
   #hud .hud-row:first-child {
     display: flex !important;
     flex-direction: row !important;
-    justify-content: space-between !important;
+    flex-wrap: wrap !important;
     align-items: center !important;
-    flex-wrap: nowrap !important;
     width: 100%;
   }
-  /* Header: currencies left, quick-nav buttons right */
-  /* Hide identity block on mobile to free up room (avatar + name) */
+  /* Row 1: Player Avatar/Name left, 5 Quick-Nav buttons right */
   #hud .hud-id {
-    display: none !important;
-  }
-  .hud-currencies {
-    order: 1 !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    justify-content: flex-start;
-    flex-shrink: 1 !important;
-    min-width: 0 !important;
-    overflow: hidden;
+    display: flex !important;
+    order: 0;
+    flex: 0 1 auto;
+    margin-right: auto !important;
+    min-width: 0;
   }
   #inn-btn, #balance-log-hud, #changelog-hud, #friends-hud, #social-hud {
-    order: 2;
+    order: 1;
     flex-shrink: 0;
   }
-  #inn-btn {
-    margin-left: auto !important;
-  }
+  /* Row 2: full-width currency bar centered above XP bar */
+  .hud-currencies {
+    order: 2 !important;
+    flex-basis: 100% !important;
+    justify-content: center !important;
+    margin: 0.35rem 0 0 0 !important;
     gap: 0.4rem;
   }
   #hud .hud-id {
