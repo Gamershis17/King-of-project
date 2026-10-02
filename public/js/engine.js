@@ -19,12 +19,13 @@ export const MAX_LEVEL = 120;
 // Set by the guild module after fetching the player's guild (server-side
 // guild level). Applied in computeStats / gainXp below. Defaults to no
 // bonus so guests / guildless players are unaffected.
-let GUILD_PERKS = { xpPct: 0, goldPct: 0, dmgPct: 0 };
+let GUILD_PERKS = { xpPct: 0, goldPct: 0, dmgPct: 0, minePct: 0 };
 export function setGuildPerks(p) {
   GUILD_PERKS = {
     xpPct: Math.max(0, Number(p && p.xpPct) || 0),
     goldPct: Math.max(0, Number(p && p.goldPct) || 0),
     dmgPct: Math.max(0, Number(p && p.dmgPct) || 0),
+    minePct: Math.max(0, Number(p && p.minePct) || 0),
   };
 }
 export function getGuildPerks() {
@@ -254,7 +255,9 @@ export function mineTap(state) {
   const bonus = [];
   if (m.rockHp <= 0) {
     broke = true;
-    const n = 3 + Math.floor(m.depth / 2);
+    // Forge Shrine guild perk: +minePct% bonus ore on rock break.
+    const mineMult = 1 + (GUILD_PERKS.minePct || 0) / 100;
+    const n = Math.floor((3 + Math.floor(m.depth / 2)) * mineMult);
     for (let i = 0; i < n; i++) {
       const b = rollOre(m.depth);
       m.ores[b] = (m.ores[b] || 0) + 1;

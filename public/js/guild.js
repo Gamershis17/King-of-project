@@ -14,7 +14,7 @@
 // be omitted entirely — this module falls back to same-origin fetch.
 // ============================================================
 import { Audio } from './audio.js?v=20261002s';
-import { setGuildPerks } from './engine.js?v=20261002s';
+import { setGuildPerks } from './engine.js?v=20261002x';
 import { UI } from './ui.js?v=20261002s';
 
 const esc = (s) =>
@@ -280,6 +280,29 @@ const STYLE = `
   .guild-member .minfo { flex: 1 1 calc(100% - 120px); }
   .guild-macts { flex: 1 1 100%; justify-content: flex-start; margin-top: 2px; }
 }
+/* ---- Guild Hall tab ---- */
+.guild-hall-tab { display: flex; flex-direction: column; gap: 12px; }
+.hall-treasury { background: rgba(232,179,60,0.07); border: 1px solid var(--gold-line); border-radius: 10px; padding: 12px; }
+.hall-treasury-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+.hall-treasury-label { font-weight: 700; color: #e8b33c; }
+.hall-treasury-amount { font-weight: 700; font-size: 1.1rem; color: #ffd97a; }
+.hall-donate-row { display: flex; gap: 8px; margin-top: 8px; }
+.hall-donate-input { flex: 1; background: #1a1430; border: 1px solid var(--gold-line); border-radius: 6px; color: #fff; padding: 6px 10px; font-size: 0.95rem; }
+.hall-donate-hint { font-size: 0.8rem; color: #8f83b8; margin-top: 4px; }
+.hall-buildings { display: flex; flex-direction: column; gap: 10px; }
+.guild-hall-building { background: rgba(255,255,255,0.03); border: 1px solid rgba(232,179,60,0.25); border-radius: 10px; padding: 10px 12px; }
+.hall-b-head { display: flex; align-items: center; gap: 10px; }
+.hall-b-emoji { font-size: 1.6rem; }
+.hall-b-name { font-weight: 700; color: #e8b33c; }
+.hall-b-desc { font-size: 0.8rem; color: #8f83b8; }
+.hall-b-level { margin-left: auto; font-weight: 700; color: #fff; white-space: nowrap; }
+.hall-b-max { color: #8f83b8; font-weight: 400; }
+.hall-b-bar { height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; margin: 8px 0; overflow: hidden; }
+.hall-b-bar i { display: block; height: 100%; background: linear-gradient(90deg, #e8b33c, #ffd97a); border-radius: 3px; }
+.hall-b-maxed { color: #7dff9a; font-weight: 700; font-size: 0.85rem; }
+.hall-b-locked { color: #8f83b8; font-size: 0.85rem; }
+.hall-b-need { color: #ff9a9a; font-size: 0.8rem; margin-top: 4px; }
+.hall-upgrade { margin-top: 6px; }
 `;
 
 function ensureStyle(container) {
@@ -510,7 +533,7 @@ export function renderGuildSection(container, api, myState) {
         </div>
       </div>
       <div class="guild-tabs" role="tablist">
-        ${['chat', 'news', 'roster', 'perks', 'rewards', 'info'].map((t, i) =>
+        ${['chat', 'hall', 'news', 'roster', 'perks', 'rewards', 'info'].map((t, i) =>
           `<button class="guild-tabbtn${i === 0 ? ' active' : ''}" data-subtab="${t}" role="tab">${subTabLabel(t)}</button>`
         ).join('')}
       </div>
@@ -538,6 +561,7 @@ export function renderGuildSection(container, api, myState) {
       const p = panel();
       if (!p) return;
       if (name === 'chat') renderChatTab(p, guild);
+      else if (name === 'hall') renderHallTab(p, guild);
       else if (name === 'news') renderNewsTab(p);
       else if (name === 'roster') renderRosterTab(p, guild, members, myState);
       else if (name === 'perks') renderPerksTab(p, guild);
@@ -551,7 +575,7 @@ export function renderGuildSection(container, api, myState) {
   }
 
   function subTabLabel(t) {
-    return { chat: '💬 Chat', news: '📰 News', roster: '👥 Roster', perks: '✨ Perks', rewards: '🎁 Rewards', info: 'ℹ️ Info' }[t] || t;
+    return { chat: '💬 Chat', hall: '🏛️ Hall', news: '📰 News', roster: '👥 Roster', perks: '✨ Perks', rewards: '🎁 Rewards', info: 'ℹ️ Info' }[t] || t;
   }
 
   // Cumulative XP floor for a guild level (mirrors server xpForGuildLevel).
@@ -566,6 +590,115 @@ export function renderGuildSection(container, api, myState) {
     if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
     if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
     return String(Math.floor(v));
+  }
+
+  // ---------------- guild hall tab ----------------
+  // Shared buildings funded by member donations. Treasury holds donated gold;
+  // officers/master spend it on building upgrades (max level 10 each).
+  const HALL_BUILDINGS = {
+    valor: { name: 'Hall of Valor', emoji: '⚔️', desc: '+1% XP and +2% damage per level' },
+    treasury: { name: 'Treasury', emoji: '💰', desc: '+2% gold per level' },
+    forge: { name: 'Forge Shrine', emoji: '⛏️', desc: '+3% mining yield per level' },
+  };
+  const HALL_MAX = 10;
+  function hallCost(level) {
+    return 100000 * Math.pow(2, Math.max(0, Math.floor(level || 0)));
+  }
+
+  function renderHallTab(panel, guild) {
+    const myRank = guild.myRank || 'member';
+    const canUpgrade = myRank === 'master' || myRank === 'officer';
+    const treasuryGold = Math.floor(Number(guild.treasury_gold) || 0);
+    const playerGold = Math.floor(Number(myState && myState.gold) || 0);
+
+    const buildingCards = Object.entries(HALL_BUILDINGS).map(([id, b]) => {
+      const level = Math.max(0, Math.min(HALL_MAX, Math.floor(Number(guild['hall_' + id + '_level']) || 0)));
+      const maxed = level >= HALL_MAX;
+      const cost = maxed ? null : hallCost(level);
+      const afford = cost !== null && treasuryGold >= cost;
+      const pct = (level / HALL_MAX) * 100;
+      return `
+        <div class="guild-hall-building">
+          <div class="hall-b-head"><span class="hall-b-emoji">${b.emoji}</span>
+            <div><div class="hall-b-name">${b.name}</div><div class="hall-b-desc">${b.desc}</div></div>
+            <div class="hall-b-level">Lv ${level}<span class="hall-b-max">/${HALL_MAX}</span></div>
+          </div>
+          <div class="hall-b-bar" role="progressbar" aria-label="${b.name} level"><i style="width:${pct.toFixed(0)}%"></i></div>
+          ${maxed
+            ? '<div class="hall-b-maxed">✨ MAX LEVEL</div>'
+            : canUpgrade
+              ? `<button class="btn small hall-upgrade" data-building="${id}" ${afford ? '' : 'disabled'}>Upgrade — ${fmtNum(cost)} 🪙</button>${afford ? '' : '<div class="hall-b-need">Need ' + fmtNum(cost - treasuryGold) + ' more in treasury</div>'}`
+              : '<div class="hall-b-locked">🔒 Officers only</div>'}
+        </div>`;
+    }).join('');
+
+    panel.innerHTML = `
+      <div class="guild-hall-tab">
+        <div class="hall-treasury">
+          <div class="hall-treasury-top">
+            <span class="hall-treasury-label">🏦 Guild Treasury</span>
+            <span class="hall-treasury-amount">${fmtNum(treasuryGold)} 🪙</span>
+          </div>
+          <p class="guild-sub">Donate your personal gold to fund shared hall upgrades. Donations are permanent.</p>
+          <div class="hall-donate-row">
+            <input type="number" class="hall-donate-input" min="1" max="${playerGold}" placeholder="Amount" aria-label="Donation amount" />
+            <button class="btn small hall-donate-btn">Donate</button>
+          </div>
+          <div class="hall-donate-hint">Your gold: ${fmtNum(playerGold)} 🪙</div>
+        </div>
+        <div class="hall-buildings">${buildingCards}</div>
+      </div>`;
+
+    // Donate handler
+    const donateBtn = panel.querySelector('.hall-donate-btn');
+    const donateInput = panel.querySelector('.hall-donate-input');
+    if (donateBtn && donateInput) {
+      donateBtn.addEventListener('click', async () => {
+        const amount = Math.floor(Number(donateInput.value));
+        if (!Number.isFinite(amount) || amount <= 0) {
+          note('Enter a valid donation amount.', 'guild-error');
+          return;
+        }
+        donateBtn.disabled = true;
+        try {
+          const res = await gpost(api, '/api/guilds/donate', { amount });
+          // Update local state gold immediately so the next autosave persists the deduction.
+          if (myState && typeof myState.gold === 'number') myState.gold = res.newGold;
+          guild.treasury_gold = res.treasuryGold;
+          note(`Donated ${fmtNum(res.donated)} gold to the treasury!`, 'guild-ok');
+          renderHallTab(panel, guild); // refresh
+          try { await syncGuildPerks(api); } catch { /* ignore */ }
+        } catch (err) {
+          note(esc(err.message), 'guild-error');
+        } finally {
+          donateBtn.disabled = false;
+        }
+      });
+    }
+
+    // Upgrade handlers
+    panel.querySelectorAll('.hall-upgrade').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const building = btn.dataset.building;
+        if (!building || !HALL_BUILDINGS[building]) return;
+        btn.disabled = true;
+        try {
+          const res = await gpost(api, '/api/guilds/upgrade-hall', { building });
+          guild.treasury_gold = res.treasuryGold;
+          guild['hall_' + res.building + '_level'] = res.newLevel;
+          if (res.perks) {
+            guild.perks = res.perks;
+            try { setGuildPerks(res.perks); } catch { /* ignore */ }
+          }
+          note(`${res.buildingName} upgraded to level ${res.newLevel}!`, 'guild-ok');
+          renderHallTab(panel, guild); // refresh
+        } catch (err) {
+          note(esc(err.message), 'guild-error');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
   }
 
   // ---------------- chat tab ----------------
