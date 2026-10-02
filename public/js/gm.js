@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js?v=20260930ar';
 import { UI, esc, formatNum } from './ui.js?v=20261001e';
-import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v20261003i';
+import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v20261003s';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
@@ -25,7 +25,7 @@ let IdRef = null;
 async function loadIdRef() {
   if (!IdRef) {
     try {
-      IdRef = await import('./id-reference.js?v20261003a');
+      IdRef = await import('./id-reference.js?v20261003s');
     } catch (e) { console.error('Failed to load id-reference:', e); }
   }
   return IdRef;
@@ -60,21 +60,55 @@ export const GM = {
         idrefLoaded = true;
         const mod = await loadIdRef();
         if (mod && mod.renderIdReference) {
-          // Auto-fill: clicking an ID populates the focused GM input, else copies.
+          // Auto-fill: clicking a Pet ID fills the Species input; clicking an
+          // Item ID (set:slot) sets the Give-item dropdowns; else focused input.
           mod.renderIdReference(panel, {
             onCopy: (id) => {
-              const active = document.activeElement;
-              if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
-                const start = active.selectionStart || 0;
-                const end = active.selectionEnd || 0;
-                const val = active.value || '';
-                active.value = val.slice(0, start) + id + val.slice(end);
-                active.focus();
-                try { active.setSelectionRange(start + id.length, start + id.length); } catch {}
-              } else {
-                try { if (navigator.clipboard) navigator.clipboard.writeText(id); } catch {}
+              let filled = false;
+              // Item ID format: "setid:slot" -> set Give-item dropdowns
+              const colonIdx = id.indexOf(':');
+              if (colonIdx > 0) {
+                const setId = id.slice(0, colonIdx);
+                const slot = id.slice(colonIdx + 1);
+                const setSel = document.getElementById('gm-grant-item-set');
+                const slotSel = document.getElementById('gm-grant-item-slot');
+                if (setSel && slotSel) {
+                  const hasSet = [...setSel.options].some(o => o.value === setId);
+                  const hasSlot = [...slotSel.options].some(o => o.value === slot);
+                  if (hasSet && hasSlot) {
+                    setSel.value = setId;
+                    slotSel.value = slot;
+                    setSel.dispatchEvent(new Event('change', { bubbles: true }));
+                    filled = true;
+                    UI.toast(`Set Give item: ${id}`, 'success');
+                  }
+                }
               }
-              UI.toast(`Copied: ${id}`, 'success');
+              // Pet species ID -> fill the Species ID input
+              if (!filled) {
+                const speciesInput = document.getElementById('mod-pet-species');
+                if (speciesInput && speciesInput.offsetParent !== null) {
+                  speciesInput.value = id;
+                  speciesInput.focus();
+                  filled = true;
+                  UI.toast(`Species ID set: ${id}`, 'success');
+                }
+              }
+              // Fallback: focused input or clipboard
+              if (!filled) {
+                const active = document.activeElement;
+                if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) {
+                  const start = active.selectionStart || 0;
+                  const end = active.selectionEnd || 0;
+                  const val = active.value || '';
+                  active.value = val.slice(0, start) + id + val.slice(end);
+                  active.focus();
+                  try { active.setSelectionRange(start + id.length, start + id.length); } catch {}
+                } else {
+                  try { if (navigator.clipboard) navigator.clipboard.writeText(id); } catch {}
+                }
+                UI.toast(`Copied: ${id}`, 'success');
+              }
             },
           });
         }
