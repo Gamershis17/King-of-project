@@ -13,9 +13,9 @@
 // `api` may expose get(path)/post(path, body) helpers (like api.js), or
 // be omitted entirely — this module falls back to same-origin fetch.
 // ============================================================
-import { Audio } from './audio.js?v=20260930ar';
-import { setGuildPerks } from './engine.js?v20261001w';
-import { UI } from './ui.js?v=20261001e';
+import { Audio } from './audio.js?v=20261002s';
+import { setGuildPerks } from './engine.js?v=20261002s';
+import { UI } from './ui.js?v=20261002s';
 
 const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -424,9 +424,12 @@ export function renderGuildSection(container, api, myState) {
       const tagEl = wrap.querySelector('#g-create-tag');
       try {
         const res = await gpost(api, '/api/guilds', { name: nameEl && nameEl.value, tag: tagEl && tagEl.value });
-        note(`Guild <b>${esc(res.guild.name)}</b> created!`, 'guild-ok');
+        // Safety: guard against malformed API response (missing guild object).
+        const guildName = res && res.guild && res.guild.name ? esc(res.guild.name) : 'Unknown';
+        note(`Guild <b>${guildName}</b> created!`, 'guild-ok');
         try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
+        await syncGuildPerks(api); // Safety: refresh engine perk modifiers immediately.
       } catch (err) {
         note(esc(err.message), 'guild-error');
       }
@@ -437,9 +440,12 @@ export function renderGuildSection(container, api, myState) {
       const nameEl = wrap.querySelector('#g-join-name');
       try {
         const res = await gpost(api, '/api/guilds/join', { name: nameEl && nameEl.value });
-        note(`Joined <b>${esc(res.guild.name)}</b>!`, 'guild-ok');
+        // Safety: guard against malformed API response (missing guild object).
+        const joinedName = res && res.guild && res.guild.name ? esc(res.guild.name) : 'Unknown';
+        note(`Joined <b>${joinedName}</b>!`, 'guild-ok');
         try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
+        await syncGuildPerks(api); // Safety: refresh engine perk modifiers immediately.
       } catch (err) {
         note(esc(err.message), 'guild-error');
       }
@@ -905,14 +911,17 @@ export function renderGuildSection(container, api, myState) {
       if (!window.confirm(msg)) return;
       try {
         const res = await gpost(api, '/api/guilds/leave', {});
+        // Safety: guard against malformed API response (missing fields).
+        const leftName = esc((res && res.guildName) || 'Unknown');
         note(
-          res.guildDeleted
-            ? `Guild <b>${esc(res.guildName)}</b> disbanded.`
-            : `You left <b>${esc(res.guildName)}</b>.`,
+          res && res.guildDeleted
+            ? `Guild <b>${leftName}</b> disbanded.`
+            : `You left <b>${leftName}</b>.`,
           'guild-ok'
         );
         try { Audio.play('guild'); } catch { /* ignore */ }
         await refresh();
+        await syncGuildPerks(api); // Safety: refresh engine perk modifiers immediately.
       } catch (err) {
         note(esc(err.message), 'guild-error');
       }
