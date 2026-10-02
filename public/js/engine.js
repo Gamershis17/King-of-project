@@ -815,6 +815,22 @@ export const SKILL_ORDER = ['power-strike', 'fireball', 'heal', 'execute'];
 // · strikeInt {mult, interruptSec}
 // cost = resource spent (default 0); gain = resource generated on cast.
 export const SPELL_SLOT_COUNT = 6;
+// Spell icon paths (WoW-style square icons). Maps spell ID → icon URL.
+// Icons live in public/icons/spells/. If an icon is missing or fails to load,
+// the UI falls back to the spell's emoji. Add entries as icons are created.
+export const SPELL_ICONS = {
+  // Hunter
+  'steady-shot': 'icons/spells/steady-shot.png',
+  'arcane-shot': 'icons/spells/arcane-shot.png',
+  'mend-pet': 'icons/spells/mend-pet.png',
+  'aimed-shot': 'icons/spells/aimed-shot.png',
+  'frost-trap': 'icons/spells/frost-trap.png',
+  'multi-shot': 'icons/spells/multi-shot.png',
+};
+// Get the icon path for a spell, or null if none is defined.
+export function spellIcon(id) {
+  return SPELL_ICONS[id] || null;
+}
 export const CLASS_SPELLS = {
   hunter: [
     { id: 'steady-shot', name: 'Steady Shot', emoji: '🏹', school: 'Marksmanship', gain: 15, cdMs: 5000, unlockLevel: 1,

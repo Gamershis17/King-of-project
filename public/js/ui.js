@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002t';
+import * as Engine from './engine.js?v20261002u';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -1702,19 +1702,25 @@ export const UI = {
       const def = slots[i] && Engine.spellById(slots[i]);
       const b = document.createElement('button');
       if (!def) {
-        b.className = 'skill-btn locked';
+        b.className = 'skill-btn locked spell-btn-empty';
         b.disabled = true;
-        b.innerHTML = `<span class="sk-emoji">✨</span><span class="sk-name">Empty</span>`;
+        b.innerHTML = `<span class="spell-icon-wrap empty-icon">✨</span><span class="sk-name">Empty</span>`;
         row.appendChild(b);
         continue;
       }
       const mast = Engine.skillMastery(state, def.id);
-      b.className = 'skill-btn spell-btn';
+      b.className = 'skill-btn spell-btn has-icon';
       b.dataset.spell = def.id;
       b.title = `${def.desc}\nCost: ${def.cost ? `${def.cost} ${rdef.name}` : 'free'} · Cooldown ${Math.round(def.cdMs / 1000)}s`;
-      b.innerHTML = `<span class="sk-emoji">${def.emoji}</span>` +
+      // WoW-style icon: <img> with onerror fallback to emoji if the icon is missing.
+      // The cost is overlaid in the bottom corner via CSS (.cost-overlay).
+      const iconPath = Engine.spellIcon ? Engine.spellIcon(def.id) : null;
+      const iconHtml = iconPath
+        ? `<img class="spell-icon" src="${iconPath}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='inline';" /><span class="sk-emoji spell-icon-fallback" style="display:none;">${def.emoji}</span>`
+        : `<span class="sk-emoji">${def.emoji}</span>`;
+      b.innerHTML = `<span class="spell-icon-wrap">${iconHtml}</span>` +
         `<span class="sk-name">${esc(def.name)}</span>` +
-        (def.cost ? `<span class="cost-tag">${rdef.emoji} ${def.cost}</span>` : `<span class="cost-tag free">free</span>`) +
+        (def.cost ? `<span class="cost-overlay">${def.cost}</span>` : ``) +
         `<span class="skill-cd"></span>`;
       row.appendChild(b);
     }
