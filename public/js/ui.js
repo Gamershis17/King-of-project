@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002f';
+import * as Engine from './engine.js?v20261002g';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -392,6 +392,10 @@ export const UI = {
       if (btn.dataset.action === 'recruit' && h.onRecruit) h.onRecruit(btn.dataset.id);
       if (btn.dataset.action === 'dismiss' && h.onDismiss) h.onDismiss(btn.dataset.id);
       if (btn.dataset.action === 'levelup' && h.onLevelUpCompanion) h.onLevelUpCompanion(btn.dataset.id);
+      if (btn.dataset.action === 'recruit-healer' && h.onRecruitHealer) h.onRecruitHealer();
+      if (btn.dataset.action === 'dismiss-healer' && h.onDismissHealer) h.onDismissHealer();
+      if (btn.dataset.action === 'recruit-tank' && h.onRecruitTank) h.onRecruitTank();
+      if (btn.dataset.action === 'dismiss-tank' && h.onDismissTank) h.onDismissTank();
       // Multiplayer party actions
       if (btn.dataset.action === 'mp-create' && h.onMpCreate) h.onMpCreate();
       if (btn.dataset.action === 'mp-leave' && h.onMpLeave) h.onMpLeave();
