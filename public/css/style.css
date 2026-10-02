@@ -5273,6 +5273,10 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   #hud .hud-id {
     order: 0;
   }
+  /* Hide avatar on mobile to free up room for the 5 buttons */
+  #hud .hud-avatar {
+    display: none !important;
+  }
   #inn-btn, #balance-log-hud, #changelog-hud, #friends-hud, #social-hud {
     order: 1;
   }
