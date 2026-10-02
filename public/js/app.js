@@ -1126,7 +1126,6 @@ function damageEnemy(dmg, prefix, sourceLabel) {
   if (UI.updateEnemy) UI.updateEnemy(enemy);
   // Screen shake on crits
   if (isCrit && UI.screenShake) UI.screenShake();
-  const isCrit = String(prefix).includes('CRIT');
   UI.floatText(`${prefix}${formatNum(dmg)}`, isCrit ? 'crit' : 'dmg', dmg);
   if (enemy.hp <= 0) onKillEnemy();
 }
