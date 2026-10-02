@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261001ad';
-import * as Engine from './engine.js?v20261001ad';
-import { UI, esc, formatNum } from './ui.js?v20261001ad';
+import { api } from './api.js?v20261001ae';
+import * as Engine from './engine.js?v20261001ae';
+import { UI, esc, formatNum } from './ui.js?v20261001ae';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -218,6 +218,8 @@ async function boot() {
     onSetSecondPet: doSetSecondPet,
     onRemoveSecondPet: doRemoveSecondPet,
     onRecruitHealer: doRecruitHealer,
+    onSpendClassTalent: doSpendClassTalent,
+    onRespecClassTalents: doRespecClassTalents,
     onBuyEgg: doBuyEgg,
     onBreedPets: doBreedPets,
     onCombinePets: doCombinePets,
@@ -1098,6 +1100,15 @@ function petStrike(stats) {
 function damageEnemy(dmg, prefix, sourceLabel) {
   const enemy = App.enemy;
   if (!enemy || App.dead || App.spawnPending) return;
+  // Class talent (Marksmanship: Kill Shot): execute — bonus damage to
+  // enemies below 20% HP, on the hunter's own strikes and spells.
+  const st = App.state;
+  if (st && st.playerClass === 'hunter' && (sourceLabel === 'hero' || sourceLabel === '🔥 ' || sourceLabel === '🩸 ')) {
+    const execPct = Engine.classTalentEffects(st).executePct || 0;
+    if (execPct > 0 && dmg > 0 && enemy.maxHp > 0 && enemy.hp / enemy.maxHp < 0.2) {
+      dmg = Math.round(dmg * (1 + execPct / 100));
+    }
+  }
   enemy.hp -= dmg;
   UI.enemyHitFlash();
   const isCrit = String(prefix).includes('CRIT');
@@ -1196,19 +1207,6 @@ function onKillEnemy() {
     UI.combatLog('🥚 A pet egg dropped!', 'loot');
     if (UI.activeTab === 'pets') UI.renderPetsTab(s);
   }
-  // Exotic pets: 5% direct drop from bosses (Hunter-only)
-  if (enemy.boss || isDungeonBoss || isRaidBoss) {
-    const exoticId = Engine.rollExoticDrop();
-    if (exoticId) {
-      const p = Engine.ensurePets(s);
-      const sp = Engine.PET_SPECIES[exoticId];
-      const pet = { uid: Engine.uid(), species: exoticId, level: 1, xp: 0, xpNext: Engine.petXpForLevel(1), hunger: 100 };
-      p.collection.push(pet);
-      UI.notify('loot', `${sp.emoji} EXOTIC! A ${sp.name} joined you! (Hunter-only)`, 'loot');
-      UI.combatLog(`${sp.emoji} EXOTIC DROP! ${sp.name} joined your collection!`, 'loot');
-      if (UI.activeTab === 'pets') UI.renderPetsTab(s);
-    }
-  }
   if (xpRes.levels.length) {
     UI.levelUpModal(xpRes.levels);
     UI.combatLog(`⬆️ Level ${xpRes.levels[xpRes.levels.length - 1]}!`, 'level');
@@ -1219,7 +1217,11 @@ function onKillEnemy() {
     }
     for (const m of (xpRes.milestones || [])) {
       const t = Engine.TITLE_DEFS['milestone-' + m];
-      UI.notify('level', `🏆 Milestone! Level ${m} — +1 class talent point${t ? `, title earned: ${t.name}` : ''}!`, 'success');
+      UI.notify('level', `🏆 Milestone! Level ${m}${t ? ` — title earned: ${t.name}` : ''}!`, 'success');
+    }
+    if ((xpRes.talentPoints || 0) > 0) {
+      UI.notify('level', `🌳 +${xpRes.talentPoints} talent point${xpRes.talentPoints > 1 ? 's' : ''}! Spend in the 🌳 Talents tab.`, 'success');
+      if (UI.activeTab === 'talents') UI.renderTalents(s);
     }
   }
   announceSkillUnlocks(xpRes.skills);
@@ -1266,6 +1268,15 @@ function enemyStrikeTick(stats) {
     damageEnemy(res.counter, '', 'counter');
     return;
   }
+  // Class talent (Survival: Counterattack): flat chance to strike back for
+  // 50% attack when hit (dodge/parry already handled above).
+  if (target.kind === 'hero' && res.dmg > 0 && (stats.talentCounterCh || 0) > 0 && Math.random() * 100 < stats.talentCounterCh) {
+    const counterDmg = Math.max(1, Math.round(stats.attack * 0.5));
+    UI.floatText('COUNTER', 'counter');
+    UI.combatLog(`⚔️ You counterattack for ${formatNum(counterDmg)}!`, 'skill');
+    meterHit('hero', (App.user && App.user.username) || 'You', counterDmg);
+    damageEnemy(counterDmg, '', 'counter');
+  }
   if (res.dmg <= 0) return;
   // Role-based toughness: companions take scaled damage (tanks shrug off
   // far more than DPS). Applied after dodge/parry, before HP subtraction.
@@ -1282,19 +1293,9 @@ function enemyStrikeTick(stats) {
     // Active pet shares 20% of the blow (so pet HP matters + healer has work).
     const ap = Engine.activePet(s);
     if (ap) {
-      Engine.ensurePetHp(ap);
+      Engine.ensurePetHp(ap, stats.maxHp, stats.talentPetHpPct || 0);
       const petDmg = Math.max(1, Math.round(heroDmg * 0.2));
-      // Exotic Thick Hide shield absorbs damage first
-      let remaining = petDmg;
-      if (ap.shieldAmt > 0 && Date.now() < (ap.shieldUntil || 0)) {
-        const absorbed = Math.min(ap.shieldAmt, remaining);
-        ap.shieldAmt -= absorbed;
-        remaining -= absorbed;
-      }
-      ap.hp = Math.max(0, ap.hp - remaining);
-      // Trigger exotic pet ability at low HP
-      const abMsg = Engine.triggerExoticAbility(s, ap, null, Date.now());
-      if (abMsg) UI.combatLog(abMsg, 'pet-ability');
+      ap.hp = Math.max(0, ap.hp - petDmg);
       if (ap.hp <= 0) UI.combatLog(`💔 Your pet is knocked out!`, 'death');
     }
     UI.floatText(`-${formatNum(heroDmg)}`, 'hurt');
@@ -1758,13 +1759,27 @@ function useSpell(id) {
       break;
     }
     case 'mendPet': {
-      // Pets have no HP — mending restores hunger and inspires them.
+      // Revives knocked-out pets at 50% HP (+Mend Mastery), heals injured
+      // pets, restores hunger, inspires +dmg (also boosted by Mend Mastery).
       const p = Engine.ensurePets(s);
+      const pMaxH = (stats && stats.maxHp) || s.hero.maxHp || 1;
+      const reviveBonus = stats.talentReviveFrac || 0;
+      const petHpPct = stats.talentPetHpPct || 0;
       for (const uid of [p.activeUid, p.secondUid]) {
         const pet = (p.collection || []).find(x => x.uid === uid);
-        if (pet) pet.hunger = 100;
+        if (pet) {
+          pet.hunger = 100;
+          Engine.ensurePetHp(pet, pMaxH, petHpPct);
+          const max = Engine.petMaxHp(pet, pMaxH, petHpPct);
+          if (pet.hp <= 0) {
+            pet.hp = Math.ceil(max * (0.5 + reviveBonus));
+            UI.combatLog(`💚 Mend Pet revives ${pet.name || 'your pet'}!`, 'heal');
+          } else if (pet.hp < max) {
+            pet.hp = max;
+          }
+        }
       }
-      if (fx.petDmgPct) Engine.addBuff(s, 'petDmgPct', fx.petDmgPct, fx.sec);
+      if (fx.petDmgPct) Engine.addBuff(s, 'petDmgPct', fx.petDmgPct + (stats.talentMendInspirePct || 0), fx.sec);
       UI.floatText('MENDED', 'heal');
       UI.combatLog(`💚 Mend Pet! Pets restored and inspired (+${fx.petDmgPct || 0}% damage).`, 'heal');
       break;
@@ -2010,6 +2025,46 @@ function doTalent(id) {
   } else {
     UI.toast('Need a Mastery point — earn 1 per 10 levels.', 'error');
   }
+}
+
+// Class talent trees (Hunter prototype): spend one point on a talent node.
+function doSpendClassTalent(treeId, talentId) {
+  const s = App.state;
+  if (!s) return;
+  const classId = s.playerClass;
+  const res = Engine.spendClassTalent(s, classId, treeId, talentId);
+  if (res.ok) {
+    const tree = Engine.TALENT_TREES[classId][treeId];
+    const def = tree.talents.find(t => t.id === talentId);
+    UI.renderTalents(s);
+    UI.updateHUD(s, App.user);
+    UI.toast(`🌳 ${def.name} ranked up!`, 'success');
+    saveNow();
+  } else {
+    const msgs = {
+      'no-trees': 'Talent trees are not available yet.',
+      'wrong-class': 'You cannot use these talent trees.',
+      'no-tree': 'Unknown talent tree.',
+      'no-talent': 'Unknown talent.',
+      'maxed': 'That talent is already maxed out.',
+      'row-locked': 'Spend more points in this tree to unlock that row.',
+      'no-points': 'No talent points — earn 1 per 5 levels from level 10.',
+    };
+    UI.toast(msgs[res.reason] || 'Could not spend talent point.', 'error');
+  }
+}
+
+// Free respec while tuning: refund all spent class-talent ranks.
+function doRespecClassTalents() {
+  const s = App.state;
+  if (!s) return;
+  const used = Engine.classTalentSpentTotal(s);
+  if (!used) { UI.toast('No talent points spent.', 'warn'); return; }
+  Engine.refundClassTalents(s);
+  UI.renderTalents(s);
+  UI.updateHUD(s, App.user);
+  UI.toast(`🌳 Talents reset — ${used} point${used > 1 ? 's' : ''} refunded (free while tuning).`, 'success');
+  saveNow();
 }
 
 function doProfession(id) {
@@ -2469,13 +2524,8 @@ function doSetActivePet(petUid) {
   const p = Engine.ensurePets(s);
   const pet = p.collection.find(x => x.uid === petUid);
   if (!pet) return;
-  // Hunter-only restriction for exotic pets
-  const sp = Engine.petSpeciesOf(pet);
-  if (sp && sp.hunterOnly && s.hero && s.hero.playerClass !== 'hunter') {
-    UI.toast(`⚠️ ${sp.name} is Hunter-only!`, 'error');
-    return;
-  }
   p.activeUid = petUid;
+  const sp = Engine.petSpeciesOf(pet);
   UI.toast(`${sp.emoji} ${sp.name} is now your active pet!`, 'success');
   UI.renderPetsTab(App.state);
   saveNow();
@@ -2659,6 +2709,7 @@ async function onTabSwitch(tab, force = false) {
   else if (tab === 'titles') UI.renderTitles(s);
   else if (tab === 'guild') { mountGuild(); }
   else if (tab === 'quests') UI.renderQuests(s);
+  else if (tab === 'talents') UI.renderTalents(s);
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);

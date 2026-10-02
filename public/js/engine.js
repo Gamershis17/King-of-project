@@ -563,7 +563,8 @@ export function ensureState(raw) {
   s.mastery.spent = { might: 0, vitality: 0, fortune: 0, ...(s.mastery.spent || {}) };
   s.mastery.points = Math.max(0, Math.floor(s.mastery.points || 0));
   // Class talent points (level-system rework): banked for the per-class talent
-  // trees. First run grants 1 point per milestone already cleared.
+  // trees. First run grants 1 point per milestone already cleared; the
+  // reconcile below tops up the 1-per-5-levels points retroactively.
   if (!raw.classTalents) {
     let banked = 0;
     for (const m of MILESTONE_LEVELS) if ((s.level || 1) >= m) banked += 1;
@@ -572,6 +573,7 @@ export function ensureState(raw) {
     s.classTalents = { points: 0, spent: {}, ...raw.classTalents };
     s.classTalents.points = Math.max(0, Math.floor(s.classTalents.points || 0));
   }
+  reconcileTalentPoints(s);
   if (!Number.isFinite(s.classTokens)) s.classTokens = 0;
   s.energy = ENERGY_MAX; // energy always refills to full on load
   if (!Number.isFinite(s.focus)) s.focus = 100;
@@ -1153,10 +1155,12 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
     levels.push(state.level);
     if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
     if (MILESTONE_LEVELS.includes(state.level)) {
-      ensureClassTalents(state).points += 1;
       milestones.push(state.level);
     }
   }
+  // Class talent points: 1 per 5 levels from 10 + milestone bonuses.
+  // Reconciled (never reduced) so retroactive grants just work.
+  const talentPoints = reconcileTalentPoints(state);
   if (state.level >= MAX_LEVEL) state.xp = 0; // cap reached: bank no XP past it
   if (levels.length) {
     const s2 = computeStats(state);
@@ -1180,7 +1184,7 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
     ensureSpellSlots(state);
     for (const id of state.spellSlots) if (!before.has(id)) newSkills.push(id);
   }
-  return { gained: amount, levels, milestones, skills: newSkills };
+  return { gained: amount, levels, milestones, skills: newSkills, talentPoints };
 }
 
 // ---------------- Quests ----------------
@@ -1648,6 +1652,8 @@ export function computeStats(state) {
   const tal = (state.mastery && state.mastery.spent) || {};
   const mightMult = 1 + 0.04 * (tal.might || 0);
   const vitMult = 1 + 0.04 * (tal.vitality || 0);
+  // Class talent trees (Hunter prototype): aggregated % bonuses.
+  const cte = classTalentEffects(state);
   const prof = state.professions || {};
   const smithMult = 1 + 0.015 * (prof.smithing || 1);
   const herbRegen = 0.5 * (prof.herbalism || 1);
@@ -1663,15 +1669,15 @@ export function computeStats(state) {
   const guildDmgMult = 1 + (gp.dmgPct || 0) / 100;
   const h = state.hero;
   return {
-    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * mightMult * smithMult * guildDmgMult + bond.atk),
-    defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) + bond.def),
-    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * vitMult) + bond.hp),
-    critChance: clamp(h.critChance + gear.critChance + pCritCh + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
-    critDamage: Math.max(100, h.critDamage + gear.critDamage + pCritDmg + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
+    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * mightMult * smithMult * guildDmgMult * (1 + (cte.atkPct || 0) / 100) * (1 + (cte.spellPowerPct || 0) / 100) + bond.atk),
+    defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) * (1 + (cte.defPct || 0) / 100) + bond.def),
+    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * vitMult * (1 + (cte.maxHpPct || 0) / 100)) + bond.hp),
+    critChance: clamp(h.critChance + gear.critChance + pCritCh + (cte.critCh || 0) + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
+    critDamage: Math.max(100, h.critDamage + gear.critDamage + pCritDmg + (cte.critDmgPct || 0) + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
     parry: clamp(h.parry + gear.parry + (race.parryBonus || 0), 0, 60),
-    dodge: clamp(h.dodge + gear.dodge + pDodge + (race.dodgeBonus || 0) + (race.dodgeMod || 0) + (cls.dodgeBonus || 0), 0, 75),
-    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + pLifesteal + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
-    attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1), 0.2, 5),
+    dodge: clamp(h.dodge + gear.dodge + pDodge + (cte.dodge || 0) + (race.dodgeBonus || 0) + (race.dodgeMod || 0) + (cls.dodgeBonus || 0), 0, 75),
+    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + pLifesteal + (cte.lifesteal || 0) + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
+    attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1) * (1 + (cte.atkSpdPct || 0) / 100), 0.2, 5),
     regen: Math.max(0, h.regen + gear.regen + pRegen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
     goldBonus: gear.goldBonus + (gp.goldPct || 0) + pGoldPct,
     xpBonus: gear.xpBonus + pXpPct,
@@ -1679,6 +1685,23 @@ export function computeStats(state) {
     setInfo,
     playerSetInfo: pSetInfo,
     bond,
+    // Class-talent pass-throughs for battle logic (app.js).
+    talentPetDmgPct: cte.petDmgPct || 0,
+    talentPetHpPct: cte.petHpPct || 0,
+    talentCounterCh: cte.counterCh || 0,
+    talentExecutePct: cte.executePct || 0,
+    talentMendInspirePct: cte.mendInspirePct || 0,
+    talentReviveFrac: cte.reviveFrac || 0,
+    talentBlockCh: cte.blockCh || 0,
+    talentRageGenPct: cte.rageGenPct || 0,
+    talentDotPct: cte.dotPct || 0,
+    talentMinionDmgPct: cte.minionDmgPct || 0,
+    talentMinionHpPct: cte.minionHpPct || 0,
+    talentBleedPct: cte.bleedPct || 0,
+    talentDmgReducPct: cte.dmgReducPct || 0,
+    talentHealPct: cte.healPct || 0,
+    talentManaCostPct: cte.manaCostPct || 0,
+    talentSpellPowerPct: cte.spellPowerPct || 0,
   };
 }
 
@@ -2154,35 +2177,6 @@ export const PET_SPECIES = {
   astraldrake: { name: 'Astral Drake', emoji: '🐲', icon: 'img/pets/astraldrake.webp', rarity: 'celestial', weight: 1,   baseDmg: 56, growth: 1.09,
                  flavor: 'It has seen the end of everything — and decided to fight beside you.', style: 'Cosmic · devastating strikes',
                  baseStats: { atk: 44, def: 12, hp: 110 }, bond: { atk: 3, def: 2, hp: 35 } },
-  // Exotic line — Hunter-only pets with special abilities that trigger at low
-  // HP (<30%). Lower attack than same-tier pets (tank/utility focus), higher
-  // HP/defense. Hatchable from Exotic Eggs (pet shop) or rare boss drops (5%).
-  // weight: 0 keeps them out of the wild-egg pool.
-  exoticbear:   { name: 'Exotic Bear',   emoji: '🐻', icon: 'img/pets/exoticbear.webp',   rarity: 'exotic', weight: 0, baseDmg: 30, growth: 1.08,
-                 exotic: true, hunterOnly: true,
-                 flavor: 'A massive bear with runes etched in its fur — a wall of muscle and magic.', style: 'Stalwart · Thick Hide',
-                 baseStats: { atk: 18, def: 30, hp: 250 }, bond: { atk: 1, def: 5, hp: 80 },
-                 ability: { id: 'thick-hide', name: 'Thick Hide', desc: 'At <30% HP: damage shield for 5s', triggerHp: 0.3, cooldownSec: 30 } },
-  exoticturtle: { name: 'Exotic Turtle', emoji: '🐢', icon: 'img/pets/exoticturtle.webp', rarity: 'exotic', weight: 0, baseDmg: 22, growth: 1.075,
-                 exotic: true, hunterOnly: true,
-                 flavor: 'Its shell has turned aside dragonfire. It will turn aside this, too.', style: 'Immovable · Shell Shield',
-                 baseStats: { atk: 12, def: 35, hp: 300 }, bond: { atk: 0, def: 6, hp: 100 },
-                 ability: { id: 'shell-shield', name: 'Shell Shield', desc: 'At <30% HP: heals 20% max HP', triggerHp: 0.3, cooldownSec: 30 } },
-  exoticwolf:   { name: 'Exotic Wolf',   emoji: '🐺', icon: 'img/pets/exoticwolf.webp',   rarity: 'exotic', weight: 0, baseDmg: 48, growth: 1.085,
-                 exotic: true, hunterOnly: true,
-                 flavor: 'Eyes like embers. When wounded, it fights like a wildfire.', style: 'Fierce · Blood Frenzy',
-                 baseStats: { atk: 38, def: 10, hp: 130 }, bond: { atk: 4, def: 1, hp: 30 },
-                 ability: { id: 'blood-frenzy', name: 'Blood Frenzy', desc: 'At <30% HP: +50% attack for 8s', triggerHp: 0.3, cooldownSec: 30 } },
-  exoticspider: { name: 'Exotic Spider', emoji: '🕷️', icon: 'img/pets/exoticspider.webp', rarity: 'exotic', weight: 0, baseDmg: 36, growth: 1.08,
-                 exotic: true, hunterOnly: true,
-                 flavor: 'It weaves webs between heartbeats. Its prey never sees it coming.', style: 'Cunning · Web Wrap',
-                 baseStats: { atk: 28, def: 14, hp: 150 }, bond: { atk: 2, def: 2, hp: 40 },
-                 ability: { id: 'web-wrap', name: 'Web Wrap', desc: 'At <30% HP: slows enemy 30% for 6s', triggerHp: 0.3, cooldownSec: 30 } },
-  exoticphoenix:{ name: 'Exotic Phoenix', emoji: '🔥', icon: 'img/pets/exoticphoenix.webp', rarity: 'exotic', weight: 0, baseDmg: 40, growth: 1.085,
-                 exotic: true, hunterOnly: true,
-                 flavor: 'Born of flame, loyal beyond death. Its fire mends as well as burns.', style: 'Radiant · Rebirth Flame',
-                 baseStats: { atk: 32, def: 14, hp: 160 }, bond: { atk: 2, def: 2, hp: 50 },
-                 ability: { id: 'rebirth-flame', name: 'Rebirth Flame', desc: 'At <30% HP: heals self + hunter 15% max HP', triggerHp: 0.3, cooldownSec: 30 } },
   // Hunter starter beasts (not hatchable from eggs — starterOnly). Note: 🐺 is
   // taken by the Gloomfang Wolf enemy, so the wolf-ish slot uses 🦁 Lion.
   // Budget starter: the Ash Mouse is Stray-Egg-only (weight 0 keeps it out
@@ -2226,13 +2220,11 @@ export const EGG_TIERS = {
              desc: 'Hatches a Shadow Wisp, Gloomstalker, or Void Reaver — children of the dark.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver'] },
   celestial: { name: 'Starlight Egg', emoji: '🌠', price: 500000,
              desc: 'Hatches a Star Wisp, Luna Cub, or Astral Drake — children of the light.', pool: ['starwisp', 'lunacub', 'astraldrake'] },
-  exotic: { name: 'Exotic Egg', emoji: '🥚', price: 1000000,
-             desc: 'Hatches a Hunter-only exotic pet — Bear, Turtle, Wolf, Spider, or Phoenix. Each has a special low-HP ability.', pool: ['exoticbear', 'exoticturtle', 'exoticwolf', 'exoticspider', 'exoticphoenix'] },
   // Token-shop only (not sold for gold): shadow + celestial pool.
   token:   { name: 'Token Egg',   emoji: '🌀', price: null,
              desc: 'Token Shop exclusive — hatches a shadow or celestial pet.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver', 'starwisp', 'lunacub', 'astraldrake'] },
 };
-export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial', 'exotic', 'token'];
+export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial', 'token'];
 
 export function defaultPets() {
   const shopEggs = {};
@@ -2326,98 +2318,27 @@ export function hasHealer(s) {
 
 // Pet HP: simple system so the healer (and UI) has something to work with.
 // maxHp scales with pet level; hp is backfilled to full on first access.
-export function petMaxHp(pet, playerMaxHp) {
+export function petMaxHp(pet, playerMaxHp, petHpPct = 0) {
   const lvl = Math.max(1, Math.floor((pet && pet.level) || 1));
   const base = 50 + lvl * 25;
   // Scale with player progression: pet gets 30% of player max HP (min 1k)
+  let max;
   if (playerMaxHp && playerMaxHp > 0) {
-    return Math.max(base, Math.floor(playerMaxHp * 0.3), 1000);
+    max = Math.max(base, Math.floor(playerMaxHp * 0.3), 1000);
+  } else {
+    max = base;
   }
-  return base;
+  // Class talents (Beast Mastery: Thick Hide, Beast God).
+  if (petHpPct) max = Math.floor(max * (1 + petHpPct / 100));
+  return max;
 }
 
-export function ensurePetHp(pet, playerMaxHp) {
+export function ensurePetHp(pet, playerMaxHp, petHpPct = 0) {
   if (!pet || typeof pet !== 'object') return null;
-  const max = petMaxHp(pet, playerMaxHp);
+  const max = petMaxHp(pet, playerMaxHp, petHpPct);
   if (!Number.isFinite(pet.hp)) pet.hp = max;
   pet.hp = Math.max(0, Math.min(max, pet.hp));
   return pet;
-}
-
-// ---------------------------------------------------------------------------
-// Exotic pet abilities (Hunter-only)
-// ---------------------------------------------------------------------------
-// Exotic pets have special abilities that trigger when their HP drops below
-// 30%. Each ability has a cooldown (default 30s) tracked via pet.abilityCd.
-// Returns a log message string if the ability triggered, null otherwise.
-// ---------------------------------------------------------------------------
-export function petAbilityReady(pet, nowMs) {
-  if (!pet || typeof pet !== 'object') return false;
-  const sp = petSpeciesOf(pet);
-  if (!sp || !sp.ability) return false;
-  const cdUntil = pet.abilityCdUntil || 0;
-  return nowMs >= cdUntil;
-}
-
-export function triggerExoticAbility(s, pet, stats, nowMs = Date.now()) {
-  if (!pet || !s) return null;
-  const sp = petSpeciesOf(pet);
-  if (!sp || !sp.ability || !sp.exotic) return null;
-  // Must be Hunter to use exotic abilities
-  if (s.hero && s.hero.playerClass !== 'hunter') return null;
-  // Check HP threshold
-  const pMaxH = (stats && stats.maxHp) || (s.hero && s.hero.maxHp) || 1;
-  const max = petMaxHp(pet, pMaxH);
-  const frac = max > 0 ? (pet.hp / max) : 1;
-  if (frac >= (sp.ability.triggerHp || 0.3)) return null;
-  // Check cooldown
-  if (!petAbilityReady(pet, nowMs)) return null;
-  const cdSec = sp.ability.cooldownSec || 30;
-  pet.abilityCdUntil = nowMs + cdSec * 1000;
-  const aid = sp.ability.id;
-  if (aid === 'thick-hide') {
-    // Bear: damage shield for 5s (absorbs 25% max HP)
-    pet.shieldAmt = Math.floor(max * 0.25);
-    pet.shieldUntil = nowMs + 5000;
-    return `🐻 ${sp.name} uses Thick Hide! (damage shield)`;
-  } else if (aid === 'shell-shield') {
-    // Turtle: heal 20% max HP
-    const amt = Math.floor(max * 0.2);
-    pet.hp = Math.min(max, pet.hp + amt);
-    return `🐢 ${sp.name} uses Shell Shield! (+${amt} HP)`;
-  } else if (aid === 'blood-frenzy') {
-    // Wolf: +50% attack for 8s
-    pet.frenzyUntil = nowMs + 8000;
-    return `🐺 ${sp.name} enters Blood Frenzy! (+50% attack)`;
-  } else if (aid === 'web-wrap') {
-    // Spider: slow enemy attack speed 30% for 6s (stored on state)
-    s.petWebWrapUntil = nowMs + 6000;
-    return `🕷️ ${sp.name} uses Web Wrap! (enemy slowed)`;
-  } else if (aid === 'rebirth-flame') {
-    // Phoenix: heal self + hunter 15% max HP
-    const petAmt = Math.floor(max * 0.15);
-    pet.hp = Math.min(max, pet.hp + petAmt);
-    const hMax = pMaxH;
-    const hAmt = Math.floor(hMax * 0.15);
-    if (s.hero) s.hero.hp = Math.min(hMax, s.hero.hp + hAmt);
-    return `🔥 ${sp.name} uses Rebirth Flame! (heals pet + hunter)`;
-  }
-  return null;
-}
-
-// Check if a pet species is Hunter-exclusive
-export function isHunterOnlyPet(speciesId) {
-  const sp = PET_SPECIES[speciesId];
-  return !!(sp && sp.hunterOnly);
-}
-
-// Roll for exotic pet boss drop (5% chance). Returns species id or null.
-export function rollExoticDrop() {
-  if (Math.random() < 0.05) {
-    const exotics = ['exoticbear', 'exoticturtle', 'exoticwolf', 'exoticspider', 'exoticphoenix'];
-    return exotics[Math.floor(Math.random() * exotics.length)];
-  }
-  return null;
 }
 
 // Pick the heal target: lowest HP fraction among player and active pets.
@@ -2426,10 +2347,11 @@ export function rollExoticDrop() {
 export function healerPickTarget(s, stats) {
   const cands = [];
   const pMax = (stats && stats.maxHp) || s.hero.maxHp || 1;
+  const petHpPct = (stats && stats.talentPetHpPct) || 0;
   if (s.hero.hp > 0) cands.push({ kind: 'player', frac: s.hero.hp / pMax });
   for (const pet of activePets(s)) {
-    ensurePetHp(pet, pMax);
-    const pm = petMaxHp(pet, pMax);
+    ensurePetHp(pet, pMax, petHpPct);
+    const pm = petMaxHp(pet, pMax, petHpPct);
     if (pet.hp > 0) cands.push({ kind: 'pet', pet, frac: pet.hp / pm });
   }
   if (!cands.length) return null;
@@ -2452,8 +2374,9 @@ export function healerTick(s, stats) {
     return `${HEALER_NAME} heals you for ${amt}`;
   }
   const pMaxH = (stats && stats.maxHp) || s.hero.maxHp;
-  const pet = ensurePetHp(t.pet, pMaxH);
-  const max = petMaxHp(pet, pMaxH);
+  const petHpPct = (stats && stats.talentPetHpPct) || 0;
+  const pet = ensurePetHp(t.pet, pMaxH, petHpPct);
+  const max = petMaxHp(pet, pMaxH, petHpPct);
   const amt = Math.ceil(max * HEALER_HEAL_FRAC);
   pet.hp = Math.min(max, pet.hp + amt);
   const sp = petSpeciesOf(pet) || {};
@@ -2726,10 +2649,15 @@ export function petBondFor(pet) {
 export function petBond(s) {
   const zero = { atk: 0, def: 0, hp: 0 };
   const out = { ...zero };
-  for (const pet of activePets(s)) {
+  const pets = activePets(s);
+  // Pack Leader (Beast Mastery): second pet's bond bonuses are doubled.
+  const cte = classTalentEffects(s);
+  const secondMult = 1 + (cte.secondBondMult || 0);
+  pets.forEach((pet, idx) => {
     const b = petBondFor(pet);
-    out.atk += b.atk; out.def += b.def; out.hp += b.hp;
-  }
+    const m = (idx === 1 && s.playerClass === 'hunter') ? secondMult : 1;
+    out.atk += Math.round(b.atk * m); out.def += Math.round(b.def * m); out.hp += Math.round(b.hp * m);
+  });
   return out;
 }
 
@@ -2752,6 +2680,8 @@ export function petStrikeDamage(s, stats) {
     if (b.kind === 'petDmgPct' && b.until > Date.now()) buffMult *= 1 + b.pct / 100;
   }
   let total = 0;
+  // Class talents (Beast Mastery): multiplicative pet damage bonus.
+  const talentPetMult = 1 + ((stats.talentPetDmgPct || 0) / 100);
   for (const pet of pets) {
     const mult = petHungerMult(pet);
     if (!mult) continue;
@@ -2761,7 +2691,7 @@ export function petStrikeDamage(s, stats) {
     // Pets stay meaningful without ever outshining the hero.
     const base = stats.attack * Math.min(0.25 + 0.04 * (pet.level - 1), 1.5);
     const speciesMult = 1 + (sp.baseDmg / 200); // rarer species hit a touch harder
-    total += Math.max(1, Math.round(base * mult * speciesMult * classMult * buffMult));
+    total += Math.max(1, Math.round(base * mult * speciesMult * classMult * buffMult * talentPetMult));
   }
   return total;
 }
@@ -3021,6 +2951,404 @@ export function ensureClassTalents(state) {
   ct.points = Math.max(0, Math.floor(ct.points || 0));
   if (!ct.spent || typeof ct.spent !== 'object') ct.spent = {};
   return ct;
+}
+
+// ---------------- Class talent trees (Hunter prototype) ----------------
+// Points: 1 per 5 levels starting at 10, +1 bonus at 25/50/75/100.
+// Rows: row 1 open; row 2 needs 5 pts in tree; row 3 needs 10; row 4
+// (capstone) needs 15. Points + spent ranks persist through rebirth.
+// Respec is free while tuning (see refundClassTalents).
+export const TALENT_TREES = {
+  hunter: {
+    beast: {
+      id: 'beast', name: 'Beast Mastery', emoji: '🐾',
+      desc: 'Bond with your pets. Bigger, tougher, deadlier companions.',
+      talents: [
+        { id: 'kindred-spirit', name: 'Kindred Spirit', emoji: '💞', row: 1, maxRank: 5, perRank: { petDmgPct: 2 }, desc: '+2% pet damage per rank' },
+        { id: 'thick-hide', name: 'Thick Hide', emoji: '🛡️', row: 1, maxRank: 5, perRank: { petHpPct: 2 }, desc: '+2% pet max HP per rank' },
+        { id: 'bestial-wrath', name: 'Bestial Wrath', emoji: '😡', row: 2, maxRank: 5, perRank: { petDmgPct: 4 }, desc: '+4% pet damage per rank' },
+        { id: 'mend-mastery', name: 'Mend Mastery', emoji: '💚', row: 2, maxRank: 5, perRank: { reviveFrac: 0.05, mendInspirePct: 2 }, desc: 'Mend Pet revives at +5% HP per rank and inspires +2% pet damage per rank' },
+        { id: 'alpha-predator', name: 'Alpha Predator', emoji: '👑', row: 3, maxRank: 5, perRank: { petDmgPct: 6 }, desc: '+6% pet damage per rank' },
+        { id: 'pack-leader', name: 'Pack Leader', emoji: '🐺', row: 3, maxRank: 1, perRank: { secondBondMult: 1 }, desc: "Your second pet's bond bonuses are doubled" },
+        { id: 'beast-god', name: 'Beast God', emoji: '⚡', row: 4, maxRank: 1, capstone: true, perRank: { petDmgPct: 50, petHpPct: 50 }, desc: 'CAPSTONE: +50% pet damage, +50% pet HP' },
+      ],
+    },
+    marks: {
+      id: 'marks', name: 'Marksmanship', emoji: '🎯',
+      desc: 'Ranged precision. Crits that end fights before they start.',
+      talents: [
+        { id: 'deadeye', name: 'Deadeye', emoji: '👁️', row: 1, maxRank: 5, perRank: { critCh: 2 }, desc: '+2% crit chance per rank' },
+        { id: 'steady-aim', name: 'Steady Aim', emoji: '🏹', row: 1, maxRank: 5, perRank: { atkPct: 2 }, desc: '+2% attack per rank' },
+        { id: 'piercing-shots', name: 'Piercing Shots', emoji: '🏹', row: 2, maxRank: 5, perRank: { critDmgPct: 4 }, desc: '+4% crit damage per rank' },
+        { id: 'rapid-fire', name: 'Rapid Fire', emoji: '🔥', row: 2, maxRank: 5, perRank: { atkSpdPct: 2 }, desc: '+2% attack speed per rank' },
+        { id: 'sniper', name: 'Sniper', emoji: '🔭', row: 3, maxRank: 5, perRank: { critDmgPct: 6 }, desc: '+6% crit damage per rank' },
+        { id: 'kill-shot', name: 'Kill Shot', emoji: '💀', row: 3, maxRank: 1, perRank: { executePct: 100 }, desc: 'Execute: +100% damage to enemies below 20% HP' },
+        { id: 'one-shot', name: 'One Shot', emoji: '☄️', row: 4, maxRank: 1, capstone: true, perRank: { critDmgPct: 100, critCh: 20 }, desc: 'CAPSTONE: +100% crit damage, +20% crit chance' },
+      ],
+    },
+    surv: {
+      id: 'surv', name: 'Survival', emoji: '🌲',
+      desc: 'Outlast everything. The wilderness provides.',
+      talents: [
+        { id: 'toughness', name: 'Toughness', emoji: '🪨', row: 1, maxRank: 5, perRank: { maxHpPct: 2 }, desc: '+2% max HP per rank' },
+        { id: 'evasion', name: 'Evasion', emoji: '💨', row: 1, maxRank: 5, perRank: { dodge: 1 }, desc: '+1% dodge per rank' },
+        { id: 'survivalist', name: 'Survivalist', emoji: '🎒', row: 2, maxRank: 5, perRank: { maxHpPct: 4 }, desc: '+4% max HP per rank' },
+        { id: 'counterattack', name: 'Counterattack', emoji: '⚔️', row: 2, maxRank: 5, perRank: { counterCh: 2 }, desc: '+2% chance to counterattack per rank' },
+        { id: 'unkillable', name: 'Unkillable', emoji: '💪', row: 3, maxRank: 5, perRank: { maxHpPct: 6 }, desc: '+6% max HP per rank' },
+        { id: 'adrenaline', name: 'Adrenaline', emoji: '💉', row: 3, maxRank: 5, perRank: { lifesteal: 4 }, desc: '+4% lifesteal per rank' },
+        { id: 'immortal', name: 'Immortal', emoji: '✨', row: 4, maxRank: 1, capstone: true, perRank: { maxHpPct: 50, dodge: 10, lifesteal: 10 }, desc: 'CAPSTONE: +50% max HP, +10% dodge, +10% lifesteal' },
+      ],
+    },
+  },
+  warrior: {
+    prot: {
+      id: 'prot', name: 'Protection', emoji: '🛡️',
+      desc: 'An unbreakable wall. Taunt, block, and outlast.',
+      talents: [
+        { id: 'iron-skin', name: 'Iron Skin', emoji: '🪨', row: 1, maxRank: 5, perRank: { defPct: 3 }, desc: '+3% defense per rank' },
+        { id: 'bulwark', name: 'Bulwark', emoji: '🧱', row: 1, maxRank: 5, perRank: { maxHpPct: 2 }, desc: '+2% max HP per rank' },
+        { id: 'shield-wall', name: 'Shield Wall', emoji: '🛡️', row: 2, maxRank: 5, perRank: { blockCh: 2 }, desc: '+2% block chance per rank' },
+        { id: 'taunt-mastery', name: 'Taunt Mastery', emoji: '📢', row: 2, maxRank: 5, perRank: { defPct: 4 }, desc: '+4% defense per rank' },
+        { id: 'last-stand', name: 'Last Stand', emoji: '💪', row: 3, maxRank: 5, perRank: { maxHpPct: 6 }, desc: '+6% max HP per rank' },
+        { id: 'revenge', name: 'Revenge', emoji: '⚔️', row: 3, maxRank: 5, perRank: { counterCh: 3 }, desc: '+3% counterattack chance per rank' },
+        { id: 'unbreakable', name: 'Unbreakable', emoji: '💎', row: 4, maxRank: 1, capstone: true, perRank: { defPct: 30, maxHpPct: 30, blockCh: 15 }, desc: 'CAPSTONE: +30% defense, +30% max HP, +15% block' },
+      ],
+    },
+    arms: {
+      id: 'arms', name: 'Arms', emoji: '⚔️',
+      desc: 'Master of weapons. Overwhelming single-target damage.',
+      talents: [
+        { id: 'weapon-mastery', name: 'Weapon Mastery', emoji: '🗡️', row: 1, maxRank: 5, perRank: { atkPct: 3 }, desc: '+3% attack per rank' },
+        { id: 'deep-wounds', name: 'Deep Wounds', emoji: '🩸', row: 1, maxRank: 5, perRank: { critCh: 1 }, desc: '+1% crit chance per rank' },
+        { id: 'mortal-strike', name: 'Mortal Strike', emoji: '💥', row: 2, maxRank: 5, perRank: { critDmgPct: 5 }, desc: '+5% crit damage per rank' },
+        { id: 'sweeping-strikes', name: 'Sweeping Strikes', emoji: '🌪️', row: 2, maxRank: 5, perRank: { atkPct: 4 }, desc: '+4% attack per rank' },
+        { id: 'colossus-smash', name: 'Colossus Smash', emoji: '🔨', row: 3, maxRank: 5, perRank: { critDmgPct: 8 }, desc: '+8% crit damage per rank' },
+        { id: 'execute-arms', name: 'Execute', emoji: '💀', row: 3, maxRank: 1, perRank: { executePct: 100 }, desc: 'Execute: +100% damage to enemies below 20% HP' },
+        { id: 'war-god', name: 'War God', emoji: '⚡', row: 4, maxRank: 1, capstone: true, perRank: { atkPct: 50, critDmgPct: 50 }, desc: 'CAPSTONE: +50% attack, +50% crit damage' },
+      ],
+    },
+    fury: {
+      id: 'fury', name: 'Fury', emoji: '🌀',
+      desc: 'Uncontrolled rage. Faster, harder, relentless.',
+      talents: [
+        { id: 'bloodthirst', name: 'Bloodthirst', emoji: '🩸', row: 1, maxRank: 5, perRank: { lifesteal: 2 }, desc: '+2% lifesteal per rank' },
+        { id: 'enrage', name: 'Enrage', emoji: '😡', row: 1, maxRank: 5, perRank: { atkSpdPct: 2 }, desc: '+2% attack speed per rank' },
+        { id: 'raging-blow', name: 'Raging Blow', emoji: '👊', row: 2, maxRank: 5, perRank: { atkPct: 4 }, desc: '+4% attack per rank' },
+        { id: 'frenzy', name: 'Frenzy', emoji: '🔥', row: 2, maxRank: 5, perRank: { atkSpdPct: 3 }, desc: '+3% attack speed per rank' },
+        { id: 'bloodbath', name: 'Bloodbath', emoji: '🌊', row: 3, maxRank: 5, perRank: { lifesteal: 4 }, desc: '+4% lifesteal per rank' },
+        { id: 'rampage', name: 'Rampage', emoji: '💢', row: 3, maxRank: 5, perRank: { atkPct: 6 }, desc: '+6% attack per rank' },
+        { id: 'berserk', name: 'Berserk', emoji: '👹', row: 4, maxRank: 1, capstone: true, perRank: { atkPct: 40, atkSpdPct: 30, lifesteal: 10 }, desc: 'CAPSTONE: +40% attack, +30% attack speed, +10% lifesteal' },
+      ],
+    },
+  },
+  mage: {
+    fire: {
+      id: 'fire', name: 'Fire', emoji: '🔥',
+      desc: 'Burn everything. Raw destructive power.',
+      talents: [
+        { id: 'ignite', name: 'Ignite', emoji: '🔥', row: 1, maxRank: 5, perRank: { spellPowerPct: 3 }, desc: '+3% spell power per rank' },
+        { id: 'pyroblast', name: 'Pyroblast', emoji: '☄️', row: 1, maxRank: 5, perRank: { critCh: 2 }, desc: '+2% crit chance per rank' },
+        { id: 'living-bomb', name: 'Living Bomb', emoji: '💣', row: 2, maxRank: 5, perRank: { dotPct: 5 }, desc: '+5% DoT damage per rank' },
+        { id: 'critical-mass', name: 'Critical Mass', emoji: '💥', row: 2, maxRank: 5, perRank: { critDmgPct: 5 }, desc: '+5% crit damage per rank' },
+        { id: 'inferno', name: 'Inferno', emoji: '🌋', row: 3, maxRank: 5, perRank: { spellPowerPct: 6 }, desc: '+6% spell power per rank' },
+        { id: 'combustion', name: 'Combustion', emoji: '🧨', row: 3, maxRank: 5, perRank: { dotPct: 8 }, desc: '+8% DoT damage per rank' },
+        { id: 'meteor', name: 'Meteor', emoji: '🌠', row: 4, maxRank: 1, capstone: true, perRank: { spellPowerPct: 50, critDmgPct: 50 }, desc: 'CAPSTONE: +50% spell power, +50% crit damage' },
+      ],
+    },
+    frost: {
+      id: 'frost', name: 'Frost', emoji: '❄️',
+      desc: 'Control the battlefield. Slow, freeze, shatter.',
+      talents: [
+        { id: 'frostbite', name: 'Frostbite', emoji: '🥶', row: 1, maxRank: 5, perRank: { spellPowerPct: 2 }, desc: '+2% spell power per rank' },
+        { id: 'ice-barrier', name: 'Ice Barrier', emoji: '🧊', row: 1, maxRank: 5, perRank: { maxHpPct: 3 }, desc: '+3% max HP per rank' },
+        { id: 'shatter', name: 'Shatter', emoji: '💎', row: 2, maxRank: 5, perRank: { critCh: 3 }, desc: '+3% crit chance per rank' },
+        { id: 'frozen-core', name: 'Frozen Core', emoji: '🔷', row: 2, maxRank: 5, perRank: { defPct: 4 }, desc: '+4% defense per rank' },
+        { id: 'blizzard', name: 'Blizzard', emoji: '🌨️', row: 3, maxRank: 5, perRank: { spellPowerPct: 5 }, desc: '+5% spell power per rank' },
+        { id: 'deep-freeze', name: 'Deep Freeze', emoji: '⛄', row: 3, maxRank: 5, perRank: { dodge: 2 }, desc: '+2% dodge per rank' },
+        { id: 'frozen-orb', name: 'Frozen Orb', emoji: '🔮', row: 4, maxRank: 1, capstone: true, perRank: { spellPowerPct: 40, defPct: 20, maxHpPct: 20 }, desc: 'CAPSTONE: +40% spell power, +20% defense, +20% max HP' },
+      ],
+    },
+    arcane: {
+      id: 'arcane', name: 'Arcane', emoji: '✨',
+      desc: 'Pure magic. Efficiency, power, and mastery over mana.',
+      talents: [
+        { id: 'arcane-intellect', name: 'Arcane Intellect', emoji: '🧠', row: 1, maxRank: 5, perRank: { spellPowerPct: 2 }, desc: '+2% spell power per rank' },
+        { id: 'mana-efficiency', name: 'Mana Efficiency', emoji: '💧', row: 1, maxRank: 5, perRank: { manaCostPct: 3 }, desc: '-3% mana cost per rank' },
+        { id: 'arcane-missiles', name: 'Arcane Missiles', emoji: '🌟', row: 2, maxRank: 5, perRank: { atkSpdPct: 3 }, desc: '+3% attack speed per rank' },
+        { id: 'netherwind', name: 'Netherwind', emoji: '💫', row: 2, maxRank: 5, perRank: { spellPowerPct: 4 }, desc: '+4% spell power per rank' },
+        { id: 'presence-of-mind', name: 'Presence of Mind', emoji: '🔯', row: 3, maxRank: 5, perRank: { critDmgPct: 6 }, desc: '+6% crit damage per rank' },
+        { id: 'arcane-barrage', name: 'Arcane Barrage', emoji: '💜', row: 3, maxRank: 5, perRank: { spellPowerPct: 6 }, desc: '+6% spell power per rank' },
+        { id: 'arcane-overload', name: 'Arcane Overload', emoji: '🌌', row: 4, maxRank: 1, capstone: true, perRank: { spellPowerPct: 60, manaCostPct: 20 }, desc: 'CAPSTONE: +60% spell power, -20% mana cost' },
+      ],
+    },
+  },
+  assassin: {
+    assn: {
+      id: 'assn', name: 'Assassination', emoji: '🗡️',
+      desc: 'Silent death. Poisons, crits, and finishing blows.',
+      talents: [
+        { id: 'lethal-dose', name: 'Lethal Dose', emoji: '☠️', row: 1, maxRank: 5, perRank: { critCh: 2 }, desc: '+2% crit chance per rank' },
+        { id: 'venom', name: 'Venom', emoji: '🐍', row: 1, maxRank: 5, perRank: { dotPct: 4 }, desc: '+4% poison damage per rank' },
+        { id: 'mutilate', name: 'Mutilate', emoji: '🔪', row: 2, maxRank: 5, perRank: { atkPct: 4 }, desc: '+4% attack per rank' },
+        { id: 'deadly-poison', name: 'Deadly Poison', emoji: '🧪', row: 2, maxRank: 5, perRank: { dotPct: 6 }, desc: '+6% poison damage per rank' },
+        { id: 'vendetta', name: 'Vendetta', emoji: '🎯', row: 3, maxRank: 5, perRank: { critDmgPct: 8 }, desc: '+8% crit damage per rank' },
+        { id: 'kill-shot-assn', name: 'Kill Shot', emoji: '💀', row: 3, maxRank: 1, perRank: { executePct: 100 }, desc: 'Execute: +100% damage to enemies below 20% HP' },
+        { id: 'deathmark', name: 'Deathmark', emoji: '🎭', row: 4, maxRank: 1, capstone: true, perRank: { critCh: 25, critDmgPct: 75 }, desc: 'CAPSTONE: +25% crit chance, +75% crit damage' },
+      ],
+    },
+    subt: {
+      id: 'subt', name: 'Subtlety', emoji: '🌙',
+      desc: 'Strike from shadow. Dodge, evade, and vanish.',
+      talents: [
+        { id: 'shadowstep', name: 'Shadowstep', emoji: '👣', row: 1, maxRank: 5, perRank: { dodge: 2 }, desc: '+2% dodge per rank' },
+        { id: 'opener', name: 'Opener', emoji: '🌑', row: 1, maxRank: 5, perRank: { atkPct: 3 }, desc: '+3% attack per rank' },
+        { id: 'elusiveness', name: 'Elusiveness', emoji: '💨', row: 2, maxRank: 5, perRank: { dodge: 3 }, desc: '+3% dodge per rank' },
+        { id: 'find-weakness', name: 'Find Weakness', emoji: '🔍', row: 2, maxRank: 5, perRank: { critCh: 3 }, desc: '+3% crit chance per rank' },
+        { id: 'shadow-dance-prep', name: 'Dance Prep', emoji: '💃', row: 3, maxRank: 5, perRank: { atkSpdPct: 4 }, desc: '+4% attack speed per rank' },
+        { id: 'smoke-bomb', name: 'Smoke Bomb', emoji: '💣', row: 3, maxRank: 5, perRank: { dodge: 4 }, desc: '+4% dodge per rank' },
+        { id: 'shadow-dance', name: 'Shadow Dance', emoji: '🌒', row: 4, maxRank: 1, capstone: true, perRank: { dodge: 20, critCh: 20, atkPct: 30 }, desc: 'CAPSTONE: +20% dodge, +20% crit, +30% attack' },
+      ],
+    },
+    combat: {
+      id: 'combat', name: 'Combat', emoji: '⚡',
+      desc: 'Relentless assault. Speed, sustain, and combo strikes.',
+      talents: [
+        { id: 'blade-flurry', name: 'Blade Flurry', emoji: '🌀', row: 1, maxRank: 5, perRank: { atkSpdPct: 3 }, desc: '+3% attack speed per rank' },
+        { id: 'combat-readiness', name: 'Combat Readiness', emoji: '🛡️', row: 1, maxRank: 5, perRank: { maxHpPct: 2 }, desc: '+2% max HP per rank' },
+        { id: 'adrenaline-combat', name: 'Adrenaline', emoji: '💉', row: 2, maxRank: 5, perRank: { atkSpdPct: 4 }, desc: '+4% attack speed per rank' },
+        { id: 'riposte', name: 'Riposte', emoji: '🤺', row: 2, maxRank: 5, perRank: { counterCh: 3 }, desc: '+3% counterattack chance per rank' },
+        { id: 'killing-spree', name: 'Killing Spree', emoji: '🔪', row: 3, maxRank: 5, perRank: { atkPct: 6 }, desc: '+6% attack per rank' },
+        { id: 'sustain', name: 'Sustain', emoji: '❤️', row: 3, maxRank: 5, perRank: { lifesteal: 3 }, desc: '+3% lifesteal per rank' },
+        { id: 'adrenaline-rush', name: 'Adrenaline Rush', emoji: '⚡', row: 4, maxRank: 1, capstone: true, perRank: { atkSpdPct: 40, atkPct: 30, lifesteal: 10 }, desc: 'CAPSTONE: +40% attack speed, +30% attack, +10% lifesteal' },
+      ],
+    },
+  },
+  necromancer: {
+    summ: {
+      id: 'summ', name: 'Summoning', emoji: '💀',
+      desc: 'Command the dead. Bigger, tougher, more minions.',
+      talents: [
+        { id: 'raise-dead', name: 'Raise Dead', emoji: '🧟', row: 1, maxRank: 5, perRank: { minionDmgPct: 4 }, desc: '+4% minion damage per rank' },
+        { id: 'corpse-armor', name: 'Corpse Armor', emoji: '🦴', row: 1, maxRank: 5, perRank: { minionHpPct: 4 }, desc: '+4% minion HP per rank' },
+        { id: 'dark-pact', name: 'Dark Pact', emoji: '📜', row: 2, maxRank: 5, perRank: { minionDmgPct: 6 }, desc: '+6% minion damage per rank' },
+        { id: 'bone-shield', name: 'Bone Shield', emoji: '🛡️', row: 2, maxRank: 5, perRank: { minionHpPct: 6 }, desc: '+6% minion HP per rank' },
+        { id: 'mass-raise', name: 'Mass Raise', emoji: '👥', row: 3, maxRank: 5, perRank: { minionDmgPct: 8 }, desc: '+8% minion damage per rank' },
+        { id: 'soul-harvest', name: 'Soul Harvest', emoji: '👻', row: 3, maxRank: 5, perRank: { spellPowerPct: 5 }, desc: '+5% spell power per rank' },
+        { id: 'army-of-dead', name: 'Army of the Dead', emoji: '💀', row: 4, maxRank: 1, capstone: true, perRank: { minionDmgPct: 50, minionHpPct: 50 }, desc: 'CAPSTONE: +50% minion damage, +50% minion HP' },
+      ],
+    },
+    blood: {
+      id: 'blood', name: 'Blood', emoji: '🩸',
+      desc: 'Sacrifice HP for power. Lifesteal keeps you alive.',
+      talents: [
+        { id: 'bloodthirst-nec', name: 'Bloodthirst', emoji: '🩸', row: 1, maxRank: 5, perRank: { lifesteal: 3 }, desc: '+3% lifesteal per rank' },
+        { id: 'sanguine', name: 'Sanguine', emoji: '❤️', row: 1, maxRank: 5, perRank: { maxHpPct: 3 }, desc: '+3% max HP per rank' },
+        { id: 'blood-boil', name: 'Blood Boil', emoji: '♨️', row: 2, maxRank: 5, perRank: { spellPowerPct: 4 }, desc: '+4% spell power per rank' },
+        { id: 'vampiric-embrace', name: 'Vampiric Embrace', emoji: '🧛', row: 2, maxRank: 5, perRank: { lifesteal: 4 }, desc: '+4% lifesteal per rank' },
+        { id: 'hemorrhage', name: 'Hemorrhage', emoji: '💉', row: 3, maxRank: 5, perRank: { dotPct: 6 }, desc: '+6% bleed damage per rank' },
+        { id: 'blood-shield', name: 'Blood Shield', emoji: '🛡️', row: 3, maxRank: 5, perRank: { maxHpPct: 6 }, desc: '+6% max HP per rank' },
+        { id: 'blood-god', name: 'Blood God', emoji: '👑', row: 4, maxRank: 1, capstone: true, perRank: { lifesteal: 20, spellPowerPct: 40, maxHpPct: 30 }, desc: 'CAPSTONE: +20% lifesteal, +40% spell power, +30% max HP' },
+      ],
+    },
+    shadow: {
+      id: 'shadow', name: 'Shadow', emoji: '🌑',
+      desc: 'Darkness consumes. DoTs, drains, and despair.',
+      talents: [
+        { id: 'shadow-bolt', name: 'Shadow Bolt', emoji: '🌑', row: 1, maxRank: 5, perRank: { spellPowerPct: 3 }, desc: '+3% spell power per rank' },
+        { id: 'corruption', name: 'Corruption', emoji: '🖤', row: 1, maxRank: 5, perRank: { dotPct: 5 }, desc: '+5% DoT damage per rank' },
+        { id: 'drain-life', name: 'Drain Life', emoji: '💜', row: 2, maxRank: 5, perRank: { lifesteal: 3 }, desc: '+3% lifesteal per rank' },
+        { id: 'haunt', name: 'Haunt', emoji: '👻', row: 2, maxRank: 5, perRank: { dotPct: 6 }, desc: '+6% DoT damage per rank' },
+        { id: 'soul-drain', name: 'Soul Drain', emoji: '🌀', row: 3, maxRank: 5, perRank: { spellPowerPct: 6 }, desc: '+6% spell power per rank' },
+        { id: 'nightfall', name: 'Nightfall', emoji: '🌃', row: 3, maxRank: 5, perRank: { critCh: 4 }, desc: '+4% crit chance per rank' },
+        { id: 'eclipse', name: 'Eclipse', emoji: '🌘', row: 4, maxRank: 1, capstone: true, perRank: { spellPowerPct: 50, dotPct: 50 }, desc: 'CAPSTONE: +50% spell power, +50% DoT damage' },
+      ],
+    },
+  },
+  berserker: {
+    rage: {
+      id: 'rage', name: 'Rage', emoji: '😡',
+      desc: 'Fuel the fury. More rage, more damage, more carnage.',
+      talents: [
+        { id: 'anger-management', name: 'Anger Management', emoji: '🤬', row: 1, maxRank: 5, perRank: { rageGenPct: 5 }, desc: '+5% rage generation per rank' },
+        { id: 'fueled-by-pain', name: 'Fueled by Pain', emoji: '😤', row: 1, maxRank: 5, perRank: { atkPct: 3 }, desc: '+3% attack per rank' },
+        { id: 'enrage-ber', name: 'Enrage', emoji: '👹', row: 2, maxRank: 5, perRank: { atkPct: 5 }, desc: '+5% attack per rank' },
+        { id: 'boiling-blood', name: 'Boiling Blood', emoji: '🩸', row: 2, maxRank: 5, perRank: { rageGenPct: 6 }, desc: '+6% rage generation per rank' },
+        { id: 'wrecking-crew', name: 'Wrecking Crew', emoji: '💥', row: 3, maxRank: 5, perRank: { critDmgPct: 8 }, desc: '+8% crit damage per rank' },
+        { id: 'recklessness', name: 'Recklessness', emoji: '🎲', row: 3, maxRank: 5, perRank: { critCh: 4 }, desc: '+4% crit chance per rank' },
+        { id: 'unending-rage', name: 'Unending Rage', emoji: '♾️', row: 4, maxRank: 1, capstone: true, perRank: { atkPct: 50, rageGenPct: 50 }, desc: 'CAPSTONE: +50% attack, +50% rage generation' },
+      ],
+    },
+    butch: {
+      id: 'butch', name: 'Butchery', emoji: '🪓',
+      desc: 'Cleave through crowds. Bleeds, executes, massacres.',
+      talents: [
+        { id: 'cleave', name: 'Cleave', emoji: '🪓', row: 1, maxRank: 5, perRank: { atkPct: 3 }, desc: '+3% attack per rank' },
+        { id: 'gushing-wound', name: 'Gushing Wound', emoji: '🩸', row: 1, maxRank: 5, perRank: { bleedPct: 5 }, desc: '+5% bleed damage per rank' },
+        { id: 'whirlwind', name: 'Whirlwind', emoji: '🌪️', row: 2, maxRank: 5, perRank: { atkSpdPct: 4 }, desc: '+4% attack speed per rank' },
+        { id: 'deep-cuts', name: 'Deep Cuts', emoji: '🔪', row: 2, maxRank: 5, perRank: { bleedPct: 6 }, desc: '+6% bleed damage per rank' },
+        { id: 'slaughter', name: 'Slaughter', emoji: '⚔️', row: 3, maxRank: 5, perRank: { atkPct: 6 }, desc: '+6% attack per rank' },
+        { id: 'execute-ber', name: 'Execute', emoji: '💀', row: 3, maxRank: 1, perRank: { executePct: 100 }, desc: 'Execute: +100% damage to enemies below 20% HP' },
+        { id: 'massacre', name: 'Massacre', emoji: '🌊', row: 4, maxRank: 1, capstone: true, perRank: { atkPct: 40, bleedPct: 50, critDmgPct: 30 }, desc: 'CAPSTONE: +40% attack, +50% bleed, +30% crit damage' },
+      ],
+    },
+    resil: {
+      id: 'resil', name: 'Resilience', emoji: '🩹',
+      desc: 'Refuse to die. Regenerate, endure, and outlast.',
+      talents: [
+        { id: 'thick-skin', name: 'Thick Skin', emoji: '🦏', row: 1, maxRank: 5, perRank: { maxHpPct: 3 }, desc: '+3% max HP per rank' },
+        { id: 'regeneration', name: 'Regeneration', emoji: '💚', row: 1, maxRank: 5, perRank: { lifesteal: 2 }, desc: '+2% lifesteal per rank' },
+        { id: 'tough-as-nails', name: 'Tough as Nails', emoji: '🔩', row: 2, maxRank: 5, perRank: { dmgReducPct: 2 }, desc: '+2% damage reduction per rank' },
+        { id: 'second-wind', name: 'Second Wind', emoji: '💨', row: 2, maxRank: 5, perRank: { maxHpPct: 4 }, desc: '+4% max HP per rank' },
+        { id: 'die-hard', name: 'Die Hard', emoji: '💀', row: 3, maxRank: 5, perRank: { dmgReducPct: 3 }, desc: '+3% damage reduction per rank' },
+        { id: 'unbreakable-will', name: 'Unbreakable Will', emoji: '🧠', row: 3, maxRank: 5, perRank: { maxHpPct: 6 }, desc: '+6% max HP per rank' },
+        { id: 'undying', name: 'Undying', emoji: '⚡', row: 4, maxRank: 1, capstone: true, perRank: { maxHpPct: 50, dmgReducPct: 15, lifesteal: 10 }, desc: 'CAPSTONE: +50% max HP, +15% damage reduction, +10% lifesteal' },
+      ],
+    },
+  },
+  druid: {
+    bear: {
+      id: 'bear', name: 'Bear', emoji: '🐻',
+      desc: 'Tank form. Massive HP, thick hide, unstoppable.',
+      talents: [
+        { id: 'thick-fur', name: 'Thick Fur', emoji: '🧥', row: 1, maxRank: 5, perRank: { maxHpPct: 3 }, desc: '+3% max HP per rank' },
+        { id: 'bear-armor', name: 'Bear Armor', emoji: '🛡️', row: 1, maxRank: 5, perRank: { defPct: 3 }, desc: '+3% defense per rank' },
+        { id: 'maul', name: 'Maul', emoji: '🐾', row: 2, maxRank: 5, perRank: { atkPct: 4 }, desc: '+4% attack per rank' },
+        { id: 'frenzied-regen', name: 'Frenzied Regen', emoji: '💚', row: 2, maxRank: 5, perRank: { lifesteal: 3 }, desc: '+3% lifesteal per rank' },
+        { id: 'ursine-vigor', name: 'Ursine Vigor', emoji: '💪', row: 3, maxRank: 5, perRank: { maxHpPct: 6 }, desc: '+6% max HP per rank' },
+        { id: 'pulverize', name: 'Pulverize', emoji: '💥', row: 3, maxRank: 5, perRank: { defPct: 5 }, desc: '+5% defense per rank' },
+        { id: 'unstoppable', name: 'Unstoppable', emoji: '🦏', row: 4, maxRank: 1, capstone: true, perRank: { maxHpPct: 50, defPct: 30, dmgReducPct: 10 }, desc: 'CAPSTONE: +50% max HP, +30% defense, +10% damage reduction' },
+      ],
+    },
+    cat: {
+      id: 'cat', name: 'Cat', emoji: '🐱',
+      desc: 'DPS form. Speed, crits, and savage strikes.',
+      talents: [
+        { id: 'feline-grace', name: 'Feline Grace', emoji: '💨', row: 1, maxRank: 5, perRank: { dodge: 2 }, desc: '+2% dodge per rank' },
+        { id: 'sharpened-claws', name: 'Sharpened Claws', emoji: '🐾', row: 1, maxRank: 5, perRank: { critCh: 2 }, desc: '+2% crit chance per rank' },
+        { id: 'predatory-swiftness', name: 'Predatory Swiftness', emoji: '⚡', row: 2, maxRank: 5, perRank: { atkSpdPct: 4 }, desc: '+4% attack speed per rank' },
+        { id: 'savage-roar', name: 'Savage Roar', emoji: '🦁', row: 2, maxRank: 5, perRank: { atkPct: 4 }, desc: '+4% attack per rank' },
+        { id: 'rip', name: 'Rip', emoji: '🩸', row: 3, maxRank: 5, perRank: { bleedPct: 6 }, desc: '+6% bleed damage per rank' },
+        { id: 'ferocious-bite', name: 'Ferocious Bite', emoji: '😼', row: 3, maxRank: 5, perRank: { critDmgPct: 8 }, desc: '+8% crit damage per rank' },
+        { id: 'apex-predator', name: 'Apex Predator', emoji: '👑', row: 4, maxRank: 1, capstone: true, perRank: { atkPct: 40, critCh: 15, atkSpdPct: 20 }, desc: 'CAPSTONE: +40% attack, +15% crit, +20% attack speed' },
+      ],
+    },
+    resto: {
+      id: 'resto', name: 'Restoration', emoji: '🌿',
+      desc: 'Heal and sustain. HoTs, cleanses, and tranquility.',
+      talents: [
+        { id: 'natures-touch', name: "Nature's Touch", emoji: '🌱', row: 1, maxRank: 5, perRank: { healPct: 4 }, desc: '+4% healing power per rank' },
+        { id: 'rejuvenation-mastery', name: 'Rejuvenation', emoji: '🌿', row: 1, maxRank: 5, perRank: { maxHpPct: 2 }, desc: '+2% max HP per rank' },
+        { id: 'gift-of-nature', name: 'Gift of Nature', emoji: '🎁', row: 2, maxRank: 5, perRank: { healPct: 6 }, desc: '+6% healing power per rank' },
+        { id: 'natures-swiftness', name: "Nature's Swiftness", emoji: '💫', row: 2, maxRank: 5, perRank: { manaCostPct: 4 }, desc: '-4% mana cost per rank' },
+        { id: 'flourish', name: 'Flourish', emoji: '🌸', row: 3, maxRank: 5, perRank: { healPct: 8 }, desc: '+8% healing power per rank' },
+        { id: 'cleanse', name: 'Cleanse', emoji: '✨', row: 3, maxRank: 5, perRank: { lifesteal: 3 }, desc: '+3% lifesteal per rank' },
+        { id: 'tranquility', name: 'Tranquility', emoji: '🕊️', row: 4, maxRank: 1, capstone: true, perRank: { healPct: 50, maxHpPct: 25, manaCostPct: 20 }, desc: 'CAPSTONE: +50% healing, +25% max HP, -20% mana cost' },
+      ],
+    },
+  },
+};
+
+// Lifetime talent points earned at a given level: 1 per 5 levels from 10,
+// plus +1 at each milestone (25/50/75/100).
+export function talentPointsEarned(level) {
+  const lv = Math.max(1, Math.floor(level || 1));
+  let pts = 0;
+  if (lv >= 10) pts += 1 + Math.floor((lv - 10) / 5);
+  for (const m of MILESTONE_LEVELS) if (lv >= m) pts += 1;
+  return pts;
+}
+
+// Total ranks ever spent (spent keys are "classId:treeId:talentId" -> rank).
+export function classTalentSpentTotal(state) {
+  const ct = ensureClassTalents(state);
+  let total = 0;
+  for (const k of Object.keys(ct.spent || {})) {
+    total += Math.max(0, Math.floor(ct.spent[k] || 0));
+  }
+  return total;
+}
+
+// Points spent inside one tree (for row gating).
+export function treePointsSpent(state, classId, treeId) {
+  const ct = ensureClassTalents(state);
+  const prefix = `${classId}:${treeId}:`;
+  let total = 0;
+  for (const [k, v] of Object.entries(ct.spent || {})) {
+    if (k.indexOf(prefix) === 0) total += Math.max(0, Math.floor(v || 0));
+  }
+  return total;
+}
+
+// Grant any newly-earned points (reconciled, never reduced — retroactive
+// grants just work). Returns the number of points newly added.
+export function reconcileTalentPoints(state) {
+  const ct = ensureClassTalents(state);
+  const entitled = talentPointsEarned(state.level);
+  const used = classTalentSpentTotal(state);
+  const want = Math.max(0, entitled - used);
+  const added = Math.max(0, want - ct.points);
+  ct.points = want;
+  return added;
+}
+
+// Spend one point on a talent. Returns {ok, reason?}.
+export function spendClassTalent(state, classId, treeId, talentId) {
+  const trees = TALENT_TREES[classId];
+  if (!trees) return { ok: false, reason: 'no-trees' };
+  if (state.playerClass !== classId) return { ok: false, reason: 'wrong-class' };
+  const tree = trees[treeId];
+  if (!tree) return { ok: false, reason: 'no-tree' };
+  const def = tree.talents.find(t => t.id === talentId);
+  if (!def) return { ok: false, reason: 'no-talent' };
+  const ct = ensureClassTalents(state);
+  const key = `${classId}:${treeId}:${talentId}`;
+  const rank = Math.max(0, Math.floor(ct.spent[key] || 0));
+  if (rank >= def.maxRank) return { ok: false, reason: 'maxed' };
+  const need = (def.row - 1) * 5;
+  if (treePointsSpent(state, classId, treeId) < need) return { ok: false, reason: 'row-locked' };
+  if (ct.points < 1) return { ok: false, reason: 'no-points' };
+  ct.points -= 1;
+  ct.spent[key] = rank + 1;
+  return { ok: true };
+}
+
+// Free respec while tuning: refund every spent rank back to the pool.
+export function refundClassTalents(state) {
+  const ct = ensureClassTalents(state);
+  ct.points += classTalentSpentTotal(state);
+  ct.spent = {};
+  return ct.points;
+}
+
+// Aggregate all active class-talent bonuses for the player's current class.
+export function classTalentEffects(state) {
+  const zero = {
+    petDmgPct: 0, petHpPct: 0, atkPct: 0, critCh: 0, critDmgPct: 0,
+    atkSpdPct: 0, maxHpPct: 0, dodge: 0, lifesteal: 0, counterCh: 0,
+    reviveFrac: 0, mendInspirePct: 0, executePct: 0, secondBondMult: 0,
+    defPct: 0, blockCh: 0, rageGenPct: 0, spellPowerPct: 0, dotPct: 0,
+    minionDmgPct: 0, minionHpPct: 0, bleedPct: 0, dmgReducPct: 0,
+    healPct: 0, manaCostPct: 0,
+  };
+  if (!state || !state.playerClass) return zero;
+  const classId = state.playerClass;
+  const trees = TALENT_TREES[classId];
+  if (!trees) return zero;
+  const ct = ensureClassTalents(state);
+  for (const [key, rank] of Object.entries(ct.spent || {})) {
+    const parts = String(key).split(':');
+    if (parts.length !== 3 || parts[0] !== classId) continue;
+    const tree = trees[parts[1]];
+    if (!tree) continue;
+    const def = tree.talents.find(t => t.id === parts[2]);
+    if (!def || !def.perRank) continue;
+    const r = Math.max(0, Math.floor(rank || 0));
+    if (!r) continue;
+    for (const [k, v] of Object.entries(def.perRank)) {
+      if (k in zero && Number.isFinite(v)) zero[k] += v * r;
+    }
+  }
+  return zero;
 }
 
 // ---------------- Professions ----------------

@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261001ad';
+import * as Engine from './engine.js?v20261001ae';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -235,6 +235,7 @@ export const UI = {
       'mine-rock', 'mine-btn', 'mine-find', 'ore-grid', 'forge-section',
       'mine-pickaxe', 'mine-stats',
       'pause-pill',
+      'talents-root',
     ];
     for (const id of ids) this.els[id] = document.getElementById(id);
 
@@ -285,6 +286,22 @@ export const UI = {
       if (!btn || btn.disabled) return;
       const [period, id] = btn.dataset.claim.split(':');
       this.handlers.onClaimQuest && this.handlers.onClaimQuest(period, id);
+    });
+    // Talents tab: tree select, spend points, free respec.
+    listen('tab-talents', 'click', (e) => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const h = this.handlers;
+      if (btn.dataset.action === 'talent-tree') {
+        this._talentTree = btn.dataset.tree;
+        if (this._talentState) this.renderTalents(this._talentState);
+      }
+      if (btn.dataset.action === 'spend-talent' && h.onSpendClassTalent) {
+        h.onSpendClassTalent(btn.dataset.tree, btn.dataset.talent);
+      }
+      if (btn.dataset.action === 'respec-talents' && h.onRespecClassTalents) {
+        h.onRespecClassTalents();
+      }
     });
     listen('rebirth-btn', 'click', () => {
       this.handlers.onRebirth && this.handlers.onRebirth();
@@ -1943,29 +1960,6 @@ export const UI = {
       });
     }
     this.updateHUD(state, battle ? battle.user : null);
-    // Compact pet HP bar on battle tab (above damage meter)
-    this.updatePetBattleBar(state, stats);
-  },
-
-  // Compact pet HP bar shown on the battle tab just above the damage meter.
-  // Only visible when a pet is active and alive.
-  updatePetBattleBar(state, stats) {
-    const wrap = document.getElementById('battle-pet-hp');
-    if (!wrap) return;
-    const pet = Engine.activePet ? Engine.activePet(state) : null;
-    if (!pet || (pet.hp || 0) <= 0) {
-      wrap.classList.add('hidden');
-      return;
-    }
-    const sp = Engine.petSpeciesOf ? Engine.petSpeciesOf(pet) : null;
-    const pMaxH = (stats && stats.maxHp) || 1;
-    const max = Engine.petMaxHp ? Engine.petMaxHp(pet, pMaxH) : 1;
-    const pct = max > 0 ? Math.max(0, Math.min(100, (pet.hp / max) * 100)) : 0;
-    wrap.classList.remove('hidden');
-    const label = wrap.querySelector('.bpet-label');
-    if (label) label.textContent = `${sp ? sp.emoji : '🐾'} ${sp ? sp.name : 'Pet'}: ${formatNum(Math.max(0, Math.ceil(pet.hp)))} / ${formatNum(max)}`;
-    const fill = wrap.querySelector('.bpet-fill');
-    if (fill) fill.style.width = pct + '%';
   },
 
   updateHeroPanel(state, stats, battle) {
@@ -5302,5 +5296,72 @@ export const UI = {
       </div>`;
     }).join('');
     return `<div class="card sub-card"><h3>🏆 Achievements <span class="muted small">(${unlocked.size}/${Engine.ACHIEVEMENTS.length})</span></h3><div class="ach-grid">${cards}</div></div>`;
+  },
+
+  // ---------------- Class talent trees ----------------
+  renderTalents(state) {
+    this._talentState = state;
+    const root = this.els['talents-root'];
+    if (!root) return;
+    const E = Engine;
+    const ct = E.ensureClassTalents(state);
+    const classId = state.playerClass;
+    const trees = (classId && E.TALENT_TREES[classId]) || {};
+    const treeIds = Object.keys(trees);
+    if (!treeIds.length) {
+      root.innerHTML = `<div class="card"><h3>\u{1F333} Class Talents</h3>
+        <p class="muted">Talent trees are rolling out class by class.
+        Your banked talent points (<b>${ct.points}</b>) are safe and will be here when your class lands.</p></div>`;
+      return;
+    }
+    if (!this._talentTree || !trees[this._talentTree]) this._talentTree = treeIds[0];
+    const selId = this._talentTree;
+    const sel = trees[selId];
+    const spentInTree = E.treePointsSpent(state, classId, selId);
+    const tabs = treeIds.map(id => {
+      const t = trees[id];
+      const sp = E.treePointsSpent(state, classId, id);
+      return `<button class="btn small ${id === selId ? '' : 'ghost'}" data-action="talent-tree" data-tree="${id}">${t.emoji} ${esc(t.name)} <span class="muted">(${sp})</span></button>`;
+    }).join('');
+    let rowsHtml = '';
+    for (let row = 1; row <= 4; row++) {
+      const need = (row - 1) * 5;
+      const unlocked = spentInTree >= need;
+      const talents = sel.talents.filter(t => t.row === row);
+      const nodes = talents.map(def => {
+        const key = `hunter:${selId}:${def.id}`;
+        const rank = Math.max(0, Math.floor((ct.spent || {})[key] || 0));
+        const maxed = rank >= def.maxRank;
+        const pips = Array.from({ length: def.maxRank }, (_, i) =>
+          `<span class="tn-pip ${i < rank ? 'on' : ''}"></span>`).join('');
+        return `<button class="talent-node ${rank > 0 ? 'learned' : ''} ${def.capstone ? 'capstone' : ''} ${!unlocked ? 'locked' : ''}"
+          data-action="spend-talent" data-tree="${selId}" data-talent="${def.id}"
+          ${(maxed || !unlocked) ? 'disabled' : ''}
+          title="${esc(def.name)} \u2014 ${esc(def.desc)}">
+          <span class="tn-emoji">${def.emoji}</span>
+          <span class="tn-name">${esc(def.name)}</span>
+          <span class="tn-pips">${pips}</span>
+          <span class="tn-rank">${rank}/${def.maxRank}</span>
+          <span class="tn-desc">${esc(def.desc)}</span>
+        </button>`;
+      }).join('');
+      rowsHtml += `<div class="talent-row-wrap ${unlocked ? '' : 'row-locked'}">
+        <div class="talent-row-label">Row ${row}${row === 4 ? ' \u2014 Capstone' : ''} <span class="muted small">${unlocked ? '' : `(requires ${need} pts in ${esc(sel.name)})`}</span></div>
+        <div class="talent-row">${nodes}</div>
+      </div>`;
+    }
+    const used = E.classTalentSpentTotal(state);
+    root.innerHTML = `<div class="card">
+      <h3>\u{1F333} Class Talents <span class="muted small">\u2014 Hunter prototype</span></h3>
+      <p class="muted small">${esc(sel.desc)}</p>
+      <div class="talent-topbar">
+        <span class="talent-points">\u2728 <b>${ct.points}</b> point${ct.points === 1 ? '' : 's'} available</span>
+        <span class="muted small">${used} spent</span>
+        <button class="btn small ghost" data-action="respec-talents" ${used ? '' : 'disabled'}>\u21A9\uFE0F Respec (free)</button>
+      </div>
+      <div class="talent-tabs">${tabs}</div>
+      <div class="talent-tree">${rowsHtml}</div>
+      <p class="muted small">Earn 1 point per 5 levels from level 10, +1 at 25 / 50 / 75 / 100. Points persist through rebirth.</p>
+    </div>`;
   },
 };
