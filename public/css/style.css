@@ -5269,7 +5269,7 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     flex-wrap: nowrap !important;
     width: 100%;
   }
-  /* Flipped header: quick-nav buttons left, currencies right */
+  /* Header: currencies left, quick-nav buttons right */
   #hud .hud-id {
     order: 0;
   }
@@ -5277,13 +5277,21 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   #hud .hud-avatar {
     display: none !important;
   }
-  #inn-btn, #balance-log-hud, #changelog-hud, #friends-hud, #social-hud {
-    order: 1;
-  }
   .hud-currencies {
-    order: 2 !important;
+    order: 1 !important;
     margin-left: 0 !important;
-    justify-content: flex-end;
+    margin-right: 0 !important;
+    justify-content: flex-start;
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
+    overflow: hidden;
+  }
+  #inn-btn, #balance-log-hud, #changelog-hud, #friends-hud, #social-hud {
+    order: 2;
+    flex-shrink: 0;
+  }
+  #inn-btn {
+    margin-left: auto !important;
   }
     gap: 0.4rem;
   }
@@ -5299,7 +5307,8 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     align-items: center !important;
     gap: 8px;
     font-size: 0.85rem;
-    flex-shrink: 0;
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
   }
   .inn-top-btn {
     width: 26px !important;
