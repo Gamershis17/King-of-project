@@ -1704,7 +1704,7 @@ export function computeStats(state) {
     regen: Math.max(0, h.regen + gear.regen + pRegen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
     goldBonus: gear.goldBonus + (gp.goldPct || 0) + pGoldPct,
     xpBonus: gear.xpBonus + pXpPct,
-    talentGoldPct: 4 * (tal.fortune || 0),
+    talentGoldPct: 0, // Mastery removed: Fortune gold bonus no longer exists
     setInfo,
     playerSetInfo: pSetInfo,
     bond,
