@@ -829,6 +829,35 @@ export const SPELL_ICONS = {
   'aimed-shot': 'icons/spells/aimed-shot.png',
   'frost-trap': 'icons/spells/frost-trap.png',
   'multi-shot': 'icons/spells/multi-shot.png',
+  'kill-command': 'icons/spells/kill-command.png',
+  'explosive-trap': 'icons/spells/explosive-trap.png',
+  // Warrior
+  'charge': 'icons/spells/charge.png',
+  'slam': 'icons/spells/slam.png',
+  'shield-block': 'icons/spells/shield-block.png',
+  'w-exec': 'icons/spells/w-exec.png',
+  'whirlwind': 'icons/spells/whirlwind.png',
+  'battle-shout': 'icons/spells/battle-shout.png',
+  'pummel': 'icons/spells/pummel.png',
+  'challenging-shout': 'icons/spells/challenging-shout.png',
+  // Mage
+  'arcane-blast': 'icons/spells/arcane-blast.png',
+  'fireball': 'icons/spells/fireball.png',
+  'frostbolt': 'icons/spells/frostbolt.png',
+  'arcane-missiles': 'icons/spells/arcane-missiles.png',
+  'frost-nova': 'icons/spells/frost-nova.png',
+  'pyroblast': 'icons/spells/pyroblast.png',
+  'blizzard': 'icons/spells/blizzard.png',
+  'blink': 'icons/spells/blink.png',
+  // Druid
+  'moonfire': 'icons/spells/moonfire.png',
+  'wrath': 'icons/spells/wrath.png',
+  'rejuvenation': 'icons/spells/rejuvenation.png',
+  'bear-form': 'icons/spells/bear-form.png',
+  'cat-form': 'icons/spells/cat-form.png',
+  'rake': 'icons/spells/rake.png',
+  'regrowth': 'icons/spells/regrowth.png',
+  'tranquility': 'icons/spells/tranquility.png',
 };
 // Get the icon path for a spell, or null if none is defined.
 export function spellIcon(id) {
@@ -4001,13 +4030,13 @@ export function towerEnemyFor(floor, playerStage) {
   const f = Math.max(1, Math.floor(floor || 1));
   const base = enemyFor(100);
   const isBoss = f % 10 === 0;
-  const hp = Math.max(1, Math.round(base.hp * towerHpMult(f) * (isBoss ? 1 : 0.6)));
+  const hp = Math.max(1, Math.round(base.hp * towerHpMult(f) * (isBoss ? 0.5 : 0.3)));
   const hazard = towerFloorHazard(f);
   return {
     name: isBoss ? `Tower Warden — Floor ${f}` : `Tower Shade — Floor ${f}`,
     stage: 100, boss: isBoss, towerFloor: f,
     hp, maxHp: hp,
-    attack: Math.max(1, Math.round(base.attack * towerHpMult(f) * 0.5 * (isBoss ? 1 : 0.7))),
+    attack: Math.max(1, Math.round(base.attack * towerHpMult(f) * 0.25 * (isBoss ? 1 : 0.7))),
     emoji: isBoss ? '🗼' : '👤',
     hazard: isBoss ? hazard : null,
     lootTier: isBoss ? 3 : 1,
