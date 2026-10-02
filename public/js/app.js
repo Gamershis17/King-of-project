@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002l';
-import * as Engine from './engine.js?v20261002l';
-import { UI, esc, formatNum } from './ui.js?v20261002l';
+import { api } from './api.js?v20261002m';
+import * as Engine from './engine.js?v20261002m';
+import { UI, esc, formatNum } from './ui.js?v20261002m';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -1945,6 +1945,7 @@ function doSell(id) {
   if (gold > 0) {
     UI.toast(`Sold ${item.name} for 💰${formatNum(gold)}.`, 'success');
     UI.renderGear(s);
+    if (UI.activeTab === 'armory' && UI.renderArmory) UI.renderArmory(s);
     UI.updateHUD(s, App.user);
     saveNow();
   }
