@@ -2726,6 +2726,7 @@ async function onTabSwitch(tab, force = false) {
   else if (tab === 'titles') UI.renderTitles(s);
   else if (tab === 'guild') { mountGuild(); }
   else if (tab === 'quests') UI.renderQuests(s);
+  else if (tab === 'talents') UI.renderTalents(s);
   else if (tab === 'battle') {
     UI.renderBattle(s);
     if (App.enemy) UI.setEnemy(App.enemy);
