@@ -1538,7 +1538,8 @@ export const isBossStage = (stage) => stage % 10 === 0;
 export function enemyFor(stage, playerStats = null) {
   const boss = isBossStage(stage);
   const world = worldForStage(stage);
-  const hp = Math.round(18 * Math.pow(1.115, stage) * (boss ? 1 : 0.6));
+  // v26: boss HP growth 1.115 -> 1.10 (was 8+ hours per boss at high stages).
+  const hp = Math.round(18 * Math.pow(1.10, stage) * (boss ? 1 : 0.6));
   const atk = Math.round(4 * Math.pow(1.085, stage));
   const roster = boss ? world.bosses : world.enemies;
   // Boss identity is deterministic per stage: the announced boss and the
@@ -1558,8 +1559,8 @@ export function enemyFor(stage, playerStats = null) {
   return {
     name: foe.name,
     stage, boss,
-    hp: boss ? Math.round(hp * 1.5) : hp,
-    maxHp: boss ? Math.round(hp * 1.5) : hp,
+    hp: boss ? Math.round(hp * 1.2) : hp,
+    maxHp: boss ? Math.round(hp * 1.2) : hp,
     attack,
     emoji: foe.emoji,
     world: world.id,
