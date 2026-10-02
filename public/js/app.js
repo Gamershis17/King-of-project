@@ -937,9 +937,9 @@ function startGame() {
   const updateOnlineCount = async () => {
     try {
       await api.ping();
-      const { count } = await api.onlineCount();
+      const { onlineCount } = await api.onlineCount();
       const el = document.getElementById('online-count');
-      if (el) el.textContent = count ?? '–';
+      if (el) el.textContent = onlineCount ?? '–';
     } catch (e) { /* ignore */ }
   };
   updateOnlineCount();
