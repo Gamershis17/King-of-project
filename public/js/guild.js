@@ -14,7 +14,7 @@
 // be omitted entirely — this module falls back to same-origin fetch.
 // ============================================================
 import { Audio } from './audio.js?v=20260930ar';
-import { setGuildPerks } from './engine.js?v20261001q';
+import { setGuildPerks } from './engine.js?v20261001s';
 import { UI } from './ui.js?v=20261001e';
 
 const esc = (s) =>

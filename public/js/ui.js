@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261001q';
+import * as Engine from './engine.js?v20261001s';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -1216,19 +1216,20 @@ export const UI = {
     // Class portrait: generated 2D art if available, falling back to the class
     // emoji (necromancer/berserker have no portrait yet).
     const portraitImg = `img/portrait-${state.playerClass || 'hunter'}.webp`;
-    // Portrait ring takes the best equipped rarity color.
+    // Gear composite: equipped items orbit the class emoji, each glowing in its
+    // rarity color; the portrait ring takes the best equipped rarity.
     const gearOrbit = ['helmet', 'weapon', 'armor', 'boots'];
+    const gearPos = ['pos-tl', 'pos-tr', 'pos-bl', 'pos-br'];
     let bestRarIdx = -1, bestRarColor = '#c9a227';
-    for (const slot of gearOrbit) {
+    const gearBadges = gearOrbit.map((slot, i) => {
       const item = gearBySlot[slot];
-      if (!item) continue;
+      if (!item) return '';
+      const info = (E.SLOT_INFO || {})[slot] || {};
+      const rar = (E.RARITY_BY_ID && E.RARITY_BY_ID[item.rarity]) || {};
       const idx = (E.RARITIES || []).findIndex(r => r.id === item.rarity);
-      if (idx > bestRarIdx) {
-        bestRarIdx = idx;
-        const rar = (E.RARITY_BY_ID && E.RARITY_BY_ID[item.rarity]) || {};
-        bestRarColor = rar.color || bestRarColor;
-      }
-    }
+      if (idx > bestRarIdx) { bestRarIdx = idx; bestRarColor = rar.color || bestRarColor; }
+      return `<span class="gear-badge ${gearPos[i]}" style="filter:drop-shadow(0 0 6px ${esc(rar.color || '#fff')})">${esc(info.emoji || '▫️')}</span>`;
+    }).join('');
     this.modal({
       title: 'Character',
       wide: true,
@@ -1240,9 +1241,9 @@ export const UI = {
         + `<div class="paper-doll">`
         + `<div class="paper-col">${leftSlots.map(slotHTML).join('')}</div>`
         + `<div class="paper-center">`
-        + `<div class="paper-portrait wow-portrait" style="background-image:url('${esc(classBg)}');border-color:${esc(bestRarColor)}">`
+        + `<div class="paper-portrait wow-portrait gear-composite" style="background-image:url('${esc(classBg)}');border-color:${esc(bestRarColor)}">`
         + `<img class="wow-portrait-img" src="${esc(portraitImg)}" alt="" onerror="this.remove()">`
-        + `<span class="wow-portrait-emoji">${esc(cls.emoji || '🦸')}</span></div>`
+        + `<span class="wow-portrait-emoji">${esc(cls.emoji || '🦸')}</span>${gearBadges}</div>`
         + `<div class="paper-hpbar"><div style="width:${Math.min(100, (hp / maxHp) * 100)}%"></div></div>`
         + `<div class="paper-hptext">❤️ ${formatNum(hp)} / ${formatNum(maxHp)}</div>`
         + petHTML

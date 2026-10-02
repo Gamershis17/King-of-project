@@ -1151,18 +1151,6 @@ export const STORY_QUEST_DEFS = [
     emoji: '🔮', name: "Archmage's Trial",
     metric: 'level', kind: 'reach', target: 30,
     desc: (t) => `Reach level ${t} as a mage` },
-  { id: 'q-mast-1', group: 'mastery',
-    emoji: '🎯', name: "Novice's Focus",
-    metric: 'mastery:power-strike', kind: 'reach', target: 2,
-    desc: (t) => `Reach Power Strike Mastery ${t}` },
-  { id: 'q-mast-2', group: 'mastery',
-    emoji: '🌟', name: 'Seasoned Caster',
-    metric: 'mastery:any', kind: 'reach', target: 5,
-    desc: (t) => `Reach Mastery ${t} on any skill` },
-  { id: 'q-mast-3', group: 'mastery',
-    emoji: '👑', name: 'True Master',
-    metric: 'mastery:any', kind: 'reach', target: 10,
-    desc: (t) => `Reach Mastery ${t} on any skill` },
   // ---------------- Guided onboarding chain ----------------
   // One-time quests that introduce the game's systems one at a time, in the
   // order a new player should meet them. Each step unlocks only after the
