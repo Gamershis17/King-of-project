@@ -5239,11 +5239,15 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   color: #ff6b6b;
 }
 
-/* Mobile header fix: keep quick-nav buttons on a single row */
+/* Mobile header fix: profile left, currencies centered, buttons pinned right */
 @media (max-width: 600px) {
   #hud .hud-row:first-child {
-    flex-wrap: nowrap;
-    align-items: center;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    width: 100%;
     gap: 0.4rem;
   }
   #hud .hud-id {
@@ -5254,17 +5258,20 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     max-width: 24vw;
   }
   .hud-currencies {
-    gap: 0.5rem;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px;
+    margin: 0 auto;
     font-size: 0.85rem;
     flex-shrink: 1;
   }
   .inn-top-btn {
-    min-width: 30px;
-    min-height: 30px;
-    width: 30px;
-    height: 30px;
-    padding: 2px;
-    font-size: 0.85rem;
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px !important;
+    min-height: 26px !important;
+    padding: 0 !important;
+    font-size: 0.75rem !important;
     flex: 0 0 auto;
   }
   #inn-btn {
