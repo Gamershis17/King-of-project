@@ -5268,6 +5268,19 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     align-items: center !important;
     flex-wrap: nowrap !important;
     width: 100%;
+  }
+  /* Flipped header: quick-nav buttons left, currencies right */
+  #hud .hud-id {
+    order: 0;
+  }
+  #inn-btn, #balance-log-hud, #changelog-hud, #friends-hud, #social-hud {
+    order: 1;
+  }
+  .hud-currencies {
+    order: 2 !important;
+    margin-left: 0 !important;
+    justify-content: flex-end;
+  }
     gap: 0.4rem;
   }
   #hud .hud-id {
@@ -5294,7 +5307,7 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     flex: 0 0 auto;
   }
   #inn-btn {
-    margin-left: auto;
+    margin-left: 0;
   }
 }
 
