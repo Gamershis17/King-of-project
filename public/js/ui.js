@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261001y';
+import * as Engine from './engine.js?v20261001z';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -1675,9 +1675,7 @@ export const UI = {
       b.disabled = !unlocked;
       b.title = unlocked ? def.desc : `Unlocks at level ${def.unlockLevel}`;
       const mast = unlocked ? Engine.skillMastery(state, id) : null;
-      const mastBadge = mast
-        ? `<span class="mastery-badge" title="Mastery ${mast.level}: +${Math.round(mast.pct * 100)}% effectiveness · ${mast.uses}/${mast.nextAt} casts to next level">M${mast.level}</span>`
-        : '';
+      const mastBadge = '';
       b.innerHTML = `<span class="sk-emoji">${def.emoji}</span>` +
         `<span class="sk-name">${esc(def.name)}</span>` +
         (unlocked ? mastBadge : `<span class="lv-tag">🔒 Lv ${def.unlockLevel}</span>`) +
@@ -1708,7 +1706,6 @@ export const UI = {
       b.title = `${def.desc}\nCost: ${def.cost ? `${def.cost} ${rdef.name}` : 'free'} · Cooldown ${Math.round(def.cdMs / 1000)}s`;
       b.innerHTML = `<span class="sk-emoji">${def.emoji}</span>` +
         `<span class="sk-name">${esc(def.name)}</span>` +
-        `<span class="mastery-badge" title="Mastery ${mast.level}: +${Math.round(mast.pct * 100)}% effectiveness · ${mast.uses}/${mast.nextAt} casts to next level">M${mast.level}</span>` +
         (def.cost ? `<span class="cost-tag">${rdef.emoji} ${def.cost}</span>` : `<span class="cost-tag free">free</span>`) +
         `<span class="skill-cd"></span>`;
       row.appendChild(b);
@@ -1819,7 +1816,7 @@ export const UI = {
           return `<button class="spell-card${un ? '' : ' locked'}" data-spellpick="${d.id}"${un ? '' : ' disabled'}>` +
             `<span class="sk-emoji">${d.emoji}</span>` +
             `<span class="sk-name">${esc(d.name)}</span>` +
-            (un ? `<span class="cost-tag">${d.cost ? `${rdef.emoji} ${d.cost}` : 'free'}</span><span class="mastery-badge">M${mast.level}</span>`
+            (un ? `<span class="cost-tag">${d.cost ? `${rdef.emoji} ${d.cost}` : 'free'}</span>`
                 : `<span class="lv-tag">🔒 Lv ${d.unlockLevel}</span>`) +
             `<span class="spell-desc">${esc(d.desc)}</span></button>`;
         }).join('');
@@ -1943,13 +1940,6 @@ export const UI = {
         btn.classList.toggle('cooling', remain > 0);
         const cd = btn.querySelector('.skill-cd');
         if (cd) cd.textContent = remain > 0 ? `(${(remain / 1000).toFixed(0)}s)` : '';
-        // Keep the mastery badge fresh as casts accumulate.
-        const mb = btn.querySelector('.mastery-badge');
-        if (mb && state) {
-          const m = Engine.skillMastery(state, sid);
-          mb.textContent = `M${m.level}`;
-          mb.title = `Mastery ${m.level}: +${Math.round(m.pct * 100)}% effectiveness · ${m.uses}/${m.nextAt} casts to next level`;
-        }
       });
     }
     this.updateHUD(state, battle ? battle.user : null);
