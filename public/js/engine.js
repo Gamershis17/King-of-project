@@ -2316,6 +2316,31 @@ export function hasHealer(s) {
   return !!(s && s.npcHealer);
 }
 
+// ---------------------------------------------------------------------------
+// NPC Tank "Bromm"
+// ---------------------------------------------------------------------------
+// A recruitable NPC tank who absorbs 25% of incoming hero damage in battle.
+export const TANK_RECRUIT_COST = 15000; // gold
+export const TANK_NAME = 'Bromm';
+export const TANK_ABSORB_FRAC = 0.25;   // absorbs 25% of hero damage
+
+// Recruit Bromm for gold. Returns true on success, false if already have him
+// or not enough gold.
+export function recruitTank(s) {
+  if (s.npcTank) return false;
+  if (!s.infGold && (s.gold || 0) < TANK_RECRUIT_COST) return false;
+  if (!s.infGold) s.gold -= TANK_RECRUIT_COST;
+  s.npcTank = {
+    name: TANK_NAME,
+    level: Math.max(1, s.level || 1),
+  };
+  return true;
+}
+
+export function hasTank(s) {
+  return !!(s && s.npcTank);
+}
+
 // Pet HP: simple system so the healer (and UI) has something to work with.
 // maxHp scales with pet level; hp is backfilled to full on first access.
 export function petMaxHp(pet, playerMaxHp, petHpPct = 0) {

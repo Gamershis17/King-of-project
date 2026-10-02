@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002d';
-import * as Engine from './engine.js?v20261002d';
-import { UI, esc, formatNum } from './ui.js?v20261002d';
+import { api } from './api.js?v20261002e';
+import * as Engine from './engine.js?v20261002e';
+import { UI, esc, formatNum } from './ui.js?v20261002e';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -219,6 +219,8 @@ async function boot() {
     onRemoveSecondPet: doRemoveSecondPet,
     onRecruitHealer: doRecruitHealer,
     onDismissHealer: doDismissHealer,
+    onRecruitTank: doRecruitTank,
+    onDismissTank: doDismissTank,
     onSpendClassTalent: doSpendClassTalent,
     onRespecClassTalents: doRespecClassTalents,
     onBuyEgg: doBuyEgg,
@@ -1290,8 +1292,14 @@ function enemyStrikeTick(stats) {
     let heroDmg = Engine.absorbShield(s, finalDmg);
     heroDmg = Math.max(0, Math.round(heroDmg * Engine.damageTakenMult(s)));
     if (Engine.resourceIdFor(s) === 'rage') Engine.gainRage(s, Engine.RAGE_PER_HIT_TAKEN);
+    // NPC Tank (Bromm) absorbs 25% of incoming hero damage.
+    if (Engine.hasTank && Engine.hasTank(s)) {
+      const tankDmg = Math.round(heroDmg * Engine.TANK_ABSORB_FRAC);
+      heroDmg = Math.max(0, heroDmg - tankDmg);
+      if (tankDmg > 0) UI.combatLog(`🛡️ ${Engine.TANK_NAME} absorbs ${formatNum(tankDmg)} damage!`, 'info');
+    }
     s.hero.hp -= heroDmg;
-    // Active pet shares 20% of the blow (so pet HP matters + healer has work).
+    // Active pet shares 5% of the blow (so pet HP matters + healer has work).
     const ap = Engine.activePet(s);
     if (ap) {
       Engine.ensurePetHp(ap, stats.maxHp, stats.talentPetHpPct || 0);
@@ -2558,6 +2566,34 @@ function doDismissHealer() {
   UI.toast(`🌿 ${Engine.HEALER_NAME} leaves the party.`, 'info');
   if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
   if (UI.activeTab === 'character' && UI.renderCharacter) UI.renderCharacter(s, Engine.computeStats(s));
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+function doRecruitTank() {
+  const s = App.state;
+  if (!s) return;
+  if (Engine.hasTank(s)) {
+    UI.toast(`${Engine.TANK_NAME} is already in your party!`, 'info');
+    return;
+  }
+  if (Engine.recruitTank(s)) {
+    UI.toast(`🛡️ ${Engine.TANK_NAME} the warrior joins your party!`, 'success');
+    UI.combatLog(`🛡️ ${Engine.TANK_NAME} joins the party — he will absorb 25% of damage.`, 'info');
+  } else {
+    UI.toast(`Need ${formatNum(Engine.TANK_RECRUIT_COST)} gold to recruit ${Engine.TANK_NAME}.`, 'error');
+  }
+  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+function doDismissTank() {
+  const s = App.state;
+  if (!s || !Engine.hasTank(s)) return;
+  s.npcTank = null;
+  UI.toast(`🛡️ ${Engine.TANK_NAME} leaves the party.`, 'info');
+  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
   UI.updateHUD(s, App.user);
   saveNow();
 }

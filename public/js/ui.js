@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002d';
+import * as Engine from './engine.js?v20261002e';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -441,6 +441,8 @@ export const UI = {
       if (btn.dataset.action === 'remove-second-pet' && h.onRemoveSecondPet) h.onRemoveSecondPet();
       if (btn.dataset.action === 'recruit-healer' && h.onRecruitHealer) h.onRecruitHealer();
       if (btn.dataset.action === 'dismiss-healer' && h.onDismissHealer) h.onDismissHealer();
+      if (btn.dataset.action === 'recruit-tank' && h.onRecruitTank) h.onRecruitTank();
+      if (btn.dataset.action === 'dismiss-tank' && h.onDismissTank) h.onDismissTank();
       if (btn.dataset.action === 'buy-egg' && h.onBuyEgg) h.onBuyEgg(btn.dataset.tier);
       if (btn.dataset.action === 'breed-select') this._toggleBreedSelect(btn.dataset.id);
       if (btn.dataset.action === 'combine-select') this._toggleCombineSelect(btn.dataset.id);
@@ -4143,6 +4145,37 @@ export const UI = {
         </div>`;
     }
     slots.appendChild(healerSec);
+
+    // Tank NPC (Bromm) — special party member section
+    const tankSec = document.createElement('div');
+    tankSec.className = 'tank-party-sec';
+    if (Engine.hasTank && Engine.hasTank(state)) {
+      tankSec.innerHTML = `
+        <div class="member tank-member">
+          <div class="member-card">
+            <span class="member-emoji">🛡️</span>
+            <div class="member-info">
+              <div class="member-name">Bromm <span class="tank-tag">TANK</span></div>
+              <div class="mp-sub">NPC · Absorbs 25% of damage taken</div>
+            </div>
+          </div>
+          <div class="member-actions">
+            <button class="btn small ghost icon-btn" data-action="dismiss-tank" title="Dismiss Bromm">✕ Dismiss</button>
+          </div>
+        </div>`;
+    } else {
+      const cost = (Engine.TANK_RECRUIT_COST || 15000);
+      tankSec.innerHTML = `
+        <div class="member empty tank-recruit">
+          <div class="empty-slot-inner">
+            <span class="empty-plus">🛡️</span>
+            <span>Recruit Tank</span>
+            <span class="muted small">Bromm · ${formatNum(cost)} gold</span>
+            <button class="btn small" data-action="recruit-tank" ${(state.gold || 0) >= cost ? '' : 'disabled'}>Recruit</button>
+          </div>
+        </div>`;
+    }
+    slots.appendChild(tankSec);
 
     const list = this.els['recruit-list'];
     list.innerHTML = '';
