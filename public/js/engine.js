@@ -3948,3 +3948,99 @@ export function ensureRaidState(state) {
 }
 
 // (Rebirth mutates the state in place, so raid progress survives it.)
+
+// ---------------- Infinite Tower of Shadows ----------------
+// Endless tower climb: each floor is a boss with escalating HP.
+// Scaling: 1.18^(F-1), plus 50% HP jump every 10 floors (DPS check).
+// Every 5 floors: random hazard modifier.
+// Milestones at 25/50/75/100: Divine blueprint + Mythic pet egg + title.
+export const TOWER_MILESTONES = {
+  25: { title: 'Tower Apprentice' },
+  50: { title: 'Floor Master' },
+  75: { title: 'Shadow Ascendant' },
+  100: { title: 'Tower Conqueror' },
+};
+export const TOWER_HAZARDS = {
+  vampiric: { name: 'Vampiric Heal', emoji: '🩸', desc: 'Boss heals 15% of damage it deals' },
+  reflect: { name: 'Damage Reflect', emoji: '🪞', desc: 'Reflects 20% of damage back to you' },
+  silence: { name: 'Void Silence', emoji: '🔇', desc: 'Your spells are silenced' },
+  enrage: { name: 'Enrage Speed', emoji: '💢', desc: 'Boss attacks 40% faster' },
+};
+
+// Normalizes state.tower (safe on old saves). Survives rebirth.
+export function ensureTowerState(state) {
+  if (!state || typeof state !== 'object') return state;
+  const t = state.tower || {};
+  const floor = Number.isFinite(+t.floor) ? Math.max(0, Math.floor(+t.floor)) : 0;
+  const checkpoint = Number.isFinite(+t.checkpoint) ? Math.max(0, Math.floor(+t.checkpoint)) : 0;
+  const lastSweep = Number.isFinite(+t.lastSweep) ? +t.lastSweep : 0;
+  state.tower = { floor, checkpoint, lastSweep };
+  return state;
+}
+
+// Boss HP multiplier for a tower floor: 1.18^(F-1) * 1.5^floor(F/10).
+export function towerHpMult(floor) {
+  const f = Math.max(1, Math.floor(floor || 1));
+  return Math.pow(1.18, f - 1) * Math.pow(1.5, Math.floor(f / 10));
+}
+
+// Returns the hazard id for a floor, or null if none (every 5 floors).
+// Deterministic per floor so refresh doesn't reroll the hazard.
+export function towerFloorHazard(floor) {
+  const f = Math.max(1, Math.floor(floor || 1));
+  if (f % 5 !== 0) return null;
+  const keys = Object.keys(TOWER_HAZARDS);
+  return keys[f % keys.length];
+}
+
+// Generates the tower boss for a floor. playerStage anchors base stats.
+export function towerEnemyFor(floor, playerStage) {
+  const f = Math.max(1, Math.floor(floor || 1));
+  const stage = Math.max(1, Math.floor(playerStage || 1));
+  const base = enemyFor(stage);
+  const hp = Math.max(1, Math.round(base.hp * towerHpMult(f)));
+  const hazard = towerFloorHazard(f);
+  return {
+    name: `Tower Warden — Floor ${f}`,
+    stage, boss: true, towerFloor: f,
+    hp, maxHp: hp,
+    attack: Math.max(1, Math.round(base.attack * (1 + f * 0.03))),
+    emoji: '🗼',
+    hazard,
+    lootTier: 3,
+    goldMult: 1 + f * 0.1,
+  };
+}
+
+// Returns milestone rewards for a floor, or null.
+export function towerMilestoneFor(floor) {
+  return TOWER_MILESTONES[floor] || null;
+}
+
+// Daily sweep: claim rewards for all cleared floors up to the weekly checkpoint.
+// Returns { ok, floors, rewards } or { ok: false, reason }.
+export function towerSweep(s) {
+  ensureTowerState(s);
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+  // One sweep per day
+  if (s.tower.lastSweep && now - s.tower.lastSweep < dayMs) {
+    return { ok: false, reason: 'swept' };
+  }
+  const maxFloor = Math.max(s.tower.floor, s.tower.checkpoint);
+  if (maxFloor < 1) return { ok: false, reason: 'none' };
+  // Rewards scale with floors cleared: gold + a pet egg every 10 floors
+  const gold = Math.round(maxFloor * 1000 * (1 + maxFloor * 0.05));
+  const eggs = Math.floor(maxFloor / 10);
+  s.tower.lastSweep = now;
+  // Weekly checkpoint: reset every Monday
+  const d = new Date(now);
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  monday.setHours(0, 0, 0, 0);
+  if (!s.tower.checkpointWeek || s.tower.checkpointWeek < monday.getTime()) {
+    s.tower.checkpoint = s.tower.floor;
+    s.tower.checkpointWeek = monday.getTime();
+  }
+  return { ok: true, floors: maxFloor, gold, eggs };
+}
