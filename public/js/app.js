@@ -1,8 +1,8 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261001y';
-import * as Engine from './engine.js?v20261001y';
+import { api } from './api.js?v20261001ab';
+import * as Engine from './engine.js?v20261001aa';
 import { UI, esc, formatNum } from './ui.js?v20261001z';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
@@ -1735,11 +1735,22 @@ function useSpell(id) {
       break;
     }
     case 'mendPet': {
-      // Pets have no HP — mending restores hunger and inspires them.
+      // Revives knocked-out pets at 50% HP, heals injured pets, restores hunger.
       const p = Engine.ensurePets(s);
+      const pMaxH = (stats && stats.maxHp) || s.hero.maxHp || 1;
       for (const uid of [p.activeUid, p.secondUid]) {
         const pet = (p.collection || []).find(x => x.uid === uid);
-        if (pet) pet.hunger = 100;
+        if (pet) {
+          pet.hunger = 100;
+          Engine.ensurePetHp(pet, pMaxH);
+          const max = Engine.petMaxHp(pet, pMaxH);
+          if (pet.hp <= 0) {
+            pet.hp = Math.ceil(max * 0.5);
+            UI.combatLog(`💚 Mend Pet revives ${pet.name || 'your pet'}!`, 'heal');
+          } else if (pet.hp < max) {
+            pet.hp = max;
+          }
+        }
       }
       if (fx.petDmgPct) Engine.addBuff(s, 'petDmgPct', fx.petDmgPct, fx.sec);
       UI.floatText('MENDED', 'heal');
