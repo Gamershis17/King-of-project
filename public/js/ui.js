@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261001s';
+import * as Engine from './engine.js?v20261001q';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -1938,7 +1938,7 @@ export const UI = {
     // Pet bond contribution (flat, added after multipliers) — small chip when nonzero.
     const bond = stats.bond || { atk: 0, def: 0, hp: 0 };
     const bondChip = (bond.atk + bond.def + bond.hp) > 0
-      ? `<span class="buff-chip" title="Pet bond: +${bond.atk} ATK, +${bond.def} DEF, +${bond.hp} max HP">🔗 +${bond.atk}⚔️ +${bond.def}🛡️ +${bond.hp}❤️</span>` : '';
+      ? `<span class="buff-chip" title="Pet bond: +${formatNum(bond.atk)} ATK, +${formatNum(bond.def)} DEF, +${formatNum(bond.hp)} max HP">🔗 +${formatNum(bond.atk)}⚔️ +${formatNum(bond.def)}🛡️ +${formatNum(bond.hp)}❤️</span>` : '';
     // Kill streak: boosts loot drop chance (+1% per 25, max +10%). Resets on death.
     const streak = Math.max(0, Math.floor(state.streak || 0));
     const streakBonus = Engine.streakDropBonus(streak);
