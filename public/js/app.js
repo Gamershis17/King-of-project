@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002s';
-import * as Engine from './engine.js?v20261002s';
-import { UI, esc, formatNum } from './ui.js?v20261002s';
+import { api } from './api.js?v20261002t';
+import * as Engine from './engine.js?v20261002t';
+import { UI, esc, formatNum } from './ui.js?v20261002t';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -235,7 +235,6 @@ async function boot() {
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
-    onTalent: doTalent,
     onProfession: doProfession,
     onSaveState: () => saveNow(),
     onExternalState: applyExternalState,
@@ -2054,18 +2053,7 @@ function doUpgrade(kind) {
   saveNow();
 }
 
-function doTalent(id) {
-  const s = App.state;
-  if (!s) return;
-  if (Engine.spendTalent(s, id)) {
-    UI.renderMore(s, App.user);
-    UI.updateHUD(s, App.user);
-    UI.toast(`🧠 ${Engine.TALENTS[id].name} ranked up!`, 'success');
-    saveNow();
-  } else {
-    UI.toast('Need a Mastery point — earn 1 per 10 levels.', 'error');
-  }
-}
+// Mastery talents removed — doTalent() deleted with the Mastery panel.
 
 // Class talent trees (Hunter prototype): spend one point on a talent node.
 function doSpendClassTalent(treeId, talentId) {

@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002s';
+import * as Engine from './engine.js?v20261002t';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -5106,7 +5106,6 @@ export const UI = {
     // Safety: guard against missing element (stale HTML after deploy).
     const pcEl = this.els['profile-card'];
     if (pcEl) pcEl.innerHTML = `
-      ${this.masteryCard(state)}
       ${this.professionsCard(state)}
       ${this.achievementsCard(state)}`;
     this.checkChangelogBadge();
@@ -5353,23 +5352,6 @@ export const UI = {
     } else {
       this.toast('Sharing is not supported on this device.', 'error');
     }
-  },
-
-  masteryCard(state) {
-    const m = state.mastery || { points: 0, spent: {} };
-    const rows = Object.entries(Engine.TALENTS).map(([id, t]) => {
-      const rank = (m.spent && m.spent[id]) || 0;
-      const maxed = rank >= t.max;
-      const pips = '●'.repeat(rank) + '○'.repeat(t.max - rank);
-      return `<div class="talent-row">
-        <div class="talent-info"><span class="talent-emoji">${t.emoji}</span>
-          <div><div class="talent-name">${esc(t.name)} <span class="pips">${pips}</span></div>
-          <div class="muted small">${esc(t.desc)}</div></div></div>
-        <button class="btn small ${maxed || m.points < 1 ? 'disabled' : 'gold'}" data-action="talent" data-id="${id}"
-          ${maxed || m.points < 1 ? 'disabled' : ''}>${maxed ? 'MAX' : '⬆️ 1 pt'}</button>
-      </div>`;
-    }).join('');
-    return `<div class="card sub-card"><h3>🧠 Mastery <span class="muted small">(${m.points || 0} point${(m.points || 0) === 1 ? '' : 's'} — earn 1 per 10 levels)</span></h3>${rows}</div>`;
   },
 
   professionsCard(state) {
