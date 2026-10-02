@@ -18,7 +18,7 @@
 // ============================================================
 
 import { api } from './api.js?v=20260930ar';
-import { COUNTRIES, countryFlag } from './engine.js?v20261001w';
+import { COUNTRIES, countryFlag } from './engine.js?v20261003s';
 
 const NAMES = Object.fromEntries(COUNTRIES);
 const MAX_DPR = 2;
