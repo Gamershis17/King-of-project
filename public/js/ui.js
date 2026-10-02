@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002a';
+import * as Engine from './engine.js?v20261002b';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -1239,17 +1239,8 @@ export const UI = {
       + `<div class="paper-hptext">❤️ ${formatNum(hp)} / ${formatNum(maxHp)}</div>`;
 
     // Pet HP bar: small bar under player HP for the active pet.
+    // Pet HP bar removed from Character panel — shown on battle screen under Focus instead.
     let petHpHTML = '';
-    if (active) {
-      const p = (E.ensurePetHp && E.ensurePetHp(active)) || active;
-      const pMax = (E.petMaxHp && E.petMaxHp(active)) || 1;
-      const pFrac = pMax > 0 ? (p.hp || 0) / pMax : 0;
-      const sp2 = (E.petSpeciesOf && E.petSpeciesOf(active)) || {};
-      petHpHTML = `<div class="pet-hpbar-wrap">`
-        + `<div class="pet-hpbar-label">🐾 ${esc(sp2.name || 'Pet')} <span>${formatNum(p.hp || 0)} / ${formatNum(pMax)}</span></div>`
-        + `<div class="pet-hpbar"><div style="width:${Math.min(100, pFrac * 100)}%"></div></div>`
-        + `</div>`;
-    }
 
     // NPC healer Sylvara: badge if recruited, recruit button if not.
     // Healer (Sylvara) moved to Party tab — not shown on Character panel.
@@ -1936,36 +1927,6 @@ export const UI = {
         `${rdef.emoji} ${Math.floor(rval)} / ${rdef.max} ${rdef.name}`);
     } else if (rbar) {
       rbar.classList.add('hidden');
-    }
-    // Tiny pet HP bar — directly under the hero resource bar, always visible
-    // (even at 0 HP, showing knocked-out state).
-    let petBar = document.getElementById('pet-hpbar');
-    const pet = Engine.activePet ? Engine.activePet(state) : (state.activePet && state.pets ? state.pets[state.activePet] : null);
-    if (pet) {
-      if (!petBar) {
-        petBar = document.createElement('div');
-        petBar.id = 'pet-hpbar';
-        petBar.className = 'bar pet-hp tiny';
-        petBar.innerHTML = `<div class="fill" id="pet-hpfill"></div><span class="bar-text" id="pet-hptext"></span>`;
-        // Insert right after the resource bar (or after hero HP if no resource bar).
-        const anchor = rbar || (e['hero-hpfill'] && e['hero-hpfill'].parentElement);
-        if (anchor && anchor.parentElement) anchor.parentElement.insertBefore(petBar, anchor.nextSibling);
-      }
-      petBar.classList.remove('hidden');
-      const pMax = Engine.petMaxHp ? Engine.petMaxHp(state) : (pet.maxHp || 1);
-      const pHp = Math.max(0, pet.hp || 0);
-      const pfill = document.getElementById('pet-hpfill');
-      if (pfill) {
-        pfill.style.background = pHp > 0 ? '#4caf50' : '#555';
-        setBarFill(pfill, pMax > 0 ? (pHp / pMax) * 100 : 0);
-      }
-      const pEmoji = pet.emoji || '🐾';
-      const pName = pet.name || 'Pet';
-      setText(document.getElementById('pet-hptext'),
-        pHp > 0 ? `${pEmoji} ${pName} ${formatNum(pHp)} / ${formatNum(pMax)}` : `${pEmoji} ${pName} KO`);
-      petBar.classList.toggle('pet-dead', pHp <= 0);
-    } else if (petBar) {
-      petBar.classList.add('hidden');
     }
     if (battle && battle.enemy) this.updateEnemy(battle.enemy);
     // potion counts + shared 60s cooldown
