@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002n';
+import * as Engine from './engine.js?v20261002o';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -1856,7 +1856,8 @@ export const UI = {
     this.els['rebirth-box'].classList.toggle('hidden', !showRebirth);
     if (showRebirth) {
       const nextMult = Engine.rebirthXpMult ? Engine.rebirthXpMult((state.rebirthCount || 0) + 1) : 1;
-      this.els['rebirth-note'].innerHTML =
+      // Safety: guard against missing element (stale HTML after deploy).
+      if (this.els['rebirth-note']) this.els['rebirth-note'].innerHTML =
         `Return to <b class="gold-text">level 1</b> — everything else stays (stage, gold, gear, pets, titles).<br>` +
         `<span class="muted">Rebirths so far: ${state.rebirthCount || 0} · 🌀 Tokens: <b>${state.rebirthTokens || 0}</b> ` +
         `(spend in the 🌀 Token Shop).<br>` +
@@ -1898,6 +1899,8 @@ export const UI = {
 
   // Light per-tick refresh: hero bars, chips, skill cooldown.
   updateBattle(state, stats, battle) {
+    // Safety: bail on missing/corrupted state (prevents crash on bad save).
+    if (!state || !state.hero) return;
     const e = this.els;
     // Condensed title aura on the hero banner (change-detected internally).
     this.syncCombatTitleFx(state);
@@ -2004,7 +2007,9 @@ export const UI = {
     const streakBonus = Engine.streakDropBonus(streak);
     const streakChip = streak >= 5
       ? `<span class="buff-chip" title="Kill streak: +${streakBonus}% loot drop chance (max +10% at 250). Dies with you.">🔥 ${streak} streak +${streakBonus}% loot</span>` : '';
-    this.els['hero-stats'].innerHTML = `
+    // Safety: guard against missing element (stale HTML after deploy).
+    const hsEl = this.els['hero-stats'];
+    if (hsEl) hsEl.innerHTML = `
       <span>⚔️ ${formatNum(stats.attack)}</span>
       <span>🛡️ ${formatNum(stats.defense)}</span>
       <span>💥 ${Engine.round1(stats.critChance)}%</span>
@@ -4098,9 +4103,13 @@ export const UI = {
   renderParty(state, ctx) {
     this.renderMpParty((ctx && ctx.mpParty) || null, ctx, state);
     const slots = this.els['party-slots'];
+    // Safety: missing element (stale HTML after deploy) — skip silently.
+    if (!slots) return;
     slots.innerHTML = '';
+    // Safety: guard against missing/corrupted party array.
+    const party = (state && Array.isArray(state.party)) ? state.party : [];
     for (let i = 0; i < Engine.MAX_PARTY; i++) {
-      const c = state.party[i];
+      const c = party[i];
       const div = document.createElement('div');
       div.className = 'member' + (c ? '' : ' empty');
       if (c) {
@@ -5094,7 +5103,9 @@ export const UI = {
     // Staff tab in the main nav: visible to staff only, opens the GM console.
     const staffBtn = document.getElementById('tabbtn-staff');
     if (staffBtn) staffBtn.classList.toggle('hidden', !canGM);
-    this.els['profile-card'].innerHTML = `
+    // Safety: guard against missing element (stale HTML after deploy).
+    const pcEl = this.els['profile-card'];
+    if (pcEl) pcEl.innerHTML = `
       ${this.masteryCard(state)}
       ${this.professionsCard(state)}
       ${this.achievementsCard(state)}`;
@@ -5112,7 +5123,9 @@ export const UI = {
     const badge = state.badge ? Engine.badgeDef(state.badge) : null;
     const countryOpts = `<option value="">— no flag —</option>` + Engine.COUNTRIES.map(c =>
       `<option value="${c.code}"${state.country === c.code ? ' selected' : ''}>${Engine.countryFlag(c.code)} ${esc(c.name)}</option>`).join('');
-    this.els['stats-card'].innerHTML = `
+    // Safety: guard against missing element (stale HTML after deploy).
+    const scEl = this.els['stats-card'];
+    if (scEl) scEl.innerHTML = `
       <div class="profile-head">
         <div class="profile-emoji">${race.emoji || '❓'}</div>
         <div>
