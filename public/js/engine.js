@@ -541,6 +541,7 @@ export function defaultState(race) {
     pets: { collection: [], activeUid: null, eggs: 0 }, // pet system (all players)
     mine: { depth: 1, rockHp: 30, rockMaxHp: 30, ores: {} }, // mining (backfilled by ensureMine)
     forge: { weapon: null, armor: null }, // at most ONE forged galaxy weapon + ONE forged armor
+    npcHealer: null, // NPC druid healer "Sylvara" — {name, level, lastResurrect, resurrectedThisBattle}
   };
 }
 
@@ -2257,6 +2258,117 @@ export function activePet(s) {
 
 export function petSpeciesOf(pet) {
   return (pet && PET_SPECIES[pet.species]) || null;
+}
+
+// ---------------------------------------------------------------------------
+// NPC Druid Healer "Sylvara"
+// ---------------------------------------------------------------------------
+// A recruitable NPC companion who heals the party in battle and can resurrect
+// a fallen member once per battle (5-minute cooldown).
+// ---------------------------------------------------------------------------
+
+export const HEALER_RECRUIT_COST = 10000; // gold
+export const HEALER_NAME = 'Sylvara';
+export const HEALER_TICK_SEC = 5;        // heals every 5 seconds in battle
+export const HEALER_HEAL_FRAC = 0.15;    // heals 15% of target's max HP
+export const HEALER_RES_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+export const HEALER_RES_HP_FRAC = 0.5;   // resurrect at 50% HP
+
+// Recruit Sylvara for gold. Returns true on success, false if already have her
+// or not enough gold. Does NOT deduct if infGold (owner perk) — matches shop.
+export function recruitHealer(s) {
+  if (s.npcHealer) return false;
+  if (!s.infGold && (s.gold || 0) < HEALER_RECRUIT_COST) return false;
+  if (!s.infGold) s.gold -= HEALER_RECRUIT_COST;
+  s.npcHealer = {
+    name: HEALER_NAME,
+    level: Math.max(1, s.level || 1),
+    lastResurrect: 0,          // timestamp ms of last resurrect (cooldown)
+    resurrectedThisBattle: false,
+  };
+  return true;
+}
+
+export function hasHealer(s) {
+  return !!(s && s.npcHealer);
+}
+
+// Pet HP: simple system so the healer (and UI) has something to work with.
+// maxHp scales with pet level; hp is backfilled to full on first access.
+export function petMaxHp(pet) {
+  const lvl = Math.max(1, Math.floor((pet && pet.level) || 1));
+  return 50 + lvl * 25;
+}
+
+export function ensurePetHp(pet) {
+  if (!pet || typeof pet !== 'object') return null;
+  const max = petMaxHp(pet);
+  if (!Number.isFinite(pet.hp)) pet.hp = max;
+  pet.hp = Math.max(0, Math.min(max, pet.hp));
+  return pet;
+}
+
+// Pick the heal target: lowest HP fraction among player and active pets.
+// Returns {kind:'player'} or {kind:'pet', pet}. Skips dead/knocked-out targets
+// for the regular heal tick (resurrect is handled separately).
+export function healerPickTarget(s, stats) {
+  const cands = [];
+  const pMax = (stats && stats.maxHp) || s.hero.maxHp || 1;
+  if (s.hero.hp > 0) cands.push({ kind: 'player', frac: s.hero.hp / pMax });
+  for (const pet of activePets(s)) {
+    ensurePetHp(pet);
+    const pm = petMaxHp(pet);
+    if (pet.hp > 0) cands.push({ kind: 'pet', pet, frac: pet.hp / pm });
+  }
+  if (!cands.length) return null;
+  cands.sort((a, b) => a.frac - b.frac);
+  return cands[0];
+}
+
+// Apply one healer tick. Returns a description string, or null if nothing.
+// Heals the lowest-HP-fraction target for HEALER_HEAL_FRAC of their max HP.
+export function healerTick(s, stats) {
+  if (!hasHealer(s)) return null;
+  const t = healerPickTarget(s, stats);
+  if (!t) return null;
+  // Don't overheal a full target.
+  if (t.frac >= 1) return null;
+  if (t.kind === 'player') {
+    const max = (stats && stats.maxHp) || s.hero.maxHp;
+    const amt = Math.ceil(max * HEALER_HEAL_FRAC);
+    s.hero.hp = Math.min(max, s.hero.hp + amt);
+    return `${HEALER_NAME} heals you for ${amt}`;
+  }
+  const pet = ensurePetHp(t.pet);
+  const max = petMaxHp(pet);
+  const amt = Math.ceil(max * HEALER_HEAL_FRAC);
+  pet.hp = Math.min(max, pet.hp + amt);
+  const sp = petSpeciesOf(pet) || {};
+  return `${HEALER_NAME} heals ${sp.name || 'your pet'} for ${amt}`;
+}
+
+// Can the healer resurrect right now? (has her, cooldown elapsed, not used
+// this battle yet)
+export function healerCanResurrect(s) {
+  if (!hasHealer(s)) return false;
+  const h = s.npcHealer;
+  if (h.resurrectedThisBattle) return false;
+  return Date.now() - (h.lastResurrect || 0) >= HEALER_RES_COOLDOWN_MS;
+}
+
+// Resurrect the player at HEALER_RES_HP_FRAC of max HP. Returns true if done.
+export function healerResurrect(s, stats) {
+  if (!healerCanResurrect(s)) return false;
+  const max = (stats && stats.maxHp) || s.hero.maxHp;
+  s.hero.hp = Math.ceil(max * HEALER_RES_HP_FRAC);
+  s.npcHealer.lastResurrect = Date.now();
+  s.npcHealer.resurrectedThisBattle = true;
+  return true;
+}
+
+// Call when a new battle starts so the once-per-battle resurrect refreshes.
+export function healerNewBattle(s) {
+  if (s && s.npcHealer) s.npcHealer.resurrectedThisBattle = false;
 }
 
 // Pet eggs drop from bosses: flat 15% on any boss kill (normal bosses,

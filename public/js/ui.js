@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261001q';
+import * as Engine from './engine.js?v20261001y';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -422,6 +422,7 @@ export const UI = {
       if (btn.dataset.action === 'set-active-pet' && h.onSetActivePet) h.onSetActivePet(btn.dataset.id);
       if (btn.dataset.action === 'set-second-pet' && h.onSetSecondPet) h.onSetSecondPet(btn.dataset.id);
       if (btn.dataset.action === 'remove-second-pet' && h.onRemoveSecondPet) h.onRemoveSecondPet();
+      if (btn.dataset.action === 'recruit-healer' && h.onRecruitHealer) h.onRecruitHealer();
       if (btn.dataset.action === 'buy-egg' && h.onBuyEgg) h.onBuyEgg(btn.dataset.tier);
       if (btn.dataset.action === 'breed-select') this._toggleBreedSelect(btn.dataset.id);
       if (btn.dataset.action === 'combine-select') this._toggleCombineSelect(btn.dataset.id);
@@ -1213,6 +1214,36 @@ export const UI = {
     const leftSlots = ['helmet', 'armor'];
     const rightSlots = ['boots', 'trinket', 'weapon'];
     const classBg = `img/bg/class-${state.playerClass || 'hunter'}.jpg`;
+
+    // Player HP bar: thicker with low-HP warning glow.
+    const hpFrac = maxHp > 0 ? hp / maxHp : 0;
+    const hpLow = hpFrac < 0.3;
+    const hpBarHTML = `<div class="paper-hpbar${hpLow ? ' low' : ''}"><div style="width:${Math.min(100, hpFrac * 100)}%"></div></div>`
+      + `<div class="paper-hptext">❤️ ${formatNum(hp)} / ${formatNum(maxHp)}</div>`;
+
+    // Pet HP bar: small bar under player HP for the active pet.
+    let petHpHTML = '';
+    if (active) {
+      const p = (E.ensurePetHp && E.ensurePetHp(active)) || active;
+      const pMax = (E.petMaxHp && E.petMaxHp(active)) || 1;
+      const pFrac = pMax > 0 ? (p.hp || 0) / pMax : 0;
+      const sp2 = (E.petSpeciesOf && E.petSpeciesOf(active)) || {};
+      petHpHTML = `<div class="pet-hpbar-wrap">`
+        + `<div class="pet-hpbar-label">🐾 ${esc(sp2.name || 'Pet')} <span>${formatNum(p.hp || 0)} / ${formatNum(pMax)}</span></div>`
+        + `<div class="pet-hpbar"><div style="width:${Math.min(100, pFrac * 100)}%"></div></div>`
+        + `</div>`;
+    }
+
+    // NPC healer Sylvara: badge if recruited, recruit button if not.
+    let healerHTML = '';
+    if (state.npcHealer) {
+      healerHTML = `<div class="healer-badge" title="${esc(state.npcHealer.name)} — heals your party in battle">🌿 ${esc(state.npcHealer.name)}</div>`;
+    } else {
+      const cost = (E.HEALER_RECRUIT_COST || 10000);
+      const canAfford = (state.gold || 0) >= cost;
+      healerHTML = `<button class="healer-recruit${canAfford ? '' : ' disabled'}" data-action="recruit-healer"`
+        + `${canAfford ? '' : ' disabled'}>🌿 Recruit ${esc((E.HEALER_NAME || 'Sylvara'))} (${formatNum(cost)}g)</button>`;
+    }
     // Class portrait: generated 2D art if available, falling back to the class
     // emoji (necromancer/berserker have no portrait yet).
     const portraitImg = `img/portrait-${state.playerClass || 'hunter'}.webp`;
@@ -1244,8 +1275,9 @@ export const UI = {
         + `<div class="paper-portrait wow-portrait" style="background-image:url('${esc(classBg)}');border-color:${esc(bestRarColor)}">`
         + `<img class="wow-portrait-img" src="${esc(portraitImg)}" alt="" onerror="this.remove()">`
         + `<span class="wow-portrait-emoji">${esc(cls.emoji || '🦸')}</span></div>`
-        + `<div class="paper-hpbar"><div style="width:${Math.min(100, (hp / maxHp) * 100)}%"></div></div>`
-        + `<div class="paper-hptext">❤️ ${formatNum(hp)} / ${formatNum(maxHp)}</div>`
+        + hpBarHTML
+        + petHpHTML
+        + healerHTML
         + petHTML
         + `</div>`
         + `<div class="paper-col">${rightSlots.map(slotHTML).join('')}</div>`

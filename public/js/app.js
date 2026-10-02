@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261001k';
-import * as Engine from './engine.js?v20261001w';
-import { UI, esc, formatNum } from './ui.js?v20261001v';
+import { api } from './api.js?v20261001y';
+import * as Engine from './engine.js?v20261001y';
+import { UI, esc, formatNum } from './ui.js?v20261001y';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -217,6 +217,7 @@ async function boot() {
     onSetActivePet: doSetActivePet,
     onSetSecondPet: doSetSecondPet,
     onRemoveSecondPet: doRemoveSecondPet,
+    onRecruitHealer: doRecruitHealer,
     onBuyEgg: doBuyEgg,
     onBreedPets: doBreedPets,
     onCombinePets: doCombinePets,
@@ -979,6 +980,7 @@ function spawnEnemy() {
   App.enemySlow = null; // a fresh enemy never inherits the last one's frost slow
   App.companionTimers = {};
   App.healerTimers = {};
+  Engine.healerNewBattle(s); // NPC healer: refresh once-per-battle resurrect
   // revive downed companions on a fresh enemy
   for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
@@ -1264,6 +1266,14 @@ function enemyStrikeTick(stats) {
     heroDmg = Math.max(0, Math.round(heroDmg * Engine.damageTakenMult(s)));
     if (Engine.resourceIdFor(s) === 'rage') Engine.gainRage(s, Engine.RAGE_PER_HIT_TAKEN);
     s.hero.hp -= heroDmg;
+    // Active pet shares 20% of the blow (so pet HP matters + healer has work).
+    const ap = Engine.activePet(s);
+    if (ap) {
+      Engine.ensurePetHp(ap);
+      const petDmg = Math.max(1, Math.round(heroDmg * 0.2));
+      ap.hp = Math.max(0, ap.hp - petDmg);
+      if (ap.hp <= 0) UI.combatLog(`💔 Your pet is knocked out!`, 'death');
+    }
     UI.floatText(`-${formatNum(heroDmg)}`, 'hurt');
     if (s.hero.hp <= 0) { s.hero.hp = 0; onDefeat(); }
   } else {
@@ -1278,6 +1288,16 @@ function enemyStrikeTick(stats) {
 
 function onDefeat() {
   const s = App.state;
+  // NPC healer Sylvara: resurrect once per battle (5-min cooldown) at 50% HP.
+  if (Engine.healerCanResurrect(s)) {
+    const stats = Engine.computeStats(s);
+    if (Engine.healerResurrect(s, stats)) {
+      UI.toast(`🌿 ${Engine.HEALER_NAME} brings you back to life!`, 'success');
+      UI.combatLog(`🌿 ${Engine.HEALER_NAME} resurrects you at 50% HP!`, 'heal');
+      UI.updateHUD(s, App.user);
+      return; // not dead after all
+    }
+  }
   App.dead = true;
   App.respawnAt = Date.now() + RESPAWN_MS;
   // Death breaks the kill streak.
@@ -1419,6 +1439,17 @@ function tick() {
   if (stats.regen > 0 && s.hero.hp < stats.maxHp) {
     s.hero.hp = Math.min(stats.maxHp, s.hero.hp + stats.regen * dt);
   }
+
+  // NPC healer Sylvara: heals the lowest-HP party member every 5 seconds.
+  if (Engine.hasHealer(s) && !App.dead) {
+    App.healerTimer = (App.healerTimer || 0) + dt;
+    if (App.healerTimer >= Engine.HEALER_TICK_SEC) {
+      App.healerTimer = 0;
+      const msg = Engine.healerTick(s, stats);
+      if (msg) UI.combatLog(`🌿 ${msg}`, 'heal');
+    }
+  }
+
   // Class resources: focus/mana/energy regen via the generic ticker
   // (rage has no passive regen — it builds on strikes and hits taken).
   Engine.tickResources(s, dt);
@@ -2419,6 +2450,25 @@ function doSetActivePet(petUid) {
   const sp = Engine.petSpeciesOf(pet);
   UI.toast(`${sp.emoji} ${sp.name} is now your active pet!`, 'success');
   UI.renderPetsTab(App.state);
+  saveNow();
+}
+
+function doRecruitHealer() {
+  const s = App.state;
+  if (!s) return;
+  if (Engine.hasHealer(s)) {
+    UI.toast(`${Engine.HEALER_NAME} is already in your party!`, 'info');
+    return;
+  }
+  if (Engine.recruitHealer(s)) {
+    UI.toast(`🌿 ${Engine.HEALER_NAME} the druid joins your party!`, 'success');
+    UI.combatLog(`🌿 ${Engine.HEALER_NAME} joins the party — she will heal and can resurrect once per battle.`, 'heal');
+  } else {
+    UI.toast(`Need ${formatNum(Engine.HEALER_RECRUIT_COST)} gold to recruit ${Engine.HEALER_NAME}.`, 'error');
+  }
+  // Re-render the character tab so the badge/button updates.
+  if (UI.activeTab === 'character' && UI.renderCharacter) UI.renderCharacter(s, Engine.computeStats(s));
+  UI.updateHUD(s, App.user);
   saveNow();
 }
 
