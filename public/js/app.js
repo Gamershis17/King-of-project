@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002h';
-import * as Engine from './engine.js?v20261002h';
-import { UI, esc, formatNum } from './ui.js?v20261002h';
+import { api } from './api.js?v20261002i';
+import * as Engine from './engine.js?v20261002i';
+import { UI, esc, formatNum } from './ui.js?v20261002i';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -980,6 +980,11 @@ function spawnEnemy() {
   App.enemy = s.mode === 'raid'
     ? (Raid.isActive() ? Raid.spawnEnemy(s) : Raid.enter(s))
     : Engine.enemyFor(s.stage, Engine.computeStats(s));
+  // Dungeon balance: bosses have 40% less HP in dungeons (party challenge, not solo).
+  if (s.mode === 'dungeon' && App.enemy.boss) {
+    App.enemy.hp = Math.round(App.enemy.hp * 0.6);
+    App.enemy.maxHp = Math.round(App.enemy.maxHp * 0.6);
+  }
   App.enemyTimer = 0;
   App.heroTimer = 0;
   App.enemySlow = null; // a fresh enemy never inherits the last one's frost slow
@@ -1257,7 +1262,13 @@ function enemyStrikeTick(stats) {
     target = pickId === 'hero' ? { kind: 'hero' } : { kind: 'comp', c: s.party.find(c => c.id === pickId) };
   }
   const tStats = target.kind === 'hero' ? stats : Engine.companionStats(target.c);
-  const res = Engine.enemyStrike(tStats, enemy.attack);
+  // Dungeon balance: companions take 80% reduced damage so they survive.
+  // (Boss attack is scaled to player HP, which one-shots companions.)
+  let enemyAtk = enemy.attack;
+  if (s.mode === 'dungeon' && target.kind === 'comp') {
+    enemyAtk = Math.round(enemyAtk * 0.2);
+  }
+  const res = Engine.enemyStrike(tStats, enemyAtk);
   const tName = target.kind === 'hero' ? 'You' : target.c.name;
 
   if (res.dodged) {
