@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002g';
-import * as Engine from './engine.js?v20261002g';
-import { UI, esc, formatNum } from './ui.js?v20261002g';
+import { api } from './api.js?v20261002h';
+import * as Engine from './engine.js?v20261002h';
+import { UI, esc, formatNum } from './ui.js?v20261002h';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -2555,6 +2555,7 @@ function doRecruitHealer() {
   }
   // Re-render the character tab so the badge/button updates.
   if (UI.activeTab === 'character' && UI.renderCharacter) UI.renderCharacter(s, Engine.computeStats(s));
+  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
   UI.updateHUD(s, App.user);
   saveNow();
 }
