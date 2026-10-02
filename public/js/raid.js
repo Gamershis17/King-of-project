@@ -33,7 +33,7 @@ import {
   isRaidBoss,
   raidWaveScaling,
   ensureRaidState,
-} from './engine.js?v=20260930ar';
+} from './engine.js?v=20261002r';
 
 // Module-level run state (not saved; the run always restarts at wave 1).
 let _active = false;
@@ -42,11 +42,17 @@ let _wave = 0;
 export const Raid = {
   // Normalize state.raid = { best: 0 }. Safe on old saves.
   init(state) {
-    return ensureRaidState(state);
+    ensureRaidState(state);
+    // Safety: if page reloaded mid-raid, module state is lost — reset mode to
+    // avoid inconsistent state (mode='raid' but no active run).
+    if (!_active && state && state.mode === 'raid') state.mode = 'normal';
+    return state && state.raid ? state.raid : null;
   },
 
   // Start a raid run. Sets mode='raid', wave 1. Returns the wave-1 enemy.
   enter(state) {
+    // Safety: guard against null/undefined state.
+    if (!state || typeof state !== 'object') return null;
     ensureRaidState(state);
     _active = true;
     _wave = 0;
@@ -72,13 +78,16 @@ export const Raid = {
   // Best wave ever reached (persisted on state.raid).
   best(state) {
     ensureRaidState(state);
-    return state.raid.best;
+    // Safety: guard against corrupted state.raid.
+    return (state && state.raid && typeof state.raid.best === 'number') ? state.raid.best : 0;
   },
 
   // Spawn the next wave's enemy. Returns the enemy object
   // (Engine.raidEnemyFor shape: { name, stage, boss, raidWave, hp, maxHp,
   // attack, emoji, lootTier, goldMult }).
   spawnEnemy(state) {
+    // Safety: guard against null/undefined state.
+    if (!state || typeof state !== 'object') return null;
     ensureRaidState(state);
     _active = true;
     _wave = Math.max(1, _wave + 1);
@@ -91,6 +100,8 @@ export const Raid = {
   //   { wave, boss, goldMult, lootTier }
   // The caller then spawns the next wave via Raid.spawnEnemy(state).
   onKill(state) {
+    // Safety: return safe defaults on null/undefined state.
+    if (!state || typeof state !== 'object') return { wave: 0, boss: false, goldMult: 1, lootTier: 0 };
     ensureRaidState(state);
     const wave = _wave;
     const boss = isRaidBoss(wave);
@@ -101,6 +112,7 @@ export const Raid = {
 
   // Call when the hero dies mid-raid. Ends the run; all loot earned
   // during the run is kept. Returns { wavesCleared, best }.
+  // Note: caller must reset state.mode — the raid run is over.
   onDeath(state) {
     const wavesCleared = _wave;
     _active = false;

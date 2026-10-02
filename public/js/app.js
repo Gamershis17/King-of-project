@@ -1,13 +1,13 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002q';
-import * as Engine from './engine.js?v20261002q';
-import { UI, esc, formatNum } from './ui.js?v20261002q';
+import { api } from './api.js?v20261002r';
+import * as Engine from './engine.js?v20261002r';
+import { UI, esc, formatNum } from './ui.js?v20261002r';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
-import { Raid } from './raid.js?v=20260930ar';
+import { Raid } from './raid.js?v=20261002r';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
 import { Realm } from './realm.js?v=20260930ar';
