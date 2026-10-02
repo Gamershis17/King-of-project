@@ -43,6 +43,7 @@ const {
   leaveGuild,
   getGoldCap,
   getSetting,
+  pool,
   // guild rework
   GUILD_RANKS,
   guildPerks,
@@ -1000,7 +1001,7 @@ router.get(
         myName: req.user.username,
         myCredits: Number(myCredits) || 0,
         myTitle: myTitle || null,
-        perks: guildPerks(level),
+        perks: guildPerks(level, hallFromGuildRow(guild)),
         xpForNext: xpForGuildLevel(level + 1),
         unlockedBanners,
       },
@@ -1018,7 +1019,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const mine = await getMyGuild(req.user.username);
     if (!mine) return res.json({ inGuild: false, perks: null });
-    res.json({ inGuild: true, perks: guildPerks(Number(mine.level) || 1) });
+    res.json({ inGuild: true, perks: guildPerks(Number(mine.level) || 1, hallFromGuildRow(mine)) });
   })
 );
 
@@ -1037,7 +1038,7 @@ router.get(
       xp,
       xpForNext: xpForGuildLevel(level + 1),
       xpForCurrent: xpForGuildLevel(level),
-      perks: guildPerks(level),
+      perks: guildPerks(level, hallFromGuildRow(mine)),
     });
   })
 );
@@ -1068,6 +1069,28 @@ router.get(
 // ---------- guild rework endpoints ----------
 
 /** Load the caller's guild + rank; 404 when not in a guild. */
+/** Extract hall levels {valor, treasury, forge} from a guild row. */
+function hallFromGuildRow(g) {
+  return {
+    valor: Number(g.hall_valor_level) || 0,
+    treasury: Number(g.hall_treasury_level) || 0,
+    forge: Number(g.hall_forge_level) || 0,
+  };
+}
+
+// Guild Hall buildings: id -> { name, column, desc }.
+const HALL_BUILDINGS = {
+  valor: { name: 'Hall of Valor', column: 'hall_valor_level', desc: '+1% XP and +2% damage per level' },
+  treasury: { name: 'Treasury', column: 'hall_treasury_level', desc: '+2% gold per level' },
+  forge: { name: 'Forge Shrine', column: 'hall_forge_level', desc: '+3% mining yield per level' },
+};
+const HALL_MAX_LEVEL = 10;
+
+/** Upgrade cost for going from currentLevel -> currentLevel+1. */
+function hallUpgradeCost(currentLevel) {
+  return 100000 * Math.pow(2, Math.max(0, Math.floor(currentLevel || 0)));
+}
+
 async function guildContext(req, res) {
   const mine = await getMyGuild(req.user.username);
   if (!mine) {
@@ -1394,6 +1417,143 @@ router.post(
         return res.status(400).json({ error: 'That banner is not unlocked yet. Buy it in Rewards.' });
       }
       throw err;
+    }
+  })
+);
+
+// Donate personal gold to the guild treasury.
+// Atomic: locks the player_state row and guild row in one transaction so
+// concurrent donations and autosaves cannot create or lose gold.
+router.post(
+  '/guilds/donate',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    const amount = Math.floor(Number(req.body && req.body.amount));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Invalid donation amount.' });
+    }
+    if (amount > 1e15) {
+      return res.status(400).json({ error: 'Donation amount too large.' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const stateRes = await client.query(
+        'SELECT state_json FROM player_state WHERE user_id = $1 FOR UPDATE',
+        [req.user.id]
+      );
+      if (!stateRes.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'No character found.' });
+      }
+      let blob;
+      try {
+        blob = JSON.parse(stateRes.rows[0].state_json);
+      } catch {
+        await client.query('ROLLBACK');
+        return res.status(500).json({ error: 'Character data is corrupted.' });
+      }
+      const gold = Math.floor(Number(blob.gold) || 0);
+      if (gold < amount) {
+        await client.query('ROLLBACK');
+        return res.status(402).json({ error: 'Not enough gold.', gold });
+      }
+      blob.gold = gold - amount;
+      const guildRes = await client.query(
+        'SELECT treasury_gold FROM guilds WHERE id = $1 FOR UPDATE',
+        [ctx.guild.id]
+      );
+      if (!guildRes.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Guild not found.' });
+      }
+      const newTreasury = (Number(guildRes.rows[0].treasury_gold) || 0) + amount;
+      await client.query(
+        'UPDATE player_state SET state_json = $1, updated_at = $2 WHERE user_id = $3',
+        [JSON.stringify(blob), Date.now(), req.user.id]
+      );
+      await client.query('UPDATE guilds SET treasury_gold = $1 WHERE id = $2', [
+        newTreasury,
+        ctx.guild.id,
+      ]);
+      await client.query('COMMIT');
+      res.json({ ok: true, donated: amount, newGold: blob.gold, treasuryGold: newTreasury });
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      throw e;
+    } finally {
+      client.release();
+    }
+  })
+);
+
+// Upgrade a Guild Hall building using treasury gold.
+// Officer/Guild Master only. Atomic: treasury deduction and level increment
+// happen in a single transaction.
+router.post(
+  '/guilds/upgrade-hall',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const ctx = await guildContext(req, res);
+    if (!ctx) return;
+    if (!rankAtLeast(ctx.myRank, 'officer')) {
+      return res.status(403).json({ error: 'Only the Guild Master and Officers can upgrade the hall.' });
+    }
+    const buildingId = req.body && typeof req.body.building === 'string' ? req.body.building : '';
+    const building = HALL_BUILDINGS[buildingId];
+    if (!building) {
+      return res.status(400).json({ error: 'Invalid building.' });
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Column name comes from the HALL_BUILDINGS constant (not user input).
+      const guildRes = await client.query(
+        `SELECT treasury_gold, ${building.column} FROM guilds WHERE id = $1 FOR UPDATE`,
+        [ctx.guild.id]
+      );
+      if (!guildRes.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Guild not found.' });
+      }
+      const row = guildRes.rows[0];
+      const currentLevel = Math.max(0, Math.min(HALL_MAX_LEVEL, Math.floor(Number(row[building.column]) || 0)));
+      if (currentLevel >= HALL_MAX_LEVEL) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Building is already at max level.' });
+      }
+      const cost = hallUpgradeCost(currentLevel);
+      const treasury = Number(row.treasury_gold) || 0;
+      if (treasury < cost) {
+        await client.query('ROLLBACK');
+        return res.status(402).json({ error: 'Not enough gold in the guild treasury.', cost, treasuryGold: treasury });
+      }
+      const newLevel = currentLevel + 1;
+      const newTreasury = treasury - cost;
+      await client.query(
+        `UPDATE guilds SET ${building.column} = $1, treasury_gold = $2 WHERE id = $3`,
+        [newLevel, newTreasury, ctx.guild.id]
+      );
+      await client.query('COMMIT');
+      const hall = hallFromGuildRow(ctx.guild);
+      hall[buildingId] = newLevel;
+      const perks = guildPerks(Number(ctx.guild.level) || 1, hall);
+      res.json({
+        ok: true,
+        building: buildingId,
+        buildingName: building.name,
+        newLevel,
+        treasuryGold: newTreasury,
+        perks,
+        nextCost: newLevel < HALL_MAX_LEVEL ? hallUpgradeCost(newLevel) : null,
+      });
+    } catch (e) {
+      try { await client.query('ROLLBACK'); } catch { /* ignore */ }
+      throw e;
+    } finally {
+      client.release();
     }
   })
 );
