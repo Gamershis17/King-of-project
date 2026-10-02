@@ -1558,6 +1558,31 @@ router.post(
   })
 );
 
+// Presence heartbeat: marks the player as online (updates updated_at).
+// Called by the client every 60s while the game is open.
+router.post(
+  '/ping',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    await pool.query(
+      'UPDATE player_state SET updated_at = $1 WHERE user_id = $2',
+      [Date.now(), req.user.id]
+    );
+    res.json({ ok: true });
+  })
+);
+
+// Online player count: players active in the last 2 minutes.
+// Public (no auth) so the login screen can show it too.
+router.get('/online-count', asyncHandler(async (req, res) => {
+  const cutoff = Date.now() - 2 * 60 * 1000;
+  const { rows } = await pool.query(
+    'SELECT COUNT(*) AS c FROM player_state WHERE updated_at > $1',
+    [cutoff]
+  );
+  res.json({ onlineCount: Number(rows[0].c) || 0 });
+}));
+
 router.get(
   '/party',
   requireAuth,
