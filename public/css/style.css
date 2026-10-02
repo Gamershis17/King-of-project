@@ -5238,3 +5238,33 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
 #pet-hpbar.pet-dead .bar-text {
   color: #ff6b6b;
 }
+
+/* Mobile header fix: keep quick-nav buttons on a single row */
+@media (max-width: 600px) {
+  #hud .hud-row:first-child {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  #hud .hud-id {
+    flex-shrink: 1;
+    min-width: 0;
+  }
+  #hud-username {
+    max-width: 24vw;
+  }
+  .hud-currencies {
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    flex-shrink: 1;
+  }
+  .inn-top-btn {
+    min-width: 30px;
+    min-height: 30px;
+    width: 30px;
+    height: 30px;
+    padding: 2px;
+    font-size: 0.85rem;
+    flex: 0 0 auto;
+  }
+}
