@@ -21,7 +21,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
-const { requireAuth, asyncHandler } = require('./auth');
+const { requireAuth: baseRequireAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, validateUsername, VALID_CLASSES, VALID_SPECS } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const {
@@ -96,6 +96,43 @@ router.use((req, res, next) => {
   }
   next();
 });
+
+// Wrapped requireAuth: runs the base auth, then enforces maintenance mode.
+// When maintenance is on, owner/admin pass through; others get 503.
+// All protected routes using requireAuth get this automatically.
+async function requireAuth(req, res, next) {
+  return baseRequireAuth(req, res, () => maintenanceBypass(req, res, next));
+}
+
+// Maintenance mode bypass middleware.
+// When maintenance is on: standard users get 503, owner/admin pass through.
+// Must run after baseRequireAuth (needs req.user).
+// Excludes: /status and /auth/* are not under this router's auth, so no need to skip.
+async function maintenanceBypass(req, res, next) {
+  try {
+    let maintenance = false;
+    const override = await getSetting('maintenance_mode');
+    if (override === '1') maintenance = true;
+    else if (override !== '0' && process.env.MAINTENANCE_MODE === '1') maintenance = true;
+
+    if (!maintenance) return next();
+
+    // Maintenance is on: allow owner/admin through, block everyone else.
+    const role = req.user && req.user.role;
+    if (role === 'owner' || role === 'admin') return next();
+
+    const msg = await getSetting('maintenance_message');
+    return res.status(503).json({
+      error: 'Server is in maintenance mode.',
+      maintenance: true,
+      message: (typeof msg === 'string' && msg.trim()) || process.env.MAINTENANCE_MESSAGE || null,
+    });
+  } catch (e) {
+    // Safety: if the check itself fails, allow the request through rather
+    // than blocking all API traffic on a settings error.
+    return next();
+  }
+}
 
 // Per-user flood protection (keyed on user id so one bad actor can't
 // exhaust a shared IP budget, e.g. behind NAT). Applied after requireAuth
