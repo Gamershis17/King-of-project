@@ -232,6 +232,7 @@ async function boot() {
     onChangePassword: doChangePassword,
     onChangeUsername: doChangeUsername,
     onBuyArmory: doBuyArmory,
+    onTowerSweep: doTowerSweep,
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
@@ -988,9 +989,16 @@ async function saveNow(beaconOnly = false) {
 function spawnEnemy() {
   const s = App.state;
   // Raid mode spawns scaled waves instead of stage enemies.
-  App.enemy = s.mode === 'raid'
-    ? (Raid.isActive() ? Raid.spawnEnemy(s) : Raid.enter(s))
-    : Engine.enemyFor(s.stage, Engine.computeStats(s));
+  // Tower mode spawns the next tower floor boss.
+  if (s.mode === 'raid') {
+    App.enemy = Raid.isActive() ? Raid.spawnEnemy(s) : Raid.enter(s);
+  } else if (s.mode === 'tower') {
+    Engine.ensureTowerState(s);
+    const floor = Math.max(1, s.tower.floor + 1);
+    App.enemy = Engine.towerEnemyFor(floor, s.stage);
+  } else {
+    App.enemy = Engine.enemyFor(s.stage, Engine.computeStats(s));
+  }
   App.enemyTimer = 0;
   App.heroTimer = 0;
   App.enemySlow = null; // a fresh enemy never inherits the last one's frost slow
@@ -1119,6 +1127,14 @@ function petStrike(stats) {
 function damageEnemy(dmg, prefix, sourceLabel) {
   const enemy = App.enemy;
   if (!enemy || App.dead || App.spawnPending) return;
+  // Tower hazard: Damage Reflect — 20% of damage bounces back to the hero.
+  if (enemy.hazard === 'reflect' && dmg > 0) {
+    const s = App.state;
+    const reflectDmg = Math.max(1, Math.round(dmg * 0.2));
+    s.hero.hp -= reflectDmg;
+    UI.floatText(`-${formatNum(reflectDmg)}`, 'hurt');
+    if (s.hero.hp <= 0) { s.hero.hp = 0; onDefeat(); return; }
+  }
   enemy.hp -= dmg;
   const isCrit = String(prefix).includes('CRIT');
   UI.enemyHitFlash(isCrit); // red flash on crits
@@ -1181,11 +1197,28 @@ function onKillEnemy() {
   }
   const isDungeonBoss = enemy.boss && s.mode === 'dungeon';
   const isRaidBoss = inRaid && raidLoot && raidLoot.boss;
+  const isTowerBoss = s.mode === 'tower' && enemy.towerFloor;
   if (enemy.boss) {
     s.bossesKilled += 1;
     s.stars += 1; // bosses grant a star
     UI.combatLog(`👹 Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'boss');
     UI.toast(`Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'success');
+  }
+  // Tower progression: clearing a floor advances the tower, milestones grant rewards.
+  if (isTowerBoss) {
+    Engine.ensureTowerState(s);
+    const cleared = enemy.towerFloor;
+    if (cleared > s.tower.floor) {
+      s.tower.floor = cleared;
+      UI.combatLog(`🗼 Tower Floor ${cleared} cleared!`, 'boss');
+      const milestone = Engine.towerMilestoneFor(cleared);
+      if (milestone) {
+        // Divine blueprint + Mythic pet egg + title
+        if (Engine.grantTitle) Engine.grantTitle(s, milestone.title);
+        UI.toast(`🏆 Milestone! Floor ${cleared}: ${milestone.title} + Divine Blueprint + Mythic Egg!`, 'success');
+        UI.combatLog(`🏆 Milestone rewards: ${milestone.title} title, Divine Blueprint, Mythic Pet Egg!`, 'loot');
+      }
+    }
   }
   const killXp = Math.floor(Engine.xpForKill(stage) * Engine.eventXpMult());
   const xpRes = Engine.gainXp(s, killXp, Date.now(), pb.xpPct);
@@ -1275,6 +1308,11 @@ function enemyStrikeTick(stats) {
     return;
   }
   if (res.dmg <= 0) return;
+  // Tower hazard: Vampiric Heal — boss heals 15% of damage dealt.
+  if (enemy.hazard === 'vampiric') {
+    const heal = Math.round(res.dmg * 0.15);
+    enemy.hp = Math.min(enemy.maxHp, enemy.hp + heal);
+  }
   // Role-based toughness: companions take scaled damage (tanks shrug off
   // far more than DPS). Applied after dodge/parry, before HP subtraction.
   let finalDmg = res.dmg;
@@ -1517,7 +1555,9 @@ function tick() {
   // enemy counter-attacks (slowed by frost effects)
   App.enemyTimer += dt;
   const slowPct = App.enemySlow && Date.now() < App.enemySlow.until ? App.enemySlow.pct : 0;
-  const atkInterval = ENEMY_ATTACK_S / (1 - Math.min(90, slowPct) / 100);
+  let atkInterval = ENEMY_ATTACK_S / (1 - Math.min(90, slowPct) / 100);
+  // Tower hazard: Enrage Speed — boss attacks 40% faster.
+  if (App.enemy && App.enemy.hazard === 'enrage') atkInterval *= 0.6;
   if (App.enemyTimer >= atkInterval) {
     App.enemyTimer = 0;
     if (!App.dead) enemyStrikeTick(stats);
@@ -1684,6 +1724,11 @@ function useSpell(id) {
   const s = App.state;
   const def = Engine.spellById(id);
   if (!s || App.dead || App._paused || !def || def.classId !== s.playerClass) return;
+  // Tower hazard: Void Silence — spells cannot be cast.
+  if (App.enemy && App.enemy.hazard === 'silence') {
+    UI.toast('🔇 Void Silence! Your spells are sealed.', 'warn');
+    return;
+  }
   if (!Engine.unlockedSpells(s).includes(id)) return;
   const now = Date.now();
   if (now < (App.skillCDs[id] || 0)) { UI.toast('Still on cooldown.', 'warn'); return; }
@@ -1799,6 +1844,7 @@ function setMode(mode) {
   const s = App.state;
   if (!s || s.mode === mode) { UI.setMode(mode); return; }
   const wasRaid = s.mode === 'raid';
+  const wasTower = s.mode === 'tower';
   if (wasRaid) Raid.exit();
   s.mode = mode;
   App.heroTimer = 0;
@@ -1807,9 +1853,9 @@ function setMode(mode) {
   UI.setMode(mode);
   UI.renderBattle(s);
   UI.updateHeroPanel(s, Engine.computeStats(s), App);
-  UI.toast({ clicker: '👆 Clicker mode — tap to attack!', auto: '🤖 Auto mode — your hero fights alone.', dungeon: '🏰 Dungeon mode — party fights with you!', raid: '🌀 Raid mode — endless waves! Death ends the run.' }[mode] || mode);
-  // Entering or leaving raid needs a fresh enemy (waves vs stage enemies).
-  if (mode === 'raid' || wasRaid) spawnEnemy();
+  UI.toast({ clicker: '👆 Clicker mode — tap to attack!', auto: '🤖 Auto mode — your hero fights alone.', dungeon: '🏰 Dungeon mode — party fights with you!', raid: '🌀 Raid mode — endless waves! Death ends the run.', tower: '🗼 Tower of Shadows — climb endless floors! Bosses scale hard.' }[mode] || mode);
+  // Entering or leaving raid/tower needs a fresh enemy (waves vs stage enemies).
+  if (mode === 'raid' || wasRaid || mode === 'tower' || wasTower) spawnEnemy();
   saveNow();
 }
 
@@ -2475,6 +2521,22 @@ function doBuyArmory(stockId) {
   UI.toast(`${entry.emoji} Bought ${res.item.name}${priceNote}!`, 'success');
   UI.combatLog(`⚒️ Bought ${entry.emoji} ${res.item.name} (${res.item.rarity}) from the Armory.`, 'loot');
   UI.renderArmory(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+function doTowerSweep() {
+  const s = App.state;
+  if (!s) return;
+  const res = Engine.towerSweep(s);
+  if (!res.ok) {
+    UI.toast(res.reason === 'swept' ? '🧹 Already swept today — come back tomorrow!' : '🗼 Clear at least one tower floor first!', 'warn');
+    return;
+  }
+  Engine.addGold(s, res.gold);
+  UI.toast(`🧹 Swept ${res.floors} floors! +${formatNum(res.gold)} gold${res.eggs ? `, +${res.eggs} pet eggs` : ''}!`, 'success');
+  UI.combatLog(`🧹 Tower sweep: ${res.floors} floors → +${formatNum(res.gold)} gold.`, 'loot');
+  UI.renderBattle(s);
   UI.updateHUD(s, App.user);
   saveNow();
 }
