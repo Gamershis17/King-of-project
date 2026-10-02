@@ -67,7 +67,11 @@ CREATE TABLE IF NOT EXISTS guilds (
   name TEXT UNIQUE NOT NULL,
   tag TEXT NOT NULL,
   owner_username TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
+  created_at TIMESTAMPTZ DEFAULT now(),
+  treasury_gold BIGINT NOT NULL DEFAULT 0,
+  hall_valor_level INTEGER NOT NULL DEFAULT 0,
+  hall_treasury_level INTEGER NOT NULL DEFAULT 0,
+  hall_forge_level INTEGER NOT NULL DEFAULT 0
 );
 CREATE UNIQUE INDEX IF NOT EXISTS guilds_name_nocase_uidx ON guilds (LOWER(name));
 

@@ -94,6 +94,20 @@ async function migrate() {
   try {
     await pool.query('ALTER TABLE gift_codes ADD COLUMN reward_amount INTEGER NOT NULL DEFAULT 0');
   } catch (e) { /* already exists */ }
+  // Guild Hall: treasury + building levels (see schema.sql IF NOT EXISTS guards).
+  // BIGINT for treasury (gold can exceed INTEGER max). Levels capped at 10 in app logic.
+  try {
+    await pool.query('ALTER TABLE guilds ADD COLUMN treasury_gold BIGINT NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
+  try {
+    await pool.query('ALTER TABLE guilds ADD COLUMN hall_valor_level INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
+  try {
+    await pool.query('ALTER TABLE guilds ADD COLUMN hall_treasury_level INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
+  try {
+    await pool.query('ALTER TABLE guilds ADD COLUMN hall_forge_level INTEGER NOT NULL DEFAULT 0');
+  } catch (e) { /* already exists */ }
 }
 
 async function closePool() {
@@ -515,19 +529,41 @@ function guildLevelForXp(xp) {
 }
 
 /**
- * Perks granted by guild level:
+ * Perks granted by guild level + Guild Hall buildings:
  * +2% XP per level, +1% gold per level, +1% damage per 2 levels.
+ * Hall of Valor: +1% XP and +2% damage per building level.
+ * Treasury: +2% gold per building level.
+ * Forge Shrine: +3% mining yield per building level (new minePct perk).
+ * Building levels are capped at 10.
  */
-function guildPerks(level) {
+function guildPerks(level, hall) {
   const L = Math.max(1, Math.min(GUILD_MAX_LEVEL, Math.floor(level || 1)));
-  return { xpPct: 2 * L, goldPct: L, dmgPct: Math.floor(L / 2) };
+  // Safety: clamp hall levels to 0..10 (defensive against bad data).
+  const h = hall || {};
+  const valor = Math.max(0, Math.min(10, Math.floor(h.valor || 0)));
+  const treasury = Math.max(0, Math.min(10, Math.floor(h.treasury || 0)));
+  const forge = Math.max(0, Math.min(10, Math.floor(h.forge || 0)));
+  return {
+    xpPct: 2 * L + valor,
+    goldPct: L + treasury * 2,
+    dmgPct: Math.floor(L / 2) + valor * 2,
+    minePct: forge * 3,
+  };
 }
 
 /** Perks for a specific guild id (null when guild unknown). */
 async function getGuildPerksFor(guildId) {
-  const { rows } = await pool.query('SELECT level FROM guilds WHERE id = $1', [guildId]);
+  const { rows } = await pool.query(
+    'SELECT level, hall_valor_level, hall_treasury_level, hall_forge_level FROM guilds WHERE id = $1',
+    [guildId]
+  );
   if (!rows.length) return null;
-  return guildPerks(rows[0].level);
+  const r = rows[0];
+  return guildPerks(r.level, {
+    valor: r.hall_valor_level,
+    treasury: r.hall_treasury_level,
+    forge: r.hall_forge_level,
+  });
 }
 
 /** Monday 00:00 UTC of the week containing `nowMs`. */
