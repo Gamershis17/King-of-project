@@ -2295,14 +2295,19 @@ export function hasHealer(s) {
 
 // Pet HP: simple system so the healer (and UI) has something to work with.
 // maxHp scales with pet level; hp is backfilled to full on first access.
-export function petMaxHp(pet) {
+export function petMaxHp(pet, playerMaxHp) {
   const lvl = Math.max(1, Math.floor((pet && pet.level) || 1));
-  return 50 + lvl * 25;
+  const base = 50 + lvl * 25;
+  // Scale with player progression: pet gets 30% of player max HP (min 1k)
+  if (playerMaxHp && playerMaxHp > 0) {
+    return Math.max(base, Math.floor(playerMaxHp * 0.3), 1000);
+  }
+  return base;
 }
 
-export function ensurePetHp(pet) {
+export function ensurePetHp(pet, playerMaxHp) {
   if (!pet || typeof pet !== 'object') return null;
-  const max = petMaxHp(pet);
+  const max = petMaxHp(pet, playerMaxHp);
   if (!Number.isFinite(pet.hp)) pet.hp = max;
   pet.hp = Math.max(0, Math.min(max, pet.hp));
   return pet;
@@ -2316,8 +2321,8 @@ export function healerPickTarget(s, stats) {
   const pMax = (stats && stats.maxHp) || s.hero.maxHp || 1;
   if (s.hero.hp > 0) cands.push({ kind: 'player', frac: s.hero.hp / pMax });
   for (const pet of activePets(s)) {
-    ensurePetHp(pet);
-    const pm = petMaxHp(pet);
+    ensurePetHp(pet, pMax);
+    const pm = petMaxHp(pet, pMax);
     if (pet.hp > 0) cands.push({ kind: 'pet', pet, frac: pet.hp / pm });
   }
   if (!cands.length) return null;
@@ -2339,8 +2344,9 @@ export function healerTick(s, stats) {
     s.hero.hp = Math.min(max, s.hero.hp + amt);
     return `${HEALER_NAME} heals you for ${amt}`;
   }
-  const pet = ensurePetHp(t.pet);
-  const max = petMaxHp(pet);
+  const pMaxH = (stats && stats.maxHp) || s.hero.maxHp;
+  const pet = ensurePetHp(t.pet, pMaxH);
+  const max = petMaxHp(pet, pMaxH);
   const amt = Math.ceil(max * HEALER_HEAL_FRAC);
   pet.hp = Math.min(max, pet.hp + amt);
   const sp = petSpeciesOf(pet) || {};
