@@ -960,11 +960,10 @@ body.reduce-motion .shop-card:hover { transform: none; }
 .lb-identity { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
 .lb-name {
   font-weight: 700;
-  /* Long names wrap instead of truncating: prefer whole-word breaks,
-     only splitting an overlong token when it would overflow. Balanced
-     wrapping keeps two-line names tidy next to badges. */
-  overflow-wrap: break-word;
-  text-wrap: balance;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 .lb-title { font-size: 0.72rem; font-style: italic; color: var(--gold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-badge { filter: drop-shadow(0 0 3px rgba(240,180,41,.6)); }
