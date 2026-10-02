@@ -576,6 +576,24 @@ async function enterAppWithState(user, raw, lastSeenAt) {
 
 // Everything after race/class selection: init raid, show the app,
 // apply offline earnings, start the game loop.
+// Presence heartbeat: marks the player online and refreshes the header badge.
+async function pingPresence() {
+  try { await api.post('/api/ping', {}); } catch { /* offline-tolerant */ }
+}
+async function refreshOnlineCount() {
+  try {
+    const r = await api.get('/api/online-count');
+    const el = document.getElementById('online-count');
+    if (el && r && typeof r.onlineCount === 'number') el.textContent = r.onlineCount;
+  } catch { /* offline-tolerant */ }
+}
+function startPresenceHeartbeat() {
+  if (App.presenceTimer) return;
+  pingPresence();
+  refreshOnlineCount();
+  App.presenceTimer = setInterval(() => { pingPresence(); refreshOnlineCount(); }, 60000);
+}
+
 async function continueBoot(state, lastSeenAt) {
   Raid.init(state);
   grantStaffTitles();
@@ -939,6 +957,8 @@ function startGame() {
   App.statusTimer = setInterval(() => pollMaintenance(), 60000);
   pollBroadcast();
   App.broadcastTimer = setInterval(() => pollBroadcast(), 60000);
+  if (!isGuest()) startPresenceHeartbeat();
+  else refreshOnlineCount();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
     // FPS/battery: pause ambient CSS animations while the tab is hidden.
