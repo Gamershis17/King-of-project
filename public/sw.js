@@ -5,7 +5,7 @@
  * - API responses are NEVER cached or altered.
  * - Versioned cache; old caches purged on activate.
  */
-const CACHE = 'kop-static-v39';
+const CACHE = 'kop-static-v40';
 const STATIC_RE = /\.(?:js|css|png|jpg|jpeg|webp|svg|ico|webmanifest|json|woff2?)$/i;
 
 self.addEventListener('install', (event) => {
@@ -19,14 +19,10 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
-      // A new SW version means new game files: reload open tabs once so no
-      // one is ever stuck on stale cached JS (which bricked logins in v2).
-      .then(() => self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
-      .then((clients) => {
-        for (const c of clients) {
-          try { if ('navigate' in c) c.navigate(c.url); } catch (e) {}
-        }
-      })
+      // NOTE: Do NOT force-reload tabs here. The app's pollMaintenance()
+      // already detects new deploys and shows a 10s countdown before
+      // refreshing. Force-navigating (c.navigate) wipes in-progress logins
+      // and bricks the auth flow — see 2026-10-02 login incident.
   );
 });
 
