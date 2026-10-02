@@ -349,7 +349,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .hud-row:last-child { margin-bottom: 0; }
 .hud-id { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
 #hud-emoji { font-size: 1.7rem; }
-#hud-username { font-weight: 700; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34vw; }
+#hud-username { font-weight: 700; font-size: clamp(0.85rem, 3vw, 1rem); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 34vw; }
 #hud-sub { display: flex; gap: 0.35rem; align-items: center; font-size: 0.75rem; }
 .role-badge {
   background: var(--stone2); border-radius: 20px; padding: 0.1rem 0.55rem;
@@ -360,7 +360,7 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .role-badge.role-admin { background: #1f4a3d; color: #9dffc9; border: 1px solid #2e7d5b; }
 .role-badge.role-moderator { background: #4a2f1f; color: #ffc98a; border: 1px solid #a86a2e; }
 .role-badge.role-guest { background: #2a2f3a; color: #b8c4d4; border: 1px solid #4a5568; }
-.hud-currencies { margin-left: auto; display: flex; gap: 0.8rem; font-weight: 600; font-size: 0.95rem; white-space: nowrap; }
+.hud-currencies { margin-left: auto; display: flex; gap: clamp(0.3rem, 2vw, 0.8rem); font-weight: 600; font-size: clamp(0.75rem, 2.5vw, 0.95rem); white-space: nowrap; }
 .hud-level { font-weight: 700; color: var(--gold); white-space: nowrap; }
 .online-row { margin-top: 2px; }
 .online-count-badge { font-size: 0.75rem; color: #7dff9a; background: rgba(125,255,154,0.08); border: 1px solid rgba(125,255,154,0.25); border-radius: 10px; padding: 1px 8px; white-space: nowrap; }
@@ -2537,7 +2537,27 @@ body[data-bgstyle="midnight"]::before { animation-name: bg-fall-l; }
 }
 
 /* ---------- Inn (AFK safe zone) ---------- */
-.inn-top-btn { padding: 0.35rem 0.6rem; font-size: 1rem; line-height: 1; white-space: nowrap; flex: 0 0 auto; min-width: 44px; min-height: 44px; position: relative; }
+.inn-top-btn { padding: clamp(0.2rem, 1vw, 0.35rem) clamp(0.3rem, 1.5vw, 0.6rem); font-size: clamp(0.8rem, 2.5vw, 1rem); line-height: 1; white-space: nowrap; flex: 0 0 auto; min-width: 44px; min-height: 44px; position: relative; }
+/* Glassmorphic nav tiles */
+.inn-top-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 10px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 8px rgba(0, 0, 0, 0.3);
+  transition: all 0.15s ease;
+}
+.inn-top-btn:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border-color: rgba(255, 215, 0, 0.4) !important;
+  transform: translateY(-1px);
+}
+.inn-top-btn:active {
+  transform: translateY(0) scale(0.95);
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
 .inn-btn {
   border: 2px solid #000;
   box-shadow:
