@@ -578,11 +578,11 @@ async function enterAppWithState(user, raw, lastSeenAt) {
 // apply offline earnings, start the game loop.
 // Presence heartbeat: marks the player online and refreshes the header badge.
 async function pingPresence() {
-  try { await api.post('/api/ping', {}); } catch { /* offline-tolerant */ }
+  try { await api.ping(); } catch { /* offline-tolerant */ }
 }
 async function refreshOnlineCount() {
   try {
-    const r = await api.get('/api/online-count');
+    const r = await api.onlineCount();
     const el = document.getElementById('online-count');
     if (el && r && typeof r.onlineCount === 'number') el.textContent = r.onlineCount;
   } catch { /* offline-tolerant */ }
