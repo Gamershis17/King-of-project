@@ -1,6 +1,17 @@
 [
   {
     "date": "2026-10-01",
+    "title": "⚖️ Level system rework & 🦸 Character panel rework",
+    "changes": [
+      "Kill XP now capped at 5% of your current level — no more blasting through levels at high stages",
+      "New milestone rewards at levels 25/50/75/100: +1 class talent point (banked for upcoming talent trees) + commemorative title",
+      "Character panel fully reworked: bigger portrait on your class background, WoW-style layout",
+      "Your portrait now displays your actual equipped gear, each piece glowing its rarity color",
+      "Stats restyled as clean labeled rows across Offense, Defense, and Gains"
+    ]
+  },
+  {
+    "date": "2026-10-01",
     "title": "📣 Discord webhooks — bugs, feedback, patch notes & balance log",
     "changes": [
       "🐞 New bug reports now mirror instantly to the #bug-reports Discord channel",
