@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261002c';
+import * as Engine from './engine.js?v20261002d';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -440,6 +440,7 @@ export const UI = {
       if (btn.dataset.action === 'set-second-pet' && h.onSetSecondPet) h.onSetSecondPet(btn.dataset.id);
       if (btn.dataset.action === 'remove-second-pet' && h.onRemoveSecondPet) h.onRemoveSecondPet();
       if (btn.dataset.action === 'recruit-healer' && h.onRecruitHealer) h.onRecruitHealer();
+      if (btn.dataset.action === 'dismiss-healer' && h.onDismissHealer) h.onDismissHealer();
       if (btn.dataset.action === 'buy-egg' && h.onBuyEgg) h.onBuyEgg(btn.dataset.tier);
       if (btn.dataset.action === 'breed-select') this._toggleBreedSelect(btn.dataset.id);
       if (btn.dataset.action === 'combine-select') this._toggleCombineSelect(btn.dataset.id);
@@ -4111,6 +4112,37 @@ export const UI = {
       }
       slots.appendChild(div);
     }
+
+    // Healer NPC (Sylvara) — special party member section
+    const healerSec = document.createElement('div');
+    healerSec.className = 'healer-party-sec';
+    if (Engine.hasHealer && Engine.hasHealer(state)) {
+      healerSec.innerHTML = `
+        <div class="member healer-member">
+          <div class="member-card">
+            <span class="member-emoji">🌿</span>
+            <div class="member-info">
+              <div class="member-name">Sylvara <span class="healer-tag">HEALER</span></div>
+              <div class="mp-sub">NPC · Heals party every 5s · Resurrects once per battle</div>
+            </div>
+          </div>
+          <div class="member-actions">
+            <button class="btn small ghost icon-btn" data-action="dismiss-healer" title="Dismiss Sylvara">✕ Dismiss</button>
+          </div>
+        </div>`;
+    } else {
+      const cost = (Engine.HEALER_RECRUIT_COST || 10000);
+      healerSec.innerHTML = `
+        <div class="member empty healer-recruit">
+          <div class="empty-slot-inner">
+            <span class="empty-plus">🌿</span>
+            <span>Recruit Healer</span>
+            <span class="muted small">Sylvara · ${formatNum(cost)} gold</span>
+            <button class="btn small" data-action="recruit-healer" ${(state.gold || 0) >= cost ? '' : 'disabled'}>Recruit</button>
+          </div>
+        </div>`;
+    }
+    slots.appendChild(healerSec);
 
     const list = this.els['recruit-list'];
     list.innerHTML = '';
