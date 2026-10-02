@@ -1212,6 +1212,9 @@ export const UI = {
     const leftSlots = ['helmet', 'armor'];
     const rightSlots = ['boots', 'trinket', 'weapon'];
     const classBg = `img/bg/class-${state.playerClass || 'hunter'}.jpg`;
+    // Class portrait: generated 2D art if available, falling back to the class
+    // emoji (necromancer/berserker have no portrait yet).
+    const portraitImg = `img/portrait-${state.playerClass || 'hunter'}.webp`;
     // Gear composite: equipped items orbit the class emoji, each glowing in its
     // rarity color; the portrait ring takes the best equipped rarity.
     const gearOrbit = ['helmet', 'weapon', 'armor', 'boots'];
@@ -1238,6 +1241,7 @@ export const UI = {
         + `<div class="paper-col">${leftSlots.map(slotHTML).join('')}</div>`
         + `<div class="paper-center">`
         + `<div class="paper-portrait wow-portrait gear-composite" style="background-image:url('${esc(classBg)}');border-color:${esc(bestRarColor)}">`
+        + `<img class="wow-portrait-img" src="${esc(portraitImg)}" alt="" onerror="this.remove()">`
         + `<span class="wow-portrait-emoji">${esc(cls.emoji || '🦸')}</span>${gearBadges}</div>`
         + `<div class="paper-hpbar"><div style="width:${Math.min(100, (hp / maxHp) * 100)}%"></div></div>`
         + `<div class="paper-hptext">❤️ ${formatNum(hp)} / ${formatNum(maxHp)}</div>`
