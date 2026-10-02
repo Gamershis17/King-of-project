@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Throne of Shadows">
   <title>Throne of Shadows</title>
-  <link rel="stylesheet" href="css/style.css?v20261002y">
+  <link rel="stylesheet" href="css/style.css?v20261003a">
 </head>
 <body>
 <canvas id="bg-canvas" aria-hidden="true"></canvas>
@@ -126,7 +126,7 @@
           <span class="hud-avatar"><img id="hud-avatar-img" src="img/avatar-knight.webp" alt="" width="44" height="44" onerror="this.remove()"><span id="hud-emoji">🛡️</span></span>
           <div>
             <div id="hud-username">—</div>
-            <div id="hud-sub"><span id="hud-role" class="role-badge">player</span><span id="hud-race" class="muted"></span></div>
+            <div id="hud-sub"><span id="hud-role" class="role-badge">player</span><span id="hud-guild-pill" class="guild-pill hidden"></span><span id="hud-race" class="muted"></span></div>
           </div>
         </div>
         <div class="hud-currencies">
@@ -145,6 +145,7 @@
         <div class="bar xp"><div class="fill" id="hud-xpfill"></div><span class="bar-text" id="hud-xptext"></span></div>
       </div>
       <div class="hud-row online-row"><div class="online-count-badge">🟢 <span id="online-count">–</span> Online</div></div>
+      <div class="hud-row buff-row"><div id="buff-bar" class="buff-bar"></div></div>
       <div class="hud-row save-row"><span id="save-indicator" class="save-ind">● saved</span></div>
     </header>
     <div id="pause-pill" class="pause-pill hidden" role="status" aria-live="polite">⏸ <b>PAUSED</b><span class="pause-sub"> — world frozen</span></div>
@@ -169,6 +170,7 @@
               <div class="boss-badge hidden" id="boss-badge">BOSS</div>
             </div>
             <div class="bar hp enemy-hp"><div class="fill" id="enemy-hpfill"></div><span class="bar-text" id="enemy-hptext"></span></div>
+            <div class="boss-progress" id="boss-progress"><div class="boss-progress-fill" id="boss-progress-fill"></div><span class="boss-progress-text" id="boss-progress-text"></span></div>
             <div class="enemy-atk" id="enemy-atk"></div>
             <div class="float-layer" id="float-layer"></div>
             <div class="dead-overlay hidden" id="dead-overlay">💀<div>You fell! Reviving…</div></div>
@@ -567,7 +569,7 @@
 <div id="modal-root"></div>
 <div id="toast-root"></div>
 
-<script type="module" src="js/app.js?v20261002z"></script>
+<script type="module" src="js/app.js?v20261003a"></script>
 <script type="module" src="js/gamepad.js?v=20260930ar"></script>
 </body>
 </html>
