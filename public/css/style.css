@@ -362,6 +362,8 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .role-badge.role-guest { background: #2a2f3a; color: #b8c4d4; border: 1px solid #4a5568; }
 .hud-currencies { margin-left: auto; display: flex; gap: 0.8rem; font-weight: 600; font-size: 0.95rem; white-space: nowrap; }
 .hud-level { font-weight: 700; color: var(--gold); white-space: nowrap; }
+.online-row { margin-top: 2px; }
+.online-count-badge { font-size: 0.75rem; color: #7dff9a; background: rgba(125,255,154,0.08); border: 1px solid rgba(125,255,154,0.25); border-radius: 10px; padding: 1px 8px; white-space: nowrap; }
 .save-row { justify-content: flex-end; }
 .save-ind { font-size: 0.7rem; color: var(--muted); }
 .save-ind.bad { color: var(--danger); }
