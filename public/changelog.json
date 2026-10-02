@@ -1,6 +1,15 @@
 [
   {
     "date": "2026-10-01",
+    "title": "🌿 New class: Druid",
+    "changes": [
+      "The Druid joins the roster — a Mana-based shapeshifter (+10% max HP, +10% attack, +5% dodge).",
+      "Eight new spells: Moonfire (damage + moonburn DoT), Wrath (2.5x strike), Rejuvenation (heal over time), Bear Form (+40% HP/+25% defense), Cat Form (+15% attack/+20% speed), Rake (strike + bleed), Regrowth (instant + over-time heal), Tranquility (big heal over time).",
+      "New Druid Grove background and class portrait included."
+    ]
+  },
+  {
+    "date": "2026-10-01",
     "title": "⚖️ Level system rework & 🦸 Character panel rework",
     "changes": [
       "Kill XP now capped at 5% of your current level — no more blasting through levels at high stages",
