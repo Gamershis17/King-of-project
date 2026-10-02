@@ -1,279 +1,307 @@
 [
-  {
-    "date": "2026-10-01",
-    "title": "🌿 New class: Druid",
-    "changes": [
-      "The Druid joins the roster — a Mana-based shapeshifter (+10% max HP, +10% attack, +5% dodge).",
-      "Eight new spells: Moonfire (damage + moonburn DoT), Wrath (2.5x strike), Rejuvenation (heal over time), Bear Form (+40% HP/+25% defense), Cat Form (+15% attack/+20% speed), Rake (strike + bleed), Regrowth (instant + over-time heal), Tranquility (big heal over time).",
-      "New Druid Grove background and class portrait included."
-    ]
-  },
-  {
-    "date": "2026-10-01",
-    "title": "⚖️ Level system rework & 🦸 Character panel rework",
-    "changes": [
-      "Kill XP now capped at 5% of your current level — no more blasting through levels at high stages",
-      "New milestone rewards at levels 25/50/75/100: +1 class talent point (banked for upcoming talent trees) + commemorative title",
-      "Character panel fully reworked: bigger portrait on your class background, WoW-style layout",
-      "Your portrait now displays your actual equipped gear, each piece glowing its rarity color",
-      "Stats restyled as clean labeled rows across Offense, Defense, and Gains"
-    ]
-  },
-  {
-    "date": "2026-10-01",
-    "title": "📣 Discord webhooks — bugs, feedback, patch notes & balance log",
-    "changes": [
-      "🐞 New bug reports now mirror instantly to the #bug-reports Discord channel",
-      "💬 Player feedback mirrors to #feedback the moment it is submitted",
-      "📜 Staff can push the latest patch notes to #patch-notes (read-only for players) with one button",
-      "⚖️ Staff can push the latest Balance Log entry to #balance-log the same way",
-      "🔗 Each channel webhook URL is configured on the staff page (owner/admin only)"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "⚔️ Forge rework & spellbooks",
-    "changes": [
-      "🌌 Galaxy Forge moved into the Armory (Buy → Sell → Forge) — now forges all 5 slots: weapon, armor, helmet, boots, and trinket",
-      "🛠️ No more stat picking: the forge reads your class and builds the right gear automatically — primary stat, Stamina, Critical Strike, and Haste",
-      "🗑️ Old Gear Shop removed — the Inventory tab is now just Loadout, Upgrades, and loot",
-      "📖 Hunter, Warrior, and Mage now have full 8-spell books with 6 customizable spell slots",
-      "✨ New class resources: Focus (Hunter), Rage (Warrior), Mana (Mage), Energy (Rogue)",
-      "🧪 Enemies now drop potions (separate 8% chance) — restore health or class resource, 60s cooldown",
-      "🐾 Mend Pet now also grants +25% pet damage for 15s",
-      "🎟️ Class Change Tokens in the Token Shop (3 rebirth tokens) — swap class and keep your level, gear, and quests"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "✨ Polish & Immersion update",
-    "changes": [
-      "🌙 Circadian realms: the game shifts to a deep-night palette from 10 PM–6 AM, with subtle seasonal tints through the year",
-      "🌦️ Atmosphere picker in Settings → Immersion: Clear, Rain, Fog, or Drifting ash — plus optional real-weather sync (off by default)",
-      "🎞️ Graphics profiles: SD, HD, or 4K — pick the fidelity your device handles best, layered with the existing anti-lag and FPS controls",
-      "🎵 Two new procedural tracks: 👑 Dread Sovereign (boss theme) and 🌠 Starfall Drift, plus separate Music and SFX volume sliders",
-      "⚔️ Boss fights now swell into the boss theme, then return to your previous track — toggleable in Immersion settings",
-      "🛠️ Fresh polish in this patch: cleaner Friends tab layout on phones and a softer, more natural rain effect"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "🌐 Realm Network — global player origins",
-    "changes": [
-      "New 🌐 Realm Network button on the Ranks tab: a live constellation of where players are connecting from",
-      "HD mode renders an animated starfield; simpler modes show a clean region list — region counts only, no personal data, ever"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "👑 Staff titles & name effects",
-    "staff": true,
-    "changes": [
-      "16 staff-only titles (7 GM, 6 Admin, 3 Owner) unlock automatically at login by role — equip them in the Titles tab, below the token titles",
-      "6 new staff-only name effects in Settings → Name Style: 🔨 Gavelstrike + 👁️ All-Seeing (GM), 🌍 Worldforge + 📐 Archlight (Admin), 👑 Shadowcrown + ♾️ Everflame (Owner)",
-      "Titles and name effects stack — e.g. wear 🌌 the Galaxywatcher with 👑 Shadowcrown",
-      "Players can never unlock or buy these; they never appear in the token shop"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "📜 Character sheet, class backgrounds & staff titles",
-    "changes": [
-      "🧍 New character sheet: tap your hero panel for a WoW-style paper-doll view — gear slots, live stats, and your active pet (hover or long-press gear for details)",
-      "🎨 6 class backgrounds: Hunter's Dawn, Warrior's Stand, Mage Spire, Assassin's Night, Necropolis, Bloodrage Field — pick any in Settings",
-      "⚔️ Class-flavored gear names: bows for hunters, daggers for assassins, plate for warriors, shrouds for necromancers, and more",
-      "👑 16 new staff titles for GMs, Admins, and the Owner — spot them in chat and on the leaderboard"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "💀 Necromancer & 🩸 Berserker — new hero classes",
-    "changes": [
-      "✨ 2 new hero classes join the roster: 💀 Necromancer (+15% attack, +10% crit damage, −10% max HP) and 🩸 Berserker (+30% attack, +10% attack speed, −15% defense)",
-      "Both appear in character creation alongside Hunter, Warrior, Mage, and Assassin"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "🐛 Pet selling fixed",
-    "changes": [
-      "🐛 Fixed sold pets staying visible in the Pets tab — the tab now refreshes correctly after every sale",
-      "Sales were always going through (gold was added); only the display was stuck"
-    ]
-  },
-  {
-    "date": "2026-09-30",
-    "title": "👑 Throne of Shadows",
-    "changes": [
-      "🔧 The game is now officially Throne of Shadows — new name, same game, live at throne-of-shadows.onrender.com"
-    ]
-  },
-  {
-    "date": "2026-09-28",
-    "title": "🌀 Rebirth replaces Prestige · Hunters field 2 pets",
-    "changes": [
-      "Prestige is gone — the new 🌀 Rebirth button (level 70+) returns you to level 1 while keeping your stage, gold, gear, pets, and titles; no stacking bonus",
-      "Old prestige counts carry over as rebirths, and prestige titles/achievements now track rebirths",
-      "Hunters can now field 2 pets at once: set any second pet from the Party tab — both fight, both earn XP, both bond bonuses apply",
-      "Level cap stays at 70 — saves above 70 clamp down on load"
-    ]
-  },
-  {
-    "date": "2026-09-27",
-    "title": "Level cap raised to 120",
-    "changes": [
-      "Level cap raised from 70 to 120 — XP, GM grants, and loaded saves can never push past 120",
-      "Prestige now unlocks at level 120 (still +25% damage & gold per prestige, still resets to level 1)"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "Prestige at 70 & new titles",
-    "changes": [
-      "Prestige now requires level 70 (was stage 50) — more runway before each rebirth",
-      "3 new prestige titles: the Paragon (10 prestiges), the Demigod (25), the Worldforger (50)"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "♾️ Infinite gold perk",
-    "staff": true,
-    "changes": [
-      "♾️ Infinite gold perk (owner-only): purchases never deduct gold, the HUD shows ∞, and it survives prestige — toggled from the GM console"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "🛠️ Staff tab",
-    "staff": true,
-    "changes": [
-      "New 🛠️ Staff tab in the main navigation for owner, admins, and moderators — opens the GM console (give stats, ban, broadcasts) in one tap; invisible to regular players"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "Enemy icons fixed",
-    "changes": [
-      "Every enemy now has its own matching icon (Frost Wisp 👻, Stone Sentinel 🗿, dragons 🐉…) instead of a random one"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "Admin & Mod badges",
-    "changes": [
-      "New 🛡️ Admin and 🔨 Mod badges — shown next to names on the leaderboard and profile",
-      "Moderator role pill now has its own styled badge in the HUD and profile",
-      "Desktop revamp: sidebar navigation, two-column battle layout, richer HUD — plus a smoother motion pass everywhere (Modern theme) and light mobile refinements"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "10 new titles",
-    "changes": [
-      "10 new hero titles: prestige titles (the Reborn, the Phoenix, the Immortal), boss titles (the Executioner, the Godslayer), gold titles (the Hoarder, the Magnate — lifetime gold earned is now tracked), and raid titles (the Raider, the Stormcaller, the Tidebreaker)"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "Voidwalker & Dragonscale gear sets",
-    "staff": true,
-    "changes": [
-      "New Voidwalker Regalia gear set (dodge/crit themed, purple-black aura) — grantable from the GM console",
-      "New Dragonscale Aegis gear set (HP/regen themed, red-gold aura) — grantable from the GM console"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "New titles, raid mode & guilds",
-    "changes": [
-      "9 new hero titles: playtime titles (the Sleepless, the Tireless, the Eternal), stage titles (the Climber, the Ascendant, the Mythical) and kill titles (the Slayer, the Butcher, the Annihilator)",
-      "The latest server broadcast is now publicly readable so the client can show announcements",
-      "Raid mode: endless PvE waves with boss waves every 5, best-wave record survives prestige",
-      "Guilds: create, join, leave, and view your guild roster from the More tab",
-      "Reskinned login screen with dark-fantasy styling"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "Moderator role & GM commands",
-    "staff": true,
-    "changes": [
-      "New moderator staff role with broadcast and player-lookup tools",
-      "New GM commands: unlock titles, set stage, ban/unban with login enforcement, server-wide broadcasts, player list search, and full save reset"
-    ]
-  },
-  {
-    "date": "2026-09-25",
-    "title": "Leaderboard badges & flags, number fixes",
-    "changes": [
-      "Fixed companion damage numbers showing \"false60\" — crits now display properly",
-      "Floating damage numbers now pop, rise and fade smoothly",
-      "Creator badges: YouTuber, Streamer and VIP badges shown next to names on the leaderboard",
-      "Country flags: pick your country in Profile and its flag appears on the leaderboard"
-    ]
-  },
-  {
-    "changes": [
-      "New live damage meter: per-fighter DPS bars that update every second",
-      "Party overhaul: member cards with portraits, roles and live HP bars",
-      "Hero titles: unlock feats like Bossbane and the Idle King, shown on your profile and the leaderboard",
-      "Owner gear: the Sovereign Founder's Regalia now shimmers with a rainbow aura",
-      "New share button — brag your stats or grab the link for your videos",
-      "New \"What's New\" update log (this panel!) with dates for every patch",
-      {
-        "text": "GM console: more commands — grant titles, set stage, heal, reset player, grant XP",
-        "staff": true
-      },
-      "Maintenance notices: players now see a proper maintenance screen and banner when the server is down for updates"
-    ],
-    "date": "2026-09-25",
-    "title": "UI 2.0 — damage meter, party cards & titles",
-    "version": "2.0"
-  },
-  {
-    "changes": [
-      "Fixed progression walling at boss stages (lower enemy HP/attack scaling)",
-      "Clicker mode now auto-attacks at 35% speed while idle — taps stay king",
-      "Mercy rule: dying 3× to the same boss retreats you 5 stages to farm",
-      "Boss popup now shows once per boss stage, death gold loss cut to 2%",
-      "Cheaper upgrades, richer XP and gold, stronger level gains"
-    ],
-    "date": "2026-09-25",
-    "title": "Balance patch — the boss-loop repair",
-    "version": "1.4"
-  },
-  {
-    "changes": [
-      "Staff-only GM console: grants, gift codes and roster management",
-      "Owner-only Sovereign Founder's Regalia, GM Fateweaver Regalia, Admin Warden Arsenal",
-      "Gift codes: create redeemable codes for full gear sets"
-    ],
-    "date": "2026-09-25",
-    "title": "GM console & privileged gear",
-    "version": "1.3",
+ {
+  "date": "2026-10-02",
+  "title": "🗼 Infinite Tower of Shadows",
+  "changes": [
+   "A new endless mode in Battle: climb floor by floor against Tower Shades, with a Tower Warden boss every 10 floors as a DPS check.",
+   "Enemy power grows each floor — push as high as you can, then Sweep to collect rewards based on your best floor.",
+   "Milestone rewards at floors 25, 50, 75 and 100: Divine Blueprints, Mythic Eggs and exclusive titles (Tower Apprentice, Floor Master, Shadow Ascendant, Tower Conqueror).",
+   "Launch tuning: tower difficulty was reduced so early floors are a fair fight and the climb ramps up from there."
+  ]
+ },
+ {
+  "date": "2026-10-02",
+  "title": "🎨 Custom spell icons",
+  "changes": [
+   "All 32 class spells now have hand-crafted art icons instead of emoji: 8 each for Hunter, Warrior, Mage and Druid.",
+   "Icons were optimized for mobile so they load instantly even on older phones."
+  ]
+ },
+ {
+  "date": "2026-10-02",
+  "title": "🔧 Fixes & polish",
+  "changes": [
+   "Fixed a login crash caused by a duplicate variable in the game code.",
+   "Mobile header reworked into two rows: avatar and quick-nav on top, currencies and XP below.",
+   "Online player counter now reads the correct value from the server.",
+   "Armory restock, leaderboard name overflow and GM console ID click-to-fill all fixed."
+  ]
+ },
+ {
+  "date": "2026-10-01",
+  "title": "🌿 New class: Druid",
+  "changes": [
+   "The Druid joins the roster — a Mana-based shapeshifter (+10% max HP, +10% attack, +5% dodge).",
+   "Eight new spells: Moonfire (damage + moonburn DoT), Wrath (2.5x strike), Rejuvenation (heal over time), Bear Form (+40% HP/+25% defense), Cat Form (+15% attack/+20% speed), Rake (strike + bleed), Regrowth (instant + over-time heal), Tranquility (big heal over time).",
+   "New Druid Grove background and class portrait included."
+  ]
+ },
+ {
+  "date": "2026-10-01",
+  "title": "⚖️ Level system rework & 🦸 Character panel rework",
+  "changes": [
+   "Kill XP now capped at 5% of your current level — no more blasting through levels at high stages",
+   "New milestone rewards at levels 25/50/75/100: +1 class talent point (banked for upcoming talent trees) + commemorative title",
+   "Character panel fully reworked: bigger portrait on your class background, WoW-style layout",
+   "Your portrait now displays your actual equipped gear, each piece glowing its rarity color",
+   "Stats restyled as clean labeled rows across Offense, Defense, and Gains"
+  ]
+ },
+ {
+  "date": "2026-10-01",
+  "title": "📣 Discord webhooks — bugs, feedback, patch notes & balance log",
+  "changes": [
+   "🐞 New bug reports now mirror instantly to the #bug-reports Discord channel",
+   "💬 Player feedback mirrors to #feedback the moment it is submitted",
+   "📜 Staff can push the latest patch notes to #patch-notes (read-only for players) with one button",
+   "⚖️ Staff can push the latest Balance Log entry to #balance-log the same way",
+   "🔗 Each channel webhook URL is configured on the staff page (owner/admin only)"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "⚔️ Forge rework & spellbooks",
+  "changes": [
+   "🌌 Galaxy Forge moved into the Armory (Buy → Sell → Forge) — now forges all 5 slots: weapon, armor, helmet, boots, and trinket",
+   "🛠️ No more stat picking: the forge reads your class and builds the right gear automatically — primary stat, Stamina, Critical Strike, and Haste",
+   "🗑️ Old Gear Shop removed — the Inventory tab is now just Loadout, Upgrades, and loot",
+   "📖 Hunter, Warrior, and Mage now have full 8-spell books with 6 customizable spell slots",
+   "✨ New class resources: Focus (Hunter), Rage (Warrior), Mana (Mage), Energy (Rogue)",
+   "🧪 Enemies now drop potions (separate 8% chance) — restore health or class resource, 60s cooldown",
+   "🐾 Mend Pet now also grants +25% pet damage for 15s",
+   "🎟️ Class Change Tokens in the Token Shop (3 rebirth tokens) — swap class and keep your level, gear, and quests"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "✨ Polish & Immersion update",
+  "changes": [
+   "🌙 Circadian realms: the game shifts to a deep-night palette from 10 PM–6 AM, with subtle seasonal tints through the year",
+   "🌦️ Atmosphere picker in Settings → Immersion: Clear, Rain, Fog, or Drifting ash — plus optional real-weather sync (off by default)",
+   "🎞️ Graphics profiles: SD, HD, or 4K — pick the fidelity your device handles best, layered with the existing anti-lag and FPS controls",
+   "🎵 Two new procedural tracks: 👑 Dread Sovereign (boss theme) and 🌠 Starfall Drift, plus separate Music and SFX volume sliders",
+   "⚔️ Boss fights now swell into the boss theme, then return to your previous track — toggleable in Immersion settings",
+   "🛠️ Fresh polish in this patch: cleaner Friends tab layout on phones and a softer, more natural rain effect"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "🌐 Realm Network — global player origins",
+  "changes": [
+   "New 🌐 Realm Network button on the Ranks tab: a live constellation of where players are connecting from",
+   "HD mode renders an animated starfield; simpler modes show a clean region list — region counts only, no personal data, ever"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "👑 Staff titles & name effects",
+  "staff": true,
+  "changes": [
+   "16 staff-only titles (7 GM, 6 Admin, 3 Owner) unlock automatically at login by role — equip them in the Titles tab, below the token titles",
+   "6 new staff-only name effects in Settings → Name Style: 🔨 Gavelstrike + 👁️ All-Seeing (GM), 🌍 Worldforge + 📐 Archlight (Admin), 👑 Shadowcrown + ♾️ Everflame (Owner)",
+   "Titles and name effects stack — e.g. wear 🌌 the Galaxywatcher with 👑 Shadowcrown",
+   "Players can never unlock or buy these; they never appear in the token shop"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "📜 Character sheet, class backgrounds & staff titles",
+  "changes": [
+   "🧍 New character sheet: tap your hero panel for a WoW-style paper-doll view — gear slots, live stats, and your active pet (hover or long-press gear for details)",
+   "🎨 6 class backgrounds: Hunter's Dawn, Warrior's Stand, Mage Spire, Assassin's Night, Necropolis, Bloodrage Field — pick any in Settings",
+   "⚔️ Class-flavored gear names: bows for hunters, daggers for assassins, plate for warriors, shrouds for necromancers, and more",
+   "👑 16 new staff titles for GMs, Admins, and the Owner — spot them in chat and on the leaderboard"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "💀 Necromancer & 🩸 Berserker — new hero classes",
+  "changes": [
+   "✨ 2 new hero classes join the roster: 💀 Necromancer (+15% attack, +10% crit damage, −10% max HP) and 🩸 Berserker (+30% attack, +10% attack speed, −15% defense)",
+   "Both appear in character creation alongside Hunter, Warrior, Mage, and Assassin"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "🐛 Pet selling fixed",
+  "changes": [
+   "🐛 Fixed sold pets staying visible in the Pets tab — the tab now refreshes correctly after every sale",
+   "Sales were always going through (gold was added); only the display was stuck"
+  ]
+ },
+ {
+  "date": "2026-09-30",
+  "title": "👑 Throne of Shadows",
+  "changes": [
+   "🔧 The game is now officially Throne of Shadows — new name, same game, live at throne-of-shadows.onrender.com"
+  ]
+ },
+ {
+  "date": "2026-09-28",
+  "title": "🌀 Rebirth replaces Prestige · Hunters field 2 pets",
+  "changes": [
+   "Prestige is gone — the new 🌀 Rebirth button (level 70+) returns you to level 1 while keeping your stage, gold, gear, pets, and titles; no stacking bonus",
+   "Old prestige counts carry over as rebirths, and prestige titles/achievements now track rebirths",
+   "Hunters can now field 2 pets at once: set any second pet from the Party tab — both fight, both earn XP, both bond bonuses apply",
+   "Level cap stays at 70 — saves above 70 clamp down on load"
+  ]
+ },
+ {
+  "date": "2026-09-27",
+  "title": "Level cap raised to 120",
+  "changes": [
+   "Level cap raised from 70 to 120 — XP, GM grants, and loaded saves can never push past 120",
+   "Prestige now unlocks at level 120 (still +25% damage & gold per prestige, still resets to level 1)"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "Prestige at 70 & new titles",
+  "changes": [
+   "Prestige now requires level 70 (was stage 50) — more runway before each rebirth",
+   "3 new prestige titles: the Paragon (10 prestiges), the Demigod (25), the Worldforger (50)"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "♾️ Infinite gold perk",
+  "staff": true,
+  "changes": [
+   "♾️ Infinite gold perk (owner-only): purchases never deduct gold, the HUD shows ∞, and it survives prestige — toggled from the GM console"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "🛠️ Staff tab",
+  "staff": true,
+  "changes": [
+   "New 🛠️ Staff tab in the main navigation for owner, admins, and moderators — opens the GM console (give stats, ban, broadcasts) in one tap; invisible to regular players"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "Enemy icons fixed",
+  "changes": [
+   "Every enemy now has its own matching icon (Frost Wisp 👻, Stone Sentinel 🗿, dragons 🐉…) instead of a random one"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "Admin & Mod badges",
+  "changes": [
+   "New 🛡️ Admin and 🔨 Mod badges — shown next to names on the leaderboard and profile",
+   "Moderator role pill now has its own styled badge in the HUD and profile",
+   "Desktop revamp: sidebar navigation, two-column battle layout, richer HUD — plus a smoother motion pass everywhere (Modern theme) and light mobile refinements"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "10 new titles",
+  "changes": [
+   "10 new hero titles: prestige titles (the Reborn, the Phoenix, the Immortal), boss titles (the Executioner, the Godslayer), gold titles (the Hoarder, the Magnate — lifetime gold earned is now tracked), and raid titles (the Raider, the Stormcaller, the Tidebreaker)"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "Voidwalker & Dragonscale gear sets",
+  "staff": true,
+  "changes": [
+   "New Voidwalker Regalia gear set (dodge/crit themed, purple-black aura) — grantable from the GM console",
+   "New Dragonscale Aegis gear set (HP/regen themed, red-gold aura) — grantable from the GM console"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "New titles, raid mode & guilds",
+  "changes": [
+   "9 new hero titles: playtime titles (the Sleepless, the Tireless, the Eternal), stage titles (the Climber, the Ascendant, the Mythical) and kill titles (the Slayer, the Butcher, the Annihilator)",
+   "The latest server broadcast is now publicly readable so the client can show announcements",
+   "Raid mode: endless PvE waves with boss waves every 5, best-wave record survives prestige",
+   "Guilds: create, join, leave, and view your guild roster from the More tab",
+   "Reskinned login screen with dark-fantasy styling"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "Moderator role & GM commands",
+  "staff": true,
+  "changes": [
+   "New moderator staff role with broadcast and player-lookup tools",
+   "New GM commands: unlock titles, set stage, ban/unban with login enforcement, server-wide broadcasts, player list search, and full save reset"
+  ]
+ },
+ {
+  "date": "2026-09-25",
+  "title": "Leaderboard badges & flags, number fixes",
+  "changes": [
+   "Fixed companion damage numbers showing \"false60\" — crits now display properly",
+   "Floating damage numbers now pop, rise and fade smoothly",
+   "Creator badges: YouTuber, Streamer and VIP badges shown next to names on the leaderboard",
+   "Country flags: pick your country in Profile and its flag appears on the leaderboard"
+  ]
+ },
+ {
+  "changes": [
+   "New live damage meter: per-fighter DPS bars that update every second",
+   "Party overhaul: member cards with portraits, roles and live HP bars",
+   "Hero titles: unlock feats like Bossbane and the Idle King, shown on your profile and the leaderboard",
+   "Owner gear: the Sovereign Founder's Regalia now shimmers with a rainbow aura",
+   "New share button — brag your stats or grab the link for your videos",
+   "New \"What's New\" update log (this panel!) with dates for every patch",
+   {
+    "text": "GM console: more commands — grant titles, set stage, heal, reset player, grant XP",
     "staff": true
-  },
-  {
-    "changes": [
-      "Tap combo meter with FRENZY mode (double tap damage for 10s)",
-      "Mastery talents: spend points earned every 10 levels",
-      "Professions: Herb Gathering and Smithing, leveled with gold",
-      "12 achievements paying stars, 10 named zones, Well-rested XP bonus"
-    ],
-    "date": "2026-09-25",
-    "title": "Progression systems",
-    "version": "1.2"
-  },
-  {
-    "changes": [
-      "Real accounts with secure login — progress follows you across devices",
-      "Durable cloud saves (PostgreSQL) — progress never resets",
-      "True global leaderboard with power, stage and boss rankings",
-      "Three modes: idle clicker, classic auto-battle, 3-hero party dungeon",
-      "Prestige at level 70 for +25% damage & gold per rebirth"
-    ],
-    "date": "2026-09-25",
-    "title": "Server launch",
-    "version": "1.0"
-  }
+   },
+   "Maintenance notices: players now see a proper maintenance screen and banner when the server is down for updates"
+  ],
+  "date": "2026-09-25",
+  "title": "UI 2.0 — damage meter, party cards & titles",
+  "version": "2.0"
+ },
+ {
+  "changes": [
+   "Fixed progression walling at boss stages (lower enemy HP/attack scaling)",
+   "Clicker mode now auto-attacks at 35% speed while idle — taps stay king",
+   "Mercy rule: dying 3× to the same boss retreats you 5 stages to farm",
+   "Boss popup now shows once per boss stage, death gold loss cut to 2%",
+   "Cheaper upgrades, richer XP and gold, stronger level gains"
+  ],
+  "date": "2026-09-25",
+  "title": "Balance patch — the boss-loop repair",
+  "version": "1.4"
+ },
+ {
+  "changes": [
+   "Staff-only GM console: grants, gift codes and roster management",
+   "Owner-only Sovereign Founder's Regalia, GM Fateweaver Regalia, Admin Warden Arsenal",
+   "Gift codes: create redeemable codes for full gear sets"
+  ],
+  "date": "2026-09-25",
+  "title": "GM console & privileged gear",
+  "version": "1.3",
+  "staff": true
+ },
+ {
+  "changes": [
+   "Tap combo meter with FRENZY mode (double tap damage for 10s)",
+   "Mastery talents: spend points earned every 10 levels",
+   "Professions: Herb Gathering and Smithing, leveled with gold",
+   "12 achievements paying stars, 10 named zones, Well-rested XP bonus"
+  ],
+  "date": "2026-09-25",
+  "title": "Progression systems",
+  "version": "1.2"
+ },
+ {
+  "changes": [
+   "Real accounts with secure login — progress follows you across devices",
+   "Durable cloud saves (PostgreSQL) — progress never resets",
+   "True global leaderboard with power, stage and boss rankings",
+   "Three modes: idle clicker, classic auto-battle, 3-hero party dungeon",
+   "Prestige at level 70 for +25% damage & gold per rebirth"
+  ],
+  "date": "2026-09-25",
+  "title": "Server launch",
+  "version": "1.0"
+ }
 ]
