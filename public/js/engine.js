@@ -2125,15 +2125,51 @@ export function rollSetDrop(stage, { boss = false, dungeonBoss = false, raidBoss
 // per Cody 2026-09-30 ("rarest to very high quality gear you can get").
 // Privileged gear (GM sets) is never sold — GM-grant only.
 export const ARMORY_STOCK = [
-  { id: 'armory-rare-weapon',      slot: 'weapon', rarity: 'rare',      price: 250000,   emoji: '🗡️', name: 'Gilded Weapon',    desc: 'Guaranteed rare class weapon, scaled to your stage.' },
-  { id: 'armory-rare-armor',       slot: 'armor',  rarity: 'rare',      price: 250000,   emoji: '🛡️', name: 'Gilded Armor',     desc: 'Guaranteed rare class armor, scaled to your stage.' },
-  { id: 'armory-epic-weapon',      slot: 'weapon', rarity: 'epic',      price: 1000000,  emoji: '⚔️', name: 'Arcane Weapon',    desc: 'Guaranteed epic class weapon — a real upgrade.' },
-  { id: 'armory-epic-armor',       slot: 'armor',  rarity: 'epic',      price: 1000000,  emoji: '🥋', name: 'Arcane Armor',     desc: 'Guaranteed epic class armor — a real upgrade.' },
-  { id: 'armory-legendary-weapon', slot: 'weapon', rarity: 'legendary', price: 5000000,  emoji: '🔱', name: 'Mythril Weapon',   desc: 'Guaranteed legendary class weapon.' },
-  { id: 'armory-legendary-armor',  slot: 'armor',  rarity: 'legendary', price: 5000000,  emoji: '🦾', name: 'Mythril Armor',    desc: 'Guaranteed legendary class armor.' },
-  { id: 'armory-mythic-weapon',    slot: 'weapon', rarity: 'mythic',    price: 25000000, emoji: '💫', name: 'Eternal Weapon',   desc: 'Guaranteed mythic class weapon — the finest steel.' },
-  { id: 'armory-mythic-armor',     slot: 'armor',  rarity: 'mythic',    price: 25000000, emoji: '🌟', name: 'Eternal Armor',    desc: 'Guaranteed mythic class armor — the finest steel.' },
+  { id: 'armory-rare-weapon',      slot: 'weapon',  rarity: 'rare',      price: 250000,   emoji: '🗡️', name: 'Gilded Weapon',    desc: 'Guaranteed rare class weapon, scaled to your stage.' },
+  { id: 'armory-rare-armor',       slot: 'armor',   rarity: 'rare',      price: 250000,   emoji: '🛡️', name: 'Gilded Armor',     desc: 'Guaranteed rare class armor, scaled to your stage.' },
+  { id: 'armory-rare-helmet',      slot: 'helmet',  rarity: 'rare',      price: 250000,   emoji: '⛑️', name: 'Gilded Helmet',    desc: 'Guaranteed rare class helmet, scaled to your stage.' },
+  { id: 'armory-rare-boots',       slot: 'boots',   rarity: 'rare',      price: 250000,   emoji: '🥾', name: 'Gilded Boots',     desc: 'Guaranteed rare class boots, scaled to your stage.' },
+  { id: 'armory-rare-trinket',     slot: 'trinket', rarity: 'rare',      price: 250000,   emoji: '📿', name: 'Gilded Trinket',   desc: 'Guaranteed rare class trinket, scaled to your stage.' },
+  { id: 'armory-epic-weapon',      slot: 'weapon',  rarity: 'epic',      price: 1000000,  emoji: '⚔️', name: 'Arcane Weapon',    desc: 'Guaranteed epic class weapon — a real upgrade.' },
+  { id: 'armory-epic-armor',       slot: 'armor',   rarity: 'epic',      price: 1000000,  emoji: '🥋', name: 'Arcane Armor',     desc: 'Guaranteed epic class armor — a real upgrade.' },
+  { id: 'armory-epic-helmet',      slot: 'helmet',  rarity: 'epic',      price: 1000000,  emoji: '⛑️', name: 'Arcane Helmet',    desc: 'Guaranteed epic class helmet — a real upgrade.' },
+  { id: 'armory-epic-boots',       slot: 'boots',   rarity: 'epic',      price: 1000000,  emoji: '🥾', name: 'Arcane Boots',     desc: 'Guaranteed epic class boots — a real upgrade.' },
+  { id: 'armory-epic-trinket',     slot: 'trinket', rarity: 'epic',      price: 1000000,  emoji: '📿', name: 'Arcane Trinket',   desc: 'Guaranteed epic class trinket — a real upgrade.' },
+  { id: 'armory-legendary-weapon', slot: 'weapon',  rarity: 'legendary', price: 5000000,  emoji: '🔱', name: 'Mythril Weapon',   desc: 'Guaranteed legendary class weapon.' },
+  { id: 'armory-legendary-armor',  slot: 'armor',   rarity: 'legendary', price: 5000000,  emoji: '🦾', name: 'Mythril Armor',    desc: 'Guaranteed legendary class armor.' },
+  { id: 'armory-legendary-helmet', slot: 'helmet',  rarity: 'legendary', price: 5000000,  emoji: '⛑️', name: 'Mythril Helmet',   desc: 'Guaranteed legendary class helmet.' },
+  { id: 'armory-legendary-boots',  slot: 'boots',   rarity: 'legendary', price: 5000000,  emoji: '🥾', name: 'Mythril Boots',    desc: 'Guaranteed legendary class boots.' },
+  { id: 'armory-legendary-trinket', slot: 'trinket', rarity: 'legendary', price: 5000000,  emoji: '📿', name: 'Mythril Trinket',  desc: 'Guaranteed legendary class trinket.' },
+  { id: 'armory-mythic-weapon',    slot: 'weapon',  rarity: 'mythic',    price: 25000000, emoji: '💫', name: 'Eternal Weapon',   desc: 'Guaranteed mythic class weapon — the finest steel.' },
+  { id: 'armory-mythic-armor',     slot: 'armor',   rarity: 'mythic',    price: 25000000, emoji: '🌟', name: 'Eternal Armor',    desc: 'Guaranteed mythic class armor — the finest steel.' },
+  { id: 'armory-mythic-helmet',    slot: 'helmet',  rarity: 'mythic',    price: 25000000, emoji: '⛑️', name: 'Eternal Helmet',   desc: 'Guaranteed mythic class helmet — the finest steel.' },
+  { id: 'armory-mythic-boots',     slot: 'boots',   rarity: 'mythic',    price: 25000000, emoji: '🥾', name: 'Eternal Boots',    desc: 'Guaranteed mythic class boots — the finest steel.' },
+  { id: 'armory-mythic-trinket',   slot: 'trinket', rarity: 'mythic',    price: 25000000, emoji: '📿', name: 'Eternal Trinket',  desc: 'Guaranteed mythic class trinket — the finest steel.' },
 ];
+
+// Armory restock: 1-hour cycle.
+export const ARMORY_RESTOCK_MS = 60 * 60 * 1000; // 1 hour
+export function checkArmoryRestock(s) {
+  const now = Date.now();
+  if (!s.armoryRestockAt || s.armoryRestockAt <= now) {
+    s.armoryRestockAt = now + ARMORY_RESTOCK_MS;
+    return true;
+  }
+  return false;
+}
+export function getArmoryRestockMs(s) {
+  const now = Date.now();
+  const at = s.armoryRestockAt || 0;
+  return Math.max(0, at - now);
+}
+
+// Returns the Armory stock for a given player class. Currently returns all
+// 20 entries — class flavor is applied at purchase time via makeLootItem(),
+// which picks class-flavored names (WEAPON_NAMES_BY_CLASS / ARMOR_NAMES_BY_CLASS).
+// Kept as a separate helper so future class-restricted stock can slot in here.
+export function getArmoryStockForClass(playerClass) {
+  return ARMORY_STOCK;
+}
 
 // Buys an Armory item for gold. The item lands in the
 // inventory. Purchases go through spendGold so the owner infinite-gold perk

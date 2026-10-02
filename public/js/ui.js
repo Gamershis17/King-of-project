@@ -347,6 +347,12 @@ export const UI = {
       const btn = e.target.closest('button[data-action]');
       if (!btn || btn.disabled) return;
       const h = this.handlers;
+      if (btn.dataset.action === 'armory-filter') {
+        this._armoryFilter = btn.dataset.f;
+        const s = this._lastState;
+        if (s) this.renderArmory(s);
+        return;
+      }
       if (btn.dataset.action === 'buy-armory' && h.onBuyArmory) h.onBuyArmory(btn.dataset.id);
       if (btn.dataset.action === 'sell' && h.onSell) h.onSell(btn.dataset.id);
       // Galaxy Forge lives in the Armory now.
@@ -3701,10 +3707,41 @@ export const UI = {
   // ---------------- armory ----------------
   renderArmory(state) {
     const E = Engine;
+    this._lastState = state;
+    // Init/check restock timer
+    if (E.checkArmoryRestock) E.checkArmoryRestock(state);
+    // Class filter tabs
+    const af = this._armoryFilter || 'all';
+    const classTabs = [
+      ['all', 'All'],
+      ['warrior', '⚔️ Warrior'],
+      ['mage', '🔮 Mage'],
+      ['assassin', '🗡️ Rogue'],
+      ['druid', '🌿 Druid'],
+      ['hunter', '🏹 Hunter'],
+      ['necromancer', '💀 Necro'],
+      ['berserker', '🪓 Berserk'],
+    ];
+    const tabsHtml = `<div class="armory-filters">` + classTabs.map(([key, label]) =>
+      `<button class="btn small${af === key ? '' : ' ghost'} armory-chip" data-action="armory-filter" data-f="${key}">${label}</button>`
+    ).join('') + `</div>`;
+
+    // Restock timer
+    const now = Date.now();
+    const restockAt = state.armoryRestockAt || 0;
+    const msLeft = Math.max(0, restockAt - now);
+    const mins = Math.floor(msLeft / 60000);
+    const secs = Math.floor((msLeft % 60000) / 1000);
+    const timerHtml = msLeft > 0
+      ? `<div class="armory-restock">🔄 Restock in ${mins}:${String(secs).padStart(2, '0')}</div>`
+      : `<div class="armory-restock">🔄 Restocking...</div>`;
+
     // Buy: masterwork class gear, guaranteed rarity, stage-scaled stats.
     const stock = this.els['armory-stock'];
     if (stock && E.ARMORY_STOCK) {
-      const cards = E.ARMORY_STOCK.map(entry => {
+      // Filter by class (for now, show all since stock is generic; filter highlights the tab)
+      const filtered = E.ARMORY_STOCK; // TODO: per-class stock when implemented
+      const cards = filtered.map(entry => {
         const rc = (E.RARITY_BY_ID[entry.rarity] || {}).color || '#9aa0a6';
         const slotName = (E.SLOT_INFO[entry.slot] || {}).name || entry.slot;
         const afford = state.infGold === true || (state.gold || 0) >= entry.price;
@@ -3720,7 +3757,7 @@ export const UI = {
             </button>
           </div>`;
       }).join('');
-      stock.innerHTML = `
+      stock.innerHTML = `${tabsHtml}${timerHtml}
         <div class="shop-head">
           <span class="shop-title">⚒️ Armory Stock</span>
           <span class="muted small">forged for your class · stage-scaled</span>
