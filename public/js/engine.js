@@ -3993,21 +3993,24 @@ export function towerFloorHazard(floor) {
   return keys[f % keys.length];
 }
 
-// Generates the tower boss for a floor. playerStage anchors base stats.
+// Generates the tower enemy for a floor. Uses a fixed baseline (stage 100)
+// so Floor 1 is challenging but doable, scaling purely by 1.18^(F-1).
+// Floors 1-9, 11-19, etc. are normal enemies; every 10th floor is a boss
+// (DPS check with the 50% HP jump). Player stage is intentionally NOT used.
 export function towerEnemyFor(floor, playerStage) {
   const f = Math.max(1, Math.floor(floor || 1));
-  const stage = Math.max(1, Math.floor(playerStage || 1));
-  const base = enemyFor(stage);
-  const hp = Math.max(1, Math.round(base.hp * towerHpMult(f)));
+  const base = enemyFor(100);
+  const isBoss = f % 10 === 0;
+  const hp = Math.max(1, Math.round(base.hp * towerHpMult(f) * (isBoss ? 1 : 0.6)));
   const hazard = towerFloorHazard(f);
   return {
-    name: `Tower Warden — Floor ${f}`,
-    stage, boss: true, towerFloor: f,
+    name: isBoss ? `Tower Warden — Floor ${f}` : `Tower Shade — Floor ${f}`,
+    stage: 100, boss: isBoss, towerFloor: f,
     hp, maxHp: hp,
-    attack: Math.max(1, Math.round(base.attack * (1 + f * 0.03))),
-    emoji: '🗼',
-    hazard,
-    lootTier: 3,
+    attack: Math.max(1, Math.round(base.attack * towerHpMult(f) * 0.5 * (isBoss ? 1 : 0.7))),
+    emoji: isBoss ? '🗼' : '👤',
+    hazard: isBoss ? hazard : null,
+    lootTier: isBoss ? 3 : 1,
     goldMult: 1 + f * 0.1,
   };
 }
