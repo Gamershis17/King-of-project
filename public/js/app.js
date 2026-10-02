@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261001ae';
-import * as Engine from './engine.js?v20261001ae';
-import { UI, esc, formatNum } from './ui.js?v20261001ae';
+import { api } from './api.js?v20261001af';
+import * as Engine from './engine.js?v20261001af';
+import { UI, esc, formatNum } from './ui.js?v20261001af';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -218,6 +218,7 @@ async function boot() {
     onSetSecondPet: doSetSecondPet,
     onRemoveSecondPet: doRemoveSecondPet,
     onRecruitHealer: doRecruitHealer,
+    onDismissHealer: doDismissHealer,
     onSpendClassTalent: doSpendClassTalent,
     onRespecClassTalents: doRespecClassTalents,
     onBuyEgg: doBuyEgg,
@@ -2545,6 +2546,18 @@ function doRecruitHealer() {
     UI.toast(`Need ${formatNum(Engine.HEALER_RECRUIT_COST)} gold to recruit ${Engine.HEALER_NAME}.`, 'error');
   }
   // Re-render the character tab so the badge/button updates.
+  if (UI.activeTab === 'character' && UI.renderCharacter) UI.renderCharacter(s, Engine.computeStats(s));
+  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+function doDismissHealer() {
+  const s = App.state;
+  if (!s || !Engine.hasHealer(s)) return;
+  s.npcHealer = null;
+  UI.toast(`🌿 ${Engine.HEALER_NAME} leaves the party.`, 'info');
+  if (UI.activeTab === 'party' && UI.renderParty) UI.renderParty(s, App.ctx);
   if (UI.activeTab === 'character' && UI.renderCharacter) UI.renderCharacter(s, Engine.computeStats(s));
   UI.updateHUD(s, App.user);
   saveNow();
