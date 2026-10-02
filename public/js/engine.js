@@ -119,9 +119,13 @@ export const CRAFT_STAT_CAP = 1e9; // sane upper bound: never Infinity
 export const GALAXY_EQUIP_ID = 'galaxy'; // sentinel id in state.equipped
 
 export function mineRockMaxHp(depth) {
-  return Math.max(10, Math.round(30 * Math.pow(1.15, Math.max(1, depth) - 1)));
+  // Safety: sanitize depth (NaN/null guard) and cap at 5000 to prevent overflow.
+  const d = Math.max(1, Math.min(Math.floor(Number(depth) || 1), 5000));
+  return Math.max(10, Math.round(30 * Math.pow(1.15, d - 1)));
 }
 export function mineDamage(state) {
+  // Safety: return base damage if state is missing (prevents crash on null).
+  if (!state || typeof state !== 'object') return 1;
   const tapLvl = (state.upgrades && state.upgrades.tap) || 1;
   const base = Math.max(1, Math.round(4 + (state.level || 1) * 1.5 + (tapLvl - 1) * 4));
   // Equipped pickaxe multiplies tap damage (rounded).
@@ -1539,7 +1543,9 @@ export function enemyFor(stage, playerStats = null) {
   const boss = isBossStage(stage);
   const world = worldForStage(stage);
   // v26: boss HP growth 1.115 -> 1.10 (was 8+ hours per boss at high stages).
-  const hp = Math.round(18 * Math.pow(1.10, stage) * (boss ? 1 : 0.6));
+  // Safety: cap stage at 5000 to prevent Math.pow overflow to Infinity.
+  const safeStage = Math.max(1, Math.min(Math.floor(Number(stage) || 1), 5000));
+  const hp = Math.round(18 * Math.pow(1.10, safeStage) * (boss ? 1 : 0.6));
   const atk = Math.round(4 * Math.pow(1.085, stage));
   const roster = boss ? world.bosses : world.enemies;
   // Boss identity is deterministic per stage: the announced boss and the
@@ -2235,6 +2241,8 @@ export function defaultPets() {
 
 // Normalizes s.pets in place and returns it.
 export function ensurePets(s) {
+  // Safety: return fresh defaults if state is missing (battle loop calls this).
+  if (!s || typeof s !== 'object') return defaultPets();
   if (!s.pets || typeof s.pets !== 'object') s.pets = defaultPets();
   const p = s.pets;
   if (!Array.isArray(p.collection)) p.collection = [];
@@ -2301,6 +2309,8 @@ export const HEALER_RES_HP_FRAC = 0.5;   // resurrect at 50% HP
 // Recruit Sylvara for gold. Returns true on success, false if already have her
 // or not enough gold. Does NOT deduct if infGold (owner perk) — matches shop.
 export function recruitHealer(s) {
+  // Safety: guard against null/undefined state (prevents TypeError crash).
+  if (!s || typeof s !== 'object') return false;
   if (s.npcHealer) return false;
   if (!s.infGold && (s.gold || 0) < HEALER_RECRUIT_COST) return false;
   if (!s.infGold) s.gold -= HEALER_RECRUIT_COST;
@@ -2328,6 +2338,8 @@ export const TANK_ABSORB_FRAC = 0.25;   // absorbs 25% of hero damage
 // Recruit Bromm for gold. Returns true on success, false if already have him
 // or not enough gold.
 export function recruitTank(s) {
+  // Safety: guard against null/undefined state (prevents TypeError crash).
+  if (!s || typeof s !== 'object') return false;
   if (s.npcTank) return false;
   if (!s.infGold && (s.gold || 0) < TANK_RECRUIT_COST) return false;
   if (!s.infGold) s.gold -= TANK_RECRUIT_COST;
@@ -2347,7 +2359,7 @@ export function hasTank(s) {
 export function petMaxHp(pet, playerMaxHp, petHpPct = 0) {
   const lvl = Math.max(1, Math.floor((pet && pet.level) || 1));
   const base = 50 + lvl * 25;
-  // Scale with player progression: pet gets 30% of player max HP (min 1k)
+  // Scale with player progression: pet gets 50% of player max HP (min 1k)
   let max;
   if (playerMaxHp && playerMaxHp > 0) {
     max = Math.max(base, Math.floor(playerMaxHp * 0.5), 1000);
