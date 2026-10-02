@@ -3335,7 +3335,38 @@ export const UI = {
   },
 
   // Quick shake + white flash on the enemy card when it takes a hit.
-  enemyHitFlash() {
+  attackerPulse(id) {
+    if (!this._canAnimate()) return;
+    const el = document.querySelector(`[data-comp-hp="${id}"]`);
+    if (el) {
+      const card = el.closest('.member');
+      if (card) {
+        card.classList.remove('attacker-pulse');
+        void card.offsetWidth;
+        card.classList.add('attacker-pulse');
+        setTimeout(() => card.classList.remove('attacker-pulse'), 350);
+      }
+    }
+  },
+  screenShake() {
+    if (!this._canAnimate()) return;
+    const el = document.getElementById('tab-battle');
+    if (!el) return;
+    el.classList.remove('screen-shake');
+    void el.offsetWidth; // restart animation
+    el.classList.add('screen-shake');
+    setTimeout(() => el.classList.remove('screen-shake'), 300);
+  },
+  enemyHitFlash(heavy = false) {
+    if (heavy) {
+      const card = document.querySelector(".enemy-card");
+      if (card) {
+        card.classList.remove("enemy-red-flash");
+        void card.offsetWidth;
+        card.classList.add("enemy-red-flash");
+        setTimeout(() => card.classList.remove("enemy-red-flash"), 300);
+      }
+    }
     if (!this._canAnimate()) return;
     const card = this.els['enemy-card'];
     if (!card) return;
