@@ -5293,7 +5293,8 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     min-width: 0;
   }
   #hud-username {
-    max-width: 24vw;
+    max-width: 32vw;
+    font-size: 0.8rem !important;
   }
   .hud-currencies {
     display: flex !important;
