@@ -2841,6 +2841,42 @@ export const COMPANION_ROLES = {
   healer: { label: 'Healer', hpMult: 1.5, hpFlat: 30, hpGrowth: 1.075, defPer: 2, atkPer: 2, dmgMult: 0.8, takenMult: 0.55 },
   dps:    { label: 'DPS',    hpMult: 1.2, hpFlat: 25, hpGrowth: 1.075, defPer: 2, atkPer: 6, dmgMult: 2.0, takenMult: 0.60 },
 };
+
+// Team Synergy: bonuses based on party composition
+// Returns { defensePct, attackPct, healPct, label }
+export function computeSynergy(party) {
+  const roles = (party || []).map(c => {
+    if (!c || (c.hp || 0) <= 0) return null;
+    return (c.roleKind || companionRole(c));
+  }).filter(Boolean);
+  const hasTank = roles.includes('tank');
+  const hasHealer = roles.includes('healer');
+  const hasDps = roles.includes('dps');
+  const count = roles.length;
+
+  let defensePct = 0, attackPct = 0, healPct = 0;
+  const bonuses = [];
+
+  if (hasTank && hasHealer) {
+    defensePct += 20;
+    bonuses.push('🛡️+🌿 Tank+Healer: +20% Team Defense');
+  }
+  if (hasTank && hasDps) {
+    attackPct += 15;
+    bonuses.push('🛡️+⚔️ Tank+DPS: +15% Team Attack');
+  }
+  if (hasHealer && hasDps) {
+    healPct += 25;
+    bonuses.push('🌿+⚔️ Healer+DPS: +25% Healing');
+  }
+  if (count >= 3) {
+    defensePct += 10;
+    attackPct += 10;
+    bonuses.push('👥 Full Party (3): +10% Attack & Defense');
+  }
+
+  return { defensePct, attackPct, healPct, bonuses, count };
+}
 export function companionRole(c) {
   const rid = (c && (c.recruitId || c.id)) || '';
   if (rid === 'ember' || rid === 'mira') return 'tank';

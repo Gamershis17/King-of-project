@@ -3470,33 +3470,36 @@ export const UI = {
   },
 
   memberCardHTML(c, mini = false) {
-    const hue = this.portraitHue(c.name);
-    const initial = (c.name || '?').trim().charAt(0).toUpperCase();
     const pct = c.maxHp > 0 ? Math.max(0, (c.hp / c.maxHp) * 100) : 0;
     const down = (c.hp || 0) <= 0;
-    const dot = `<span class="member-dot${down ? ' down' : ''}" aria-hidden="true"></span>`;
     const roleKind = (c && c.roleKind) || (Engine.companionRole && Engine.companionRole(c)) || 'dps';
-    const roleLabel = ((Engine.COMPANION_ROLES || {})[roleKind] || {}).label || roleKind;
-    const roleBadge = `<span class="role-badge role-${roleKind}">${roleLabel}</span>`;
+    const roleIcons = { tank: '🛡️ TANK', healer: '🌿 HEALER', dps: '⚔️ DPS' };
+    const roleBadge = `<span class="hero-role-badge role-${roleKind}">${roleIcons[roleKind] || roleKind.toUpperCase()}</span>`;
+    const tier = ((Engine.RECRUIT_BY_ID || {})[c.recruitId] || {}).tier || 'common';
+    const tierCls = `hero-tier-${String(tier).toLowerCase()}`;
+    // DPS tracking (if available)
+    const dps = c._dps || 0;
+    const healing = c._healing || 0;
+    const statsLine = (dps > 0 || healing > 0)
+      ? `<div class="hero-stats">${dps > 0 ? `⚔️ ${formatNum(dps)} DPS` : ''}${healing > 0 ? ` 🌿 ${formatNum(healing)} HPS` : ''}</div>`
+      : '';
     if (mini) {
       return `
-      <div class="portrait${down ? ' down' : ''}" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${dot}${esc(initial)}</div>
+      <div class="hero-portrait-mini ${tierCls}${down ? ' down' : ''}">${esc(c.emoji || '❓')}</div>
       <div class="member-name">${esc(c.name)}</div>
-      <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge}</div>
-      <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
-      <div class="member-hptext" data-comp-hptext="${esc(c.id)}">${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}</div>`;
+      <div class="member-role">${roleBadge}</div>
+      <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>`;
     }
-    const tier = ((Engine.RECRUIT_BY_ID || {})[c.recruitId] || {}).tier || 'common';
-    const tierCls = `tier-${String(tier).toLowerCase()}`;
     return `
-      <div class="member-top">
-        <div class="portrait${down ? ' down' : ''}" style="background:linear-gradient(135deg,hsl(${hue},45%,38%),hsl(${(hue + 40) % 360},50%,24%))">${dot}${esc(initial)}</div>
-        <div class="member-id">
-          <div class="member-name">${esc(c.name)} <span class="lvl-badge">Lv ${c.level}</span></div>
-          <div class="member-role">${esc(c.role || 'Companion')} ${roleBadge} · <span class="tier-badge ${tierCls}">${esc(tier)}</span></div>
+      <div class="hero-card ${tierCls}${down ? ' down' : ''}">
+        <div class="hero-portrait">${esc(c.emoji || '❓')}</div>
+        <div class="hero-info">
+          <div class="hero-name">${esc(c.name)} <span class="lvl-badge">Lv ${c.level}</span></div>
+          <div class="hero-badges">${roleBadge} <span class="hero-tier-badge">${esc(tier.toUpperCase())}</span></div>
+          ${statsLine}
         </div>
       </div>
-      <div class="hpbar mini-hp"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
+      <div class="hpbar"><div class="hpfill" data-comp-hp="${esc(c.id)}" style="width:${pct}%"></div></div>
       <div class="member-hptext" data-comp-hptext="${esc(c.id)}">${formatNum(Math.max(0, Math.ceil(c.hp)))} / ${formatNum(c.maxHp)}</div>
       <div class="member-stats">⚔️ ${formatNum(c.attack)} · 🛡️ ${formatNum(c.defense)} · ❤️ ${formatNum(c.maxHp)}${c.regen ? ` · 💚 ${c.regen}/s` : ''}</div>`;
   },
@@ -4218,6 +4221,21 @@ export const UI = {
 
   renderParty(state, ctx) {
     this.renderMpParty((ctx && ctx.mpParty) || null, ctx, state);
+    // Team Synergy Bar
+    const synergyEl = this.els['party-synergy'];
+    if (synergyEl && Engine.computeSynergy) {
+      const syn = Engine.computeSynergy(state.party);
+      if (syn.bonuses.length > 0) {
+        synergyEl.innerHTML = `<div class="synergy-bar">
+          <div class="synergy-title">⚡ Team Synergy (${syn.count}/3)</div>
+          ${syn.bonuses.map(b => `<div class="synergy-bonus">${esc(b)}</div>`).join('')}
+        </div>`;
+        synergyEl.classList.remove('hidden');
+      } else {
+        synergyEl.innerHTML = `<div class="synergy-bar empty"><div class="synergy-title">⚡ Team Synergy</div><div class="muted small">Recruit companions with different roles to unlock bonuses!</div></div>`;
+        synergyEl.classList.remove('hidden');
+      }
+    }
     const slots = this.els['party-slots'];
     // Safety: missing element (stale HTML after deploy) — skip silently.
     if (!slots) return;
