@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002o';
-import * as Engine from './engine.js?v20261002o';
-import { UI, esc, formatNum } from './ui.js?v20261002o';
+import { api } from './api.js?v20261002p';
+import * as Engine from './engine.js?v20261002p';
+import { UI, esc, formatNum } from './ui.js?v20261002p';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -244,7 +244,7 @@ async function boot() {
     // Social: inspect + friends
     onInspect: (username) => UI.openInspect(username, App.state),
     onInspectCompare: (username) => UI.openInspect(username, App.state, true),
-    onFetchInspect: (username) => api.inspectPlayer(username),
+    onFetchInspect: (username) => api.inspectPlayer(username).catch(() => null),
     onRanksSubtab: (which) => {
       App.ranksSubtab = which;
       UI.switchRanksSubtab(which);
@@ -402,7 +402,13 @@ const isGuest = () => App.user && App.user.role === GUEST_ROLE;
 async function persistNow() {
   if (!App.state) return;
   if (isGuest()) { saveGuest(App.user.username, App.state); return; }
-  await api.saveState(App.state);
+  // Safety: catch network failures so callers don't get unhandled rejections.
+  // Next autosave will retry.
+  try {
+    await api.saveState(App.state);
+  } catch (e) {
+    console.warn('persistNow failed:', e);
+  }
 }
 
 // "This needs an account" prompt for server-gated features in guest mode.
@@ -949,8 +955,11 @@ function startGame() {
 
 // ---------------- saving ----------------
 let _saving = false;
+let _saveQueued = false; // Safety: queue saves requested while one is in-flight.
 async function saveNow(beaconOnly = false) {
-  if (!App.state || _saving) return;
+  if (!App.state) return;
+  // Safety: queue instead of silently dropping when a save is in-flight.
+  if (_saving) { _saveQueued = true; return; }
   // Stamp leaderboard "power" (hero attack) so /api/leaderboard can show it.
   try { App.state.power = Math.round(Engine.computeStats(App.state).attack); } catch { /* leave unset */ }
   if (isGuest()) {
@@ -968,8 +977,15 @@ async function saveNow(beaconOnly = false) {
     UI.setSaveIndicator('● saved');
   } catch (e) {
     UI.setSaveIndicator('● save failed', false);
+    // Safety: emergency local backup — preserves state if tab closes before retry.
+    try {
+      localStorage.setItem('kop-emergency-backup', JSON.stringify(App.state));
+      localStorage.setItem('kop-emergency-backup-time', String(Date.now()));
+    } catch { /* storage full/blocked — nothing more we can do */ }
   } finally {
     _saving = false;
+    // Safety: flush any save queued while we were busy.
+    if (_saveQueued) { _saveQueued = false; saveNow(); }
   }
 }
 
@@ -980,6 +996,8 @@ function spawnEnemy() {
   App.enemy = s.mode === 'raid'
     ? (Raid.isActive() ? Raid.spawnEnemy(s) : Raid.enter(s))
     : Engine.enemyFor(s.stage, Engine.computeStats(s));
+  // Safety: fallback to normal enemy if raid spawn returned null/undefined.
+  if (!App.enemy) App.enemy = Engine.enemyFor(s.stage, Engine.computeStats(s));
   // Dungeon balance: bosses have 40% less HP in dungeons (party challenge, not solo).
   if (s.mode === 'dungeon' && App.enemy.boss) {
     App.enemy.hp = Math.round(App.enemy.hp * 0.6);
@@ -992,7 +1010,8 @@ function spawnEnemy() {
   App.healerTimers = {};
   Engine.healerNewBattle(s); // NPC healer: refresh once-per-battle resurrect
   // revive downed companions on a fresh enemy
-  for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
+  // Safety: guard against missing/corrupted party array.
+  if (Array.isArray(s.party)) for (const c of s.party) if (c && c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
   // Boss-fight music: Dread Sovereign while a boss is up, restore after.
   try { if (audioOf(s).combatMusic !== false) Audio.setCombat(!!(App.enemy && App.enemy.boss)); } catch {}
