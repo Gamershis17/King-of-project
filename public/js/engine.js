@@ -815,6 +815,22 @@ export const SKILL_ORDER = ['power-strike', 'fireball', 'heal', 'execute'];
 // · strikeInt {mult, interruptSec}
 // cost = resource spent (default 0); gain = resource generated on cast.
 export const SPELL_SLOT_COUNT = 6;
+// Spell icon paths (WoW-style square icons). Maps spell ID → icon URL.
+// Icons live in public/icons/spells/. If an icon is missing or fails to load,
+// the UI falls back to the spell's emoji. Add entries as icons are created.
+export const SPELL_ICONS = {
+  // Hunter
+  'steady-shot': 'icons/spells/steady-shot.png',
+  'arcane-shot': 'icons/spells/arcane-shot.png',
+  'mend-pet': 'icons/spells/mend-pet.png',
+  'aimed-shot': 'icons/spells/aimed-shot.png',
+  'frost-trap': 'icons/spells/frost-trap.png',
+  'multi-shot': 'icons/spells/multi-shot.png',
+};
+// Get the icon path for a spell, or null if none is defined.
+export function spellIcon(id) {
+  return SPELL_ICONS[id] || null;
+}
 export const CLASS_SPELLS = {
   hunter: [
     { id: 'steady-shot', name: 'Steady Shot', emoji: '🏹', school: 'Marksmanship', gain: 15, cdMs: 5000, unlockLevel: 1,
@@ -1161,7 +1177,6 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
     state.hero.defense += 2;
     state.xpNext = xpForLevel(state.level, state.rebirthCount);
     levels.push(state.level);
-    if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
     if (MILESTONE_LEVELS.includes(state.level)) {
       milestones.push(state.level);
     }
@@ -1659,10 +1674,7 @@ export function computeStats(state) {
       if (five) pDodge += 8;
     }
   }
-  // Mastery talents + professions (original systems, WoW-inspired).
-  const tal = (state.mastery && state.mastery.spent) || {};
-  const mightMult = 1 + 0.04 * (tal.might || 0);
-  const vitMult = 1 + 0.04 * (tal.vitality || 0);
+  // Professions (original system, WoW-inspired). Mastery talents removed.
   // Class talent trees (Hunter prototype): aggregated % bonuses.
   const cte = classTalentEffects(state);
   const prof = state.professions || {};
@@ -1680,9 +1692,9 @@ export function computeStats(state) {
   const guildDmgMult = 1 + (gp.dmgPct || 0) / 100;
   const h = state.hero;
   return {
-    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * mightMult * smithMult * guildDmgMult * (1 + (cte.atkPct || 0) / 100) * (1 + (cte.spellPowerPct || 0) / 100) + bond.atk),
+    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * smithMult * guildDmgMult * (1 + (cte.atkPct || 0) / 100) * (1 + (cte.spellPowerPct || 0) / 100) + bond.atk),
     defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) * (1 + (cte.defPct || 0) / 100) + bond.def),
-    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * vitMult * (1 + (cte.maxHpPct || 0) / 100)) + bond.hp),
+    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * (1 + (cte.maxHpPct || 0) / 100)) + bond.hp),
     critChance: clamp(h.critChance + gear.critChance + pCritCh + (cte.critCh || 0) + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
     critDamage: Math.max(100, h.critDamage + gear.critDamage + pCritDmg + (cte.critDmgPct || 0) + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
     parry: clamp(h.parry + gear.parry + (race.parryBonus || 0), 0, 60),
@@ -2963,22 +2975,10 @@ export const ZONES = [
 export const zoneFor = (stage) =>
   ZONES[Math.min(ZONES.length - 1, Math.max(0, Math.floor(((stage || 1) - 1) / 10)))];
 
-// ---------------- Mastery talents ----------------
-// Earned: 1 Mastery point per 10 levels. Each branch has 5 ranks, 1 point per rank.
-export const TALENTS = {
-  might:    { name: 'Might',    emoji: '⚔️', desc: '+4% attack per rank', max: 5 },
-  vitality: { name: 'Vitality', emoji: '❤️', desc: '+4% max HP per rank', max: 5 },
-  fortune:  { name: 'Fortune',  emoji: '💰', desc: '+4% gold per rank', max: 5 },
-};
-export function spendTalent(state, id) {
-  const def = TALENTS[id];
-  if (!def || !state.mastery) return false;
-  const spent = state.mastery.spent[id] || 0;
-  if (state.mastery.points < 1 || spent >= def.max) return false;
-  state.mastery.points -= 1;
-  state.mastery.spent[id] = spent + 1;
-  return true;
-}
+// ---------------- Mastery talents (REMOVED) ----------------
+// The Might/Vitality/Fortune mastery panel was removed from the UI.
+// The TALENTS constant and spendTalent() are deleted. Save data may still
+// contain a stale `state.mastery` object — it is ignored and harmless.
 
 // ---------------- Class talent milestones (level-system rework) ----------------
 // Hitting one of these levels grants +1 class talent point (banked for the
@@ -3806,7 +3806,6 @@ export function grantLevels(state, n) {
     state.hero.attack += 3;
     state.hero.maxHp += 25;
     state.hero.defense += 2;
-    if (state.level % 10 === 0 && state.mastery) state.mastery.points += 1;
     granted += 1;
   }
   state.xp = 0;
