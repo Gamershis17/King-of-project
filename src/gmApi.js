@@ -33,6 +33,9 @@
  *   POST /api/roles           (owner only)
  *   POST /api/gm/inventory      (gm|owner|admin) — full inventory listing
  *   POST /api/gm/remove-item    (gm|owner|admin) — remove one inventory item
+ *   POST /api/gm/mod-item       (owner) — override item stats (no caps)
+ *   POST /api/gm/mod-pet        (owner) — modify pet level/species/hunger/xp
+ *   POST /api/gm/remove-pet     (owner) — remove a pet by UID
  *   POST /api/gm/set-enchant    (gm|owner|admin) — set enchant 0-10 on inventory/equipped item
  *   POST /api/gm/reset-quests   (gm|owner|admin) — force re-roll of daily/weekly quests
  *   POST /api/gm/event-buff     (gm|owner|admin) — server-wide XP/gold multiplier w/ expiry
@@ -886,6 +889,58 @@ router.post(
         muted: !!(blob.chatMutedUntil && blob.chatMutedUntil > Date.now()),
         mutedUntil: blob.chatMutedUntil || 0,
         banned: !!target.banned,
+        // Presence (live status)
+        presence: (() => {
+          const now = Date.now();
+          const lastActive = Number(target.last_active) || 0;
+          const updatedAt = Number(blob.updatedAt) || 0;
+          const lastSeen = Math.max(lastActive, updatedAt);
+          const online = (now - lastActive < 5 * 60 * 1000) || (now - updatedAt < 2 * 60 * 1000);
+          return {
+            online,
+            lastSeen: lastSeen || 0,
+            lastSeenAgo: lastSeen ? Math.floor((now - lastSeen) / 1000) : -1,
+          };
+        })(),
+        // Full stat breakdown
+        fullStats: {
+          dps: num(blob.hero && blob.hero.attack),
+          hp: num(blob.hero && blob.hero.hp),
+          maxHp: num(blob.hero && blob.hero.maxHp),
+          gold: num(blob.gold),
+          stage: num(blob.stage),
+          level: num(blob.level),
+          xp: num(blob.xp),
+          xpNext: num(blob.xpNext),
+        },
+        // Equipped gear inspector (full item details)
+        equippedGear: (() => {
+          const eq = blob.equipped && typeof blob.equipped === 'object' ? blob.equipped : {};
+          const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
+          const result = {};
+          for (const [slot, itemId] of Object.entries(eq)) {
+            if (!itemId) { result[slot] = null; continue; }
+            const item = inv.find(i => i && i.id === itemId);
+            result[slot] = item ? {
+              id: item.id, name: item.name, rarity: item.rarity,
+              stats: item.stats || {}, set: item.set || null, enchant: item.enchant || 0,
+            } : { id: itemId, name: '(missing)', stats: {} };
+          }
+          return result;
+        })(),
+        // Pet inspector (full collection)
+        petInspector: (() => {
+          const pets = blob.pets && typeof blob.pets === 'object' ? blob.pets : {};
+          const collection = Array.isArray(pets.collection) ? pets.collection : [];
+          return {
+            activeUid: pets.activeUid || null,
+            eggs: num(pets.eggs),
+            pets: collection.map(p => ({
+              uid: p.uid, species: p.species || '?', level: num(p.level),
+              xp: num(p.xp), hunger: num(p.hunger),
+            })),
+          };
+        })(),
       },
     });
   })
@@ -1341,7 +1396,138 @@ router.post(
     const removedName = removed && removed.name ? removed.name : '?';
     await persistMergedState(target.id, blob);
     await logAudit(req, 'remove-item', target.username, `${removedName} (index ${idx})`);
+    // Clear equipped slot if this item was equipped
+    if (blob.equipped && typeof blob.equipped === 'object') {
+      for (const [slot, equippedId] of Object.entries(blob.equipped)) {
+        if (equippedId === removed.id) {
+          blob.equipped[slot] = null;
+        }
+      }
+    }
+    await persistMergedState(target.id, blob);
     res.json({ ok: true, removed: removedName, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- mod-item (owner only) ----------
+// Override base stats on a weapon/armor/item with custom numbers (no caps).
+// Body: { username, itemId OR index, stats: { attack, defense, ... }, name? }
+// Valid stat keys: attack, defense, maxHp, critChance, critDamage, parry, dodge,
+//                  lifesteal, attackSpeed, regen, goldBonus, xpBonus
+const MODDABLE_STATS = ['attack', 'defense', 'maxHp', 'critChance', 'critDamage', 'parry', 'dodge', 'lifesteal', 'attackSpeed', 'regen', 'goldBonus', 'xpBonus'];
+router.post(
+  '/gm/mod-item',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username, itemId, index, stats, name } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!stats || typeof stats !== 'object') {
+      return res.status(400).json({ error: 'stats object required.' });
+    }
+    const blob = await loadBlob(target.id);
+    const inv = Array.isArray(blob.inventory) ? blob.inventory : [];
+    let item = null;
+    let idx = -1;
+    if (itemId) {
+      idx = inv.findIndex(i => i && i.id === itemId);
+    } else if (index !== undefined) {
+      idx = Math.floor(Number(index));
+    }
+    if (idx < 0 || idx >= inv.length) {
+      return res.status(400).json({ error: 'Item not found (bad itemId or index).' });
+    }
+    item = inv[idx];
+    if (!item.stats || typeof item.stats !== 'object') item.stats = {};
+    const applied = {};
+    for (const [key, val] of Object.entries(stats)) {
+      if (!MODDABLE_STATS.includes(key)) continue;
+      const num = Number(val);
+      if (!Number.isFinite(num)) continue;
+      item.stats[key] = num;
+      applied[key] = num;
+    }
+    if (typeof name === 'string' && name.trim()) {
+      item.name = name.trim().slice(0, 60);
+    }
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'mod-item', target.username, `${item.name} stats: ${JSON.stringify(applied)}`);
+    res.json({ ok: true, item: { id: item.id, name: item.name, slot: item.slot, stats: item.stats }, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- mod-pet (owner only) ----------
+// Modify a pet's level, species, hunger, or xp.
+// Body: { username, petUid, level?, species?, hunger?, xp? }
+router.post(
+  '/gm/mod-pet',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username, petUid, level, species, hunger, xp } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!petUid) return res.status(400).json({ error: 'petUid required.' });
+    const blob = await loadBlob(target.id);
+    const pets = blob.pets && typeof blob.pets === 'object' ? blob.pets : {};
+    const collection = Array.isArray(pets.collection) ? pets.collection : [];
+    const pet = collection.find(p => p && p.uid === petUid);
+    if (!pet) return res.status(404).json({ error: 'Pet not found.' });
+    const changes = [];
+    if (level !== undefined) {
+      const lv = Math.floor(Number(level));
+      if (Number.isInteger(lv) && lv >= 1 && lv <= 9999) {
+        pet.level = lv;
+        changes.push(`level=${lv}`);
+      }
+    }
+    if (species && typeof species === 'string') {
+      pet.species = species.trim().slice(0, 40);
+      changes.push(`species=${pet.species}`);
+    }
+    if (hunger !== undefined) {
+      const h = Math.floor(Number(hunger));
+      if (Number.isInteger(h) && h >= 0 && h <= 100) {
+        pet.hunger = h;
+        changes.push(`hunger=${h}`);
+      }
+    }
+    if (xp !== undefined) {
+      const x = Math.floor(Number(xp));
+      if (Number.isInteger(x) && x >= 0) {
+        pet.xp = x;
+        changes.push(`xp=${x}`);
+      }
+    }
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'mod-pet', target.username, `${petUid}: ${changes.join(', ')}`);
+    res.json({ ok: true, pet, state: selfState(req, target, blob) });
+  })
+);
+
+// ---------- remove-pet (owner only) ----------
+// Remove a pet from the player's collection by UID.
+// Body: { username, petUid }
+router.post(
+  '/gm/remove-pet',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username, petUid } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!petUid) return res.status(400).json({ error: 'petUid required.' });
+    const blob = await loadBlob(target.id);
+    const pets = blob.pets && typeof blob.pets === 'object' ? blob.pets : {};
+    const collection = Array.isArray(pets.collection) ? pets.collection : [];
+    const idx = collection.findIndex(p => p && p.uid === petUid);
+    if (idx < 0) return res.status(404).json({ error: 'Pet not found.' });
+    const [removed] = collection.splice(idx, 1);
+    // Clear activeUid if this was the active pet
+    if (pets.activeUid === petUid) {
+      pets.activeUid = null;
+    }
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'remove-pet', target.username, `${removed.species || '?'} (${petUid})`);
+    res.json({ ok: true, removed: removed.species || petUid, state: selfState(req, target, blob) });
   })
 );
 
