@@ -364,6 +364,16 @@ label.fld > span { font-size: 0.8rem; color: var(--muted); }
 .hud-level { font-weight: 700; color: var(--gold); white-space: nowrap; }
 .online-row { margin-top: 2px; }
 .online-count-badge { font-size: 0.75rem; color: #7dff9a; background: rgba(125,255,154,0.08); border: 1px solid rgba(125,255,154,0.25); border-radius: 10px; padding: 1px 8px; white-space: nowrap; }
+.buff-row { margin-top: 2px; min-height: 0; }
+.buff-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.buff-chip { font-size: 0.72rem; background: rgba(232,179,60,0.1); border: 1px solid rgba(232,179,60,0.35); border-radius: 8px; padding: 1px 7px; color: #ffd97a; white-space: nowrap; }
+.buff-chip .buff-timer { color: #fff; font-weight: 700; }
+.guild-pill { font-size: 0.72rem; background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.4); border-radius: 8px; padding: 1px 7px; color: #c4b5fd; white-space: nowrap; cursor: pointer; margin-left: 4px; }
+.guild-pill.hidden { display: none; }
+/* Boss progress tracker */
+.boss-progress { position: relative; height: 14px; background: rgba(255,255,255,0.06); border: 1px solid rgba(232,179,60,0.3); border-radius: 7px; margin-top: 4px; overflow: hidden; }
+.boss-progress-fill { height: 100%; background: linear-gradient(90deg, #8b5cf6, #c4b5fd); border-radius: 6px; transition: width 0.3s; }
+.boss-progress-text { position: absolute; top: 0; left: 0; right: 0; text-align: center; font-size: 0.65rem; color: #fff; line-height: 13px; text-shadow: 0 1px 2px #000; }
 .save-row { justify-content: flex-end; }
 .save-ind { font-size: 0.7rem; color: var(--muted); }
 .save-ind.bad { color: var(--danger); }
