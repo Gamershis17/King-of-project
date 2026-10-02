@@ -5257,7 +5257,6 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     gap: 0.5rem;
     font-size: 0.85rem;
     flex-shrink: 1;
-    margin-left: auto;
   }
   .inn-top-btn {
     min-width: 30px;
@@ -5267,5 +5266,8 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     padding: 2px;
     font-size: 0.85rem;
     flex: 0 0 auto;
+  }
+  #inn-btn {
+    margin-left: auto;
   }
 }
