@@ -789,7 +789,7 @@ export const CLASS_SPELLS = {
     { id: 'multi-shot', name: 'Multi-Shot', emoji: '🌪️', school: 'Marksmanship', cost: 30, cdMs: 12000, unlockLevel: 25,
       effect: { kind: 'strike', mult: 2.0 }, desc: 'A volley dealing 2× damage.' },
     { id: 'kill-command', name: 'Kill Command', emoji: '🐺', school: 'Beast Mastery', cost: 20, cdMs: 10000, unlockLevel: 30,
-      effect: { kind: 'petStrike', mult: 3.0 }, desc: 'Your pet strikes for 3× its normal damage.' },
+      effect: { kind: 'petStrike', mult: 3.0, bleedMult: 0.25, bleedTicks: 5, bleedEveryMs: 2000 }, desc: 'Your pet strikes for 3× its normal damage and causes bleeding for 10s.' },
     { id: 'explosive-trap', name: 'Explosive Trap', emoji: '💥', school: 'Survival', cost: 30, cdMs: 25000, unlockLevel: 35,
       effect: { kind: 'trap', mult: 2.0, dotMult: 1.0, dotTicks: 4, dotEveryMs: 2000 }, desc: '2× damage plus 1× burn every 2s, 4 times.' },
   ],
@@ -1442,6 +1442,8 @@ export const isBossStage = (stage) => stage % 10 === 0;
 // as the guardrails. Absolute TTK swings by orders of magnitude with build
 // investment (upgrades, galaxy forge, sets, pets, active skills), so this
 // only flattens the curve rather than targeting a specific TTK.
+// v25: boss HP multiplier 2.5 -> 1.5. Boss time-to-kill was out of hand
+// (e.g. ~98Qi boss HP vs single-digit-T DPS); normal enemies untouched.
 export function enemyFor(stage, playerStats = null) {
   const boss = isBossStage(stage);
   const world = worldForStage(stage);
@@ -1465,8 +1467,8 @@ export function enemyFor(stage, playerStats = null) {
   return {
     name: foe.name,
     stage, boss,
-    hp: boss ? Math.round(hp * 2.5) : hp,
-    maxHp: boss ? Math.round(hp * 2.5) : hp,
+    hp: boss ? Math.round(hp * 1.5) : hp,
+    maxHp: boss ? Math.round(hp * 1.5) : hp,
     attack,
     emoji: foe.emoji,
     world: world.id,

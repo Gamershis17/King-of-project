@@ -2,7 +2,7 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v20261001k';
-import * as Engine from './engine.js?v=20260930ar';
+import * as Engine from './engine.js?v20261001l';
 import { UI, esc, formatNum } from './ui.js?v20261001k';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
@@ -1708,10 +1708,18 @@ function useSpell(id) {
       break;
     }
     case 'petStrike': {
-      const dmg = Math.max(1, Math.round(Engine.petStrikeDamage(s, stats) * fx.mult * mMult));
+      const petDmg = Engine.petStrikeDamage(s, stats);
+      const dmg = Math.max(1, Math.round(petDmg * fx.mult * mMult));
       meterHit('pet', 'Pet', dmg);
       damageEnemy(dmg, '', '🐾 ');
       UI.combatLog(`🐺 Kill Command! Your pet strikes for ${formatNum(dmg)}.`, 'skill');
+      if (App.enemy && fx.bleedTicks) {
+        App.enemy.fx = App.enemy.fx || [];
+        App.enemy.fx.push({ kind: 'dot', petMult: (fx.bleedMult || 0) * mMult,
+          ticksLeft: fx.bleedTicks, everyMs: fx.bleedEveryMs || 2000,
+          nextAt: Date.now() + (fx.bleedEveryMs || 2000) });
+        UI.combatLog('🩸 Bleeding wound opened!', 'skill');
+      }
       break;
     }
     case 'trap':
@@ -1756,8 +1764,10 @@ function tickEnemyFx(stats) {
     if (f.kind === 'dot' && f.ticksLeft > 0 && now >= f.nextAt) {
       f.ticksLeft -= 1;
       f.nextAt = now + f.everyMs;
-      const dmg = Math.max(1, Math.round(stats.attack * f.mult));
-      damageEnemy(dmg, '', '🔥 ');
+      const dmg = f.petMult
+        ? Math.max(1, Math.round(Engine.petStrikeDamage(App.state, stats) * f.petMult))
+        : Math.max(1, Math.round(stats.attack * f.mult));
+      damageEnemy(dmg, '', f.petMult ? '🩸 ' : '🔥 ');
     }
   }
   enemy.fx = enemy.fx.filter(f => f.kind !== 'dot' || f.ticksLeft > 0);
