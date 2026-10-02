@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261001ae';
-import * as Engine from './engine.js?v20261001ae';
-import { UI, esc, formatNum } from './ui.js?v20261001ae';
+import { api } from './api.js?v20261001ah';
+import * as Engine from './engine.js?v20261001ah';
+import { UI, esc, formatNum } from './ui.js?v20261001ag';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -1294,7 +1294,7 @@ function enemyStrikeTick(stats) {
     const ap = Engine.activePet(s);
     if (ap) {
       Engine.ensurePetHp(ap, stats.maxHp, stats.talentPetHpPct || 0);
-      const petDmg = Math.max(1, Math.round(heroDmg * 0.2));
+      const petDmg = Math.max(1, Math.round(heroDmg * 0.05));
       ap.hp = Math.max(0, ap.hp - petDmg);
       if (ap.hp <= 0) UI.combatLog(`💔 Your pet is knocked out!`, 'death');
     }

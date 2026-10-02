@@ -2324,7 +2324,7 @@ export function petMaxHp(pet, playerMaxHp, petHpPct = 0) {
   // Scale with player progression: pet gets 30% of player max HP (min 1k)
   let max;
   if (playerMaxHp && playerMaxHp > 0) {
-    max = Math.max(base, Math.floor(playerMaxHp * 0.3), 1000);
+    max = Math.max(base, Math.floor(playerMaxHp * 0.5), 1000);
   } else {
     max = base;
   }
