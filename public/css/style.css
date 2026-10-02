@@ -4556,17 +4556,29 @@ html.gfx-4k {
 .social-soon-tag { font-size: 0.75rem; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.08em; }
 
 
-/* character sheet (paper-doll) */
+/* character sheet (paper-doll) — WoW-inspired rework */
 .hero-panel { cursor: pointer; }
 .char-sheet { position: relative; }
+.wow-sheet { background: linear-gradient(180deg, #191410 0%, #100d09 100%); border: 2px solid #4a3b22; border-radius: 12px; padding: 12px 10px; }
+.wow-head { text-align: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid #4a3b22; }
+.wow-name { color: #e8c96a; font-size: 20px; font-weight: bold; letter-spacing: 1px; text-shadow: 0 2px 4px #000; }
+.wow-sub { font-size: 12px; color: #9a8f7d; margin-top: 2px; }
 .paper-doll { display: flex; gap: 10px; justify-content: center; align-items: stretch; margin-bottom: 6px; }
 .paper-col { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
-.paper-slot { width: 78px; border: 2px solid var(--rc, #5a5148); border-radius: 10px; background: #141009; padding: 8px 4px; text-align: center; cursor: pointer; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.paper-slot { width: 78px; border: 2px solid var(--rc, #5a5148); border-radius: 10px; background: #141009; padding: 8px 4px; text-align: center; cursor: pointer; -webkit-user-select: none; user-select: none; touch-action: manipulation; box-shadow: inset 0 0 12px rgba(0,0,0,.6); }
 .paper-slot.empty { border-style: dashed; border-color: #4a4238; opacity: .65; cursor: default; }
 .paper-emoji { font-size: 28px; line-height: 1.25; }
 .paper-slot-label { font-size: 10px; color: #9a8f7d; }
 .paper-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 148px; padding: 0 4px; }
 .paper-portrait { width: 84px; height: 84px; border-radius: 50%; border: 3px solid #c9a227; background: radial-gradient(circle at 35% 30%, #4a3b22, #141009); display: flex; align-items: center; justify-content: center; font-size: 42px; }
+.wow-portrait { width: 116px; height: 116px; font-size: 56px; background-size: cover; background-position: center; box-shadow: 0 0 24px rgba(0,0,0,.8), inset 0 0 20px rgba(0,0,0,.5); }
+.wow-portrait-emoji { filter: drop-shadow(0 2px 6px #000); }
+.gear-composite { position: relative; }
+.gear-badge { position: absolute; font-size: 24px; line-height: 1; }
+.gear-badge.pos-tl { top: 0; left: 4px; }
+.gear-badge.pos-tr { top: 0; right: 4px; }
+.gear-badge.pos-bl { bottom: 0; left: 4px; }
+.gear-badge.pos-br { bottom: 0; right: 4px; }
 .paper-name { color: #e8c96a; font-size: 17px; font-weight: bold; }
 .paper-sub { font-size: 12px; color: #9a8f7d; }
 .paper-hpbar { width: 132px; height: 10px; border-radius: 5px; background: #241c12; overflow: hidden; border: 1px solid #4a3b22; }
@@ -4578,6 +4590,11 @@ html.gfx-4k {
 .char-stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; font-size: 12px; }
 .char-stat-grid .k { color: #9a8f7d; }
 .char-stat-grid .v { color: #e8e0cf; font-weight: bold; }
+.char-stat-rows { display: flex; flex-direction: column; gap: 2px; font-size: 12px; background: rgba(0,0,0,.25); border: 1px solid #2e2618; border-radius: 8px; padding: 6px 10px; }
+.char-stat-row { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid rgba(74,59,34,.35); }
+.char-stat-row:last-child { border-bottom: none; }
+.char-stat-row .k { color: #9a8f7d; }
+.char-stat-row .v { color: #e8e0cf; font-weight: bold; }
 .gear-tip { position: absolute; left: 0; top: 0; transform: translate(var(--tip-x, 0px), var(--tip-y, 0px)); z-index: 60; min-width: 170px; max-width: 230px; background: rgba(10, 8, 5, .97); border: 1px solid #8a6d2f; border-radius: var(--radius-sm); padding: 10px 12px; box-shadow: 0 10px 28px rgba(0,0,0,.65); pointer-events: none; font-size: 12px; }
 .gear-tip .tip-name { font-weight: bold; font-size: 13px; margin-bottom: 2px; }
 .gear-tip .tip-sub { color: #9a8f7d; font-size: 11px; margin-bottom: 6px; }
