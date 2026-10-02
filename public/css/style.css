@@ -5261,9 +5261,8 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
     display: flex !important;
     align-items: center !important;
     gap: 8px;
-    margin: 0 auto;
     font-size: 0.85rem;
-    flex-shrink: 1;
+    flex-shrink: 0;
   }
   .inn-top-btn {
     width: 26px !important;
