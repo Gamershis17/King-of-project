@@ -191,6 +191,8 @@ export function rollOre(depth) {
   return tiers[tiers.length - 1].id;
 }
 export function ensureMine(s) {
+  // Safety: guard against null/undefined state (prevents TypeError crash).
+  if (!s || typeof s !== 'object') return;
   if (!s.mine || typeof s.mine !== 'object') s.mine = {};
   const m = s.mine;
   m.depth = Math.max(1, Math.min(MAX_MINE_DEPTH, Math.floor(Number(m.depth) || 1)));
@@ -239,6 +241,8 @@ export function ensureMine(s) {
 // One tap on the rock. Returns { ore, broke, bonus } for UI feedback.
 export function mineTap(state) {
   ensureMine(state);
+  // Safety: bail if state is unusable (ensureMine couldn't initialize it).
+  if (!state || !state.mine) return { ore: 'copper', broke: false, bonus: [] };
   const m = state.mine;
   const dmg = mineDamage(state);
   m.rockHp -= dmg;

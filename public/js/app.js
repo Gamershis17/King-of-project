@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261002p';
-import * as Engine from './engine.js?v20261002p';
-import { UI, esc, formatNum } from './ui.js?v20261002p';
+import { api } from './api.js?v20261002q';
+import * as Engine from './engine.js?v20261002q';
+import { UI, esc, formatNum } from './ui.js?v20261002q';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
