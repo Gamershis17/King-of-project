@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261001aa';
+import * as Engine from './engine.js?v20261001ad';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -1943,6 +1943,29 @@ export const UI = {
       });
     }
     this.updateHUD(state, battle ? battle.user : null);
+    // Compact pet HP bar on battle tab (above damage meter)
+    this.updatePetBattleBar(state, stats);
+  },
+
+  // Compact pet HP bar shown on the battle tab just above the damage meter.
+  // Only visible when a pet is active and alive.
+  updatePetBattleBar(state, stats) {
+    const wrap = document.getElementById('battle-pet-hp');
+    if (!wrap) return;
+    const pet = Engine.activePet ? Engine.activePet(state) : null;
+    if (!pet || (pet.hp || 0) <= 0) {
+      wrap.classList.add('hidden');
+      return;
+    }
+    const sp = Engine.petSpeciesOf ? Engine.petSpeciesOf(pet) : null;
+    const pMaxH = (stats && stats.maxHp) || 1;
+    const max = Engine.petMaxHp ? Engine.petMaxHp(pet, pMaxH) : 1;
+    const pct = max > 0 ? Math.max(0, Math.min(100, (pet.hp / max) * 100)) : 0;
+    wrap.classList.remove('hidden');
+    const label = wrap.querySelector('.bpet-label');
+    if (label) label.textContent = `${sp ? sp.emoji : '🐾'} ${sp ? sp.name : 'Pet'}: ${formatNum(Math.max(0, Math.ceil(pet.hp)))} / ${formatNum(max)}`;
+    const fill = wrap.querySelector('.bpet-fill');
+    if (fill) fill.style.width = pct + '%';
   },
 
   updateHeroPanel(state, stats, battle) {

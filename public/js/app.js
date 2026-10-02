@@ -1,9 +1,9 @@
 // ============================================================
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
-import { api } from './api.js?v20261001ab';
-import * as Engine from './engine.js?v20261001aa';
-import { UI, esc, formatNum } from './ui.js?v20261001z';
+import { api } from './api.js?v20261001ad';
+import * as Engine from './engine.js?v20261001ad';
+import { UI, esc, formatNum } from './ui.js?v20261001ad';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -1196,6 +1196,19 @@ function onKillEnemy() {
     UI.combatLog('🥚 A pet egg dropped!', 'loot');
     if (UI.activeTab === 'pets') UI.renderPetsTab(s);
   }
+  // Exotic pets: 5% direct drop from bosses (Hunter-only)
+  if (enemy.boss || isDungeonBoss || isRaidBoss) {
+    const exoticId = Engine.rollExoticDrop();
+    if (exoticId) {
+      const p = Engine.ensurePets(s);
+      const sp = Engine.PET_SPECIES[exoticId];
+      const pet = { uid: Engine.uid(), species: exoticId, level: 1, xp: 0, xpNext: Engine.petXpForLevel(1), hunger: 100 };
+      p.collection.push(pet);
+      UI.notify('loot', `${sp.emoji} EXOTIC! A ${sp.name} joined you! (Hunter-only)`, 'loot');
+      UI.combatLog(`${sp.emoji} EXOTIC DROP! ${sp.name} joined your collection!`, 'loot');
+      if (UI.activeTab === 'pets') UI.renderPetsTab(s);
+    }
+  }
   if (xpRes.levels.length) {
     UI.levelUpModal(xpRes.levels);
     UI.combatLog(`⬆️ Level ${xpRes.levels[xpRes.levels.length - 1]}!`, 'level');
@@ -1271,7 +1284,17 @@ function enemyStrikeTick(stats) {
     if (ap) {
       Engine.ensurePetHp(ap);
       const petDmg = Math.max(1, Math.round(heroDmg * 0.2));
-      ap.hp = Math.max(0, ap.hp - petDmg);
+      // Exotic Thick Hide shield absorbs damage first
+      let remaining = petDmg;
+      if (ap.shieldAmt > 0 && Date.now() < (ap.shieldUntil || 0)) {
+        const absorbed = Math.min(ap.shieldAmt, remaining);
+        ap.shieldAmt -= absorbed;
+        remaining -= absorbed;
+      }
+      ap.hp = Math.max(0, ap.hp - remaining);
+      // Trigger exotic pet ability at low HP
+      const abMsg = Engine.triggerExoticAbility(s, ap, null, Date.now());
+      if (abMsg) UI.combatLog(abMsg, 'pet-ability');
       if (ap.hp <= 0) UI.combatLog(`💔 Your pet is knocked out!`, 'death');
     }
     UI.floatText(`-${formatNum(heroDmg)}`, 'hurt');
@@ -1735,22 +1758,11 @@ function useSpell(id) {
       break;
     }
     case 'mendPet': {
-      // Revives knocked-out pets at 50% HP, heals injured pets, restores hunger.
+      // Pets have no HP — mending restores hunger and inspires them.
       const p = Engine.ensurePets(s);
-      const pMaxH = (stats && stats.maxHp) || s.hero.maxHp || 1;
       for (const uid of [p.activeUid, p.secondUid]) {
         const pet = (p.collection || []).find(x => x.uid === uid);
-        if (pet) {
-          pet.hunger = 100;
-          Engine.ensurePetHp(pet, pMaxH);
-          const max = Engine.petMaxHp(pet, pMaxH);
-          if (pet.hp <= 0) {
-            pet.hp = Math.ceil(max * 0.5);
-            UI.combatLog(`💚 Mend Pet revives ${pet.name || 'your pet'}!`, 'heal');
-          } else if (pet.hp < max) {
-            pet.hp = max;
-          }
-        }
+        if (pet) pet.hunger = 100;
       }
       if (fx.petDmgPct) Engine.addBuff(s, 'petDmgPct', fx.petDmgPct, fx.sec);
       UI.floatText('MENDED', 'heal');
@@ -2457,8 +2469,13 @@ function doSetActivePet(petUid) {
   const p = Engine.ensurePets(s);
   const pet = p.collection.find(x => x.uid === petUid);
   if (!pet) return;
-  p.activeUid = petUid;
+  // Hunter-only restriction for exotic pets
   const sp = Engine.petSpeciesOf(pet);
+  if (sp && sp.hunterOnly && s.hero && s.hero.playerClass !== 'hunter') {
+    UI.toast(`⚠️ ${sp.name} is Hunter-only!`, 'error');
+    return;
+  }
+  p.activeUid = petUid;
   UI.toast(`${sp.emoji} ${sp.name} is now your active pet!`, 'success');
   UI.renderPetsTab(App.state);
   saveNow();

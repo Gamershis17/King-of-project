@@ -2154,6 +2154,35 @@ export const PET_SPECIES = {
   astraldrake: { name: 'Astral Drake', emoji: '🐲', icon: 'img/pets/astraldrake.webp', rarity: 'celestial', weight: 1,   baseDmg: 56, growth: 1.09,
                  flavor: 'It has seen the end of everything — and decided to fight beside you.', style: 'Cosmic · devastating strikes',
                  baseStats: { atk: 44, def: 12, hp: 110 }, bond: { atk: 3, def: 2, hp: 35 } },
+  // Exotic line — Hunter-only pets with special abilities that trigger at low
+  // HP (<30%). Lower attack than same-tier pets (tank/utility focus), higher
+  // HP/defense. Hatchable from Exotic Eggs (pet shop) or rare boss drops (5%).
+  // weight: 0 keeps them out of the wild-egg pool.
+  exoticbear:   { name: 'Exotic Bear',   emoji: '🐻', icon: 'img/pets/exoticbear.webp',   rarity: 'exotic', weight: 0, baseDmg: 30, growth: 1.08,
+                 exotic: true, hunterOnly: true,
+                 flavor: 'A massive bear with runes etched in its fur — a wall of muscle and magic.', style: 'Stalwart · Thick Hide',
+                 baseStats: { atk: 18, def: 30, hp: 250 }, bond: { atk: 1, def: 5, hp: 80 },
+                 ability: { id: 'thick-hide', name: 'Thick Hide', desc: 'At <30% HP: damage shield for 5s', triggerHp: 0.3, cooldownSec: 30 } },
+  exoticturtle: { name: 'Exotic Turtle', emoji: '🐢', icon: 'img/pets/exoticturtle.webp', rarity: 'exotic', weight: 0, baseDmg: 22, growth: 1.075,
+                 exotic: true, hunterOnly: true,
+                 flavor: 'Its shell has turned aside dragonfire. It will turn aside this, too.', style: 'Immovable · Shell Shield',
+                 baseStats: { atk: 12, def: 35, hp: 300 }, bond: { atk: 0, def: 6, hp: 100 },
+                 ability: { id: 'shell-shield', name: 'Shell Shield', desc: 'At <30% HP: heals 20% max HP', triggerHp: 0.3, cooldownSec: 30 } },
+  exoticwolf:   { name: 'Exotic Wolf',   emoji: '🐺', icon: 'img/pets/exoticwolf.webp',   rarity: 'exotic', weight: 0, baseDmg: 48, growth: 1.085,
+                 exotic: true, hunterOnly: true,
+                 flavor: 'Eyes like embers. When wounded, it fights like a wildfire.', style: 'Fierce · Blood Frenzy',
+                 baseStats: { atk: 38, def: 10, hp: 130 }, bond: { atk: 4, def: 1, hp: 30 },
+                 ability: { id: 'blood-frenzy', name: 'Blood Frenzy', desc: 'At <30% HP: +50% attack for 8s', triggerHp: 0.3, cooldownSec: 30 } },
+  exoticspider: { name: 'Exotic Spider', emoji: '🕷️', icon: 'img/pets/exoticspider.webp', rarity: 'exotic', weight: 0, baseDmg: 36, growth: 1.08,
+                 exotic: true, hunterOnly: true,
+                 flavor: 'It weaves webs between heartbeats. Its prey never sees it coming.', style: 'Cunning · Web Wrap',
+                 baseStats: { atk: 28, def: 14, hp: 150 }, bond: { atk: 2, def: 2, hp: 40 },
+                 ability: { id: 'web-wrap', name: 'Web Wrap', desc: 'At <30% HP: slows enemy 30% for 6s', triggerHp: 0.3, cooldownSec: 30 } },
+  exoticphoenix:{ name: 'Exotic Phoenix', emoji: '🔥', icon: 'img/pets/exoticphoenix.webp', rarity: 'exotic', weight: 0, baseDmg: 40, growth: 1.085,
+                 exotic: true, hunterOnly: true,
+                 flavor: 'Born of flame, loyal beyond death. Its fire mends as well as burns.', style: 'Radiant · Rebirth Flame',
+                 baseStats: { atk: 32, def: 14, hp: 160 }, bond: { atk: 2, def: 2, hp: 50 },
+                 ability: { id: 'rebirth-flame', name: 'Rebirth Flame', desc: 'At <30% HP: heals self + hunter 15% max HP', triggerHp: 0.3, cooldownSec: 30 } },
   // Hunter starter beasts (not hatchable from eggs — starterOnly). Note: 🐺 is
   // taken by the Gloomfang Wolf enemy, so the wolf-ish slot uses 🦁 Lion.
   // Budget starter: the Ash Mouse is Stray-Egg-only (weight 0 keeps it out
@@ -2197,11 +2226,13 @@ export const EGG_TIERS = {
              desc: 'Hatches a Shadow Wisp, Gloomstalker, or Void Reaver — children of the dark.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver'] },
   celestial: { name: 'Starlight Egg', emoji: '🌠', price: 500000,
              desc: 'Hatches a Star Wisp, Luna Cub, or Astral Drake — children of the light.', pool: ['starwisp', 'lunacub', 'astraldrake'] },
+  exotic: { name: 'Exotic Egg', emoji: '🥚', price: 1000000,
+             desc: 'Hatches a Hunter-only exotic pet — Bear, Turtle, Wolf, Spider, or Phoenix. Each has a special low-HP ability.', pool: ['exoticbear', 'exoticturtle', 'exoticwolf', 'exoticspider', 'exoticphoenix'] },
   // Token-shop only (not sold for gold): shadow + celestial pool.
   token:   { name: 'Token Egg',   emoji: '🌀', price: null,
              desc: 'Token Shop exclusive — hatches a shadow or celestial pet.', pool: ['shadowwisp', 'gloomstalker', 'voidreaver', 'starwisp', 'lunacub', 'astraldrake'] },
 };
-export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial', 'token'];
+export const SHOP_EGG_TIERS = ['stray', 'common', 'glowing', 'radiant', 'mythic', 'shadow', 'celestial', 'exotic', 'token'];
 
 export function defaultPets() {
   const shopEggs = {};
@@ -2311,6 +2342,82 @@ export function ensurePetHp(pet, playerMaxHp) {
   if (!Number.isFinite(pet.hp)) pet.hp = max;
   pet.hp = Math.max(0, Math.min(max, pet.hp));
   return pet;
+}
+
+// ---------------------------------------------------------------------------
+// Exotic pet abilities (Hunter-only)
+// ---------------------------------------------------------------------------
+// Exotic pets have special abilities that trigger when their HP drops below
+// 30%. Each ability has a cooldown (default 30s) tracked via pet.abilityCd.
+// Returns a log message string if the ability triggered, null otherwise.
+// ---------------------------------------------------------------------------
+export function petAbilityReady(pet, nowMs) {
+  if (!pet || typeof pet !== 'object') return false;
+  const sp = petSpeciesOf(pet);
+  if (!sp || !sp.ability) return false;
+  const cdUntil = pet.abilityCdUntil || 0;
+  return nowMs >= cdUntil;
+}
+
+export function triggerExoticAbility(s, pet, stats, nowMs = Date.now()) {
+  if (!pet || !s) return null;
+  const sp = petSpeciesOf(pet);
+  if (!sp || !sp.ability || !sp.exotic) return null;
+  // Must be Hunter to use exotic abilities
+  if (s.hero && s.hero.playerClass !== 'hunter') return null;
+  // Check HP threshold
+  const pMaxH = (stats && stats.maxHp) || (s.hero && s.hero.maxHp) || 1;
+  const max = petMaxHp(pet, pMaxH);
+  const frac = max > 0 ? (pet.hp / max) : 1;
+  if (frac >= (sp.ability.triggerHp || 0.3)) return null;
+  // Check cooldown
+  if (!petAbilityReady(pet, nowMs)) return null;
+  const cdSec = sp.ability.cooldownSec || 30;
+  pet.abilityCdUntil = nowMs + cdSec * 1000;
+  const aid = sp.ability.id;
+  if (aid === 'thick-hide') {
+    // Bear: damage shield for 5s (absorbs 25% max HP)
+    pet.shieldAmt = Math.floor(max * 0.25);
+    pet.shieldUntil = nowMs + 5000;
+    return `🐻 ${sp.name} uses Thick Hide! (damage shield)`;
+  } else if (aid === 'shell-shield') {
+    // Turtle: heal 20% max HP
+    const amt = Math.floor(max * 0.2);
+    pet.hp = Math.min(max, pet.hp + amt);
+    return `🐢 ${sp.name} uses Shell Shield! (+${amt} HP)`;
+  } else if (aid === 'blood-frenzy') {
+    // Wolf: +50% attack for 8s
+    pet.frenzyUntil = nowMs + 8000;
+    return `🐺 ${sp.name} enters Blood Frenzy! (+50% attack)`;
+  } else if (aid === 'web-wrap') {
+    // Spider: slow enemy attack speed 30% for 6s (stored on state)
+    s.petWebWrapUntil = nowMs + 6000;
+    return `🕷️ ${sp.name} uses Web Wrap! (enemy slowed)`;
+  } else if (aid === 'rebirth-flame') {
+    // Phoenix: heal self + hunter 15% max HP
+    const petAmt = Math.floor(max * 0.15);
+    pet.hp = Math.min(max, pet.hp + petAmt);
+    const hMax = pMaxH;
+    const hAmt = Math.floor(hMax * 0.15);
+    if (s.hero) s.hero.hp = Math.min(hMax, s.hero.hp + hAmt);
+    return `🔥 ${sp.name} uses Rebirth Flame! (heals pet + hunter)`;
+  }
+  return null;
+}
+
+// Check if a pet species is Hunter-exclusive
+export function isHunterOnlyPet(speciesId) {
+  const sp = PET_SPECIES[speciesId];
+  return !!(sp && sp.hunterOnly);
+}
+
+// Roll for exotic pet boss drop (5% chance). Returns species id or null.
+export function rollExoticDrop() {
+  if (Math.random() < 0.05) {
+    const exotics = ['exoticbear', 'exoticturtle', 'exoticwolf', 'exoticspider', 'exoticphoenix'];
+    return exotics[Math.floor(Math.random() * exotics.length)];
+  }
+  return null;
 }
 
 // Pick the heal target: lowest HP fraction among player and active pets.
