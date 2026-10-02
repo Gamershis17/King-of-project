@@ -2,8 +2,8 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v20261001k';
-import * as Engine from './engine.js?v20261001m';
-import { UI, esc, formatNum } from './ui.js?v20261001o';
+import * as Engine from './engine.js?v20261001p';
+import { UI, esc, formatNum } from './ui.js?v20261001p';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v=20261001e';
 
@@ -1486,6 +1486,10 @@ function tick() {
   // Enemy damage-over-time (traps, blizzard).
   tickEnemyFx(stats);
 
+  // Druid heals-over-time.
+  const hotHealed = Engine.tickHots(s);
+  if (hotHealed > 0) UI.floatText('+' + formatNum(hotHealed), 'heal');
+
   // enemy counter-attacks (slowed by frost effects)
   App.enemyTimer += dt;
   const slowPct = App.enemySlow && Date.now() < App.enemySlow.until ? App.enemySlow.pct : 0;
@@ -1732,7 +1736,7 @@ function useSpell(id) {
       if (fx.mult) heroStrike(stats, fx.mult * mMult);
       if (App.enemy) {
         App.enemy.fx = App.enemy.fx || [];
-        if (fx.dotMult) App.enemy.fx.push({ kind: 'dot', mult: fx.dotMult * mMult,
+        if (fx.dotMult) App.enemy.fx.push({ kind: 'dot', mult: fx.dotMult * mMult, bleed: !!fx.bleed,
           ticksLeft: fx.dotTicks, everyMs: fx.dotEveryMs, nextAt: Date.now() + fx.dotEveryMs });
         if (fx.slowPct) App.enemySlow = { pct: fx.slowPct, until: Date.now() + (fx.slowSec || 0) * 1000 };
       }
@@ -1754,6 +1758,20 @@ function useSpell(id) {
       UI.combatLog(`💫 Blink! +${fx.pct}% dodge for ${fx.sec}s.`, 'skill');
       break;
     }
+    case 'hot': {
+      Engine.addHot(s, fx);
+      const parts = [];
+      if (fx.instantPct) parts.push(`${fx.instantPct}% now`);
+      if (fx.healPct) parts.push(`${fx.healPct}% every 2s`);
+      UI.floatText('HEALED', 'heal');
+      UI.combatLog(`🌿 ${def.name}! Healing ${parts.join(' + ')}.`, 'heal');
+      break;
+    }
+    case 'form': {
+      Engine.addForm(s, fx);
+      UI.combatLog(`🐾 ${def.name}! Shapeshifted for ${fx.sec}s.`, 'skill');
+      break;
+    }
   }
   UI.updateHUD(s, App.user);
   saveNow();
@@ -1771,7 +1789,7 @@ function tickEnemyFx(stats) {
       const dmg = f.petMult
         ? Math.max(1, Math.round(Engine.petStrikeDamage(App.state, stats) * f.petMult))
         : Math.max(1, Math.round(stats.attack * f.mult));
-      damageEnemy(dmg, '', f.petMult ? '🩸 ' : '🔥 ');
+      damageEnemy(dmg, '', f.petMult ? '🩸 ' : (f.bleed ? '🩸 ' : '🔥 '));
     }
   }
   enemy.fx = enemy.fx.filter(f => f.kind !== 'dot' || f.ticksLeft > 0);

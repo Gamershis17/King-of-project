@@ -403,6 +403,13 @@ export const CLASSES = {
     perks: ['+30% attack', '+10% attack speed', '−15% defense'],
     atkMult: 1.30, atkSpdBonus: 0.10, defMult: 0.85,
   },
+  druid: {
+    name: 'Druid', emoji: '🌿',
+    desc: 'Shapeshifter of the wild. Heals over time, strikes as beast or moonfire.',
+    perks: ['+10% max HP', '+10% attack', '+5% dodge'],
+    hpMult: 1.10, atkMult: 1.10, dodgeBonus: 5,
+    resource: 'mana',
+  },
 };
 export function classDef(id) { return CLASSES[id] || null; }
 
@@ -526,6 +533,7 @@ export function defaultState(race) {
     focus: 100, rage: 0, mana: 100, // hunter/warrior/mage resources (rage builds in combat)
     spellSlots: [],   // customizable 6-slot spell loadout (auto-filled per class)
     buffs: [],        // transient timed buffs (shouts, shields, blink)
+    hots: [],         // druid heals-over-time
     potions: { health: 0, resource: 0 },
     potionReadyAt: 0, // timestamp (ms) when the potion cooldown ends — survives reloads
     spec: null,       // permanent specialization: tank|dps|healer|classic (null = not chosen)
@@ -850,6 +858,24 @@ export const CLASS_SPELLS = {
     { id: 'blink', name: 'Blink', emoji: '💫', school: 'Arcane', cost: 20, cdMs: 30000, unlockLevel: 35,
       effect: { kind: 'dodge', pct: 40, sec: 6 }, desc: '+40% dodge for 6s.' },
   ],
+  druid: [
+    { id: 'moonfire', name: 'Moonfire', emoji: '🌙', school: 'Balance', cost: 15, cdMs: 8000, unlockLevel: 1,
+      effect: { kind: 'dot', mult: 1.5, dotMult: 0.5, dotTicks: 4, dotEveryMs: 2000 }, desc: '1.5× damage plus moonburn: 0.5× every 2s, 4 times.' },
+    { id: 'wrath', name: 'Wrath', emoji: '🌩️', school: 'Balance', cost: 20, cdMs: 6000, unlockLevel: 1,
+      effect: { kind: 'strike', mult: 2.5 }, desc: "Call down nature's wrath for 2.5× damage." },
+    { id: 'rejuvenation', name: 'Rejuvenation', emoji: '🌱', school: 'Restoration', cost: 25, cdMs: 15000, unlockLevel: 10,
+      effect: { kind: 'hot', healPct: 4, ticks: 6, everyMs: 2000 }, desc: 'Heal 4% max HP every 2s for 12s.' },
+    { id: 'bear-form', name: 'Bear Form', emoji: '🐻', school: 'Feral', cost: 30, cdMs: 40000, unlockLevel: 15,
+      effect: { kind: 'form', hpPct: 40, defPct: 25, sec: 20 }, desc: 'Shapeshift: +40% max HP and +25% defense for 20s.' },
+    { id: 'cat-form', name: 'Cat Form', emoji: '🐱', school: 'Feral', cost: 30, cdMs: 40000, unlockLevel: 20,
+      effect: { kind: 'form', atkPct: 15, atkSpdPct: 20, sec: 20 }, desc: 'Shapeshift: +15% attack and +20% attack speed for 20s.' },
+    { id: 'rake', name: 'Rake', emoji: '🐾', school: 'Feral', cost: 20, cdMs: 12000, unlockLevel: 25,
+      effect: { kind: 'dot', mult: 1.5, dotMult: 0.5, dotTicks: 5, dotEveryMs: 2000, bleed: true }, desc: '1.5× damage plus bleeding: 0.5× every 2s, 5 times.' },
+    { id: 'regrowth', name: 'Regrowth', emoji: '🌿', school: 'Restoration', cost: 35, cdMs: 20000, unlockLevel: 30,
+      effect: { kind: 'hot', instantPct: 15, healPct: 3, ticks: 5, everyMs: 2000 }, desc: 'Heal 15% instantly plus 3% max HP every 2s for 10s.' },
+    { id: 'tranquility', name: 'Tranquility', emoji: '✨', school: 'Restoration', cost: 50, cdMs: 60000, unlockLevel: 35,
+      effect: { kind: 'hot', healPct: 6, ticks: 6, everyMs: 2000 }, desc: 'Heal 6% max HP every 2s for 12s.' },
+  ],
 };
 
 export function spellsForClass(classId) { return CLASS_SPELLS[classId] || []; }
@@ -906,14 +932,59 @@ export function addShield(s, amount, sec) {
   if (!Array.isArray(s.buffs)) s.buffs = [];
   s.buffs.push({ kind: 'shield', amount, until: Date.now() + sec * 1000 });
 }
+// Druid heals-over-time. Each hot ticks healPct% of max HP every everyMs.
+export function addHot(s, fx) {
+  if (!s || !fx) return;
+  if (!Array.isArray(s.hots)) s.hots = [];
+  if (fx.instantPct) {
+    const stats = computeStats(s);
+    s.hero.hp = Math.min(stats.maxHp, (s.hero.hp || 0) + Math.round(stats.maxHp * fx.instantPct / 100));
+  }
+  if (fx.healPct && fx.ticks > 0) {
+    s.hots.push({ healPct: fx.healPct, ticksLeft: fx.ticks,
+      everyMs: fx.everyMs || 2000, nextAt: Date.now() + (fx.everyMs || 2000) });
+  }
+}
+export function tickHots(s) {
+  if (!s || !Array.isArray(s.hots) || !s.hots.length) return 0;
+  const now = Date.now();
+  const stats = computeStats(s);
+  let healed = 0;
+  for (const h of s.hots) {
+    if (h.ticksLeft > 0 && now >= h.nextAt) {
+      h.ticksLeft -= 1;
+      h.nextAt = now + h.everyMs;
+      const amt = Math.max(1, Math.round(stats.maxHp * h.healPct / 100));
+      s.hero.hp = Math.min(stats.maxHp, (s.hero.hp || 0) + amt);
+      healed += amt;
+    }
+  }
+  s.hots = s.hots.filter(h => h.ticksLeft > 0);
+  return healed;
+}
 export function applyBuffs(stats, s) {
   if (!stats) return stats;
   pruneBuffs(s);
   for (const b of (s.buffs || [])) {
     if (b.kind === 'atkPct') stats.attack *= 1 + b.pct / 100;
     else if (b.kind === 'dodgePct') stats.dodge = (stats.dodge || 0) + b.pct;
+    else if (b.kind === 'hpPct') stats.maxHp = Math.max(1, Math.round((stats.maxHp || 0) * (1 + b.pct / 100)));
+    else if (b.kind === 'defPct') stats.defense = Math.max(0, Math.round((stats.defense || 0) * (1 + b.pct / 100)));
+    else if (b.kind === 'atkSpdPct') stats.attackSpeed = (stats.attackSpeed || 0) * (1 + b.pct / 100);
   }
   return stats;
+}
+// Druid shapeshift: pushes one timed buff per stat the form grants.
+export function addForm(s, fx) {
+  if (!s || !fx) return;
+  if (!Array.isArray(s.buffs)) s.buffs = [];
+  const until = Date.now() + (fx.sec || 0) * 1000;
+  for (const kind of ['hpPct', 'defPct', 'atkPct', 'atkSpdPct']) {
+    const pct = fx[kind];
+    if (!pct) continue;
+    const ex = s.buffs.find(b => b.kind === kind);
+    if (ex) { ex.pct = pct; ex.until = until; } else s.buffs.push({ kind, pct, until });
+  }
 }
 export function damageTakenMult(s) {
   let m = 1;
@@ -1016,7 +1087,7 @@ export const RESOURCES = {
 };
 export const CLASS_RESOURCE = {
   hunter: 'focus', warrior: 'rage', mage: 'mana',
-  assassin: 'energy', necromancer: 'mana', berserker: 'rage',
+  assassin: 'energy', necromancer: 'mana', berserker: 'rage', druid: 'mana',
 };
 
 // The 'assassin' key displays as Rogue (renamed 2026-09-30); the key is
@@ -1677,6 +1748,7 @@ const WEAPON_NAMES_BY_CLASS = {
   mage:       ['Staff', 'Wand', 'Tome', 'Orb'],
   necromancer:['Scythe', 'Grimwand', 'Bonestaff', 'Soulreaver'],
   berserker:  ['Greataxe', 'Axe', 'Maul', 'Cleaver'],
+  druid:      ['Grove Staff', 'Thornstaff', 'Wildwood Branch', 'Oakheart'],
 };
 function weaponNameFor(classId) {
   const pool = (classId && WEAPON_NAMES_BY_CLASS[classId]) || SLOT_NAMES.weapon;
@@ -1691,6 +1763,7 @@ const ARMOR_NAMES_BY_CLASS = {
   mage:        ['Cloth', 'Silkweave', 'Arcanist Robes'],
   necromancer: ['Shroud', 'Gravecloth', 'Soulweave'],
   berserker:   ['Hide', 'Warhide', 'Bloodhide'],
+  druid:       ['Barkweave', 'Leafmail', 'Wildhide'],
 };
 function armorNameFor(classId) {
   const pool = (classId && ARMOR_NAMES_BY_CLASS[classId]) || SLOT_NAMES.armor;

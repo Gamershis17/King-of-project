@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261001m';
+import * as Engine from './engine.js?v20261001p';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -160,6 +160,7 @@ export const UI = {
     { id: 'class-assassin', name: "🗡️ Rogue's Night", css: "url('img/bg/class-assassin.jpg') center/cover", photo: 'img/bg/class-assassin.jpg', animated: true },
     { id: 'class-necromancer', name: '💀 Necropolis', css: "url('img/bg/class-necromancer.jpg') center/cover", photo: 'img/bg/class-necromancer.jpg', animated: true },
     { id: 'class-berserker', name: '🪓 Bloodrage Field', css: "url('img/bg/class-berserker.jpg') center/cover", photo: 'img/bg/class-berserker.jpg', animated: true },
+    { id: 'class-druid', name: '🌿 Druid Grove', css: "url('img/bg/class-druid.jpg') center/cover", photo: 'img/bg/class-druid.jpg', animated: true },
   ],
   // Animated-scene options (persisted in state.settings).
   EYE_COLORS: [
@@ -179,7 +180,7 @@ export const UI = {
     'inferno-flare', 'cinder-storm', 'phoenix-ash', 'frostfall', 'starfall', 'bloodmoon',
     'nightsky', 'sunset', 'woods', 'water',
     'autumn-dusk', 'winter-night', 'hallows-eve', 'new-year', 'summer-tide', 'spring-bloom',
-    'class-hunter', 'class-warrior', 'class-mage', 'class-assassin', 'class-necromancer', 'class-berserker'],
+    'class-hunter', 'class-warrior', 'class-mage', 'class-assassin', 'class-necromancer', 'class-berserker', 'class-druid'],
 
   // ---------------- init ----------------
   init() {
@@ -2569,7 +2570,8 @@ export const UI = {
     } else if (id === 'autumn-dusk' || id === 'winter-night' || id === 'hallows-eve' ||
                id === 'new-year' || id === 'summer-tide' || id === 'spring-bloom' ||
                id === 'class-hunter' || id === 'class-warrior' || id === 'class-mage' ||
-               id === 'class-assassin' || id === 'class-necromancer' || id === 'class-berserker') {
+               id === 'class-assassin' || id === 'class-necromancer' || id === 'class-berserker' ||
+               id === 'class-druid') {
       // Seasonal + class scenes: themed drifting motes over a dark seasonal gradient.
       // dir: 'down' falls (leaves/snow/petals), 'up' rises (embers/sparkles),
       // 'drift' floats sideways (pollen/bubbles).
