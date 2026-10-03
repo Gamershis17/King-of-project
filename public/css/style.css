@@ -6075,3 +6075,43 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
   width: max-content;
   max-width: 90%;
 }
+
+/* 🎣 Background layers: far trees, hills, meadow */
+.fish-far-trees {
+  position: absolute;
+  top: 30%; left: 0; right: 0; height: 10%;
+  z-index: 1;
+  opacity: 0.6;
+}
+.far-tree {
+  position: absolute;
+  font-size: 24px;
+  bottom: 0;
+  filter: blur(0.5px);
+}
+.fish-hills {
+  position: absolute;
+  top: 36%; left: 0; right: 0; height: 10%;
+  background: linear-gradient(180deg, #3a5a3a 0%, #2a4a2a 100%);
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
+  z-index: 2;
+  opacity: 0.9;
+}
+.fish-meadow {
+  position: absolute;
+  top: 44%; left: 0; right: 0; height: 6%;
+  background: linear-gradient(180deg, #5a8c4a 0%, #4a7c3a 100%);
+  z-index: 3;
+}
+.fish-birds {
+  position: absolute;
+  top: 12%; left: 30%;
+  font-size: 18px;
+  animation: birdsFly 15s linear infinite;
+  opacity: 0.7;
+}
+@keyframes birdsFly {
+  0% { transform: translateX(-30px); }
+  50% { transform: translateX(30px); }
+  100% { transform: translateX(-30px); }
+}
