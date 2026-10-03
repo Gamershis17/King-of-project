@@ -2036,8 +2036,9 @@ router.get(
   gmOrOwner,
   asyncHandler(async (req, res) => {
     const rows = await pool.any(
-      `SELECT username, role, level, updated_at as "lastSeen"
-       FROM users ORDER BY updated_at DESC LIMIT 100`
+      `SELECT u.username, u.role, u.last_active as "lastSeen", ps.level
+       FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
+       ORDER BY u.last_active DESC NULLS LAST LIMIT 100`
     );
     const now = Date.now();
     const players = rows.map((r) => ({
