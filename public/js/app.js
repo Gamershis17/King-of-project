@@ -2130,6 +2130,68 @@ function doMine() {
 // Fishing state (not saved — session only)
 App.fishing = { phase: 'idle', markerPos: 0, markerDir: 1, greenStart: 0.3, greenEnd: 0.5, animId: null };
 
+// Web Audio SFX for fishing
+const FishSFX = {
+  ctx: null,
+  get() {
+    if (!this.ctx) {
+      try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
+    }
+    return this.ctx;
+  },
+  play(freq, dur, type = 'sine', vol = 0.15) {
+    const ctx = this.get();
+    if (!ctx) return;
+    try {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.setValueAtTime(vol, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(); o.stop(ctx.currentTime + dur);
+    } catch {}
+  },
+  cast() { this.play(400, 0.3, 'sine', 0.1); setTimeout(() => this.play(600, 0.2, 'sine', 0.08), 100); },
+  splash() { this.play(200, 0.4, 'triangle', 0.12); setTimeout(() => this.play(150, 0.3, 'triangle', 0.1), 80); },
+  catch() { [523, 659, 784].forEach((f, i) => setTimeout(() => this.play(f, 0.25, 'sine', 0.12), i * 100)); },
+  rare() { [523, 659, 784, 1047, 1319].forEach((f, i) => setTimeout(() => this.play(f, 0.3, 'sine', 0.14), i * 90)); },
+  escape() { this.play(180, 0.5, 'sawtooth', 0.08); },
+};
+window.FishSFX = FishSFX;
+
+function animateCast() {
+  const rod = document.getElementById('fish-rod');
+  const line = document.getElementById('fish-line-path');
+  const bobber = document.getElementById('fish-bobber');
+  const splash = document.getElementById('fish-splash');
+  if (rod) { rod.classList.add('casting'); setTimeout(() => rod.classList.remove('casting'), 500); }
+  FishSFX.cast();
+  // Animate line arc from rod tip to water
+  if (line) {
+    let t = 0;
+    const anim = setInterval(() => {
+      t += 0.08;
+      if (t >= 1) { clearInterval(anim); if (bobber) bobber.classList.remove('hidden'); if (splash) { splash.classList.remove('hidden'); setTimeout(() => splash.classList.add('hidden'), 600); } FishSFX.splash(); return; }
+      const x1 = 20, y1 = 55, x2 = 55, y2 = 62;
+      const cx = (x1 + x2) / 2, cy = Math.min(y1, y2) - 30;
+      const x = (1-t)*(1-t)*x1 + 2*(1-t)*t*cx + t*t*x2;
+      const y = (1-t)*(1-t)*y1 + 2*(1-t)*t*cy + t*t*y2;
+      line.setAttribute('d', `M ${x1} ${y1} Q ${cx} ${cy} ${x} ${y}`);
+    }, 30);
+  }
+}
+
+function animateReel(success, isRare) {
+  const rod = document.getElementById('fish-rod');
+  const line = document.getElementById('fish-line-path');
+  const bobber = document.getElementById('fish-bobber');
+  if (bobber) bobber.classList.add('hidden');
+  if (rod) { rod.classList.add('reeling'); setTimeout(() => rod.classList.remove('reeling'), 800); }
+  if (line) line.setAttribute('d', '');
+  if (success) { isRare ? FishSFX.rare() : FishSFX.catch(); }
+  else { FishSFX.escape(); }
+}
+
 function doFish() {
   const s = App.state;
   if (!s) return;
@@ -2137,6 +2199,7 @@ function doFish() {
 
   if (F.phase === 'idle') {
     // CAST — start the timing game
+    animateCast();
     F.phase = 'waiting';
     const rod = Engine.FISHING_RODS[s.fishingRod || 'stick'] || Engine.FISHING_RODS.stick;
     const zoneSize = rod.greenZone;
@@ -2199,6 +2262,8 @@ function doFish() {
       // CAUGHT!
       const rodId = s.fishingRod || 'stick';
       const fish = Engine.rollFishCatch(rodId, s);
+      const isRare = fish.rarity === 'rare' || fish.rarity === 'legendary';
+      animateReel(true, isRare);
       s.fish = s.fish || {};
       s.fish[fish.id] = (s.fish[fish.id] || 0) + 1;
       // Fish go to inventory — player chooses to sell, eat, or feed to pet
@@ -2230,6 +2295,7 @@ function doFish() {
       UI.updateHUD(s, App.user);
       saveNow();
     } else {
+      animateReel(false, false);
       if (status) status.textContent = '💨 Missed! The marker wasn\'t in the green zone.';
       if (catchDiv) catchDiv.innerHTML = '';
     }
