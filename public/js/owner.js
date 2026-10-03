@@ -42,6 +42,79 @@
     initMultipliers();
     initInspector();
     initPlayerModal();
+    initProgression();
+    initGearFactory();
+  }
+  // Live progression overrides
+  function initProgression() {
+    const btn = $('prog-apply');
+    if (!btn || btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const err = $('prog-err');
+      err.textContent = '';
+      const username = ($('prog-user') || {}).value.trim();
+      if (!username) { err.textContent = '❌ Enter a target username.'; return; }
+      const level = ($('prog-level') || {}).value.trim();
+      const xp = ($('prog-xp') || {}).value.trim();
+      const stage = ($('prog-stage') || {}).value.trim();
+      const tower = ($('prog-tower') || {}).value.trim();
+      if (!level && !xp && !stage && !tower) { err.textContent = '⚠️ Enter at least one value.'; return; }
+      const ops = [];
+      try {
+        if (level) {
+          const { ok, j } = await api('/api/gm/set-level', { method: 'POST', body: JSON.stringify({ username, level: parseInt(level) }) });
+          if (!ok || !j.ok) throw new Error('Level: ' + ((j && j.error) || 'failed'));
+          ops.push('Lv ' + level);
+        }
+        if (xp) {
+          const { ok, j } = await api('/api/gm/set-xp', { method: 'POST', body: JSON.stringify({ username, amount: parseInt(xp) }) });
+          if (!ok || !j.ok) throw new Error('XP: ' + ((j && j.error) || 'failed'));
+          ops.push('+' + xp + ' XP');
+        }
+        if (stage) {
+          const { ok, j } = await api('/api/gm/set-stage', { method: 'POST', body: JSON.stringify({ username, stage: parseInt(stage) }) });
+          if (!ok || !j.ok) throw new Error('Stage: ' + ((j && j.error) || 'failed'));
+          ops.push('Stage ' + stage);
+        }
+        if (tower) {
+          const { ok, j } = await api('/api/gm/set-tower', { method: 'POST', body: JSON.stringify({ username, floor: parseInt(tower) }) });
+          if (!ok || !j.ok) throw new Error('Tower: ' + ((j && j.error) || 'failed'));
+          ops.push('Tower ' + tower);
+        }
+        err.style.color = '#4f4';
+        err.textContent = `✅ Applied to ${username}: ${ops.join(' · ')}`;
+        logAudit(`Progression: ${ops.join(', ')} → ${username}`);
+        loadRoster();
+      } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+    });
+  }
+  // Custom gear factory
+  function initGearFactory() {
+    const btn = $('gear-forge');
+    if (!btn || btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const err = $('gear-err');
+      err.textContent = '';
+      const username = ($('gear-user') || {}).value.trim();
+      const slot = ($('gear-slot') || {}).value;
+      const name = ($('gear-name') || {}).value.trim();
+      const atk = parseInt(($('gear-atk') || {}).value) || 0;
+      const def = parseInt(($('gear-def') || {}).value) || 0;
+      if (!username) { err.textContent = '❌ Enter a target username.'; return; }
+      if (!name) { err.textContent = '❌ Enter a custom item name.'; return; }
+      try {
+        const { ok, j } = await api('/api/gm/create-op-gear', {
+          method: 'POST',
+          body: JSON.stringify({ username, name, slot, rarity: 'mythic', stats: { atk, def } }),
+        });
+        if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+        err.style.color = '#4f4';
+        err.textContent = `✅ Forged "${name}" → ${username}`;
+        logAudit(`Custom gear: "${name}" (${slot}) → ${username}`);
+      } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+    });
   }
   // Player snapshots for inspector
   let inspectorTarget = '';
