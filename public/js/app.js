@@ -2207,6 +2207,14 @@ function doFish() {
       UI.toast(`🎣 Caught ${fish.name}!`, 'success');
       // Fishing XP
       s.fishingXp = (s.fishingXp || 0) + 10;
+      // Leaderboard stats
+      s.totalFishCaught = (s.totalFishCaught || 0) + 1;
+      const catchScore = fish.goldValue || 0;
+      if (catchScore > (s.biggestCatchScore || 0)) {
+        s.biggestCatchScore = catchScore;
+        s.biggestCatchName = fish.name;
+        s.biggestCatchEmoji = fish.emoji;
+      }
       // Track daily quests
       Engine.trackFishingQuest(s, fish);
       const quests = Engine.ensureFishingQuests(s);

@@ -5185,6 +5185,8 @@ export const UI = {
     rebirths: { emoji: '🌀', label: 'Rebirths', fmt: (en) => (en.rebirth > 0 ? en.rebirth : '—') },
     bossrush: { emoji: '⚔️', label: 'Boss Rush', fmt: (en) => en.bossRushMs > 0 ? Engine.formatBossRushTime(en.bossRushMs) : '—' },
     tower:    { emoji: '🗼', label: 'Tower',    fmt: (en) => (en.towerFloor > 0 ? 'Floor ' + en.towerFloor : '—') },
+    fish:     { emoji: '🎣', label: 'Fish Caught', fmt: (en) => (en.totalFish > 0 ? formatNum(en.totalFish) : '—') },
+    biggestcatch: { emoji: '🐠', label: 'Biggest Catch', fmt: (en) => (en.biggestCatch > 0 ? '💰' + formatNum(en.biggestCatch) : '—') },
   },
   lbCategory: 'level',
 
