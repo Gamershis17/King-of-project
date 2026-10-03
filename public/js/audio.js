@@ -121,6 +121,56 @@ const TRACKS = {
     pluckScale: [440.0, 523.25, 587.33, 659.25, 783.99, 880.0], // high shimmer
     pluckGap: [3.0, 8.0],
   },
+  // ===== TOWER OF SHADOWS: escalating battle music =====
+  // Intensity rises with floor: ascendant → warpath → doommarch → apotheosis
+  'tower-ascendant': {
+    name: 'Tower Ascendant',
+    chords: [
+      [82.41, 103.83, 123.47],  // Em:  E2 G#2 B2 (rising tension)
+      [65.41, 82.41, 98.0],     // C:   C2 E2 G2
+      [73.42, 87.31, 110.0],    // Dm:  D2 F2 A2
+      [61.74, 77.78, 92.5],     // Bm:  B1 D#2 F#2
+    ],
+    chordSecs: 6,
+    pluckScale: [164.81, 196.0, 246.94, 293.66, 329.63, 392.0], // E minor, mid
+    pluckGap: [2.0, 4.5],
+  },
+  'tower-warpath': {
+    name: 'Tower Warpath',
+    chords: [
+      [61.74, 73.42, 92.5],     // Bm:  B1 D2 F#2 (driving)
+      [49.0, 61.74, 73.42],     // Gm:  G1 B1 D2
+      [55.0, 65.41, 82.41],     // A:   A1 C2 E2
+      [43.65, 55.0, 65.41],     // F:   F1 A1 C2 (deep)
+    ],
+    chordSecs: 4,
+    pluckScale: [246.94, 293.66, 329.63, 392.0, 440.0, 493.88], // B minor, urgent
+    pluckGap: [1.0, 2.5],
+  },
+  'tower-doommarch': {
+    name: 'Tower Doommarch',
+    chords: [
+      [41.2, 49.0, 61.74],      // E1 G1 B1 (crushing low)
+      [36.71, 43.65, 55.0],     // D1 F1 A1
+      [32.7, 41.2, 49.0],       // C1 E1 G1 (sub-bass)
+      [30.87, 36.71, 46.25],    // B0 D1 F#1 (abyssal)
+    ],
+    chordSecs: 3,
+    pluckScale: [196.0, 246.94, 293.66, 329.63, 392.0], // low, brutal
+    pluckGap: [0.8, 2.0],
+  },
+  'tower-apotheosis': {
+    name: 'Tower Apotheosis',
+    chords: [
+      [32.7, 65.41, 82.41, 98.0],   // C:   C1 C2 E2 G2 (massive)
+      [30.87, 61.74, 73.42, 92.5],  // Bm:  B0 B1 D2 F#2
+      [36.71, 73.42, 87.31, 110.0], // D:   D1 D2 F2 A2
+      [29.14, 58.27, 73.42, 87.31], // Bb:  Bb0 Bb1 D2 F2 (earth-shaking)
+    ],
+    chordSecs: 2.5,
+    pluckScale: [329.63, 392.0, 440.0, 493.88, 587.33, 659.25, 783.99], // soaring over the chaos
+    pluckGap: [0.5, 1.5],
+  },
 };
 export const MUSIC_TRACKS = Object.keys(TRACKS);
 export const MUSIC_TRACK_NAMES = Object.fromEntries(
@@ -249,20 +299,33 @@ export const Audio = {
   // Combat music: boss fights temporarily switch to the Dread Sovereign
   // theme, then restore the previous track — unless the player picked a
   // different track mid-fight, in which case their choice sticks.
-  setCombat(on) {
+  // Tower floor → escalating battle track (the higher you climb, the harder it hits)
+  towerTrackForFloor(floor) {
+    const f = Math.max(1, Math.floor(floor) || 1);
+    if (f >= 1000) return 'tower-apotheosis';
+    if (f >= 500) return 'tower-doommarch';
+    if (f >= 100) return 'tower-warpath';
+    return 'tower-ascendant';
+  },
+
+  setCombat(on, towerFloor) {
     try {
       if (on && !this._combatOn) {
         if (this.prefs.combatMusic === false) return;
         this._combatOn = true;
         this._preCombatTrack = this.prefs.track;
-        this.setTrack('dread-sovereign');
+        // Tower mode gets escalating battle music; otherwise the dread theme
+        const track = towerFloor ? this.towerTrackForFloor(towerFloor) : 'dread-sovereign';
+        this.setTrack(track);
+        this._combatTrack = track;
       } else if (!on && this._combatOn) {
         this._combatOn = false;
-        if (this._musicTrackId === 'dread-sovereign') {
+        if (this._musicTrackId === this._combatTrack) {
           const back = this._preCombatTrack && TRACKS[this._preCombatTrack] ? this._preCombatTrack : DEFAULT_TRACK;
           this.setTrack(back);
         }
         this._preCombatTrack = null;
+        this._combatTrack = null;
       }
     } catch { /* ignore */ }
   },

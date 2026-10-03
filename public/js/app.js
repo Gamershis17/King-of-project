@@ -874,7 +874,7 @@ function setCombatMusic(on) {
   s.audio = { ...audioOf(s), combatMusic: !!on };
   applyAudioPrefs();
   if (!on) Audio.setCombat(false);
-  else if (App.enemy) Audio.setCombat(!!App.enemy.boss);
+  else if (App.enemy) Audio.setCombat(!!App.enemy.boss, App.enemy.towerFloor);
   saveNow();
 }
 function setMusicVolume(v) {
@@ -1059,8 +1059,8 @@ function spawnEnemy() {
   // revive downed companions on a fresh enemy
   for (const c of s.party) if (c.hp <= 0) c.hp = c.maxHp;
   UI.setEnemy(App.enemy);
-  // Boss-fight music: Dread Sovereign while a boss is up, restore after.
-  try { if (audioOf(s).combatMusic !== false) Audio.setCombat(!!(App.enemy && App.enemy.boss)); } catch {}
+  // Boss-fight music: Tower floors get escalating battle tracks, other bosses get Dread Sovereign.
+  try { if (audioOf(s).combatMusic !== false) Audio.setCombat(!!(App.enemy && App.enemy.boss), App.enemy && App.enemy.towerFloor); } catch {}
   // reset the live damage meter for this fight — but keep the last fight's
   // numbers around so one-tap kills show a real DPS instead of 0.
   if (App.meter) App.lastMeter = meterSnapshot();

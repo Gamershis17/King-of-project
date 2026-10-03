@@ -3838,6 +3838,10 @@ export const TITLE_DEFS = {
   'tower-master': { name: '🗼 Floor Master', desc: 'Clear Tower Floor 50.', check: (s) => (s.tower && s.tower.floor || 0) >= 50 },
   'tower-ascendant': { name: '🗼 Shadow Ascendant', desc: 'Clear Tower Floor 75.', check: (s) => (s.tower && s.tower.floor || 0) >= 75 },
   'tower-conqueror': { name: '🗼 Tower Conqueror', desc: 'Clear Tower Floor 100.', check: (s) => (s.tower && s.tower.floor || 0) >= 100 },
+  'tower-warbringer': { name: '🗼 Warbringer', desc: 'Clear Tower Floor 250.', check: (s) => (s.tower && s.tower.floor || 0) >= 250 },
+  'tower-doomcaller': { name: '🗼 Doomcaller', desc: 'Clear Tower Floor 500.', check: (s) => (s.tower && s.tower.floor || 0) >= 500 },
+  'tower-abysswalker': { name: '🗼 Abysswalker', desc: 'Clear Tower Floor 750.', check: (s) => (s.tower && s.tower.floor || 0) >= 750 },
+  'tower-godslayer': { name: '🗼 Godslayer of the Tower', desc: 'Clear Tower Floor 1000. The ultimate ascent.', check: (s) => (s.tower && s.tower.floor || 0) >= 1000 },
   // Stat-boost titles: equipping grants the listed bonus.
   'founding-father': { name: '👑 The Founding Father', desc: '+10% gold from all sources.', check: (s) => (s.stats.kills || 0) >= 5000, boost: { goldPct: 10 } },
   'shadow-sovereign': { name: '🌑 Shadow Sovereign', desc: '+10% attack.', check: (s) => (s.bossesKilled || 0) >= 50, boost: { atkPct: 10 } },
@@ -4239,6 +4243,10 @@ export const TOWER_MILESTONES = {
   50: { titleId: 'tower-master', titleName: 'Floor Master' },
   75: { titleId: 'tower-ascendant', titleName: 'Shadow Ascendant' },
   100: { titleId: 'tower-conqueror', titleName: 'Tower Conqueror' },
+  250: { titleId: 'tower-warbringer', titleName: 'Warbringer' },
+  500: { titleId: 'tower-doomcaller', titleName: 'Doomcaller' },
+  750: { titleId: 'tower-abysswalker', titleName: 'Abysswalker' },
+  1000: { titleId: 'tower-godslayer', titleName: 'Godslayer of the Tower' },
 };
 export const TOWER_HAZARDS = {
   vampiric: { name: 'Vampiric Heal', emoji: '🩸', desc: 'Boss heals 15% of damage it deals' },
