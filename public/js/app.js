@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js?v=20260930ar';
 import * as Engine from './engine.js?v20261003ad';
-import { UI, esc, formatNum } from './ui.js?v20261003ba';
+import { UI, esc, formatNum } from './ui.js?v20261003bb';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v20261003az';
 
@@ -2219,7 +2219,7 @@ function doFish() {
 
 function doSellFish(fishId) {
   const s = App.state;
-  if (!s || !s.fish || !s.fish[fishId]) return;
+  if (!s || !s.fish || !(s.fish[fishId] > 0)) return;
   const fish = Engine.FISH_SPECIES[fishId];
   if (!fish) return;
   s.fish[fishId]--;
@@ -2230,7 +2230,7 @@ function doSellFish(fishId) {
 }
 function doEatFish(fishId) {
   const s = App.state;
-  if (!s || !s.fish || !s.fish[fishId]) return;
+  if (!s || !s.fish || !(s.fish[fishId] > 0)) return;
   const fish = Engine.FISH_SPECIES[fishId];
   if (!fish) return;
   const healAmt = Math.round(fish.goldValue / 10);
@@ -2242,11 +2242,12 @@ function doEatFish(fishId) {
 }
 function doFeedFish(fishId) {
   const s = App.state;
-  if (!s || !s.fish || !s.fish[fishId]) return;
+  if (!s || !s.fish || !(s.fish[fishId] > 0)) return;
   const fish = Engine.FISH_SPECIES[fishId];
   if (!fish) return;
   // Feed to active pet: restore hunger
-  const pet = s.activePet;
+  const activePets = Engine.activePets(s);
+  const pet = activePets && activePets[0];
   if (!pet) { UI.toast('No active pet to feed!', 'warn'); return; }
   s.fish[fishId]--;
   if (s.fish[fishId] <= 0) delete s.fish[fishId];

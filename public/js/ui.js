@@ -386,10 +386,17 @@ export const UI = {
     listen('mine-btn', 'click', () => {
       if (this.handlers.onMine) this.handlers.onMine();
     });
-    // Fishing: cast/strike button
-    listen('fish-btn', 'click', () => {
+    // Fishing: cast/strike button (pointerdown for instant mobile response,
+    // click as fallback; guard against double-fire)
+    let fishBtnFired = 0;
+    const fishBtnHandler = () => {
+      const now = Date.now();
+      if (now - fishBtnFired < 300) return;
+      fishBtnFired = now;
       if (this.handlers.onFish) this.handlers.onFish();
-    });
+    };
+    listen('fish-btn', 'pointerdown', fishBtnHandler);
+    listen('fish-btn', 'click', fishBtnHandler);
     // Mine: the ore node itself is also a tap target. It's what players
     // naturally tap, and on small screens the MINE button sits below the
     // pickaxe ladder — a tap on the rock must never feel dead.
