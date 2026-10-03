@@ -1921,7 +1921,8 @@ function doSell(id) {
   const gold = Engine.sellItem(s, id);
   if (gold > 0) {
     UI.toast(`Sold ${item.name} for 💰${formatNum(gold)}.`, 'success');
-    UI.renderGear(s);
+    UI.renderArmory(s);
+    if (UI.activeTab === 'gear') UI.renderGear(s);
     UI.updateHUD(s, App.user);
     saveNow();
   }
