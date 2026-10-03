@@ -378,6 +378,10 @@ export const UI = {
     listen('mine-btn', 'click', () => {
       if (this.handlers.onMine) this.handlers.onMine();
     });
+    // Fishing: cast/strike button
+    listen('fish-btn', 'click', () => {
+      if (this.handlers.onFish) this.handlers.onFish();
+    });
     // Mine: the ore node itself is also a tap target. It's what players
     // naturally tap, and on small screens the MINE button sits below the
     // pickaxe ladder — a tap on the rock must never feel dead.
@@ -396,6 +400,12 @@ export const UI = {
       const btn = e.target.closest('button[data-action="buy-pickaxe"]');
       if (!btn || btn.disabled) return;
       if (this.handlers.onPickaxeUpgrade) this.handlers.onPickaxeUpgrade();
+    });
+    // Fishing: buy rod
+    listen('fishing-shop', 'click', (e) => {
+      const btn = e.target.closest('button[data-action="buy-rod"]');
+      if (!btn || btn.disabled) return;
+      if (this.handlers.onBuyRod) this.handlers.onBuyRod(btn.dataset.rod);
     });
     listen('upgrade-list', 'click', (e) => {
       const btn = e.target.closest('button[data-upgrade]');
@@ -4149,6 +4159,54 @@ export const UI = {
         </div>`;
       }).join('');
     }
+  },
+
+  // ---------------- Fishing ----------------
+  updateFishGrid(state) {
+    const grid = document.getElementById('fish-grid');
+    if (!grid) return;
+    const fish = (state && state.fish) || {};
+    const entries = Object.entries(Engine.FISH_SPECIES || {});
+    if (!entries.length) {
+      grid.innerHTML = '<div class="muted">No fish yet — cast your line!</div>';
+      return;
+    }
+    grid.innerHTML = entries.map(([id, f]) => {
+      const count = fish[id] || 0;
+      return `<div class="fish-card ${f.rarity}">
+        <div class="fish-emoji">${f.emoji}</div>
+        <div><b>${esc(f.name)}</b></div>
+        <div class="muted tiny">${f.rarity}</div>
+        <div>×${count}</div>
+        <div class="muted tiny">💰 ${formatNum(f.goldValue)}</div>
+      </div>`;
+    }).join('');
+  },
+
+  updateFishingShop(state) {
+    const shop = document.getElementById('fishing-shop');
+    if (!shop) return;
+    const order = ['stick', 'bamboo', 'steel', 'mithril', 'whisper'];
+    const curRod = (state && state.fishingRod) || 'stick';
+    const curIdx = order.indexOf(curRod);
+    shop.innerHTML = order.map((rodId, i) => {
+      const rod = Engine.FISHING_RODS[rodId];
+      const owned = i <= curIdx;
+      const isNext = i === curIdx + 1;
+      const btn = owned
+        ? `<button class="btn small ghost" disabled>✔ Owned</button>`
+        : isNext
+          ? `<button class="btn small gold" data-action="buy-rod" data-rod="${rodId}">Buy 🎣</button>`
+          : `<button class="btn small" disabled>🔒</button>`;
+      return `<div class="shop-card${owned ? ' owned' : ''}">
+        <div class="shop-emoji">🎣</div>
+        <div class="shop-name">${esc(rod.name)}</div>
+        <div class="muted small">Green zone: ${Math.round(rod.greenZone * 100)}%</div>
+        <div class="muted small">+${rod.rarityBoost}% rare chance</div>
+        ${owned ? '' : `<div class="muted small">💰 ${formatNum(rod.cost)}</div>`}
+        <div style="margin-top:8px">${btn}</div>
+      </div>`;
+    }).join('');
   },
 
   // ---------------- quests ----------------

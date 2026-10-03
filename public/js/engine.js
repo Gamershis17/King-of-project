@@ -2420,6 +2420,38 @@ export const PET_SPECIES = {
            event: 'HALLOWEEN', flavor: '+300 HP, draws enemy aggro.', style: 'Sturdy · crushing strikes',
            baseStats: { atk: 30, def: 15, hp: 400 }, bond: { atk: 2, def: 3, hp: 50 } },
 };
+
+// 🎣 Fishing — Lake of Whispers catch tables
+export const FISH_SPECIES = {
+  murkcarp:    { name: 'Murk Carp',     emoji: '🐟', rarity: 'common',    weight: 40, goldValue: 50 },
+  glowperch:   { name: 'Glow Perch',    emoji: '🐠', rarity: 'magic',     weight: 25, goldValue: 150 },
+  shadowfin:   { name: 'Shadowfin',     emoji: '🦈', rarity: 'rare',      weight: 15, goldValue: 400 },
+  abyssal_eel: { name: 'Abyssal Eel',   emoji: '🐍', rarity: 'epic',      weight: 10, goldValue: 1000 },
+  whisper_koi: { name: 'Whisper Koi',   emoji: '🎏', rarity: 'legendary', weight: 7,  goldValue: 2500 },
+  void_leviathan: { name: 'Void Leviathan', emoji: '🐋', rarity: 'mythic', weight: 3, goldValue: 10000 },
+};
+
+export const FISHING_RODS = {
+  stick:     { name: 'Old Stick',     cost: 0,     greenZone: 0.15, rarityBoost: 0 },
+  bamboo:    { name: 'Bamboo Rod',    cost: 5000,  greenZone: 0.20, rarityBoost: 5 },
+  steel:     { name: 'Steel Rod',     cost: 25000, greenZone: 0.25, rarityBoost: 10 },
+  mithril:   { name: 'Mithril Rod',   cost: 100000, greenZone: 0.32, rarityBoost: 20 },
+  whisper:   { name: 'Whisper Rod',   cost: 500000, greenZone: 0.40, rarityBoost: 35 },
+};
+
+export function rollFishCatch(rodId) {
+  const rod = FISHING_RODS[rodId] || FISHING_RODS.stick;
+  const entries = Object.entries(FISH_SPECIES);
+  const totalWeight = entries.reduce((sum, [, f]) => sum + f.weight, 0);
+  let roll = Math.random() * totalWeight;
+  // Rarity boost shifts roll toward rarer fish
+  roll = roll * (1 - rod.rarityBoost / 100);
+  for (const [id, fish] of entries) {
+    roll -= fish.weight;
+    if (roll <= 0) return { id, ...fish };
+  }
+  return { id: 'murkcarp', ...FISH_SPECIES.murkcarp };
+}
 export const HUNTER_STARTERS = ['tiger', 'bear', 'lion', 'cinderpup'];
 export const PET_STRIKE_SEC = 4;
 export const PET_HUNGER_DECAY_SEC = 300; // -1 hunger per 5 min of active play

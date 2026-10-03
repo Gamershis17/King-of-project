@@ -210,6 +210,8 @@ async function boot() {
     onClearBags: doClearBags,
     onToggleAutoSell: doToggleAutoSell,
     onMine: doMine,
+    onFish: doFish,
+    onBuyRod: doBuyRod,
     onPickaxeUpgrade: doPickaxeUpgrade,
     onForgeTier: doForgeTier,
     onForgeCraft: doForgeCraft,
@@ -2054,6 +2056,122 @@ function doMine() {
   if (++App.mineTaps % 25 === 0) saveNow(); // don't hammer the save endpoint
 }
 
+// ---------------- Fishing ----------------
+// Fishing state (not saved — session only)
+App.fishing = { phase: 'idle', markerPos: 0, markerDir: 1, greenStart: 0.3, greenEnd: 0.5, animId: null };
+
+function doFish() {
+  const s = App.state;
+  if (!s) return;
+  const F = App.fishing;
+
+  if (F.phase === 'idle') {
+    // CAST — start the timing game
+    F.phase = 'waiting';
+    const rod = Engine.FISHING_RODS[s.fishingRod || 'stick'] || Engine.FISHING_RODS.stick;
+    const zoneSize = rod.greenZone;
+    F.greenStart = Math.random() * (1 - zoneSize);
+    F.greenEnd = F.greenStart + zoneSize;
+    F.markerPos = 0;
+    F.markerDir = 1;
+
+    // Show timing bar
+    const bar = document.getElementById('fish-timing-bar');
+    const zone = document.getElementById('fish-green-zone');
+    const status = document.getElementById('fish-status');
+    const btnText = document.getElementById('fish-btn-text');
+    if (bar) bar.classList.remove('hidden');
+    if (zone) {
+      zone.style.left = (F.greenStart * 100) + '%';
+      zone.style.width = (zoneSize * 100) + '%';
+    }
+    if (status) status.textContent = '⏳ Waiting for a bite... tap STRIKE when the marker is in the green!';
+    if (btnText) btnText.textContent = 'STRIKE';
+
+    // Animate marker
+    const marker = document.getElementById('fish-marker');
+    const animate = () => {
+      if (F.phase !== 'waiting') return;
+      F.markerPos += 0.015 * F.markerDir;
+      if (F.markerPos >= 1) { F.markerPos = 1; F.markerDir = -1; }
+      if (F.markerPos <= 0) { F.markerPos = 0; F.markerDir = 1; }
+      if (marker) marker.style.left = (F.markerPos * 100) + '%';
+      F.animId = requestAnimationFrame(animate);
+    };
+    animate();
+
+    // Auto-timeout after 10s (fish got away)
+    F.timeoutId = setTimeout(() => {
+      if (F.phase === 'waiting') {
+        F.phase = 'idle';
+        if (F.animId) cancelAnimationFrame(F.animId);
+        if (status) status.textContent = '🐟 The fish got away... tap CAST to try again.';
+        if (btnText) btnText.textContent = 'CAST';
+        if (bar) bar.classList.add('hidden');
+      }
+    }, 10000);
+  }
+  else if (F.phase === 'waiting') {
+    // STRIKE — check if marker is in green zone
+    if (F.animId) cancelAnimationFrame(F.animId);
+    if (F.timeoutId) clearTimeout(F.timeoutId);
+    F.phase = 'idle';
+
+    const bar = document.getElementById('fish-timing-bar');
+    const status = document.getElementById('fish-status');
+    const btnText = document.getElementById('fish-btn-text');
+    const catchDiv = document.getElementById('fish-catch');
+    if (bar) bar.classList.add('hidden');
+    if (btnText) btnText.textContent = 'CAST';
+
+    const inZone = F.markerPos >= F.greenStart && F.markerPos <= F.greenEnd;
+    if (inZone) {
+      // CAUGHT!
+      const rodId = s.fishingRod || 'stick';
+      const fish = Engine.rollFishCatch(rodId);
+      s.fish = s.fish || {};
+      s.fish[fish.id] = (s.fish[fish.id] || 0) + 1;
+      // Auto-sell for gold
+      const goldEarned = fish.goldValue;
+      Engine.addGold(s, goldEarned);
+      if (status) status.textContent = '🎉 Got one!';
+      if (catchDiv) catchDiv.innerHTML = `<span style="font-size:32px">${fish.emoji}</span><br><b>${fish.name}</b> (${fish.rarity})<br>+${goldEarned.toLocaleString()} gold`;
+      UI.toast(`🎣 Caught ${fish.name}! +${goldEarned.toLocaleString()}g`, 'success');
+      UI.updateFishGrid(s);
+      UI.updateHUD(s, App.user);
+      saveNow();
+    } else {
+      if (status) status.textContent = '💨 Missed! The marker wasn\'t in the green zone.';
+      if (catchDiv) catchDiv.innerHTML = '';
+    }
+  }
+}
+
+function doBuyRod(rodId) {
+  const s = App.state;
+  if (!s) return;
+  const rod = Engine.FISHING_RODS[rodId];
+  if (!rod) return;
+  if (s.gold < rod.cost) {
+    UI.toast('Not enough gold!', 'error');
+    return;
+  }
+  // Must buy in order
+  const order = ['stick', 'bamboo', 'steel', 'mithril', 'whisper'];
+  const curIdx = order.indexOf(s.fishingRod || 'stick');
+  const buyIdx = order.indexOf(rodId);
+  if (buyIdx !== curIdx + 1) {
+    UI.toast('Buy rods in order!', 'error');
+    return;
+  }
+  s.gold -= rod.cost;
+  s.fishingRod = rodId;
+  UI.toast(`🎣 ${rod.name} equipped!`, 'success');
+  UI.updateFishingShop(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
 // ---------------- Pickaxe upgrades ----------------
 function doPickaxeUpgrade() {
   const s = App.state;
@@ -2918,6 +3036,7 @@ async function onTabSwitch(tab, force = false) {
   if (tab === 'gear') UI.renderGear(s);
   else if (tab === 'armory') UI.renderArmory(s);
   else if (tab === 'mine') UI.renderMine(s);
+  else if (tab === 'fish') { UI.updateFishGrid(s); UI.updateFishingShop(s); }
   else if (tab === 'party') { loadMpParty(); renderPartyTab(); }
   else if (tab === 'pets') UI.renderPetsTab(s);
   else if (tab === 'tokenshop') UI.renderTokenShop(s);
