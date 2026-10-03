@@ -4313,6 +4313,39 @@ export const UI = {
       </div>`;
     }).join('');
     shop.innerHTML = html;
+    this.updateFishingQuests(state);
+  },
+
+  updateFishingQuests(state) {
+    let box = document.getElementById('fishing-quests');
+    if (!box) return;
+    const quests = Engine.ensureFishingQuests(state);
+    box.innerHTML = '<h3 style="margin:12px 0 4px">📜 Daily Quests</h3>' +
+      Engine.FISHING_QUESTS.map(q => {
+        const prog = quests.progress[q.id] || 0;
+        const done = prog >= q.targetCount;
+        const claimed = quests.claimed[q.id];
+        const pct = Math.round(prog / q.targetCount * 100);
+        const rewardTxt = [
+          q.reward.gold ? `💰${q.reward.gold}` : '',
+          q.reward.fishingXp ? `🎣${q.reward.fishingXp} XP` : '',
+          q.reward.bait ? Object.entries(q.reward.bait).map(([b, c]) => `${Engine.FISHING_BAIT[b].emoji}x${c}`).join(' ') : '',
+        ].filter(Boolean).join(' ');
+        return `<div class="shop-card" style="${claimed ? 'opacity:0.5' : ''}">
+          <div class="shop-emoji">${q.emoji}</div>
+          <div class="shop-name">${esc(q.name)}</div>
+          <div class="muted small">${esc(q.desc)}</div>
+          <div style="background:#222;border-radius:4px;height:8px;margin:6px 0">
+            <div style="background:${done ? '#4a4' : '#48c'};height:100%;width:${pct}%;border-radius:4px"></div>
+          </div>
+          <div class="muted small">${prog}/${q.targetCount} · Reward: ${rewardTxt}</div>
+          <div style="margin-top:6px">
+            ${claimed ? '<span style="color:#888">✓ Claimed</span>'
+              : done ? `<button class="btn small gold" onclick="doClaimFishingQuest('${q.id}')">Claim!</button>`
+              : '<span style="color:#888;font-size:12px">In progress...</span>'}
+          </div>
+        </div>`;
+      }).join('');
   },
 
   // ---------------- quests ----------------

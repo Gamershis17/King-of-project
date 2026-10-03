@@ -2525,6 +2525,51 @@ export const FISHING_BAIT = {
   shiny:    { name: 'Shiny Bait',    emoji: '✨', cost: 50, desc: '+10% rare/golden chance', effect: { rareBoost: 0.10 } },
 };
 
+// Daily fishing quests (reset at midnight UTC)
+export const FISHING_QUESTS = [
+  {
+    id: 'cleaner_waters', name: 'Cleaner Waters', emoji: '🥾',
+    desc: 'Catch 3 junk items', targetType: 'junk', targetCount: 3,
+    reward: { gold: 50, fishingXp: 25 },
+  },
+  {
+    id: 'angle_management', name: 'Angle Management', emoji: '🐟',
+    desc: 'Catch 5 Shadowfin', targetId: 'shadowfin', targetCount: 5,
+    reward: { bait: { shiny: 1 }, fishingXp: 50 },
+  },
+  {
+    id: 'deep_sea_treasure', name: 'Deep Sea Treasure', emoji: '📦',
+    desc: 'Catch 1 Treasure Chest or Golden Fish', targetType: 'special', targetCount: 1,
+    reward: { gold: 200, fishingXp: 100 },
+  },
+];
+
+export function getQuestDate() {
+  return new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
+}
+
+export function ensureFishingQuests(state) {
+  const today = getQuestDate();
+  if (!state.fishingQuests || state.fishingQuests.date !== today) {
+    state.fishingQuests = { date: today, progress: {}, claimed: {} };
+  }
+  return state.fishingQuests;
+}
+
+export function trackFishingQuest(state, fish) {
+  const q = ensureFishingQuests(state);
+  for (const quest of FISHING_QUESTS) {
+    if (q.claimed[quest.id]) continue;
+    let match = false;
+    if (quest.targetId && fish.id === quest.targetId) match = true;
+    else if (quest.targetType === 'junk' && fish.rarity === 'junk') match = true;
+    else if (quest.targetType === 'special' && (fish.id === 'treasure_chest' || fish.id === 'golden_fish')) match = true;
+    if (match) {
+      q.progress[quest.id] = Math.min(quest.targetCount, (q.progress[quest.id] || 0) + 1);
+    }
+  }
+}
+
 export function getFishingLevel(state) {
   const xp = (state && state.fishingXp) || 0;
   return 1 + Math.floor(xp / 500);

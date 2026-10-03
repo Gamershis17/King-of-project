@@ -2207,6 +2207,14 @@ function doFish() {
       UI.toast(`🎣 Caught ${fish.name}!`, 'success');
       // Fishing XP
       s.fishingXp = (s.fishingXp || 0) + 10;
+      // Track daily quests
+      Engine.trackFishingQuest(s, fish);
+      const quests = Engine.ensureFishingQuests(s);
+      for (const quest of Engine.FISHING_QUESTS) {
+        if (!quests.claimed[quest.id] && (quests.progress[quest.id] || 0) >= quest.targetCount) {
+          UI.toast(`📜 Quest complete: ${quest.emoji} ${quest.name}! Claim your reward!`, 'success', 5000);
+        }
+      }
       // Consume active bait (one use per catch)
       if (s.activeBait) s.activeBait = null;
       UI.updateFishGrid(s);
@@ -2353,6 +2361,30 @@ function doUseBait(baitId) {
   UI.updateFishingShop(s); saveNow();
 }
 window.doBuyBait = doBuyBait; window.doUseBait = doUseBait;
+
+function doClaimFishingQuest(questId) {
+  const s = App.state;
+  if (!s) return;
+  const quests = Engine.ensureFishingQuests(s);
+  const quest = Engine.FISHING_QUESTS.find(q => q.id === questId);
+  if (!quest || quests.claimed[questId]) return;
+  if ((quests.progress[questId] || 0) < quest.targetCount) {
+    UI.toast('Quest not complete yet!', 'warn'); return;
+  }
+  quests.claimed[questId] = true;
+  const r = quest.reward;
+  if (r.gold) Engine.addGold(s, r.gold);
+  if (r.fishingXp) s.fishingXp = (s.fishingXp || 0) + r.fishingXp;
+  if (r.bait) {
+    s.bait = s.bait || {};
+    for (const [baitId, count] of Object.entries(r.bait)) {
+      s.bait[baitId] = (s.bait[baitId] || 0) + count;
+    }
+  }
+  UI.toast(`🎉 Claimed ${quest.emoji} ${quest.name}!`, 'success');
+  UI.updateFishingQuests(s); UI.updateFishingShop(s); UI.updateHUD(s, App.user); saveNow();
+}
+window.doClaimFishingQuest = doClaimFishingQuest;
 
 // ---------------- Pickaxe upgrades ----------------
 function doPickaxeUpgrade() {
