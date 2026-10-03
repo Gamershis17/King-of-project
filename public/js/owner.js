@@ -117,6 +117,19 @@
     const { ok, j } = await api('/api/gm/set-tower', { method: 'POST', body: JSON.stringify({ username: u, floor }) });
     $('powers-err').textContent = ok ? `✅ Set ${u} to tower floor ${floor}` : '❌ ' + ((j && j.error) || 'failed');
   });
+  $('pow-clear-btn').addEventListener('click', async () => {
+    const u = $('pow-user').value.trim();
+    if (!u) { $('powers-err').textContent = 'Enter username.'; return; }
+    if (!confirm(`Clear ${u}'s bags? (Keeps equipped + unsellable)`)) return;
+    const { ok, j } = await api('/api/gm/clear-bags', { method: 'POST', body: JSON.stringify({ username: u }) });
+    $('powers-err').textContent = ok ? `✅ Cleared ${j.cleared} items from ${u}'s bags` : '❌ ' + ((j && j.error) || 'failed');
+  });
+  $('pow-gear-btn').addEventListener('click', async () => {
+    const u = $('pow-gear-user').value.trim(), setId = $('pow-gear-set').value;
+    if (!u) { $('powers-err').textContent = 'Enter username.'; return; }
+    const { ok, j } = await api('/api/gm/give-gear-set', { method: 'POST', body: JSON.stringify({ username: u, setId }) });
+    $('powers-err').textContent = ok ? `✅ Gave ${setId} set (${j.granted.length} pieces) to ${u}` : '❌ ' + ((j && j.error) || 'failed');
+  });
   // OP gear
   $('op-forge').addEventListener('click', async () => {
     $('op-err').textContent = '';

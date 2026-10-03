@@ -2060,7 +2060,8 @@ export function sellItem(state, itemId) {
   if (idx < 0) return 0;
   const item = state.inventory[idx];
   if (item.unsellable) return 0;
-  if (state.equipped[item.slot] === itemId) state.equipped[item.slot] = null;
+  // Protect equipped gear: cannot sell what's currently worn
+  if (state.equipped && state.equipped[item.slot] === itemId) return 0;
   state.inventory.splice(idx, 1);
   const gold = Math.max(1, Math.round(item.value || 1));
   return addGold(state, gold);
