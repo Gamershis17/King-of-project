@@ -4174,6 +4174,68 @@ export function towerMilestoneFor(floor) {
   return TOWER_MILESTONES[floor] || null;
 }
 
+// ---------------- Boss Rush ----------------
+// Time-attack gauntlet through tower bosses. Clear all 5 as fast as possible.
+// Best times are tracked per player.
+export const BOSS_RUSH_FLOORS = [10, 20, 30, 40, 50];
+
+export function ensureBossRushState(state) {
+  if (!state || typeof state !== 'object') return state;
+  const br = state.bossRush || {};
+  state.bossRush = {
+    bestTimeMs: Number.isFinite(+br.bestTimeMs) ? +br.bestTimeMs : 0,
+    runs: Number.isFinite(+br.runs) ? Math.max(0, Math.floor(+br.runs)) : 0,
+    // Active run (not persisted across sessions):
+    active: false,
+    startTime: 0,
+    currentIndex: 0,
+  };
+  // Preserve active run if one was in progress (don't wipe on refresh).
+  if (br.active === true) {
+    state.bossRush.active = true;
+    state.bossRush.startTime = Number.isFinite(+br.startTime) ? +br.startTime : Date.now();
+    state.bossRush.currentIndex = Number.isFinite(+br.currentIndex) ? Math.max(0, Math.floor(+br.currentIndex)) : 0;
+  }
+  return state;
+}
+
+export function startBossRush(state) {
+  ensureBossRushState(state);
+  state.bossRush.active = true;
+  state.bossRush.startTime = Date.now();
+  state.bossRush.currentIndex = 0;
+  state.bossRush.runs += 1;
+  return state.bossRush;
+}
+
+export function bossRushNext(state) {
+  ensureBossRushState(state);
+  const br = state.bossRush;
+  if (!br.active) return null;
+  if (br.currentIndex >= BOSS_RUSH_FLOORS.length) {
+    // Run complete!
+    const timeMs = Date.now() - br.startTime;
+    if (!br.bestTimeMs || timeMs < br.bestTimeMs) {
+      br.bestTimeMs = timeMs;
+    }
+    br.active = false;
+    return { complete: true, timeMs, isBest: timeMs === br.bestTimeMs };
+  }
+  return { floor: BOSS_RUSH_FLOORS[br.currentIndex], index: br.currentIndex };
+}
+
+export function bossRushAdvance(state) {
+  ensureBossRushState(state);
+  state.bossRush.currentIndex += 1;
+  return bossRushNext(state);
+}
+
+export function formatBossRushTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
 // Daily sweep: claim rewards for all cleared floors up to the weekly checkpoint.
 // Returns { ok, floors, rewards } or { ok: false, reason }.
 export function towerSweep(s) {

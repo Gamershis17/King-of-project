@@ -236,6 +236,7 @@ async function boot() {
     onBuyArmory: doBuyArmory,
     onBuyHalloweenScythe: doBuyHalloweenScythe,
     onTowerSweep: doTowerSweep,
+    onBossRushStart: doBossRushStart,
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
@@ -2642,6 +2643,22 @@ function doTowerSweep() {
   }
   UI.toast(`🧹 Swept ${res.floors} floors! +${formatNum(res.gold)} gold${res.eggs ? `, +${res.eggs} pet egg${res.eggs === 1 ? '' : 's'}` : ''}!`, 'success');
   UI.combatLog(`🧹 Tower sweep: ${res.floors} floors → +${formatNum(res.gold)} gold.`, 'loot');
+}
+
+// Boss Rush: start a timed gauntlet through tower bosses.
+function doBossRushStart() {
+  const s = App.state;
+  if (!s) return;
+  Engine.startBossRush(s);
+  UI.toast('⚔️ Boss Rush started! Defeat all 5 bosses as fast as you can!', 'success');
+  UI.renderTowerPanel(s);
+  // Switch to tower mode and spawn the first boss.
+  if (s.mode !== 'tower') {
+    // Use existing mode switch logic
+    if (typeof switchMode === 'function') switchMode('tower');
+  }
+  saveNow();
+}
   UI.renderBattle(s);
   UI.updateHUD(s, App.user);
   saveNow();

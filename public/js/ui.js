@@ -287,6 +287,10 @@ export const UI = {
       if (sweepBtn && !sweepBtn.disabled) {
         this.handlers.onTowerSweep && this.handlers.onTowerSweep();
       }
+      const rushBtn = e.target.closest('button[data-action="boss-rush-start"]');
+      if (rushBtn && !rushBtn.disabled) {
+        this.handlers.onBossRushStart && this.handlers.onBossRushStart();
+      }
     });
     listen('tab-quests', 'click', (e) => {
       const btn = e.target.closest('button[data-claim]');
@@ -1870,7 +1874,33 @@ export const UI = {
       </div>
       <button class="btn small tower-sweep" data-action="tower-sweep" ${canSweep ? '' : 'disabled'}>
         🧹 Sweep Daily Rewards${canSweep ? '' : ' (claimed)'}
-      </button>`;
+      </button>
+      ${this.renderBossRushPanel(state)}`;
+  },
+
+  renderBossRushPanel(state) {
+    Engine.ensureBossRushState(state);
+    const br = state.bossRush;
+    const best = br.bestTimeMs ? Engine.formatBossRushTime(br.bestTimeMs) : '—';
+    if (br.active) {
+      const elapsed = Engine.formatBossRushTime(Date.now() - br.startTime);
+      const next = Engine.bossRushNext(state);
+      const floorInfo = next && !next.complete ? `Floor ${next.floor}` : 'Done!';
+      return `
+        <div class="boss-rush-panel" style="margin-top:12px; padding:12px; border:2px solid #ff7518; border-radius:8px; background:rgba(255,117,24,0.05)">
+          <div style="font-weight:bold; margin-bottom:8px">⚔️ BOSS RUSH — ${floorInfo}</div>
+          <div>⏱️ Time: <b>${elapsed}</b> | 🏆 Best: <b>${best}</b></div>
+          <div class="muted small">Defeat the boss to advance!</div>
+        </div>`;
+    }
+    return `
+      <div style="margin-top:12px">
+        <button class="btn small" data-action="boss-rush-start" style="border-color:#ff7518">
+          ⚔️ Start Boss Rush
+        </button>
+        <div class="muted small" style="margin-top:4px">🏆 Best time: <b>${best}</b> · ${br.runs} runs</div>
+        <div class="muted small">Race through floors 10→50! Fastest clear wins.</div>
+      </div>`;
   },
 
   updatePotionRow(state, battle) {
