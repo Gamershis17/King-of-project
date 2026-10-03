@@ -176,6 +176,39 @@
       <!-- CENTER COLUMN: Main Actions & Database -->
       <div class="dash-col">
         <div class="card">
+          <h1 style="font-size:18px">⚡ LIVE PROGRESSION OVERRIDES</h1>
+          <p class="sub">Direct player stat injection</p>
+          <label>Target Player</label>
+          <input id="prog-user" placeholder="username" style="margin-bottom:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label>Set Level</label><input type="number" id="prog-level" placeholder="1-120" min="1" max="120"></div>
+            <div><label>Add XP Amount</label><input type="number" id="prog-xp" placeholder="XP to add" min="0"></div>
+            <div><label>Set World Stage</label><input type="number" id="prog-stage" placeholder="Stage #" min="1"></div>
+            <div><label>Set Tower Floor</label><input type="number" id="prog-tower" placeholder="Floor #" min="1"></div>
+          </div>
+          <button id="prog-apply" style="width:100%;margin-top:12px;padding:16px;font-size:16px;background:linear-gradient(180deg,#ff0,#cc0);border:2px solid #ff0;box-shadow:0 0 16px rgba(255,255,0,0.5);color:#000;font-weight:bold;border-radius:8px;cursor:pointer;font-family:inherit">💥 APPLY PROGRESSION UPDATES</button>
+          <div class="err" id="prog-err"></div>
+        </div>
+
+        <div class="card">
+          <h1 style="font-size:18px">🔨 CUSTOM GEAR FACTORY</h1>
+          <p class="sub">Forge one-off custom items</p>
+          <label>Target Player</label>
+          <input id="gear-user" placeholder="username" style="margin-bottom:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label>Item Type</label><select id="gear-slot">
+              <option value="weapon">⚔️ Weapon</option><option value="armor">🛡️ Armor</option>
+              <option value="helmet">🪖 Helmet</option><option value="boots">🥾 Boots</option>
+              <option value="trinket">📿 Trinket</option></select></div>
+            <div><label>Custom Name</label><input id="gear-name" placeholder="e.g. Dawnbreaker" maxlength="40"></div>
+            <div><label>ATK</label><input type="number" id="gear-atk" placeholder="0" min="0"></div>
+            <div><label>DEF</label><input type="number" id="gear-def" placeholder="0" min="0"></div>
+          </div>
+          <button class="gold" id="gear-forge" style="width:100%;margin-top:12px">🔨 FORGE & GRANT</button>
+          <div class="err" id="gear-err"></div>
+        </div>
+
+        <div class="card">
           <h1 style="font-size:18px">💰 GLOBAL ECONOMY MULTIPLIERS</h1>
           <p class="sub">Server-wide rates (1.0x = normal)</p>
           <div class="mult-row">
