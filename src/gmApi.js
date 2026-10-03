@@ -616,6 +616,26 @@ router.post(
   })
 );
 
+// ---------- set tower floor ----------
+router.post(
+  '/gm/set-tower',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, floor } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!Number.isInteger(floor) || floor < 1 || floor > 10000) {
+      return res.status(400).json({ error: 'floor must be an integer between 1 and 10000.' });
+    }
+    const blob = await loadBlob(target.id);
+    blob.tower = blob.tower && typeof blob.tower === 'object' ? blob.tower : {};
+    blob.tower.floor = floor;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'set-tower', target.username, `tower floor → ${floor}`);
+    res.json({ ok: true, state: selfState(req, target, blob) });
+  })
+);
+
 // ---------- set level (absolute) ----------
 // Sets the target's level directly. Hero base stats are recomputed
 // deterministically from the per-level formula (level 1 base 10 atk / 100 HP /
