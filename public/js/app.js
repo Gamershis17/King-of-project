@@ -2,15 +2,15 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003ab';
-import { UI, esc, formatNum } from './ui.js?v20261003ab';
+import * as Engine from './engine.js?v20261003ac';
+import { UI, esc, formatNum } from './ui.js?v20261003ac';
 import { Auth } from './auth.js?v=20260930ar';
-import { GM } from './gm.js?v20261003ab';
+import { GM } from './gm.js?v20261003ac';
 
 import { Raid } from './raid.js?v=20260930ar';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
-import { Realm } from './realm.js?v20261003ab';
+import { Realm } from './realm.js?v20261003ac';
 import { Audio } from './audio.js?v=20260930ar';
 
 const TICK_MS = 250;
@@ -159,6 +159,20 @@ function stopMaintenanceCountdown() {
 }
 
 // ---------------- boot ----------------
+// Global error fallback: if anything crashes during boot, ensure the
+// "Play as Guest" button still works so players are never soft-locked.
+window.addEventListener('error', (e) => {
+  try {
+    console.error('[boot] Global error caught:', e.message);
+    // If boot failed, show the auth view so guest login is clickable.
+    const authView = document.getElementById('view-auth');
+    if (authView && !window.App?.user) {
+      document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+      authView.classList.remove('hidden');
+    }
+  } catch {}
+});
+
 async function boot() {
   // PWA: register the service worker if supported; a failure must never break the game.
   // update() forces the version check on every load so a stale SW can never
