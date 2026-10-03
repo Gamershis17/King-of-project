@@ -3742,8 +3742,20 @@ export const TitleManager = {
   classesFor(profile) {
     const t = profile ? TITLE_DEFS[profile.activeTitle] : null;
     const fx = (t && t.fx) || FX_DEFAULT;
-    return Object.keys(fx).map(Number).sort((a, b) => a - b)
-      .map(k => fx[k]).filter(Boolean).join(' ');
+    const classes = Object.keys(fx).map(Number).sort((a, b) => a - b)
+      .map(k => fx[k]).filter(Boolean);
+    // Role-based name badges (owner/admin/mod/vip/1year).
+    const role = profile && profile.role;
+    if (role === 'owner') classes.push('name-owner');
+    else if (role === 'admin') classes.push('name-admin');
+    else if (role === 'mod' || role === 'moderator') classes.push('name-mod');
+    else if (role === 'vip') classes.push('name-vip');
+    // 1-year veteran: account age >= 365 days.
+    const created = profile && profile.createdAt;
+    if (created && (Date.now() - new Date(created).getTime()) >= 365 * 24 * 60 * 60 * 1000) {
+      classes.push('name-1year');
+    }
+    return classes.join(' ');
   },
   /** Ready-to-insert HTML: <span class="<layers>">name</span>. */
   render(profile) {
