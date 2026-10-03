@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Throne of Shadows">
   <title>Throne of Shadows</title>
-  <link rel="stylesheet" href="css/style.css?v20261003aj">
+  <link rel="stylesheet" href="css/style.css?v20261003al">
 </head>
 <body>
 <canvas id="bg-canvas" aria-hidden="true"></canvas>
@@ -232,6 +232,12 @@
       <!-- FISHING -->
       <section id="tab-fish" class="tab">
         <h2>🎣 Lake of Whispers</h2>
+        <div style="text-align:center; padding:40px 20px; background:linear-gradient(180deg, #0a1628, #1a3a5c); border-radius:12px; margin:12px 0">
+          <div style="font-size:48px; margin-bottom:12px">🎣</div>
+          <div style="font-size:24px; font-weight:bold; margin-bottom:8px">Coming Soon!</div>
+          <div class="muted">The Lake of Whispers is being stocked...<br>Check back for the full fishing mini-game!</div>
+        </div>
+        <div id="fish-soon-hidden" class="hidden">
         <p class="muted small" style="margin:0 0 8px">Cast your line and time the strike when the marker hits the green zone!</p>
         <div id="fish-lake" class="fish-lake">
           <div id="fish-timing-bar" class="fish-timing-bar hidden">
@@ -247,6 +253,7 @@
         <h2>🎣 Tackle Shop</h2>
         <p class="muted small" style="margin:4px 0">Better rods = bigger green zone + rarer catches.</p>
         <div id="fishing-shop" class="shop-grid"></div>
+        </div>
       </section>
 
       <!-- GEAR -->
@@ -599,7 +606,7 @@
 <div id="modal-root"></div>
 <div id="toast-root"></div>
 
-<script type="module" src="js/app.js?v20261003aj"></script>
+<script type="module" src="js/app.js?v20261003al"></script>
 <script type="module" src="js/gamepad.js?v=20260930ar"></script>
 </body>
 </html>
