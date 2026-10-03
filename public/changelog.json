@@ -2,15 +2,18 @@
  {
   "date": "2026-10-03",
   "title": "\ud83c\udf83 Halloween 2026 Event + \u2694\ufe0f Boss Rush",
-  "time": "04:35 AM EDT",
+  "time": "05:46 AM EDT",
   "changes": [
-   "\ud83c\udf83 HALLOWEEN EVENT (Oct 3-31): Tower bosses on floors divisible by 10 drop Pumpkin Shards (1-3 per kill).",
-   "\ud83d\udc51 6 new Halloween titles: Pumpkin King (+5% gold), Phantom (+3% dodge), Slayer of the Demon King (+10% damage/crit, +500 HP), Harbinger of Doom (+15% shadow damage, +5% lifesteal), The Pumpkin Sovereign (+12% gold/XP), Phantom Lord (+7% dodge, +10% speed) \u2014 each with animated name effects.",
-   "\ud83d\udde1\ufe0f Reaper's Scythe (Mythic 2H): 20 Pumpkin Shards + 50,000 gold in the Armory. Yours forever, even after Halloween.",
-   "\u2694\ufe0f BOSS RUSH: New timed gauntlet in Tower mode \u2014 race through bosses on floors 10\u219250. Best time is tracked.",
-   "\u26a1 2X EVENT TOGGLE: Staff can now toggle 2x XP and 2x Gold from the GM console.",
-   "\ud83c\udf83 Halloween app icon: The game icon turns into a jack-o'-lantern for October, auto-reverts Nov 1st.",
-   "\ud83c\udf3f Druid spell icons fixed (moonfire, wrath, rejuvenation no longer show bows)."
+   "\ud83c\udf83 HALLOWEEN EVENT (Oct 3-31): Battle Tower bosses on floors 10, 20, 30... to earn Pumpkin Shards (1-3 per boss kill).",
+   "\ud83d\udc51 6 Halloween titles: Pumpkin King (+5% gold, 20 shards), Phantom (+3% dodge, 10 shards), Slayer of the Demon King (+10% damage/crit/500 HP), Harbinger of Doom (+15% shadow dmg, clear Floor 100), Pumpkin Sovereign (+12% gold/XP, 500 shards), Phantom Lord (+7% dodge, 1000 dodges). Each has animated name effects!",
+   "\ud83d\udde1\ufe0f REAPER'S SCYTHE (Mythic): Buy in the Armory for 20 Pumpkin Shards + 50,000 gold. Yours forever!",
+   "\u2694\ufe0f BOSS RUSH: New timed mode in Tower \u2014 race through bosses on floors 10\u219250. Best time saved!",
+   "\u26a1 2X EVENTS: Staff can toggle 2x XP and 2x Gold from the GM console.",
+   "\ud83d\udcaa BALANCE v26: All classes deal 2x attack damage.",
+   "\ud83c\udf83 Halloween app icon: Reinstall the PWA to get the jack-o'-lantern icon for October.",
+   "\ud83d\udee0\ufe0f Login fixed: session tokens now save to localStorage, stale sessions auto-clear.",
+   "\ud83d\udc3e Pets now regenerate HP over time in combat.",
+   "\ud83c\udf3f Druid spell icons fixed."
   ]
  },
  {
