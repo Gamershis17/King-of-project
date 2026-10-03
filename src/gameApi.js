@@ -568,9 +568,9 @@ router.get(
 // (kills, depth, titles) are extracted from server-stored state_json and
 // sorted in JS. Unknown keys are rejected with 400. Class/spec ids come
 // from validation.js (canonical sets mirroring Engine.CLASSES / SPECS).
-const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths'];
+const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths', 'bossrush'];
 const LB_INDEXED = new Set(['level', 'stage', 'bosses', 'rebirths']);
-const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles' };
+const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles', bossrush: 'bossRushMs' };
 router.get(
   '/leaderboard',
   asyncHandler(async (req, res) => {
@@ -595,6 +595,7 @@ router.get(
       let kills = 0;
       let depth = 0;
       let titles = 0;
+      let bossRushMs = 0;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
@@ -618,6 +619,9 @@ router.get(
           depth = Math.floor(blob.mine.maxDepth);
         }
         if (blob && Array.isArray(blob.titlesUnlocked)) titles = blob.titlesUnlocked.length;
+        if (blob && blob.bossRush && Number.isFinite(blob.bossRush.bestTimeMs) && blob.bossRush.bestTimeMs > 0) {
+          bossRushMs = Math.floor(blob.bossRush.bestTimeMs);
+        }
       } catch {
         // leave race/title/badge/country/playerClass/spec null
       }
@@ -640,11 +644,22 @@ router.get(
         kills,
         depth,
         titles,
+        bossRushMs,
       };
     });
     if (!LB_INDEXED.has(by)) {
       const key = LB_BLOB_SORT_KEY[by];
-      entries.sort((a, b) => (b[key] || 0) - (a[key] || 0) || b.level - a.level);
+      if (by === 'bossrush') {
+        // Lower time = better. Filter out players with no time (0).
+        entries.sort((a, b) => {
+          if (!a[key] && !b[key]) return b.level - a.level;
+          if (!a[key]) return 1;
+          if (!b[key]) return -1;
+          return (a[key] || 0) - (b[key] || 0) || b.level - a.level;
+        });
+      } else {
+        entries.sort((a, b) => (b[key] || 0) - (a[key] || 0) || b.level - a.level);
+      }
       entries.length = Math.min(entries.length, 100);
     }
     res.json({ entries, by });
