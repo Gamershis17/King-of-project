@@ -2,7 +2,7 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003ad';
+import * as Engine from './engine.js?v20261003bb';
 import { UI, esc, formatNum } from './ui.js?v20261003bb';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v20261003az';
@@ -1155,7 +1155,7 @@ function meterSnapshot() {
 
 function heroStrike(stats, mult = 1) {
   const { dmg, crit } = Engine.playerAttack(stats, App.enemy);
-  const buffMult = App.state ? Engine.getBuffMult(App.state, 'damage') : 1;
+  const buffMult = App.state && Engine.getBuffMult ? Engine.getBuffMult(App.state, 'damage') : 1;
   const final = Math.max(1, Math.round(dmg * mult * buffMult));
   meterHit('hero', (App.user && App.user.username) || 'You', final);
   damageEnemy(final, crit ? 'CRIT ' : '', 'hero');
