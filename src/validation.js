@@ -52,7 +52,7 @@ function xpForLevelServer(level, rebirthCount) {
 }
 
 // All roles recognized by the server, highest privilege first.
-const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'player'];
+const VALID_ROLES = ['owner', 'gm', 'admin', 'moderator', 'tester', 'player'];
 
 // Valid class/spec ids (mirror Engine.CLASSES / Engine.SPECS in
 // public/js/engine.js; the client is ESM so the lists are duplicated here

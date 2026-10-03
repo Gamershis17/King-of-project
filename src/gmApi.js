@@ -68,7 +68,7 @@ const { requireRole, requireAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, VALID_ROLES, VALID_CLASSES, VALID_SPECS, NAME_FX_IDS, xpForLevelServer } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const { loadBlob, defaultStateBlob, filterChangelog } = require('./gameApi');
-const { addBroadcast, latestBroadcast, addSseClient, pushBuff } = require('./broadcast');
+const { addBroadcast, latestBroadcast, addSseClient, pushBuff, pushStateUpdate } = require('./broadcast');
 const {
   getWebhookUrl,
   setWebhookUrl,
@@ -611,8 +611,9 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.stage = stage;
     await persistMergedState(target.id, blob);
-    await logAudit(req, 'set-stage', target.username, `stage → ${stage}`);
-    res.json({ ok: true, state: selfState(req, target, blob) });
+    const live = pushStateUpdate(target.id, { stage });
+    await logAudit(req, 'set-stage', target.username, `stage → ${stage}${live ? ' [LIVE]' : ''}`);
+    res.json({ ok: true, live, state: selfState(req, target, blob) });
   })
 );
 
@@ -719,8 +720,9 @@ router.post(
     blob.xpNext = xpForLevelServer(level, blob.rebirthCount);
     hero.hp = hero.maxHp;
     await persistMergedState(target.id, blob);
-    await logAudit(req, 'set-level', target.username, `level → ${level}`);
-    res.json({ ok: true, state: selfState(req, target, blob) });
+    const live = pushStateUpdate(target.id, { level, xp: 0, xpNext: blob.xpNext, hero });
+    await logAudit(req, 'set-level', target.username, `level → ${level}${live ? ' [LIVE]' : ''}`);
+    res.json({ ok: true, live, state: selfState(req, target, blob) });
   })
 );
 
@@ -744,8 +746,9 @@ router.post(
     }
     blob.gold = amount;
     await persistMergedState(target.id, blob);
-    await logAudit(req, 'set-gold', target.username, `gold → ${amount}`);
-    res.json({ ok: true, state: selfState(req, target, blob) });
+    const live = pushStateUpdate(target.id, { gold: amount });
+    await logAudit(req, 'set-gold', target.username, `gold → ${amount}${live ? ' [LIVE]' : ''}`);
+    res.json({ ok: true, live, state: selfState(req, target, blob) });
   })
 );
 
@@ -1111,8 +1114,9 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.stage = stage;
     await persistMergedState(target.id, blob);
-    await logAudit(req, 'set-stage', target.username, `stage → ${stage}`);
-    res.json({ ok: true, state: selfState(req, target, blob) });
+    const live = pushStateUpdate(target.id, { stage });
+    await logAudit(req, 'set-stage', target.username, `stage → ${stage}${live ? ' [LIVE]' : ''}`);
+    res.json({ ok: true, live, state: selfState(req, target, blob) });
   })
 );
 
@@ -1455,7 +1459,7 @@ router.post(
     const target = await resolveTarget(username);
     if (!target) return res.status(404).json({ error: 'Target user not found.' });
     if (!VALID_ROLES_FOR_ROLES_ROUTE.includes(role)) {
-      return res.status(400).json({ error: 'Role must be one of gm, admin, moderator, player.' });
+      return res.status(400).json({ error: 'Role must be one of gm, admin, moderator, tester, player.' });
     }
     if (target.role === 'owner') {
       return res.status(403).json({ error: 'Owner accounts cannot be changed.' });
