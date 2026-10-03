@@ -259,7 +259,7 @@
           const role = sel.value;
           if (!confirm(`Set ${username}'s role to ${role}?`)) { loadRoster(); return; }
           try {
-            const { ok, j } = await api('/api/gm/roles', { method: 'POST', body: JSON.stringify({ username, role }) });
+            const { ok, j } = await api('/api/roles', { method: 'POST', body: JSON.stringify({ username, role }) });
             if (!ok || !j.ok) throw new Error(j.error || 'Failed');
             alert('Role updated!');
           } catch (e) { alert('Error: ' + e.message); loadRoster(); }
