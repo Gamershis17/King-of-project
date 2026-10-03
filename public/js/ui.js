@@ -291,6 +291,14 @@ export const UI = {
       if (rushBtn && !rushBtn.disabled) {
         this.handlers.onBossRushStart && this.handlers.onBossRushStart();
       }
+      const wbSpawn = e.target.closest('button[data-action="world-boss-spawn"]');
+      if (wbSpawn && !wbSpawn.disabled) {
+        this.handlers.onWorldBossSpawn && this.handlers.onWorldBossSpawn();
+      }
+      const wbFight = e.target.closest('button[data-action="world-boss-fight"]');
+      if (wbFight && !wbFight.disabled) {
+        this.handlers.onWorldBossFight && this.handlers.onWorldBossFight();
+      }
     });
     listen('tab-quests', 'click', (e) => {
       const btn = e.target.closest('button[data-claim]');
@@ -1901,7 +1909,8 @@ export const UI = {
       <button class="btn small tower-sweep" data-action="tower-sweep" ${canSweep ? '' : 'disabled'}>
         🧹 Sweep Daily Rewards${canSweep ? '' : ' (claimed)'}
       </button>
-      ${this.renderBossRushPanel(state)}`;
+      ${this.renderBossRushPanel(state)}
+      ${this.renderWorldBossPanel(state)}`;
   },
 
   renderBossRushPanel(state) {
@@ -1926,6 +1935,45 @@ export const UI = {
         </button>
         <div class="muted small" style="margin-top:4px">🏆 Best time: <b>${best}</b> · ${br.runs} runs</div>
         <div class="muted small">Race through floors 10→50! Fastest clear wins.</div>
+      </div>`;
+  },
+
+  renderWorldBossPanel(state) {
+    const wb = state.worldBoss || {};
+    const now = Date.now();
+    const nextSpawn = wb.nextSpawnAt || 0;
+
+    if (wb.active) {
+      const remaining = Math.max(0, (wb.endsAt || 0) - now);
+      const mins = Math.floor(remaining / 60000);
+      const secs = Math.floor((remaining % 60000) / 1000);
+      return `
+      <div style="margin-top:12px; padding:12px; border:2px solid #dc2626; border-radius:8px; background:rgba(220,38,38,0.08)">
+        <div style="font-weight:bold; margin-bottom:8px; color:#ef4444">😈 ${Engine.WORLD_BOSS.name}</div>
+        <div>⏱️ Despawn in: <b>${mins}m ${secs}s</b></div>
+        <div class="muted small">Tap the battle button to fight! Huge rewards await.</div>
+        <button class="btn small" data-action="world-boss-fight" style="border-color:#dc2626; margin-top:8px">
+          😈 FIGHT THE DEMON KING
+        </button>
+      </div>`;
+    }
+
+    if (now < nextSpawn) {
+      const waitMs = nextSpawn - now;
+      const h = Math.floor(waitMs / 3600000);
+      const m = Math.floor((waitMs % 3600000) / 60000);
+      return `
+      <div style="margin-top:12px; padding:8px; opacity:0.7">
+        <div class="muted small">😈 ${Engine.WORLD_BOSS.name} respawns in <b>${h}h ${m}m</b></div>
+      </div>`;
+    }
+
+    return `
+      <div style="margin-top:12px">
+        <button class="btn small" data-action="world-boss-spawn" style="border-color:#dc2626">
+          😈 Summon Demon King
+        </button>
+        <div class="muted small" style="margin-top:4px">A terrifying world boss! 30 min to defeat him.</div>
       </div>`;
   },
 

@@ -254,6 +254,8 @@ async function boot() {
     onBuyHalloweenGear: doBuyHalloweenGear,
     onTowerSweep: doTowerSweep,
     onBossRushStart: doBossRushStart,
+    onWorldBossSpawn: doWorldBossSpawn,
+    onWorldBossFight: doWorldBossFight,
     onRedeem: doRedeem,
     onLogout: doLogout,
     onOpenGM: () => GM.open(App.user),
@@ -1192,6 +1194,10 @@ function damageEnemy(dmg, prefix, sourceLabel) {
     if (s.hero.hp <= 0) { s.hero.hp = 0; onDefeat(); return; }
   }
   enemy.hp = Math.max(0, enemy.hp - dmg);
+  // Persist world boss HP
+  if (enemy.isWorldBoss && App.state && App.state.worldBoss) {
+    App.state.worldBoss.bossHp = enemy.hp;
+  }
   const isCrit = String(prefix).includes('CRIT');
   UI.enemyHitFlash(isCrit); // red flash on crits
   // Instant HP bar update (no 250ms tick lag)
@@ -1221,6 +1227,28 @@ function onKillEnemy() {
   if (App.spawnPending) return; // already processing a kill
   const s = App.state;
   const enemy = App.enemy;
+
+  // World Boss kill — special rewards
+  if (enemy.isWorldBoss) {
+    const rewards = Engine.worldBossRewards(s.level || 1);
+    Engine.gainXp(s, rewards.xp);
+    Engine.addGold(s, rewards.gold);
+    s.materials = s.materials || {};
+    s.materials.pumpkin_shard = (s.materials.pumpkin_shard || 0) + rewards.pumpkin_shards;
+    s.stats = s.stats || {};
+    s.stats.demonKingKills = (s.stats.demonKingKills || 0) + 1;
+    s.worldBoss.active = false;
+    s.worldBoss.nextSpawnAt = Date.now() + Engine.WORLD_BOSS.respawnMs;
+    s.worldBoss.bossHp = null;
+    UI.toast(`😈 DEMON KING SLAIN! +${rewards.xp.toLocaleString()} XP, +${rewards.gold.toLocaleString()}g, +${rewards.pumpkin_shards} shards!`, 'success');
+    // Spawn next normal enemy
+    App.enemy = Engine.enemyFor(s.stage, Engine.computeStats(s));
+    UI.renderBattle(s);
+    UI.updateHUD(s, App.user);
+    saveNow();
+    return;
+  }
+
   const stage = enemy.stage;
   const stats = Engine.computeStats(s);
 
@@ -1526,6 +1554,9 @@ function tick() {
   const s = App.state;
   if (!s || !App.enemy) return;
   updatePauseState();
+
+  // World boss timeout check
+  checkWorldBossTimeout();
 
   // Browsing a menu (or a modal on top of battle): the world is frozen —
   // nothing below advances. The inn branch above is the one exception:
@@ -2857,6 +2888,62 @@ function doBossRushStart() {
     if (typeof switchMode === 'function') switchMode('tower');
   }
   saveNow();
+}
+
+// ---------------- World Boss ----------------
+function doWorldBossSpawn() {
+  const s = App.state;
+  if (!s) return;
+  s.worldBoss = s.worldBoss || {};
+  const now = Date.now();
+  if (s.worldBoss.active) {
+    UI.toast('The Demon King is already here!', 'error');
+    return;
+  }
+  if (now < (s.worldBoss.nextSpawnAt || 0)) {
+    UI.toast('The Demon King is not ready yet...', 'error');
+    return;
+  }
+  // Spawn the boss
+  const stats = Engine.computeStats(s);
+  const boss = Engine.worldBossFor(stats);
+  s.worldBoss.active = true;
+  s.worldBoss.endsAt = now + Engine.WORLD_BOSS.durationMs;
+  s.worldBoss.bossHp = boss.hp;
+  s.worldBoss.bossMaxHp = boss.maxHp;
+  App.enemy = boss;
+  UI.toast('😈 Malakor the Blood Demon King has appeared!', 'error');
+  UI.showTab('battle');
+  UI.renderBattle(s);
+  saveNow();
+}
+
+function doWorldBossFight() {
+  const s = App.state;
+  if (!s || !s.worldBoss || !s.worldBoss.active) return;
+  // Switch to battle tab and set the world boss as current enemy
+  const stats = Engine.computeStats(s);
+  const boss = Engine.worldBossFor(stats);
+  // Preserve current HP if already fighting
+  if (s.worldBoss.bossHp != null) {
+    boss.hp = s.worldBoss.bossHp;
+  }
+  App.enemy = boss;
+  UI.showTab('battle');
+  UI.renderBattle(s);
+}
+
+// Check world boss timeout in tick
+function checkWorldBossTimeout() {
+  const s = App.state;
+  if (!s || !s.worldBoss || !s.worldBoss.active) return;
+  if (Date.now() > s.worldBoss.endsAt) {
+    s.worldBoss.active = false;
+    s.worldBoss.nextSpawnAt = Date.now() + Engine.WORLD_BOSS.respawnMs;
+    s.worldBoss.bossHp = null;
+    UI.toast('😈 The Demon King has retreated...', 'error');
+    saveNow();
+  }
 }
 
 function doFeedPet(petUid) {

@@ -1680,6 +1680,38 @@ export function worldForStage(stage) {
 
 export const isBossStage = (stage) => stage % 10 === 0;
 
+// 😈 World Boss: Malakor the Blood Demon King (Halloween event)
+// Spawns every 4 hours, massive HP scaled to player, huge rewards.
+export const WORLD_BOSS = {
+  id: 'malakor',
+  name: 'Malakor the Blood Demon King',
+  emoji: '😈',
+  respawnMs: 4 * 60 * 60 * 1000, // 4 hours
+  durationMs: 30 * 60 * 1000, // 30 min fight window
+};
+
+export function worldBossFor(playerStats) {
+  const maxHp = Math.max(1000000, Math.round((playerStats?.maxHp || 1000) * 500));
+  return {
+    name: WORLD_BOSS.name,
+    emoji: WORLD_BOSS.emoji,
+    hp: maxHp,
+    maxHp: maxHp,
+    attack: Math.round((playerStats?.maxHp || 1000) * 0.10),
+    isWorldBoss: true,
+    stage: -1, // special flag
+  };
+}
+
+export function worldBossRewards(playerLevel) {
+  return {
+    xp: playerLevel * 5000,
+    gold: playerLevel * 2000,
+    pumpkin_shards: 10,
+    title: 'slayer-demon-king',
+  };
+}
+
 // Balance: normal enemies are weaker (less HP, die faster) but still hit
 // hard; no single hit can ever one-shot (capped in enemyStrike). Boss
 // damage is tuned "around your level" when player stats are provided.
