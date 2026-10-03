@@ -1753,12 +1753,13 @@ router.post(
   '/gm/event-buff',
   gmOrOwner,
   asyncHandler(async (req, res) => {
-    const { xpMult, goldMult, hours, label } = req.body || {};
+    const { xpMult, goldMult, dropMult, hours, label } = req.body || {};
     const xm = Number(xpMult);
     const gm = Number(goldMult);
+    const dm = dropMult != null ? Number(dropMult) : 1;
     const hrs = Number(hours);
-    if (!(xm >= 1 && xm <= 10) || !(gm >= 1 && gm <= 10)) {
-      return res.status(400).json({ error: 'xpMult and goldMult must each be between 1 and 10.' });
+    if (!(xm >= 1 && xm <= 10) || !(gm >= 1 && gm <= 10) || !(dm >= 1 && dm <= 10)) {
+      return res.status(400).json({ error: 'xpMult, goldMult and dropMult must each be between 1 and 10.' });
     }
     if (!(hrs >= 0 && hrs <= 168)) {
       return res.status(400).json({ error: 'hours must be between 0 (clear) and 168 (7 days).' });
@@ -1771,12 +1772,13 @@ router.post(
     const buff = {
       xpMult: xm,
       goldMult: gm,
+      dropMult: dm,
       endsAt: Date.now() + Math.floor(hrs * 3600 * 1000),
       label: typeof label === 'string' && label.trim() ? label.trim().slice(0, 60) : 'Event',
       setBy: (req.user && req.user.username) || '?',
     };
     await setSetting('event_buff', JSON.stringify(buff));
-    await logAudit(req, 'event-buff', '—', `${buff.label}: ${xm}x XP / ${gm}x gold for ${hrs}h`);
+    await logAudit(req, 'event-buff', '—', `${buff.label}: ${xm}x XP / ${gm}x gold / ${dm}x drops for ${hrs}h`);
     res.json({ ok: true, buff });
   })
 );
@@ -2244,6 +2246,53 @@ router.get(
       if (Date.now() - snap.ts < 120000) out[user] = snap;
     }
     res.json({ ok: true, snapshots: out });
+  })
+);
+
+// ---------- Player admin commands ----------
+// Owner queues a command for a target player; the client polls and executes.
+// Commands: close-gui, freeze-input (toggle), admin-notice
+const playerCommands = new Map(); // username -> [{cmd, data, ts}]
+router.post(
+  '/gm/player-command',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username, cmd, data } = req.body || {};
+    if (!username || !cmd) return res.status(400).json({ error: 'username and cmd required.' });
+    if (!['close-gui', 'freeze-input', 'admin-notice'].includes(cmd)) {
+      return res.status(400).json({ error: 'Unknown command.' });
+    }
+    const queue = playerCommands.get(username) || [];
+    queue.push({ cmd, data: data || {}, ts: Date.now() });
+    playerCommands.set(username, queue.slice(-10)); // keep last 10
+    await logAudit(req, 'player-command', username, `${cmd}${data && data.msg ? ': ' + String(data.msg).slice(0, 80) : ''}`);
+    res.json({ ok: true });
+  })
+);
+
+// Player polls for pending admin commands (authenticated players only).
+router.get(
+  '/player-commands',
+  asyncHandler(async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Auth required.' });
+    const queue = playerCommands.get(req.user.username) || [];
+    playerCommands.delete(req.user.username);
+    res.json({ ok: true, commands: queue });
+  })
+);
+
+// ---------- Chat spy ----------
+// Recent guild chat messages across all guilds (owner only).
+router.get(
+  '/gm/chat-spy',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { rows } = await pool.query(
+      `SELECT gc.username, gc.message, gc.created_at, g.name as guild_name
+       FROM guild_chat gc LEFT JOIN guilds g ON g.id = gc.guild_id
+       ORDER BY gc.created_at DESC LIMIT 50`
+    );
+    res.json({ ok: true, messages: rows.reverse() });
   })
 );
 
