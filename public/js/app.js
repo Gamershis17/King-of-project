@@ -2,15 +2,15 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003y';
-import { UI, esc, formatNum } from './ui.js?v20261003y';
+import * as Engine from './engine.js?v20261003z';
+import { UI, esc, formatNum } from './ui.js?v20261003z';
 import { Auth } from './auth.js?v=20260930ar';
-import { GM } from './gm.js?v20261003y';
+import { GM } from './gm.js?v20261003z';
 
 import { Raid } from './raid.js?v=20260930ar';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
-import { Realm } from './realm.js?v20261003y';
+import { Realm } from './realm.js?v20261003z';
 import { Audio } from './audio.js?v=20260930ar';
 
 const TICK_MS = 250;
