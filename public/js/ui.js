@@ -5093,6 +5093,7 @@ export const UI = {
     depth:    { emoji: '⛏️', label: 'Depth',    fmt: (en) => (en.depth || 0) },
     titles:   { emoji: '🏵️', label: 'Titles',   fmt: (en) => (en.titles || 0) },
     rebirths: { emoji: '🌀', label: 'Rebirths', fmt: (en) => (en.rebirth > 0 ? en.rebirth : '—') },
+    bossrush: { emoji: '⚔️', label: 'Boss Rush', fmt: (en) => en.bossRushMs > 0 ? Engine.formatBossRushTime(en.bossRushMs) : '—' },
   },
   lbCategory: 'level',
 
