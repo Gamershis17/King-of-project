@@ -5661,3 +5661,52 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   font-size: 14px;
   text-shadow: 0 1px 3px rgba(0,0,0,0.5);
 }
+
+/* 🎨 Custom Halloween Themes (mega-spec) */
+body.theme-hallows-eve {
+  --bg-primary: #0d0a12;
+  --bg-panel: #1a1225;
+  --accent: #ff7518;
+  --accent-glow: rgba(255,117,24,0.3);
+}
+body.theme-hallows-eve .panel, body.theme-hallows-eve .card {
+  background: linear-gradient(180deg, #1a1225, #0d0a12);
+  border: 1px solid #ff7518;
+  box-shadow: 0 0 12px rgba(255,117,24,0.2);
+}
+
+body.theme-blood-moon {
+  --bg-primary: #1a0a0a;
+  --bg-panel: #2d1212;
+  --accent: #dc2626;
+  --accent-glow: rgba(220,38,38,0.3);
+}
+body.theme-blood-moon .panel, body.theme-blood-moon .card {
+  background: linear-gradient(180deg, #2d1212, #1a0a0a);
+  border: 1px solid #dc2626;
+  box-shadow: 0 0 12px rgba(220,38,38,0.3);
+}
+
+body.theme-spectral-void {
+  --bg-primary: #0f0a1e;
+  --bg-panel: #1e1440;
+  --accent: #8b5cf6;
+  --accent-glow: rgba(139,92,246,0.3);
+}
+body.theme-spectral-void .panel, body.theme-spectral-void .card {
+  background: linear-gradient(180deg, #1e1440, #0f0a1e);
+  border: 1px solid #8b5cf6;
+  box-shadow: 0 0 12px rgba(139,92,246,0.3);
+}
+
+body.theme-gothic-manor {
+  --bg-primary: #141210;
+  --bg-panel: #2a2520;
+  --accent: #d4a574;
+  --accent-glow: rgba(212,165,116,0.2);
+}
+body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
+  background: linear-gradient(180deg, #2a2520, #141210);
+  border: 1px solid #d4a574;
+  box-shadow: 0 0 8px rgba(212,165,116,0.2), inset 0 0 20px rgba(0,0,0,0.5);
+}
