@@ -5786,3 +5786,97 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
 .fish-card.epic { border-color: #f59e0b; }
 .fish-card.legendary { border-color: #ef4444; }
 .fish-card.mythic { border-color: #ec4899; box-shadow: 0 0 8px rgba(236,72,153,0.3); }
+
+/* 🎣 Fishing Scene — Dock + Water + Jumping Fish */
+.fish-scene {
+  position: relative;
+  height: 280px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 12px 0;
+  border: 2px solid #2a5a8c;
+}
+.fish-sky {
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 40%;
+  background: linear-gradient(180deg, #0a1628 0%, #1a2a4a 100%);
+}
+.fish-sky::after {
+  content: '🌙';
+  position: absolute;
+  top: 10px; right: 20px;
+  font-size: 28px;
+}
+.fish-water {
+  position: absolute;
+  bottom: 0; left: 0; right: 0; height: 60%;
+  background: linear-gradient(180deg, #1a5a8c 0%, #0a2a4a 100%);
+  overflow: hidden;
+}
+.fish-water::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  background: rgba(255,255,255,0.3);
+}
+.fish-jump {
+  position: absolute;
+  font-size: 24px;
+  animation: fishJump 3s ease-in-out infinite;
+}
+.fish-jump-1 { left: 20%; bottom: 10%; animation-delay: 0s; }
+.fish-jump-2 { left: 60%; bottom: 15%; animation-delay: 1s; }
+.fish-jump-3 { left: 40%; bottom: 5%; animation-delay: 2s; }
+@keyframes fishJump {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 1; }
+  50% { transform: translateY(-60px) rotate(15deg); opacity: 1; }
+  60% { opacity: 0; }
+}
+.fish-ripple {
+  position: absolute;
+  bottom: 20%; left: 30%;
+  width: 60px; height: 12px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  animation: ripple 3s ease-out infinite;
+}
+@keyframes ripple {
+  0% { transform: scale(0.5); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+.fish-dock {
+  position: absolute;
+  bottom: 0; left: 10%;
+  width: 120px; height: 80px;
+}
+.dock-plank {
+  position: absolute;
+  width: 120px; height: 12px;
+  background: #6b4423;
+  border: 1px solid #4a2f18;
+  border-radius: 2px;
+}
+.dock-plank:nth-child(1) { bottom: 60px; }
+.dock-plank:nth-child(2) { bottom: 45px; }
+.dock-plank:nth-child(3) { bottom: 30px; }
+.dock-post {
+  position: absolute;
+  width: 10px; height: 70px;
+  background: #5a3a1e;
+  border-radius: 2px;
+  bottom: 0;
+}
+.dock-post-left { left: 5px; }
+.dock-post-right { right: 5px; }
+.fish-coming-soon {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: rgba(10, 22, 40, 0.85);
+  padding: 20px 30px;
+  border-radius: 12px;
+  border: 1px solid #2a5a8c;
+  z-index: 10;
+}
