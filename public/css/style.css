@@ -6161,7 +6161,7 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
   50% { opacity: 0.7; filter: brightness(1.5); }
 }
 
-/* Blood flowing up effect */
+/* Blood flowing up effect (multicolor droplets via .blood-drop divs) */
 .tower-blood {
   position: absolute;
   bottom: 0; left: 0; right: 0;
@@ -6170,20 +6170,42 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
   z-index: 0;
   overflow: hidden;
 }
-.tower-blood::before,
-.tower-blood::after {
-  content: '🩸';
-  position: absolute;
-  bottom: -20px;
-  font-size: 12px;
-  opacity: 0.6;
-  animation: bloodRise 8s linear infinite;
-}
-.tower-blood::before { left: 15%; animation-delay: 0s; }
-.tower-blood::after { left: 75%; animation-delay: 4s; font-size: 16px; }
 @keyframes bloodRise {
   0% { transform: translateY(0) rotate(0deg); opacity: 0; }
   10% { opacity: 0.7; }
   90% { opacity: 0.5; }
   100% { transform: translateY(-300px) rotate(20deg); opacity: 0; }
 }
+
+/* Milestone floors: softer rainbow (not as intense as Floor 1000) */
+.floor-milestone-shine {
+  background: linear-gradient(90deg, #c084fc, #f0abfc, #fda4af, #fcd34d, #a5f3fc, #c084fc);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbowShine 5s linear infinite;
+  font-weight: bold;
+}
+
+/* Boss names: shadow-glow pulse */
+.enemy-name-boss {
+  animation: bossShadowPulse 3s ease-in-out infinite;
+}
+@keyframes bossShadowPulse {
+  0%, 100% { text-shadow: 0 0 8px rgba(239, 68, 68, 0.6), 0 2px 6px rgba(0,0,0,0.9); }
+  50% { text-shadow: 0 0 20px rgba(239, 68, 68, 1), 0 0 32px rgba(168, 85, 247, 0.5), 0 2px 6px rgba(0,0,0,0.9); }
+}
+
+/* Multicolor blood droplets — subtler than Floor 1000 */
+.tower-blood .blood-drop {
+  position: absolute;
+  bottom: -20px;
+  font-size: 11px;
+  animation: bloodRise 10s linear infinite;
+  opacity: 0;
+}
+.tower-blood .blood-drop:nth-child(1) { left: 10%; color: #ef4444; animation-delay: 0s; }
+.tower-blood .blood-drop:nth-child(2) { left: 30%; color: #991b1b; animation-delay: 2.5s; font-size: 14px; }
+.tower-blood .blood-drop:nth-child(3) { left: 55%; color: #7f1d1d; animation-delay: 5s; }
+.tower-blood .blood-drop:nth-child(4) { left: 80%; color: #b91c1c; animation-delay: 7.5s; font-size: 13px; }
