@@ -3,7 +3,7 @@
 // ============================================================
 import { api } from './api.js?v=20260930ar';
 import { UI, esc, formatNum } from './ui.js?v=20261001e';
-import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v20261003s';
+import { PRIVILEGED_SETS, TITLES, BADGES, CLASSES, SPECS } from './engine.js?v20261003x';
 
 const SET_IDS = Object.keys(PRIVILEGED_SETS);
 
@@ -25,7 +25,7 @@ let IdRef = null;
 async function loadIdRef() {
   if (!IdRef) {
     try {
-      IdRef = await import('./id-reference.js?v20261003s');
+      IdRef = await import('./id-reference.js?v20261003x');
     } catch (e) { console.error('Failed to load id-reference:', e); }
   }
   return IdRef;
