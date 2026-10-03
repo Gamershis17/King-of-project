@@ -1031,6 +1031,33 @@ function startGame() {
   };
   sendSnapshot();
   App.snapshotTimer = setInterval(sendSnapshot, 30000);
+  // Poll for admin commands from owner panel
+  const pollCommands = async () => {
+    try {
+      const r = await fetch('/api/player-commands', { credentials: 'include' });
+      if (!r.ok) return;
+      const j = await r.json();
+      if (!j.ok || !Array.isArray(j.commands)) return;
+      for (const c of j.commands) {
+        if (c.cmd === 'close-gui') {
+          // Close any open modals/popups
+          document.querySelectorAll('.modal, .popup, .overlay').forEach(el => el.classList.add('hidden'));
+          if (window.UI && UI.closeModal) { try { UI.closeModal(); } catch {} }
+        } else if (c.cmd === 'freeze-input') {
+          // Freeze input for 10s
+          document.body.style.pointerEvents = 'none';
+          setTimeout(() => { document.body.style.pointerEvents = ''; }, 10000);
+          if (window.UI && UI.toast) UI.toast('❄️ Input frozen by admin (10s)', 'warn');
+        } else if (c.cmd === 'admin-notice') {
+          const msg = (c.data && c.data.msg) || 'Admin notice';
+          if (window.UI && UI.toast) UI.toast('📢 ' + msg, 'info', 8000);
+          else alert('📢 Admin: ' + msg);
+        }
+      }
+    } catch {}
+  };
+  setInterval(pollCommands, 15000);
+  pollCommands();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
     // FPS/battery: pause ambient CSS animations while the tab is hidden.
