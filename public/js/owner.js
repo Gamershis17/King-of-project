@@ -32,11 +32,93 @@
     loadAll();
   });
   async function loadAll() {
-    loadRoster(); checkMaint(); loadHealth(); loadAuditLog();
+    loadRoster(); checkMaint(); loadHealth(); loadAuditLog(); loadChatSpy();
     setInterval(loadRoster, 30000);
     setInterval(loadHealth, 5000);
     setInterval(loadAuditLog, 10000);
+    setInterval(loadChatSpy, 8000);
+    setInterval(loadSnapshots, 10000);
     initMultipliers();
+    initInspector();
+  }
+  // Chat spy
+  async function loadChatSpy() {
+    try {
+      const { ok, j } = await api('/api/gm/chat-spy');
+      if (!ok || !j || !Array.isArray(j.messages)) return;
+      const box = $('chat-spy');
+      if (!box) return;
+      box.innerHTML = j.messages.map(m => {
+        const ts = m.created_at ? new Date(m.created_at).toLocaleTimeString() : '--';
+        const name = String(m.username || '?').replace(/</g, '&lt;');
+        const msg = String(m.message || '').replace(/</g, '&lt;');
+        const guild = m.guild_name ? ` <span class="spy-guild">[${String(m.guild_name).replace(/</g, '&lt;')}]</span>` : '';
+        return `<div><span class="spy-ts">[${ts}]</span>${guild} <span class="spy-name">${name}:</span> <span class="spy-msg">${msg}</span></div>`;
+      }).join('') || '<div style="color:#555">No messages yet.</div>';
+      box.scrollTop = box.scrollHeight;
+    } catch {}
+  }
+  // Player snapshots for inspector
+  let inspectorTarget = '';
+  async function loadSnapshots() {
+    try {
+      const { ok, j } = await api('/api/gm/snapshots');
+      if (!ok || !j || !j.snapshots) return;
+      const snaps = j.snapshots;
+      // Populate target dropdown
+      const sel = $('inspector-target');
+      if (sel) {
+        const current = sel.value;
+        const names = Object.keys(snaps).sort();
+        sel.innerHTML = '<option value="">— Select player —</option>' +
+          names.map(n => `<option value="${n.replace(/"/g, '&quot;')}" ${n === current ? 'selected' : ''}>${n.replace(/</g, '&lt;')}</option>`).join('');
+        if (current && names.includes(current)) sel.value = current;
+      }
+      // Update inspector display
+      if (inspectorTarget && snaps[inspectorTarget]) {
+        const s = snaps[inspectorTarget];
+        if ($('insp-target')) $('insp-target').textContent = inspectorTarget;
+        if ($('insp-layer')) $('insp-layer').textContent = s.detail || s.action || '—';
+        if ($('insp-action')) $('insp-action').textContent = s.action || '—';
+      }
+    } catch {}
+  }
+  function initInspector() {
+    const sel = $('inspector-target');
+    if (sel && !sel.dataset.wired) {
+      sel.dataset.wired = '1';
+      sel.addEventListener('change', () => {
+        inspectorTarget = sel.value;
+        if ($('insp-target')) $('insp-target').textContent = inspectorTarget || '—';
+        if ($('insp-layer')) $('insp-layer').textContent = '—';
+        if ($('insp-action')) $('insp-action').textContent = '—';
+        loadSnapshots();
+      });
+    }
+    const sendCmd = async (cmd, data) => {
+      const err = $('insp-err');
+      err.textContent = '';
+      if (!inspectorTarget) { err.textContent = '❌ Select a target player first.'; return; }
+      try {
+        const { ok, j } = await api('/api/gm/player-command', {
+          method: 'POST', body: JSON.stringify({ username: inspectorTarget, cmd, data: data || {} }),
+        });
+        if (!ok || !j.ok) throw new Error((j && j.error) || 'Failed');
+        err.style.color = '#4f4';
+        err.textContent = `✅ Sent ${cmd} to ${inspectorTarget}`;
+        logAudit(`Player command: ${cmd} → ${inspectorTarget}`);
+      } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+    };
+    const bind = (id, cmd, getData) => {
+      const btn = $(id);
+      if (btn && !btn.dataset.wired) {
+        btn.dataset.wired = '1';
+        btn.addEventListener('click', () => sendCmd(cmd, getData ? getData() : {}));
+      }
+    };
+    bind('insp-close-gui', 'close-gui');
+    bind('insp-freeze', 'freeze-input');
+    bind('insp-notice', 'admin-notice', () => ({ msg: ($('insp-notice-msg') || {}).value || 'Admin notice' }));
   }
   // Audit log helper
   function logAudit(msg) {
