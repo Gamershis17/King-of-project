@@ -761,7 +761,7 @@ export function spendGold(s, cost) {
 
 // Server gold cap (owner-adjustable, default 999Dc). The client refreshes it
 // from GET /api/settings at boot via setGoldCap().
-let GOLD_CAP = 9.99e35; // 999Dc
+let GOLD_CAP = 9.99e44; // 999Td (was 999Dc)
 export function setGoldCap(cap) {
   if (Number.isFinite(cap) && cap >= 1e12) GOLD_CAP = cap;
 }
@@ -2874,8 +2874,11 @@ export function feedPet(s, petUid) {
   if (pet.hunger >= 100) return { ok: false, reason: 'full' };
   const cost = petFeedCost(pet, s);
   if (!spendGold(s, cost)) return { ok: false, reason: 'gold' };
+  const tierOf = (h) => h > 50 ? 2 : h > 0 ? 1 : 0;
+  const oldTier = tierOf(pet.hunger);
   pet.hunger = Math.min(100, pet.hunger + 35);
-  return { ok: true, cost };
+  const newTier = tierOf(pet.hunger);
+  return { ok: true, cost, tierUp: newTier > oldTier };
 }
 
 // ---------------- Sell pets ----------------
@@ -3042,10 +3045,18 @@ export function gainPetXp(s, xp) {
 }
 
 // Decays every pet's hunger by `amount` (clamped at 0).
+// Returns array of {pet, oldTier, newTier} for pets that crossed a bond tier.
 export function decayPetHunger(s, amount = 1) {
   const p = ensurePets(s);
-  for (const pet of p.collection) pet.hunger = Math.max(0, pet.hunger - amount);
-  return p;
+  const changes = [];
+  const tierOf = (h) => h > 50 ? 2 : h > 0 ? 1 : 0;
+  for (const pet of p.collection) {
+    const oldTier = tierOf(pet.hunger);
+    pet.hunger = Math.max(0, pet.hunger - amount);
+    const newTier = tierOf(pet.hunger);
+    if (oldTier !== newTier) changes.push({ pet, oldTier, newTier });
+  }
+  return { pets: p, changes };
 }
 
 // ---------------- Upgrades ----------------
