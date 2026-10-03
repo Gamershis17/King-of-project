@@ -2201,12 +2201,12 @@ function doFish() {
       const fish = Engine.rollFishCatch(rodId);
       s.fish = s.fish || {};
       s.fish[fish.id] = (s.fish[fish.id] || 0) + 1;
-      // Auto-sell for gold
-      const goldEarned = fish.goldValue;
-      Engine.addGold(s, goldEarned);
+      // Fish go to inventory — player chooses to sell, eat, or feed to pet
       if (status) status.textContent = '🎉 Got one!';
-      if (catchDiv) catchDiv.innerHTML = `<span style="font-size:32px">${fish.emoji}</span><br><b>${fish.name}</b> (${fish.rarity})<br>+${goldEarned.toLocaleString()} gold`;
-      UI.toast(`🎣 Caught ${fish.name}! +${goldEarned.toLocaleString()}g`, 'success');
+      if (catchDiv) catchDiv.innerHTML = `<span style="font-size:32px">${fish.emoji}</span><br><b>${fish.name}</b> (${fish.rarity})<br><span style="font-size:12px;color:#888">Sell for 💰${fish.goldValue.toLocaleString()} · Eat to heal · Feed to pet</span>`;
+      UI.toast(`🎣 Caught ${fish.name}!`, 'success');
+      // Fishing XP
+      s.fishingXp = (s.fishingXp || 0) + 10;
       UI.updateFishGrid(s);
       UI.updateHUD(s, App.user);
       saveNow();
@@ -2216,6 +2216,65 @@ function doFish() {
     }
   }
 }
+
+function doSellFish(fishId) {
+  const s = App.state;
+  if (!s || !s.fish || !s.fish[fishId]) return;
+  const fish = Engine.FISH_SPECIES[fishId];
+  if (!fish) return;
+  s.fish[fishId]--;
+  if (s.fish[fishId] <= 0) delete s.fish[fishId];
+  Engine.addGold(s, fish.goldValue);
+  UI.toast(`💰 Sold ${fish.name} for ${fish.goldValue.toLocaleString()}g`, 'success');
+  UI.updateFishGrid(s); UI.updateHUD(s, App.user); saveNow();
+}
+function doEatFish(fishId) {
+  const s = App.state;
+  if (!s || !s.fish || !s.fish[fishId]) return;
+  const fish = Engine.FISH_SPECIES[fishId];
+  if (!fish) return;
+  const healAmt = Math.round(fish.goldValue / 10);
+  s.fish[fishId]--;
+  if (s.fish[fishId] <= 0) delete s.fish[fishId];
+  s.hero.hp = Math.min(s.hero.maxHp, s.hero.hp + healAmt);
+  UI.toast(`🍽️ Ate ${fish.name}! +${healAmt} HP`, 'success');
+  UI.updateFishGrid(s); UI.updateHUD(s, App.user); saveNow();
+}
+function doFeedFish(fishId) {
+  const s = App.state;
+  if (!s || !s.fish || !s.fish[fishId]) return;
+  const fish = Engine.FISH_SPECIES[fishId];
+  if (!fish) return;
+  // Feed to active pet: restore hunger
+  const pet = s.activePet;
+  if (!pet) { UI.toast('No active pet to feed!', 'warn'); return; }
+  s.fish[fishId]--;
+  if (s.fish[fishId] <= 0) delete s.fish[fishId];
+  pet.hunger = Math.min(100, (pet.hunger || 0) + 20);
+  UI.toast(`🐾 Fed ${fish.name} to ${pet.name}! +20 hunger`, 'success');
+  UI.updateFishGrid(s); UI.updateHUD(s, App.user); saveNow();
+}
+// Expose globally for onclick handlers
+window.doSellFish = doSellFish; window.doEatFish = doEatFish; window.doFeedFish = doFeedFish;
+
+// Catfish NPC dialogue
+const CATFISH_LINES = [
+  "Well hey there, young angler! The fish are bitin' today. Go on, cast yer line!",
+  "See that green zone? Time yer strike just right and you'll land a whopper!",
+  "I been fishin' this lake for forty years. The Whisper Koi only bites for patient folk.",
+  "Ya know, fish make fine eatin'. Heals ya right up when yer hurtin'.",
+  "Yer pet lookin' hungry? Toss 'em a fish — they'll love ya for it.",
+  "Bigger rod, bigger fish. That's just common sense, ya hear?",
+  "The Void Leviathan... I seen it once. Big as a house, I tell ya!",
+  "Slow down, enjoy the water. Not everything's about fightin', kid.",
+];
+let catfishIdx = 0;
+function talkToCatfish() {
+  catfishIdx = (catfishIdx + 1) % CATFISH_LINES.length;
+  const el = document.getElementById('catfish-dialogue');
+  if (el) el.textContent = '"' + CATFISH_LINES[catfishIdx] + '"';
+}
+window.talkToCatfish = talkToCatfish;
 
 function doBuyRod(rodId) {
   const s = App.state;

@@ -4233,12 +4233,17 @@ export const UI = {
     }
     grid.innerHTML = entries.map(([id, f]) => {
       const count = fish[id] || 0;
+      const healAmt = Math.round(f.goldValue / 10);
       return `<div class="fish-card ${f.rarity}">
         <div class="fish-emoji">${f.emoji}</div>
         <div><b>${esc(f.name)}</b></div>
         <div class="muted tiny">${f.rarity}</div>
         <div>×${count}</div>
-        <div class="muted tiny">💰 ${formatNum(f.goldValue)}</div>
+        ${count > 0 ? `<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
+          <button class="small" onclick="doSellFish('${id}')" style="font-size:11px">💰 Sell</button>
+          <button class="small" onclick="doEatFish('${id}')" style="font-size:11px">🍽️ Eat (+${healAmt} HP)</button>
+          <button class="small" onclick="doFeedFish('${id}')" style="font-size:11px">🐾 Feed Pet</button>
+        </div>` : `<div class="muted tiny">💰 ${formatNum(f.goldValue)}</div>`}
       </div>`;
     }).join('');
   },
