@@ -31,19 +31,6 @@
   .mult-row label { flex: 1; margin: 0; }
   .mult-row input[type="number"] { width: 80px; flex: none; }
   .mult-row input[type="range"] { flex: 2; accent-color: #fff; }
-  /* Telemetry */
-  .telemetry-line { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; font-size: 13px; }
-  .telemetry-line:last-child { border-bottom: none; }
-  .telemetry-val { color: #0f0; font-weight: bold; }
-  /* Audit log terminal */
-  .audit-log {
-    background: #000; border: 1px solid #333; border-radius: 4px;
-    height: 280px; overflow-y: auto; padding: 10px;
-    font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.5;
-  }
-  .audit-log .log-entry { margin-bottom: 4px; word-wrap: break-word; }
-  .audit-log .log-ts { color: #888; }
-  .audit-log .log-msg { color: #0f0; }
   /* Chat spy terminal */
   .chat-spy-log {
     background: #000; border: 1px solid #333; border-radius: 4px;
@@ -379,23 +366,6 @@
 
       <!-- RIGHT COLUMN: Live Telemetry -->
       <div class="dash-col">
-        <div class="card">
-          <h1 style="font-size:18px">📡 SERVER HEALTH</h1>
-          <div class="telemetry-line"><span>Server Ping</span><span class="telemetry-val" id="health-ping">-- ms</span></div>
-          <div class="telemetry-line"><span>Server FPS</span><span class="telemetry-val" id="health-fps">--</span></div>
-          <div class="telemetry-line"><span>Connected Users</span><span class="telemetry-val" id="health-users">--</span></div>
-        </div>
-
-        <div class="card">
-          <h1 style="font-size:18px">🗺️ ACTIVE WORLD ZONES</h1>
-          <div id="world-zones"><p style="color:#888;font-size:13px">Loading…</p></div>
-        </div>
-
-        <div class="card">
-          <h1 style="font-size:18px">📋 LIVE AUDIT LOG</h1>
-          <div class="audit-log" id="audit-log"><div style="color:#555">Waiting for actions…</div></div>
-        </div>
-
         <div class="card">
           <h1 style="font-size:18px">💬 LIVE CROSS-SERVER CHAT SPY</h1>
           <div class="chat-spy-log" id="chat-spy"><div style="color:#555">Listening for chat…</div></div>
