@@ -2,15 +2,15 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003aa';
-import { UI, esc, formatNum } from './ui.js?v20261003aa';
+import * as Engine from './engine.js?v20261003ab';
+import { UI, esc, formatNum } from './ui.js?v20261003ab';
 import { Auth } from './auth.js?v=20260930ar';
-import { GM } from './gm.js?v20261003aa';
+import { GM } from './gm.js?v20261003ab';
 
 import { Raid } from './raid.js?v=20260930ar';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
-import { Realm } from './realm.js?v20261003aa';
+import { Realm } from './realm.js?v20261003ab';
 import { Audio } from './audio.js?v=20260930ar';
 
 const TICK_MS = 250;
@@ -1168,7 +1168,7 @@ function damageEnemy(dmg, prefix, sourceLabel) {
     UI.floatText(`-${formatNum(reflectDmg)}`, 'hurt');
     if (s.hero.hp <= 0) { s.hero.hp = 0; onDefeat(); return; }
   }
-  enemy.hp -= dmg;
+  enemy.hp = Math.max(0, enemy.hp - dmg);
   const isCrit = String(prefix).includes('CRIT');
   UI.enemyHitFlash(isCrit); // red flash on crits
   // Instant HP bar update (no 250ms tick lag)
@@ -1547,6 +1547,19 @@ function tick() {
   for (const c of s.party) {
     if (c.hp > 0 && c.hp < c.maxHp && c.regen > 0) c.hp = Math.min(c.maxHp, c.hp + c.regen * dt);
   }
+  // Pet HP regen: active pets recover HP over time.
+  try {
+    const pets = Engine.activePets(s);
+    const pStats = Engine.computeStats(s);
+    for (const pet of pets) {
+      const maxHp = Engine.petMaxHp(pet, pStats.maxHp);
+      if (pet.hp > 0 && pet.hp < maxHp) {
+        const regen = (pet.hpRegen || maxHp * 0.01) * dt; // 1% max HP/sec default
+        pet.hp = Math.min(maxHp, pet.hp + regen);
+      }
+    }
+    if (UI.updatePetStats) UI.updatePetStats(s);
+  } catch (e) { /* pet regen must never break the tick */ }
 
   // hero attacks: full rate in auto/dungeon, 35% idle rate in clicker mode
   // (taps remain the main damage there, boosted by combo + frenzy).
