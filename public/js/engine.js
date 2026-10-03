@@ -3993,6 +3993,10 @@ export const TITLE_DEFS = {
   'harbinger-doom': { name: '☠️ Harbinger of Doom', desc: 'Clear Tower Floor 100 during Halloween: +15% shadow damage, +5% lifesteal.', check: (s) => (s.tower && (s.tower.floor || 0) >= 100) && Engine.isEventActive('HALLOWEEN'), boost: { shadowDamagePct: 15, lifestealPct: 5 }, fx: { 1: 'name-void-king' } },
   'pumpkin-sovereign': { name: '🎃 The Pumpkin Sovereign', desc: 'Collect 500 shards: +12% gold, +12% XP.', check: (s) => (s.materials && (s.materials.pumpkin_shard || 0) >= 500), boost: { goldPct: 12, xpPct: 12 }, fx: { 1: 'name-jacko-master' } },
   'phantom-lord': { name: '👻 Phantom Lord', desc: 'Dodge 1,000 attacks in October: +7% dodge, +10% speed.', check: (s) => (s.stats && (s.stats.octoberDodges || 0) >= 1000), boost: { dodge: 7, speedPct: 10 }, fx: { 1: 'name-phantom-lord' } },
+  // Tester titles (unlocked by tester role).
+  'alpha-tester': { name: '🧪 Alpha Tester', desc: 'Official game tester.', check: (s, user) => user && user.role === 'tester', roleLocked: 'tester' },
+  'bug-hunter': { name: '🐛 Bug Hunter', desc: 'Squashes bugs for breakfast.', check: (s, user) => user && user.role === 'tester', roleLocked: 'tester' },
+  'shadow-tester': { name: '🌑 Shadow Tester', desc: 'Tests from the shadows.', check: (s, user) => user && user.role === 'tester', roleLocked: 'tester' },
 };
 // Every def carries its id (used by find/filter/map across the codebase).
 for (const [id, t] of Object.entries(TITLE_DEFS)) t.id = id;
@@ -4223,7 +4227,7 @@ export function changeClass(s, newClass) {
 }
 
 // Returns newly unlocked title defs (mutates state.titlesUnlocked).
-export function checkTitles(state) {
+export function checkTitles(state, user) {
   if (!Array.isArray(state.titlesUnlocked)) state.titlesUnlocked = ['wanderer'];
   // Lifetime gold tracking: no dedicated field exists, so accumulate
   // positive gold deltas between checks into stats.totalGoldEarned.
@@ -4240,7 +4244,7 @@ export function checkTitles(state) {
   for (const t of TITLES) {
     if (state.titlesUnlocked.includes(t.id)) continue;
     let ok = false;
-    try { ok = !!t.check(state); } catch { ok = false; }
+    try { ok = !!t.check(state, user); } catch { ok = false; }
     if (ok) {
       state.titlesUnlocked.push(t.id);
       fresh.push(t);

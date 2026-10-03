@@ -44,7 +44,23 @@
         `<span class="nm">${esc(p.username)}</span>` +
         `<span class="meta">Lv ${p.level} · Stg ${p.stage} · 🗼${p.towerFloor} · 💰${fmtGold(p.gold)}</span>` +
         `<span class="meta">⏱️${fmtTime(p.playTime)} · 👑${p.bosses}</span>` +
-        `<span class="meta">${p.online ? 'now' : new Date(p.lastSeen).toLocaleString()}</span></div>`).join('') || '<p style="color:#888">No players.</p>';
+        `<span class="meta">${p.online ? 'now' : new Date(p.lastSeen).toLocaleString()}</span>` +
+        `<select data-role-for="${esc(p.username)}" data-uid="${p.id}" style="background:#111;color:#fff;border:1px solid #555;border-radius:4px;padding:2px 4px;font-size:11px">` +
+        ['player','tester','moderator','admin','gm'].map(r => `<option value="${r}" ${p.role === r ? 'selected' : ''}>${r}</option>`).join('') +
+        `</select></div>`).join('') || '<p style="color:#888">No players.</p>';
+      // Wire role change handlers
+      box.querySelectorAll('select[data-uid]').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const username = sel.dataset.roleFor;
+          const role = sel.value;
+          if (!confirm(`Set ${username}'s role to ${role}?`)) { loadRoster(); return; }
+          try {
+            const { ok, j } = await api('/api/gm/roles', { method: 'POST', body: JSON.stringify({ username, role }) });
+            if (!ok || !j.ok) throw new Error(j.error || 'Failed');
+            alert('Role updated!');
+          } catch (e) { alert('Error: ' + e.message); loadRoster(); }
+        });
+      });
     } catch { box.innerHTML = '<p style="color:#f66">Failed to load.</p>'; }
   }
   async function checkMaint() {

@@ -1786,7 +1786,7 @@ function checkAch() {
     UI.toast(`🏆 ${a.name}! +${a.stars} ⭐`, 'success');
     UI.combatLog(`🏆 Achievement: ${a.name} (+${a.stars} ⭐)`, 'level');
   }
-  const freshTitles = Engine.checkTitles(s);
+  const freshTitles = Engine.checkTitles(s, App.user);
   for (const t of freshTitles) {
     UI.titleToast(t.name);
     UI.combatLog(`👑 Title unlocked: ${t.name}`, 'level');
