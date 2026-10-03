@@ -68,7 +68,7 @@ const { requireRole, requireAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, VALID_ROLES, VALID_CLASSES, VALID_SPECS, NAME_FX_IDS, xpForLevelServer } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const { loadBlob, defaultStateBlob, filterChangelog } = require('./gameApi');
-const { addBroadcast, latestBroadcast } = require('./broadcast');
+const { addBroadcast, latestBroadcast, addSseClient } = require('./broadcast');
 const {
   getWebhookUrl,
   setWebhookUrl,
@@ -1257,6 +1257,21 @@ router.get(
   asyncHandler(async (req, res) => {
     res.json({ broadcast: await latestBroadcast() });
   })
+);
+
+// ---------- live broadcast stream (SSE, public) ----------
+router.get(
+  '/broadcasts/stream',
+  (req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    res.write(': connected\n\n');
+    addSseClient(res);
+  }
 );
 
 // ---------- player list (moderators+) ----------

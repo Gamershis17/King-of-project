@@ -12,6 +12,21 @@
 
 const { pool } = require('./db');
 
+// SSE clients for live broadcast push
+const sseClients = new Set();
+
+function addSseClient(res) {
+  sseClients.add(res);
+  res.on('close', () => sseClients.delete(res));
+}
+
+function pushBroadcast(broadcast) {
+  const data = `data: ${JSON.stringify(broadcast)}\n\n`;
+  for (const res of sseClients) {
+    try { res.write(data); } catch { sseClients.delete(res); }
+  }
+}
+
 async function ensureTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS broadcasts (
@@ -29,7 +44,9 @@ async function addBroadcast(message, createdBy) {
     'INSERT INTO broadcasts (message, created_by) VALUES ($1, $2) RETURNING id, message, created_by, created_at',
     [message, createdBy]
   );
-  return rows[0];
+  const broadcast = rows[0];
+  pushBroadcast(broadcast);
+  return broadcast;
 }
 
 async function latestBroadcast() {
@@ -40,4 +57,4 @@ async function latestBroadcast() {
   return rows[0] || null;
 }
 
-module.exports = { addBroadcast, latestBroadcast };
+module.exports = { addBroadcast, latestBroadcast, addSseClient };
