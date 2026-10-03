@@ -388,7 +388,11 @@
         var players = (j && j.players) || [];
         if (!players.length) { box.innerHTML = '<div class="empty">No player found for "' + esc(name) + '".</div>'; return; }
         box.innerHTML = players.map(function (p) {
+          var onlinePill = p.online
+            ? '<span class="badge" style="background:#16a34a;color:#fff;">🟢 Online</span>'
+            : '<span class="badge" style="background:#6b7280;color:#fff;">🔴 Offline</span>';
           return '<div class="entry"><div class="entry-head"><span class="entry-title">' + esc(p.username) + '</span>' +
+            onlinePill +
             '<span class="badge st-open">' + esc(p.role || 'player') + '</span></div>' +
             '<div class="entry-meta">Lv ' + esc(p.level) + ' · Stage ' + esc(p.stage) +
             (p.playerClass ? ' · ' + esc(p.playerClass) : '') + '</div>' +

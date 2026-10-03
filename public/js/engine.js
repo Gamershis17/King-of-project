@@ -1776,26 +1776,32 @@ export function computeStats(state) {
   // Guild perks: multiplicative damage, additive XP/gold percentages.
   const gp = GUILD_PERKS;
   const guildDmgMult = 1 + (gp.dmgPct || 0) / 100;
+  // Active title stat boost (if the equipped title has one).
+  const titleDef = state.activeTitle && TITLE_DEFS[state.activeTitle];
+  const tb = (titleDef && titleDef.boost) || {};
+  const tAtkMult = 1 + (tb.atkPct || 0) / 100;
+  const tDefMult = 1 + (tb.defPct || 0) / 100;
+  const tHpMult = 1 + (tb.hpPct || 0) / 100;
   const h = state.hero;
   return {
-    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * dmgUpMult * smithMult * guildDmgMult * (1 + (cte.atkPct || 0) / 100) * (1 + (cte.spellPowerPct || 0) / 100) + bond.atk),
-    defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * (cls.defMult || 1) * (spec.defMult || 1) * (1 + (cte.defPct || 0) / 100) + bond.def),
-    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * (1 + (cte.maxHpPct || 0) / 100)) + bond.hp),
-    critChance: clamp(h.critChance + gear.critChance + pCritCh + (cte.critCh || 0) + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
+    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * tAtkMult * dmgUpMult * smithMult * guildDmgMult * (1 + (cte.atkPct || 0) / 100) * (1 + (cte.spellPowerPct || 0) / 100) + bond.atk),
+    defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * tDefMult * (cls.defMult || 1) * (spec.defMult || 1) * (1 + (cte.defPct || 0) / 100) + bond.def),
+    maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * tHpMult * (1 + (cte.maxHpPct || 0) / 100)) + bond.hp),
+    critChance: clamp(h.critChance + gear.critChance + pCritCh + (tb.critCh || 0) + (cte.critCh || 0) + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
     critDamage: Math.max(100, h.critDamage + gear.critDamage + pCritDmg + (cte.critDmgPct || 0) + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
     parry: clamp(h.parry + gear.parry + (race.parryBonus || 0), 0, 60),
     dodge: clamp(h.dodge + gear.dodge + pDodge + (cte.dodge || 0) + (race.dodgeBonus || 0) + (race.dodgeMod || 0) + (cls.dodgeBonus || 0), 0, 75),
-    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + pLifesteal + (cte.lifesteal || 0) + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
-    attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1) * (1 + (cte.atkSpdPct || 0) / 100), 0.2, 5),
+    lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + pLifesteal + (tb.lifesteal || 0) + (cte.lifesteal || 0) + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
+    attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1) * (1 + (cte.atkSpdPct || 0) / 100) * (1 + (tb.atkSpdPct || 0) / 100), 0.2, 5),
     regen: Math.max(0, h.regen + gear.regen + pRegen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
-    goldBonus: gear.goldBonus + (gp.goldPct || 0) + pGoldPct,
-    xpBonus: gear.xpBonus + pXpPct,
+    goldBonus: gear.goldBonus + (gp.goldPct || 0) + pGoldPct + (tb.goldPct || 0),
+    xpBonus: gear.xpBonus + pXpPct + (tb.xpPct || 0),
     talentGoldPct: 0, // Mastery removed: Fortune gold bonus no longer exists
     setInfo,
     playerSetInfo: pSetInfo,
     bond,
     // Class-talent pass-throughs for battle logic (app.js).
-    talentPetDmgPct: cte.petDmgPct || 0,
+    talentPetDmgPct: (cte.petDmgPct || 0) + (tb.petDmgPct || 0),
     talentPetHpPct: cte.petHpPct || 0,
     talentCounterCh: cte.counterCh || 0,
     talentExecutePct: cte.executePct || 0,
@@ -3693,6 +3699,23 @@ export const TITLE_DEFS = {
   'tower-master': { name: '🗼 Floor Master', desc: 'Clear Tower Floor 50.', check: (s) => (s.tower && s.tower.floor || 0) >= 50 },
   'tower-ascendant': { name: '🗼 Shadow Ascendant', desc: 'Clear Tower Floor 75.', check: (s) => (s.tower && s.tower.floor || 0) >= 75 },
   'tower-conqueror': { name: '🗼 Tower Conqueror', desc: 'Clear Tower Floor 100.', check: (s) => (s.tower && s.tower.floor || 0) >= 100 },
+  // Stat-boost titles: equipping grants the listed bonus.
+  'founding-father': { name: '👑 The Founding Father', desc: '+10% gold from all sources.', check: (s) => (s.stats.kills || 0) >= 5000, boost: { goldPct: 10 } },
+  'shadow-sovereign': { name: '🌑 Shadow Sovereign', desc: '+10% attack.', check: (s) => (s.bossesKilled || 0) >= 50, boost: { atkPct: 10 } },
+  'raid-slayer': { name: '⚔️ Raid Slayer', desc: '+12% attack.', check: (s) => (s.stats.raidsWon || 0) >= 10, boost: { atkPct: 12 } },
+  'guild-mastermind': { name: '🏰 Guild Mastermind', desc: '+15% XP.', check: (s) => false, boost: { xpPct: 15 } },
+  'unstoppable-force': { name: '💪 Unstoppable Force', desc: '+15% attack.', check: (s) => (s.level || 1) >= 100, boost: { atkPct: 15 } },
+  'the-immortal': { name: '♾️ The Immortal', desc: '+20% max HP.', check: (s) => (s.stats.deaths || 0) === 0 && (s.level || 1) >= 75, boost: { hpPct: 20 } },
+  'dungeon-delver': { name: '🕳️ Dungeon Delver', desc: '+10% defense.', check: (s) => (s.stats.dungeonsWon || 0) >= 25, boost: { defPct: 10 } },
+  'pet-whisperer': { name: '🐾 Pet Whisperer', desc: '+15% pet damage.', check: (s) => (s.stats.petsHatched || 0) >= 10, boost: { petDmgPct: 15 } },
+  'swift-blade': { name: '⚡ Swift Blade', desc: '+10% attack speed.', check: (s) => (s.stats.maxCombo || 0) >= 100, boost: { atkSpdPct: 10 } },
+  'iron-wall': { name: '🛡️ Iron Wall', desc: '+15% defense.', check: (s) => (s.stats.damageTaken || 0) >= 1000000, boost: { defPct: 15 } },
+  'lucky-charm': { name: '🍀 Lucky Charm', desc: '+5% crit chance.', check: (s) => (s.stats.crits || 0) >= 500, boost: { critCh: 5 } },
+  'vampire-lord': { name: '🧛 Vampire Lord', desc: '+5% lifesteal.', check: (s) => (s.stats.lifeStolen || 0) >= 100000, boost: { lifesteal: 5 } },
+  'sage': { name: '📚 Sage', desc: '+20% XP.', check: (s) => (s.level || 1) >= 120, boost: { xpPct: 20 } },
+  'warlord': { name: '👹 Warlord', desc: '+8% attack, +8% defense.', check: (s) => (s.bossesKilled || 0) >= 100, boost: { atkPct: 8, defPct: 8 } },
+  'titan': { name: '🦍 Titan', desc: '+25% max HP.', check: (s) => (s.stats.maxHpReached || 0) >= 100000, boost: { hpPct: 25 } },
+  'golden-touch': { name: '✨ Golden Touch', desc: '+20% gold from all sources.', check: (s) => (s.stats.goldEarned || 0) >= 100000000, boost: { goldPct: 20 } },
 };
 // Every def carries its id (used by find/filter/map across the codebase).
 for (const [id, t] of Object.entries(TITLE_DEFS)) t.id = id;
