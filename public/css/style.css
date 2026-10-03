@@ -5559,3 +5559,34 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   0% { background-position: 0% center; }
   100% { background-position: 400% center; }
 }
+
+/* Halloween 2026 event styles */
+.name-spooky {
+  color: #ff7518;
+  text-shadow: 0 0 8px #800080, 0 0 16px #ff7518;
+  animation: name-spooky-pulse 2s ease-in-out infinite;
+}
+@keyframes name-spooky-pulse {
+  0%, 100% { text-shadow: 0 0 8px #800080, 0 0 16px #ff7518; }
+  50% { text-shadow: 0 0 16px #800080, 0 0 32px #ff7518, 0 0 48px #ff7518; }
+}
+
+.halloween-banner {
+  background: linear-gradient(90deg, #2d1b4e, #800080, #ff7518, #800080, #2d1b4e);
+  color: #fff;
+  text-align: center;
+  padding: 8px 12px;
+  font-weight: bold;
+  font-size: 14px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+.event-2x-banner {
+  background: linear-gradient(90deg, #7f1d1d, #dc2626, #f59e0b, #dc2626, #7f1d1d);
+  color: #fff;
+  text-align: center;
+  padding: 8px 12px;
+  font-weight: bold;
+  font-size: 14px;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
