@@ -40,6 +40,7 @@
     setInterval(loadSnapshots, 10000);
     initMultipliers();
     initInspector();
+    initPlayerModal();
   }
   // Chat spy
   async function loadChatSpy() {
@@ -253,7 +254,8 @@
         `</select></div>`).join('') || '<p style="color:#888">No players.</p>';
       // Wire role change handlers
       box.querySelectorAll('select[data-uid]').forEach(sel => {
-        sel.addEventListener('change', async () => {
+        sel.addEventListener('change', async (e) => {
+          e.stopPropagation();
           const username = sel.dataset.roleFor;
           const role = sel.value;
           if (!confirm(`Set ${username}'s role to ${role}?`)) { loadRoster(); return; }
@@ -263,8 +265,131 @@
             alert('Role updated!');
           } catch (e) { alert('Error: ' + e.message); loadRoster(); }
         });
+        // Don't open modal when clicking the dropdown
+        sel.addEventListener('click', (e) => e.stopPropagation());
+      });
+      // Wire roster row clicks to open tactical modal
+      box.querySelectorAll('.roster-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const sel = row.querySelector('select[data-role-for]');
+          const username = sel ? sel.dataset.roleFor : null;
+          if (username) openPlayerModal(username);
+        });
       });
     } catch { box.innerHTML = '<p style="color:#f66">Failed to load.</p>'; }
+  }
+  // Tactical player edit modal
+  let modalPlayer = '';
+  function openPlayerModal(username) {
+    modalPlayer = username;
+    $('modal-player-name').textContent = 'Target: ' + username;
+    $('modal-gold').value = ''; $('modal-level').value = '';
+    $('modal-stage').value = ''; $('modal-rebirth').value = '';
+    $('modal-err').textContent = '';
+    $('player-edit-modal').classList.add('open');
+  }
+  function closePlayerModal() {
+    $('player-edit-modal').classList.remove('open');
+    modalPlayer = '';
+  }
+  function initPlayerModal() {
+    const closeBtn = $('modal-close');
+    if (closeBtn && !closeBtn.dataset.wired) {
+      closeBtn.dataset.wired = '1';
+      closeBtn.addEventListener('click', closePlayerModal);
+    }
+    // Close on backdrop click
+    const modal = $('player-edit-modal');
+    if (modal && !modal.dataset.wired) {
+      modal.dataset.wired = '1';
+      modal.addEventListener('click', (e) => { if (e.target === modal) closePlayerModal(); });
+    }
+    // Close on Escape
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePlayerModal(); });
+    // Apply modifications
+    const applyBtn = $('modal-apply');
+    if (applyBtn && !applyBtn.dataset.wired) {
+      applyBtn.dataset.wired = '1';
+      applyBtn.addEventListener('click', async () => {
+        const err = $('modal-err');
+        err.textContent = '';
+        if (!modalPlayer) { err.textContent = '❌ No player selected.'; return; }
+        const ops = [];
+        const gold = $('modal-gold').value.trim();
+        const level = $('modal-level').value.trim();
+        const stage = $('modal-stage').value.trim();
+        const rebirth = $('modal-rebirth').value.trim();
+        try {
+          if (gold) {
+            const { ok, j } = await api('/api/gm/set-gold', { method: 'POST', body: JSON.stringify({ username: modalPlayer, gold: parseInt(gold) }) });
+            if (!ok || !j.ok) throw new Error('Gold: ' + ((j && j.error) || 'failed'));
+            ops.push('gold');
+          }
+          if (level) {
+            const { ok, j } = await api('/api/gm/set-level', { method: 'POST', body: JSON.stringify({ username: modalPlayer, level: parseInt(level) }) });
+            if (!ok || !j.ok) throw new Error('Level: ' + ((j && j.error) || 'failed'));
+            ops.push('level');
+          }
+          if (stage) {
+            const { ok, j } = await api('/api/gm/set-stage', { method: 'POST', body: JSON.stringify({ username: modalPlayer, stage: parseInt(stage) }) });
+            if (!ok || !j.ok) throw new Error('Stage: ' + ((j && j.error) || 'failed'));
+            ops.push('stage');
+          }
+          if (rebirth) {
+            const { ok, j } = await api('/api/gm/set-rebirth', { method: 'POST', body: JSON.stringify({ username: modalPlayer, rebirths: parseInt(rebirth) }) });
+            if (!ok || !j.ok) throw new Error('Rebirth: ' + ((j && j.error) || 'failed'));
+            ops.push('rebirth');
+          }
+          err.style.color = '#4f4';
+          err.textContent = ops.length ? `✅ Applied: ${ops.join(', ')}` : '⚠️ No values entered.';
+          logAudit(`Player edit: ${ops.join(', ') || 'no-op'} → ${modalPlayer}`);
+          loadRoster();
+        } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+      });
+    }
+    // Quick actions
+    const quickBuff = $('modal-buff-btn');
+    if (quickBuff && !quickBuff.dataset.wired) {
+      quickBuff.dataset.wired = '1';
+      quickBuff.addEventListener('click', async () => {
+        if (!modalPlayer) return;
+        const err = $('modal-err');
+        try {
+          const { ok, j } = await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: modalPlayer, type: 'damage', value: 50, duration: 300 }) });
+          if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+          err.style.color = '#4f4'; err.textContent = '✅ +50% damage buff (5min) injected.';
+          logAudit(`Buff injected → ${modalPlayer}`);
+        } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+      });
+    }
+    const quickGear = $('modal-gear-btn');
+    if (quickGear && !quickGear.dataset.wired) {
+      quickGear.dataset.wired = '1';
+      quickGear.addEventListener('click', async () => {
+        if (!modalPlayer) return;
+        const err = $('modal-err');
+        try {
+          const { ok, j } = await api('/api/gm/grant-class-gear', { method: 'POST', body: JSON.stringify({ username: modalPlayer, set: 'sovereign' }) });
+          if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+          err.style.color = '#4f4'; err.textContent = '✅ Sovereign gear set granted.';
+          logAudit(`Gear granted → ${modalPlayer}`);
+        } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+      });
+    }
+    const quickHeal = $('modal-heal-btn');
+    if (quickHeal && !quickHeal.dataset.wired) {
+      quickHeal.dataset.wired = '1';
+      quickHeal.addEventListener('click', async () => {
+        if (!modalPlayer) return;
+        const err = $('modal-err');
+        try {
+          const { ok, j } = await api('/api/gm/heal', { method: 'POST', body: JSON.stringify({ username: modalPlayer }) });
+          if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+          err.style.color = '#4f4'; err.textContent = '✅ Health fully restored.';
+          logAudit(`Heal → ${modalPlayer}`);
+        } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+      });
+    }
   }
   async function checkMaint() {
     try {
