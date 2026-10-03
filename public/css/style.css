@@ -5510,6 +5510,8 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   padding: 0.7rem 0.9rem;
   margin: 0.5rem 0;
   box-shadow: 0 0 18px rgba(139, 92, 246, 0.15);
+  position: relative;
+  overflow: hidden;
 }
 .tower-head {
   font-size: 1.05rem;
@@ -6117,17 +6119,15 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
 }
 
 /* 🗼 Tower of Shadows Background */
-#tab-battle .tower-bg-wrap {
-  position: relative;
-}
 .tower-tab-bg {
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 200px;
+  top: 0; left: 0; right: 0; bottom: 0;
   background: url('../img/tower-bg.jpg') center/cover no-repeat;
-  border-radius: 12px;
-  opacity: 0.35;
+  opacity: 0.25;
   pointer-events: none;
-  mask-image: linear-gradient(180deg, black 60%, transparent 100%);
-  -webkit-mask-image: linear-gradient(180deg, black 60%, transparent 100%);
+  z-index: 0;
+}
+.tower-panel > *:not(.tower-tab-bg) {
+  position: relative;
+  z-index: 1;
 }
