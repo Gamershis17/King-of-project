@@ -1264,7 +1264,9 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
   const partyPct = Math.max(0, Math.min(40, Number(partyXpPct) || 0));
   const xpBonusPct = Math.min(40, gearPct + guildPct + partyPct);
   // Manual 2x event multiplier (staff toggle).
-  const eventMult = state.xpMultiplier || 1.0;
+  // Auto 2x during Halloween event (Oct 3 - Nov 1, 2026).
+  const halloween2x = isEventActive('HALLOWEEN') ? 2 : 1;
+  const eventMult = Math.max(state.xpMultiplier || 1.0, halloween2x);
   const amount = Math.max(1, Math.round(
     baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1) * eventMult
   ));

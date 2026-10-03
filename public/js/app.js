@@ -1229,8 +1229,9 @@ function onKillEnemy() {
   const pb = partyBonus();
   let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0) + pb.goldPct);
   gold = Math.floor(gold * Engine.eventGoldMult());
-  // Manual 2x event multiplier (staff toggle).
-  gold = Math.floor(gold * (s.goldMultiplier || 1.0));
+  // Manual 2x event multiplier (staff toggle). Auto 2x during Halloween.
+  const halloween2x = Engine.isEventActive && Engine.isEventActive('HALLOWEEN') ? 2 : 1;
+  gold = Math.floor(gold * Math.max(s.goldMultiplier || 1.0, halloween2x));
   if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
   const addedGold = Engine.addGold(s, gold);
   Audio.play('coin');

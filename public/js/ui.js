@@ -1542,6 +1542,21 @@ export const UI = {
         chips.push(`<span class="buff-chip">🎉 ${esc(ev.label || 'Event')} <span class="buff-timer">${mins}m</span></span>`);
       }
     } catch { /* ignore */ }
+    // Halloween 2x XP/Gold badges with countdown (Oct 3 - Nov 1, 2026).
+    try {
+      if (Engine.isEventActive && Engine.isEventActive('HALLOWEEN')) {
+        const end = new Date('2026-11-01T23:59:59Z').getTime();
+        const remaining = end - now;
+        if (remaining > 0) {
+          const d = Math.floor(remaining / 86400000);
+          const h = Math.floor((remaining % 86400000) / 3600000);
+          const m = Math.floor((remaining % 3600000) / 60000);
+          const timer = `${d}d ${h}h ${m}m`;
+          chips.push(`<span class="buff-chip" style="border-color:#ff7518">⚡ 2x XP <span class="buff-timer">${timer}</span></span>`);
+          chips.push(`<span class="buff-chip" style="border-color:#ff7518">💰 2x Gold <span class="buff-timer">${timer}</span></span>`);
+        }
+      }
+    } catch { /* ignore */ }
     // Potions
     const hp = (state.potions && state.potions.health) || 0;
     const res = (state.potions && state.potions.resource) || 0;
