@@ -1121,7 +1121,8 @@ async function getMyGuild(username) {
 async function getGuildRoster(guildId) {
   const { rows } = await pool.query(
     `SELECT m.username, m.rank, m.joined_at, m.credits, m.title,
-            ps.level, ps.stage, ps.updated_at AS last_active, ps.state_json
+            ps.level, ps.stage, ps.updated_at AS last_active, ps.state_json,
+            u.role AS user_role, u.created_at AS user_created
      FROM guild_members m
      LEFT JOIN users u ON LOWER(u.username) = LOWER(m.username)
      LEFT JOIN player_state ps ON ps.user_id = u.id
@@ -1151,6 +1152,8 @@ async function getGuildRoster(guildId) {
       rank: r.rank,
       joined_at: r.joined_at,
       title: r.title || null,
+      role: r.user_role || 'player',
+      createdAt: r.user_created || null,
       level: r.level == null ? null : Number(r.level),
       stage: r.stage == null ? null : Number(r.stage),
       playerClass,
