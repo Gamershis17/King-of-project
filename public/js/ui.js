@@ -1901,7 +1901,12 @@ export const UI = {
     const canSweep = t.floor > 0 && (!t.lastSweep || Date.now() - t.lastSweep >= dayMs);
     panel.innerHTML = `
       <div class="tower-tab-bg"></div>
-      <div class="tower-blood"></div>
+      <div class="tower-blood">
+        <span class="blood-drop">🩸</span>
+        <span class="blood-drop">🩸</span>
+        <span class="blood-drop">🩸</span>
+        <span class="blood-drop">🩸</span>
+      </div>
       <div class="tower-head">🗼 <b>Tower of Shadows</b></div>
       <div class="tower-stats">
         <span>🏆 Highest: <b>Floor ${t.floor}</b></span>
@@ -2117,6 +2122,7 @@ export const UI = {
     const world = Engine.worldForStage(enemy.stage);
     e['enemy-sprite'].textContent = enemy.radiant ? '🌟' : enemy.emoji;
     e['enemy-name'].textContent = enemy.radiant ? `Radiant ${enemy.name}` : enemy.name;
+    e['enemy-name'].classList.toggle('enemy-name-boss', !!(enemy.boss || enemy.towerFloor));
     e['enemy-card'].classList.toggle('radiant', !!enemy.radiant);
     // Raid waves show the wave counter instead of the stage.
     // Tower floors show the floor number and hazard.
@@ -2124,8 +2130,10 @@ export const UI = {
       const hazard = enemy.hazard ? Engine.TOWER_HAZARDS[enemy.hazard] : null;
       e['enemy-stage'].textContent = `🗼 Tower — Floor ${enemy.towerFloor}` +
         (hazard ? ` · ${hazard.emoji} ${hazard.name}` : '');
-      // Floor 1000 gets the rainbow shine effect
+      // Floor 1000+ gets the full rainbow; milestones get a softer version
+      const isMilestone = [100, 250, 500, 750].includes(enemy.towerFloor);
       e['enemy-stage'].classList.toggle('floor-1000-shine', enemy.towerFloor >= 1000);
+      e['enemy-stage'].classList.toggle('floor-milestone-shine', isMilestone && enemy.towerFloor < 1000);
     } else {
       e['enemy-stage'].textContent = enemy.raidWave
         ? `🌀 Raid — Wave ${enemy.raidWave}`
