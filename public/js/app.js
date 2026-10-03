@@ -1155,7 +1155,8 @@ function meterSnapshot() {
 
 function heroStrike(stats, mult = 1) {
   const { dmg, crit } = Engine.playerAttack(stats, App.enemy);
-  const final = Math.max(1, Math.round(dmg * mult));
+  const buffMult = App.state ? Engine.getBuffMult(App.state, 'damage') : 1;
+  const final = Math.max(1, Math.round(dmg * mult * buffMult));
   meterHit('hero', (App.user && App.user.username) || 'You', final);
   damageEnemy(final, crit ? 'CRIT ' : '', 'hero');
   // Warriors build rage on every landed strike.
@@ -1452,8 +1453,15 @@ function enemyStrikeTick(stats) {
     finalDmg = Math.max(1, Math.round(res.dmg * tStats.damageTakenMult));
   }
   if (target.kind === 'hero') {
+    // GM buffs: immunity blocks all, shield absorbs next
+    let heroDmg = finalDmg;
+    if (App.state && Engine.hasImmunity(App.state)) {
+      UI.floatText('IMMUNE', 'dodge');
+      return;
+    }
+    if (App.state) heroDmg = Engine.absorbWithShield(App.state, heroDmg);
     // Shield Block absorbs first, then damage-taken buffs (challenging shout).
-    let heroDmg = Engine.absorbShield(s, finalDmg);
+    heroDmg = Engine.absorbShield(s, heroDmg);
     heroDmg = Math.max(0, Math.round(heroDmg * Engine.damageTakenMult(s)));
     if (Engine.resourceIdFor(s) === 'rage') Engine.gainRage(s, Engine.RAGE_PER_HIT_TAKEN);
     s.hero.hp -= heroDmg;
@@ -3149,7 +3157,16 @@ function startBroadcastStream() {
   try {
     const es = new EventSource('/api/broadcasts/stream');
     es.onmessage = (e) => {
-      try { showBroadcast(JSON.parse(e.data)); } catch { /* ignore */ }
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'buff') {
+          applyLiveBuff(msg.buff);
+        } else if (msg.type === 'broadcast' || msg.broadcast) {
+          showBroadcast(msg.broadcast || msg);
+        } else {
+          showBroadcast(msg);
+        }
+      } catch { /* ignore */ }
     };
     es.onerror = () => { /* auto-reconnects; polling covers gaps */ };
     // Keep polling as fallback (every 60s) in case SSE drops
@@ -3158,6 +3175,62 @@ function startBroadcastStream() {
     App.broadcastTimer = setInterval(pollBroadcast, 10000);
   }
 }
+
+// Apply a live buff pushed by GM via SSE
+function applyLiveBuff(buff) {
+  if (!buff || !buff.type) return;
+  const s = App.state;
+  if (!s) return;
+  if (!Array.isArray(s.activeBuffs)) s.activeBuffs = [];
+  if (buff.type === 'heal') {
+    const healAmt = buff.value > 0 ? buff.value : (s.hero.maxHp - s.hero.hp);
+    s.hero.hp = Math.min(s.hero.maxHp, s.hero.hp + Math.max(0, healAmt));
+    UI.toast(`💚 ${buff.name}! Healed ${formatNum(healAmt)} HP`, 'success', 5000);
+  } else {
+    s.activeBuffs = s.activeBuffs.filter(b => b.type !== buff.type);
+    s.activeBuffs.push(buff);
+    UI.toast(`✨ ${buff.name} active! (${Math.round((buff.expiresAt - Date.now()) / 1000)}s)`, 'success', 5000);
+  }
+  UI.updateHUD(s, App.user);
+  renderBuffBar();
+  saveNow();
+}
+
+// Render active buffs bar with countdown timers
+function renderBuffBar() {
+  let bar = document.getElementById('buff-bar');
+  const s = App.state;
+  if (!s || !Array.isArray(s.activeBuffs) || s.activeBuffs.length === 0) {
+    if (bar) bar.remove();
+    return;
+  }
+  const now = Date.now();
+  s.activeBuffs = s.activeBuffs.filter(b => b.expiresAt > now);
+  if (s.activeBuffs.length === 0) { if (bar) bar.remove(); return; }
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'buff-bar';
+    bar.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:9999;pointer-events:none';
+    document.body.appendChild(bar);
+  }
+  const icons = { damage: '⚔️', shield: '🛡️', immunity: '✨', regen: '💚', speed: '⚡', xp: '📚', gold: '💰' };
+  bar.innerHTML = s.activeBuffs.map(b => {
+    const secs = Math.ceil((b.expiresAt - now) / 1000);
+    return `<div style="background:rgba(0,0,0,0.8);border:1px solid gold;border-radius:8px;padding:4px 10px;color:#fff;font-size:13px">${icons[b.type] || '✨'} ${b.name} ${secs}s</div>`;
+  }).join('');
+}
+// Tick buff expiration every second + regen healing
+setInterval(() => {
+  if (!window.App || !App.state) return;
+  if (typeof renderBuffBar === 'function') renderBuffBar();
+  // Regen buff: heal over time
+  const s = App.state;
+  const regen = s.activeBuffs && s.activeBuffs.find(b => b.type === 'regen' && b.expiresAt > Date.now());
+  if (regen && regen.value > 0 && s.hero && s.hero.hp < s.hero.maxHp) {
+    s.hero.hp = Math.min(s.hero.maxHp, s.hero.hp + regen.value);
+    if (window.UI && UI.updateHUD) UI.updateHUD(s, App.user);
+  }
+}, 1000);
 
 async function onTabSwitch(tab, force = false) {
   const s = App.state;

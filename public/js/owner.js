@@ -130,6 +130,13 @@
     const { ok, j } = await api('/api/gm/give-gear-set', { method: 'POST', body: JSON.stringify({ username: u, setId }) });
     $('powers-err').textContent = ok ? `✅ Gave ${setId} set (${j.granted.length} pieces) to ${u}` : '❌ ' + ((j && j.error) || 'failed');
   });
+  $('pow-buff-btn').addEventListener('click', async () => {
+    const u = $('pow-buff-user').value.trim(), buffType = $('pow-buff-type').value;
+    const value = Number($('pow-buff-val').value) || 0, duration = Number($('pow-buff-dur').value) || 30;
+    if (!u) { $('powers-err').textContent = 'Enter username.'; return; }
+    const { ok, j } = await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: u, buffType, value, duration }) });
+    $('powers-err').textContent = ok ? `✅ ${j.buff.name} → ${u}${j.live ? ' [LIVE!]' : ' (offline, applies on login)'}` : '❌ ' + ((j && j.error) || 'failed');
+  });
   // OP gear
   $('op-forge').addEventListener('click', async () => {
     $('op-err').textContent = '';

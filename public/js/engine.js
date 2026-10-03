@@ -788,6 +788,8 @@ export function eventGoldMult() { const b = eventBuff(); return b ? b.goldMult :
 // the cap entirely. Returns the amount actually added.
 export function addGold(s, amount) {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
+  // GM gold buff: multiply gains
+  amount = amount * getBuffMult(s, 'gold');
   const cur = Math.max(0, Number(s.gold) || 0);
   if (s.infGold === true) { s.gold = cur + amount; return amount; }
   const room = Math.max(0, GOLD_CAP - cur);
@@ -1267,8 +1269,10 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
   // Auto 2x during Halloween event (Oct 3 - Nov 1, 2026).
   const halloween2x = isEventActive('HALLOWEEN') ? 2 : 1;
   const eventMult = Math.max(state.xpMultiplier || 1.0, halloween2x);
+  // GM xp buff multiplier
+  const buffMult = getBuffMult(state, 'xp');
   const amount = Math.max(1, Math.round(
-    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1) * eventMult
+    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1) * eventMult * buffMult
   ));
   state.xp += amount;
   const levels = [];
@@ -1924,6 +1928,34 @@ export function enemyStrike(stats, enemyAttack) {
   // One-shot guard: a single hit can never deal more than 60% of max HP.
   if (stats.maxHp > 0) dmg = Math.min(dmg, Math.max(1, Math.ceil(stats.maxHp * 0.6)));
   return { dmg, dodged: false, parried: false, counter: 0 };
+}
+
+// ---------------- GM Buffs ----------------
+// Temporary buffs granted by owner/GM via the Powers tab.
+export function getActiveBuff(state, type) {
+  const now = Date.now();
+  const buffs = state.activeBuffs || [];
+  // Clean expired
+  state.activeBuffs = buffs.filter(b => b.expiresAt > now);
+  return state.activeBuffs.find(b => b.type === type) || null;
+}
+export function getBuffMult(state, type) {
+  const b = getActiveBuff(state, type);
+  return b ? 1 + (b.value / 100) : 1;
+}
+export function hasImmunity(state) {
+  return !!getActiveBuff(state, 'immunity');
+}
+// Apply shield absorption; returns remaining damage after shield
+export function absorbWithShield(state, dmg) {
+  const shield = getActiveBuff(state, 'shield');
+  if (!shield || shield.value <= 0) return dmg;
+  const absorbed = Math.min(shield.value, dmg);
+  shield.value -= absorbed;
+  if (shield.value <= 0) {
+    state.activeBuffs = (state.activeBuffs || []).filter(b => b.id !== shield.id);
+  }
+  return dmg - absorbed;
 }
 
 // ---------------- Loot ----------------
