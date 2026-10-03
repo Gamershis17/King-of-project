@@ -31,7 +31,7 @@
     $('owner-who').textContent = 'Signed in as ' + user.username + ' (owner)';
     loadAll();
   });
-  async function loadAll() { loadRoster(); loadLive(); checkMaint(); setInterval(loadRoster, 30000); setInterval(loadLive, 15000); }
+  async function loadAll() { loadRoster(); checkMaint(); setInterval(loadRoster, 30000); }
   async function loadRoster() {
     const box = $('owner-roster');
     try {
@@ -45,18 +45,6 @@
         `<span class="meta">Lv ${p.level} · Stg ${p.stage} · 🗼${p.towerFloor} · 💰${fmtGold(p.gold)}</span>` +
         `<span class="meta">⏱️${fmtTime(p.playTime)} · 👑${p.bosses}</span>` +
         `<span class="meta">${p.online ? 'now' : new Date(p.lastSeen).toLocaleString()}</span></div>`).join('') || '<p style="color:#888">No players.</p>';
-    } catch { box.innerHTML = '<p style="color:#f66">Failed to load.</p>'; }
-  }
-  async function loadLive() {
-    const box = $('owner-live');
-    try {
-      const { ok, j } = await api('/api/gm/snapshots');
-      if (!ok || !j.ok) throw 0;
-      const snaps = Object.entries(j.snapshots || {});
-      box.innerHTML = snaps.length ? snaps.map(([u, s]) =>
-        `<div class="live-row"><span class="nm">${esc(u)}</span> <span class="act">${esc(s.action)}</span><br>` +
-        `<span class="det">${esc(s.detail)}</span> <span class="ts">${new Date(s.ts).toLocaleTimeString()}</span></div>`).join('')
-        : '<p style="color:#888">No active players.</p>';
     } catch { box.innerHTML = '<p style="color:#f66">Failed to load.</p>'; }
   }
   async function checkMaint() {
@@ -136,6 +124,14 @@
     if (!u) { $('powers-err').textContent = 'Enter username.'; return; }
     const { ok, j } = await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: u, buffType, value, duration }) });
     $('powers-err').textContent = ok ? `✅ ${j.buff.name} → ${u}${j.live ? ' [LIVE!]' : ' (offline, applies on login)'}` : '❌ ' + ((j && j.error) || 'failed');
+  });
+  // Buffs tab (dedicated)
+  $('buff-grant-btn').addEventListener('click', async () => {
+    const u = $('buff-user').value.trim(), buffType = $('buff-type').value;
+    const value = Number($('buff-val').value) || 0, duration = Number($('buff-dur').value) || 30;
+    if (!u) { $('buffs-err').textContent = 'Enter username.'; return; }
+    const { ok, j } = await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: u, buffType, value, duration }) });
+    $('buffs-err').textContent = ok ? `✅ ${j.buff.name} → ${u}${j.live ? ' [LIVE!]' : ' (offline, applies on login)'}` : '❌ ' + ((j && j.error) || 'failed');
   });
   // OP gear
   $('op-forge').addEventListener('click', async () => {
