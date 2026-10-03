@@ -5880,3 +5880,198 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
   border: 1px solid #2a5a8c;
   z-index: 10;
 }
+
+/* 🎣 Enhanced Lakeside Scene */
+.fish-scene {
+  position: relative;
+  height: 320px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 12px 0;
+  border: 2px solid #2a5a8c;
+}
+.fish-sky {
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 45%;
+  background: linear-gradient(180deg, #ff9a56 0%, #ff6b6b 30%, #4a3a6b 70%, #1a2a4a 100%);
+}
+.fish-sun {
+  position: absolute;
+  top: 15%; left: 50%;
+  transform: translateX(-50%);
+  width: 50px; height: 50px;
+  background: radial-gradient(circle, #ffd93d 0%, #ff9a56 70%, transparent 100%);
+  border-radius: 50%;
+  box-shadow: 0 0 30px rgba(255, 217, 61, 0.6);
+}
+.fish-cloud {
+  position: absolute;
+  font-size: 0;
+  width: 80px; height: 20px;
+  background: rgba(255,255,255,0.2);
+  border-radius: 20px;
+  animation: cloudDrift 20s linear infinite;
+}
+.fish-cloud-1 { top: 10%; left: 10%; }
+.fish-cloud-2 { top: 20%; left: 70%; animation-delay: -10s; }
+.fish-cloud::before, .fish-cloud::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,0.2);
+  border-radius: 50%;
+}
+.fish-cloud::before { width: 30px; height: 30px; top: -15px; left: 15px; }
+.fish-cloud::after { width: 20px; height: 20px; top: -10px; left: 45px; }
+@keyframes cloudDrift {
+  0% { transform: translateX(-20px); }
+  50% { transform: translateX(20px); }
+  100% { transform: translateX(-20px); }
+}
+.fish-mountains {
+  position: absolute;
+  top: 25%; left: 0; right: 0; height: 20%;
+  background:
+    linear-gradient(135deg, transparent 40%, #2a3a5a 40%, #2a3a5a 60%, transparent 60%),
+    linear-gradient(-135deg, transparent 40%, #1a2a4a 40%, #1a2a4a 60%, transparent 60%);
+  background-size: 120px 100%, 180px 100%;
+  background-position: 0 0, 60px 0;
+  background-repeat: repeat-x;
+  opacity: 0.8;
+}
+.fish-treeline {
+  position: absolute;
+  top: 38%; left: 0; right: 0; height: 12%;
+  z-index: 2;
+}
+.fish-tree {
+  position: absolute;
+  font-size: 36px;
+  bottom: 0;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+}
+.fish-shore {
+  position: absolute;
+  top: 48%; left: 0; right: 0; height: 8%;
+  background: linear-gradient(180deg, #4a7c3a 0%, #2a5a2a 100%);
+  z-index: 3;
+  border-top: 2px solid #5a8c4a;
+}
+.fish-water {
+  position: absolute;
+  bottom: 0; left: 0; right: 0; height: 44%;
+  background: linear-gradient(180deg, #2a7ab8 0%, #1a4a7a 50%, #0a2a4a 100%);
+  overflow: hidden;
+  z-index: 1;
+}
+.fish-water::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; height: 3px;
+  background: rgba(255,255,255,0.4);
+}
+.fish-water::after {
+  content: '';
+  position: absolute;
+  top: 20%; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: waterShimmer 4s ease-in-out infinite;
+}
+@keyframes waterShimmer {
+  0%, 100% { transform: translateX(-10%); opacity: 0.5; }
+  50% { transform: translateX(10%); opacity: 1; }
+}
+.fish-dock {
+  position: absolute;
+  bottom: 5%; left: 8%;
+  width: 140px; height: 100px;
+  z-index: 5;
+}
+.dock-plank {
+  position: absolute;
+  width: 140px; height: 14px;
+  background: linear-gradient(180deg, #8b5a2b 0%, #6b4423 100%);
+  border: 1px solid #4a2f18;
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.dock-plank:nth-child(1) { bottom: 75px; }
+.dock-plank:nth-child(2) { bottom: 58px; }
+.dock-plank:nth-child(3) { bottom: 41px; }
+.dock-plank:nth-child(4) { bottom: 24px; }
+.dock-post {
+  position: absolute;
+  width: 12px; height: 85px;
+  background: linear-gradient(90deg, #5a3a1e 0%, #4a2f18 100%);
+  border-radius: 3px;
+  bottom: 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+.dock-post-left { left: 8px; }
+.dock-post-right { right: 8px; }
+.dock-lantern {
+  position: absolute;
+  top: -5px; right: 15px;
+  font-size: 20px;
+  animation: lanternSway 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(255,200,100,0.8));
+}
+@keyframes lanternSway {
+  0%, 100% { transform: rotate(-5deg); }
+  50% { transform: rotate(5deg); }
+}
+.fish-reeds {
+  position: absolute;
+  bottom: 40%; left: 0; right: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.reed {
+  position: absolute;
+  font-size: 28px;
+  animation: reedSway 4s ease-in-out infinite;
+}
+@keyframes reedSway {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+.fish-coming-soon {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: rgba(10, 22, 40, 0.88);
+  padding: 20px 30px;
+  border-radius: 12px;
+  border: 1px solid #2a5a8c;
+  z-index: 10;
+  backdrop-filter: blur(4px);
+}
+
+/* 🎣 Realistic Fishing Scene */
+.fish-scene-real {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 12px 0;
+  border: 2px solid #2a5a8c;
+  min-height: 300px;
+}
+.fish-bg-img {
+  width: 100%;
+  height: 320px;
+  object-fit: cover;
+  display: block;
+}
+.fish-scene-real .fish-coming-soon {
+  position: absolute;
+  bottom: 16px; left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  background: rgba(10, 22, 40, 0.85);
+  padding: 16px 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.2);
+  backdrop-filter: blur(6px);
+  width: max-content;
+  max-width: 90%;
+}
