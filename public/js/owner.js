@@ -37,9 +37,13 @@
     try {
       const { ok, j } = await api('/api/gm/roster-live');
       if (!ok || !j.ok) throw 0;
+      const fmtGold = (g) => g >= 1e33 ? (g/1e33).toFixed(1)+'Dc' : g >= 1e12 ? (g/1e12).toFixed(1)+'T' : g >= 1e9 ? (g/1e9).toFixed(1)+'B' : g >= 1e6 ? (g/1e6).toFixed(1)+'M' : g >= 1e3 ? (g/1e3).toFixed(1)+'K' : String(g);
+      const fmtTime = (s) => { const h = Math.floor(s/3600), m = Math.floor(s%3600/60); return h > 0 ? h+'h '+m+'m' : m+'m'; };
       box.innerHTML = j.players.map(p =>
         `<div class="roster-row"><span class="${p.online ? 'online' : 'offline'}">${p.online ? '🟢' : '🔴'}</span>` +
-        `<span class="nm">${esc(p.username)}</span><span class="meta">Lv ${p.level} · ${esc(p.role)}</span>` +
+        `<span class="nm">${esc(p.username)}</span>` +
+        `<span class="meta">Lv ${p.level} · Stg ${p.stage} · 🗼${p.towerFloor} · 💰${fmtGold(p.gold)}</span>` +
+        `<span class="meta">⏱️${fmtTime(p.playTime)} · 👑${p.bosses}</span>` +
         `<span class="meta">${p.online ? 'now' : new Date(p.lastSeen).toLocaleString()}</span></div>`).join('') || '<p style="color:#888">No players.</p>';
     } catch { box.innerHTML = '<p style="color:#f66">Failed to load.</p>'; }
   }
