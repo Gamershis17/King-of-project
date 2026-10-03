@@ -94,6 +94,12 @@
   .insp-stat .v { font-size: 16px; font-weight: bold; color: #e8dfd0; margin-top: 2px; word-break: break-word; }
   .insp-presence { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: bold; margin-bottom: 10px; }
   .insp-online { background: rgba(127,224,138,.12); color: #7fe08a; border: 1px solid rgba(127,224,138,.45); }
+  .insp-grant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+  .insp-grant { background: #0d0a14; border: 1px solid #3a2f52; border-radius: 8px; padding: 8px 10px; }
+  .insp-grant label { display: block; font-size: 11px; color: #7a7094; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .insp-grant-row { display: flex; gap: 6px; }
+  .insp-grant-row input { flex: 1; min-width: 0; margin: 0; }
+  .insp-grant-row button { white-space: nowrap; margin: 0; }
   .insp-offline { background: rgba(255,138,138,.10); color: #ff8a8a; border: 1px solid rgba(255,138,138,.4); }
   .gear-row, .pet-row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #0d0a14; border: 1px solid #3a2f52; border-radius: 8px; margin-bottom: 6px; flex-wrap: wrap; }
   .gear-row .slot, .pet-row .slot { font-size: 11px; color: #7a7094; text-transform: uppercase; min-width: 70px; }
@@ -269,7 +275,7 @@
 
 <div id="insp-modal-root"></div>
 
-<script src="js/staff.js?v20261003b"></script>
+<script src="js/staff.js?v20261003c"></script>
 <button id="idref-toggle" class="idref-toggle-btn" title="Toggle ID Reference Sidebar">📋 IDs</button>
 <div id="idref-sidebar" class="idref-sidebar hidden">
   <div class="idref-sidebar-head">
