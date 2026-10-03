@@ -61,6 +61,41 @@
   .inspector-val { color: #ff0; font-weight: bold; }
   .inspector-btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
   .inspector-btns button { flex: 1; min-width: 140px; }
+  /* Tactical player edit modal */
+  .player-edit-modal {
+    display: none; position: fixed; z-index: 1000;
+    left: 0; top: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.7);
+    align-items: center; justify-content: center;
+  }
+  .player-edit-modal.open { display: flex; }
+  .player-edit-modal .modal-box {
+    background: rgba(10,10,10,0.95);
+    border: 2px solid #00ff66;
+    box-shadow: 0 0 20px rgba(0,255,102,0.4);
+    border-radius: 12px; padding: 24px;
+    width: 90%; max-width: 480px; max-height: 90vh; overflow-y: auto;
+    font-family: 'Courier New', monospace; color: #fff;
+  }
+  .player-edit-modal h2 { color: #00ff66; text-align: center; margin-bottom: 4px; font-size: 20px; }
+  .player-edit-modal .modal-sub { text-align: center; color: #888; font-size: 12px; margin-bottom: 16px; }
+  .modal-field { margin-bottom: 10px; }
+  .modal-field label { display: block; font-size: 11px; color: #0f6; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+  .modal-field input { width: 100%; padding: 8px; background: #111; border: 1px solid #00ff66; color: #fff; border-radius: 4px; font-family: inherit; }
+  .modal-quick { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+  .modal-quick button { flex: 1; min-width: 100px; padding: 8px; font-size: 12px; background: #111; color: #0f6; border: 1px solid #00ff66; border-radius: 6px; cursor: pointer; font-family: inherit; }
+  .modal-quick button:hover { background: #0f6; color: #000; }
+  .modal-footer { display: flex; gap: 10px; margin-top: 16px; }
+  .modal-footer button { flex: 1; padding: 12px; font-size: 14px; font-weight: bold; border-radius: 6px; cursor: pointer; font-family: inherit; }
+  .modal-apply { background: #00ff66; color: #000; border: 2px solid #00ff66; }
+  .modal-apply:hover { background: #00cc52; }
+  .modal-close { background: #111; color: #fff; border: 2px solid #fff; }
+  /* Clickable roster rows */
+  .roster-row { cursor: pointer; transition: background 0.15s; }
+  .roster-row:hover { background: #1a2a1a; border-color: #00ff66; }
+  /* Spotify embed */
+  .spotify-embed { border: 2px solid #fff; border-radius: 8px; overflow: hidden; background: #0a0a0a; }
+  .spotify-embed iframe { display: block; border: none; }
   h1 { font-size: 24px; text-align: center; margin-bottom: 4px; letter-spacing: 2px; }
   .sub { text-align: center; color: #888; font-size: 12px; margin-bottom: 16px; }
   .clock { text-align: center; font-size: 14px; border: 1px solid #fff; display: inline-block; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; }
@@ -145,6 +180,17 @@
             <button id="maint-on" class="danger">🔴 TAKE DOWN</button>
             <button id="maint-off">🟢 BRING UP</button>
           </div>
+        </div>
+
+        <div class="card">
+          <h1 style="font-size:18px">🎵 BACKGROUND AUDIO</h1>
+          <div class="spotify-embed">
+            <iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DX8Uebhn9wzrS?utm_source=generator&theme=0"
+              width="100%" height="152" frameborder="0" allowfullscreen=""
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy" title="Spotify player"></iframe>
+          </div>
+          <p class="sub" style="margin-top:8px">Replace the playlist ID in the iframe src with your own</p>
         </div>
       </div>
 
@@ -358,6 +404,40 @@
     </div>
 
     <a class="back" href="/">← Back to game</a>
+  </div>
+
+  <!-- Tactical Player Edit Modal -->
+  <div class="player-edit-modal" id="player-edit-modal">
+    <div class="modal-box">
+      <h2>⚡ TACTICAL PLAYER EDIT</h2>
+      <p class="modal-sub" id="modal-player-name">—</p>
+      <div class="modal-field">
+        <label>💰 Gold</label>
+        <input type="number" id="modal-gold" placeholder="Gold amount">
+      </div>
+      <div class="modal-field">
+        <label>🎖️ Level</label>
+        <input type="number" id="modal-level" placeholder="1-120" min="1" max="120">
+      </div>
+      <div class="modal-field">
+        <label>🗺️ Stage</label>
+        <input type="number" id="modal-stage" placeholder="Stage number" min="1">
+      </div>
+      <div class="modal-field">
+        <label>🌀 Rebirth Tokens</label>
+        <input type="number" id="modal-rebirth" placeholder="Rebirth tokens" min="0">
+      </div>
+      <div class="modal-quick">
+        <button id="modal-buff-btn">✨ Inject Buff</button>
+        <button id="modal-gear-btn">⚔️ Give Gear</button>
+        <button id="modal-heal-btn">💚 Full Heal</button>
+      </div>
+      <div class="modal-footer">
+        <button class="modal-apply" id="modal-apply">[Apply Modifications]</button>
+        <button class="modal-close" id="modal-close">[Close Panel]</button>
+      </div>
+      <div class="err" id="modal-err"></div>
+    </div>
   </div>
 </div>
 
