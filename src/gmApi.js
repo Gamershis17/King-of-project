@@ -1192,12 +1192,13 @@ router.get(
     const { rows } = await pool.query(
       `SELECT u.username, u.role,
               COALESCE(ps.level, 1) AS level, COALESCE(ps.stage, 1) AS stage,
-              ps.state_json AS state_json
+              ps.state_json AS state_json,
+              (ps.updated_at > $3) AS online
        FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
        WHERE ($1 = '' OR LOWER(u.username) LIKE '%' || LOWER($1) || '%')
        ORDER BY u.created_at ASC
        LIMIT $2`,
-      [search, limit]
+      [search, limit, Date.now() - 2 * 60 * 1000]
     );
     // Extract the player's class and spec from their save blob
     // (canonical id sets live in validation.js).
