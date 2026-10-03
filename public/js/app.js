@@ -882,12 +882,33 @@ function applyWorldMusic() {
   }
 }
 
+// Dynamic event icon: Halloween pumpkin during Oct, default otherwise.
+function applyEventIcon() {
+  try {
+    const halloween = Engine.isEventActive && Engine.isEventActive('HALLOWEEN');
+    const iconPath = halloween ? 'icons/icon-halloween-192.png' : 'icons/icon-192.v2.png';
+    const applePath = halloween ? 'icons/icon-halloween-apple.png' : 'icons/apple-touch-icon.v2.png';
+    // Update favicon
+    let favicon = document.querySelector('link[rel="icon"]');
+    if (!favicon) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      document.head.appendChild(favicon);
+    }
+    favicon.href = iconPath;
+    // Update apple-touch-icon
+    let apple = document.querySelector('link[rel="apple-touch-icon"]');
+    if (apple) apple.href = applePath;
+  } catch (e) { /* fail gracefully */ }
+}
+
 function startGame() {
   if (App.started) return;
   App.started = true;
   applyUiStyle();
   applyCustomStyles();
   applyAudioPrefs();
+  applyEventIcon();
   // Guest chrome: upgrade card + exit label instead of logout.
   const upgradeCard = UI.el('guest-upgrade-card');
   if (upgradeCard) upgradeCard.classList.toggle('hidden', !isGuest());
