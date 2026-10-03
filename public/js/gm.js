@@ -45,10 +45,93 @@ export const GM = {
     this.render();
   },
 
+  initCommandCenter(root, $, on) {
+    const cc = root.querySelector('#gm-command-center');
+    if (!cc) return;
+    // Live clock
+    const timeEl = cc.querySelector('#gm-cc-time');
+    const tickClock = () => { if (timeEl) timeEl.textContent = new Date().toLocaleString(); };
+    tickClock(); setInterval(tickClock, 1000);
+    // Tabs
+    cc.querySelectorAll('.gm-cc-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        cc.querySelectorAll('.gm-cc-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        cc.querySelectorAll('.gm-cc-pane').forEach(p => p.classList.add('hidden'));
+        const pane = cc.querySelector('#gm-cc-' + tab.dataset.cc);
+        if (pane) pane.classList.remove('hidden');
+      });
+    });
+    // Roster
+    const loadRoster = async () => {
+      const list = cc.querySelector('#gm-roster-list');
+      try {
+        const r = await fetch('/api/gm/roster-live', { credentials: 'include' });
+        const j = await r.json();
+        if (!j.ok) throw new Error('failed');
+        const fmtTime = (ts) => ts ? new Date(ts).toLocaleString() : 'never';
+        list.innerHTML = j.players.map(p =>
+          `<div class="gm-roster-row"><span class="${p.online ? 'gm-online' : 'gm-offline'}">${p.online ? '🟢' : '🔴'}</span>` +
+          `<span class="nm">${esc(p.username)}</span><span class="meta">Lv ${p.level} · ${esc(p.role)}</span>` +
+          `<span class="meta" title="${fmtTime(p.lastSeen)}">${p.online ? 'online now' : 'last: ' + fmtTime(p.lastSeen)}</span></div>`
+        ).join('') || '<p class="muted">No players.</p>';
+      } catch (e) { list.innerHTML = '<p class="error">Could not load roster.</p>'; }
+    };
+    // Live view
+    const loadLive = async () => {
+      const list = cc.querySelector('#gm-live-list');
+      try {
+        const r = await fetch('/api/gm/snapshots', { credentials: 'include' });
+        const j = await r.json();
+        if (!j.ok) throw new Error('failed');
+        const snaps = Object.entries(j.snapshots || {});
+        if (!snaps.length) { list.innerHTML = '<p class="muted">No active players right now.</p>'; return; }
+        list.innerHTML = snaps.map(([user, s]) =>
+          `<div class="gm-live-row"><span class="nm">${esc(user)}</span> ` +
+          `<span class="act">${esc(s.action)}</span><br>` +
+          `<span class="det">${esc(s.detail)}</span> ` +
+          `<span class="ts">${new Date(s.ts).toLocaleTimeString()}</span></div>`
+        ).join('');
+      } catch (e) { list.innerHTML = '<p class="error">Could not load live view.</p>'; }
+    };
+    loadRoster(); loadLive();
+    setInterval(loadRoster, 30000); setInterval(loadLive, 15000);
+    // OP gear forge
+    on('opgear-forge', 'click', async () => {
+      const result = cc.querySelector('#opgear-result');
+      const username = cc.querySelector('#opgear-user').value.trim();
+      const name = cc.querySelector('#opgear-name').value.trim();
+      const slot = cc.querySelector('#opgear-slot').value;
+      const rarity = cc.querySelector('#opgear-rarity').value;
+      const stats = {};
+      const getNum = (id) => { const v = Number(cc.querySelector('#' + id).value); return Number.isFinite(v) && v !== 0 ? v : null; };
+      const atk = getNum('opgear-atk'), hp = getNum('opgear-hp'), def = getNum('opgear-def');
+      const crit = getNum('opgear-crit'), ls = getNum('opgear-ls'), spd = getNum('opgear-spd');
+      if (atk) stats.attack = atk; if (hp) stats.maxHp = hp; if (def) stats.defense = def;
+      if (crit) stats.critChance = crit; if (ls) stats.lifesteal = ls; if (spd) stats.attackSpeed = spd;
+      if (!username || !name) { result.textContent = 'Enter target username and item name.'; return; }
+      if (!Object.keys(stats).length) { result.textContent = 'Enter at least one stat.'; return; }
+      result.textContent = 'Forging…';
+      try {
+        const r = await fetch('/api/gm/create-op-gear', {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, name, slot, rarity, stats }),
+        });
+        const j = await r.json();
+        if (!r.ok || !j.ok) throw new Error(j.error || 'Forge failed');
+        result.textContent = `✅ Forged "${j.item.name}" for ${username}!`;
+        if (window.UI) window.UI.toast(`⚔️ OP gear granted to ${username}!`, 'success');
+      } catch (e) { result.textContent = '❌ ' + e.message; }
+    });
+  },
+
   bind(root) {
     const $ = (id) => root.querySelector('#' + id);
     // Cards render per role tier; elements for other tiers are absent.
     const on = (id, evt, fn) => { const el = $(id); if (el) el.addEventListener(evt, fn); };
+    // ---- Command Center (owner only) ----
+    this.initCommandCenter(root, $, on);
     // 2x event toggle
     on('gm-toggle-2x', 'click', () => {
       const s = window.App && window.App.state;
@@ -1083,6 +1166,63 @@ export const GM = {
         <div class="gm-card"><div class="gm-num">${num(ov.codeCount)}</div><div class="muted small">gift codes</div></div>
         <div class="gm-card"><div class="gm-num">${esc(ov.role)}</div><div class="muted small">your role</div></div>
       </div>
+
+      ${isOwner ? `
+      <div class="card gm-command-center" id="gm-command-center">
+        <div class="gm-cc-head">
+          <h3>👑 Command Center</h3>
+          <span class="gm-cc-time" id="gm-cc-time">—</span>
+        </div>
+
+        <div class="gm-cc-tabs">
+          <button class="gm-cc-tab active" data-cc="roster">👥 Roster</button>
+          <button class="gm-cc-tab" data-cc="live">👁️ Live View</button>
+          <button class="gm-cc-tab" data-cc="opgear">⚔️ OP Gear</button>
+        </div>
+
+        <div class="gm-cc-pane" id="gm-cc-roster">
+          <div class="muted small" style="margin-bottom:8px">Players online now and recent activity.</div>
+          <div id="gm-roster-list"><p class="muted">Loading…</p></div>
+        </div>
+
+        <div class="gm-cc-pane hidden" id="gm-cc-live">
+          <div class="muted small" style="margin-bottom:8px">What players are doing right now (updates every 15s).</div>
+          <div id="gm-live-list"><p class="muted">Loading…</p></div>
+        </div>
+
+        <div class="gm-cc-pane hidden" id="gm-cc-opgear">
+          <div class="muted small" style="margin-bottom:8px">Forge overpowered gear for admins. No stat limits.</div>
+          <div class="gm-opgear-form">
+            <div class="row">
+              <label class="fld" style="flex:2"><span>Target admin</span><input id="opgear-user" placeholder="username" autocomplete="off"></label>
+              <label class="fld" style="flex:2"><span>Item name</span><input id="opgear-name" placeholder="Godslayer Blade" maxlength="60"></label>
+            </div>
+            <div class="row">
+              <label class="fld"><span>Slot</span><select id="opgear-slot">
+                <option value="weapon">⚔️ Weapon</option><option value="armor">🛡️ Armor</option>
+                <option value="helmet">🪖 Helmet</option><option value="boots">🥾 Boots</option>
+                <option value="trinket">📿 Trinket</option></select></label>
+              <label class="fld"><span>Rarity</span><select id="opgear-rarity">
+                <option value="mythic">Mythic</option><option value="legendary">Legendary</option>
+                <option value="epic">Epic</option><option value="celestial">Celestial</option>
+                <option value="shadow">Shadow</option></select></label>
+            </div>
+            <div class="row">
+              <label class="fld"><span>⚔️ Attack</span><input id="opgear-atk" type="number" placeholder="0"></label>
+              <label class="fld"><span>❤️ Max HP</span><input id="opgear-hp" type="number" placeholder="0"></label>
+              <label class="fld"><span>🛡️ Defense</span><input id="opgear-def" type="number" placeholder="0"></label>
+            </div>
+            <div class="row">
+              <label class="fld"><span>💥 Crit %</span><input id="opgear-crit" type="number" placeholder="0"></label>
+              <label class="fld"><span>🩸 Lifesteal %</span><input id="opgear-ls" type="number" placeholder="0"></label>
+              <label class="fld"><span>⚡ Atk Speed</span><input id="opgear-spd" type="number" step="any" placeholder="0"></label>
+            </div>
+            <button id="opgear-forge" class="btn small gold" style="width:100%;margin-top:8px">🔨 Forge & Grant OP Gear</button>
+            <div id="opgear-result" class="muted small" style="margin-top:6px"></div>
+          </div>
+        </div>
+      </div>
+      ` : ``}
 
       <div class="card" style="margin-bottom:12px">
         <button id="gm-idref-toggle" class="btn small" style="width:100%">📋 ID Reference (pets, items, titles, quests)</button>

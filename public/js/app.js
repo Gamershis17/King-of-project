@@ -5,7 +5,7 @@ import { api } from './api.js?v=20260930ar';
 import * as Engine from './engine.js?v20261003ad';
 import { UI, esc, formatNum } from './ui.js?v20261003ad';
 import { Auth } from './auth.js?v=20260930ar';
-import { GM } from './gm.js?v20261003ad';
+import { GM } from './gm.js?v20261003az';
 
 import { Raid } from './raid.js?v=20260930ar';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
@@ -997,6 +997,26 @@ function startGame() {
   };
   updateOnlineCount();
   App.presenceTimer = setInterval(updateOnlineCount, 60000);
+  // Gameplay snapshots for GM live view: send current activity every 30s
+  const sendSnapshot = async () => {
+    try {
+      const s = App.state;
+      if (!s) return;
+      let action = 'idle', detail = '';
+      if (App.enemy) {
+        action = App.enemy.boss ? 'boss' : 'battle';
+        detail = App.enemy.towerFloor ? `Tower Floor ${App.enemy.towerFloor}` :
+                 App.enemy.name ? `${App.enemy.name} (Stage ${s.stage || '?'})` : `Stage ${s.stage || '?'}`;
+      } else if (s.mode === 'tower') {
+        action = 'tower'; detail = `Floor ${s.tower?.floor || '?'}`;
+      } else {
+        action = 'idle'; detail = `Stage ${s.stage || '?'} · Lv ${s.level || '?'}`;
+      }
+      await api.snapshot(action, detail);
+    } catch (e) { /* ignore */ }
+  };
+  sendSnapshot();
+  App.snapshotTimer = setInterval(sendSnapshot, 30000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') saveNow(true);
     // FPS/battery: pause ambient CSS animations while the tab is hidden.

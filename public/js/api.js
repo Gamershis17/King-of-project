@@ -76,7 +76,9 @@ export const api = {
 
   // Player state
   getState: () => request('/api/state'),
+  // Online presence
   ping: () => post('/api/ping', {}),
+  snapshot: (action, detail) => post('/api/gm/snapshot', { action, detail }),
   onlineCount: () => request('/api/online-count'),
   getGuildMine: () => request('/api/guilds/mine'),
   saveState: (state) => post('/api/state', { state }),
