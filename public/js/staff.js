@@ -443,6 +443,14 @@
     // Identity
     html += '<div class="insp-sec"><h3>👤 ' + esc(d.username || '—') + ' <span class="badge st-open">' + esc(d.role || 'player') + '</span></h3>' +
       '<div class="entry-meta">' + esc(d.playerClass || '') + (d.spec ? ' · ' + esc(d.spec) : '') + '</div></div>';
+    // Grant resources (owner quick-actions)
+    html += '<div class="insp-sec"><h3>🎁 Grant Resources</h3><div class="insp-grant-grid">' +
+      '<div class="insp-grant"><label>Level (1-120)</label><div class="insp-grant-row"><input type="number" id="grant-level" min="1" max="120" placeholder="—"><button class="small" data-grant="level">Set</button></div></div>' +
+      '<div class="insp-grant"><label>Gold</label><div class="insp-grant-row"><input type="number" id="grant-gold" min="0" placeholder="—"><button class="small" data-grant="gold">Set</button></div></div>' +
+      '<div class="insp-grant"><label>XP</label><div class="insp-grant-row"><input type="number" id="grant-xp" min="0" placeholder="—"><button class="small" data-grant="xp">Give</button></div></div>' +
+      '<div class="insp-grant"><label>Stage</label><div class="insp-grant-row"><input type="number" id="grant-stage" min="1" placeholder="—"><button class="small" data-grant="stage">Set</button></div></div>' +
+      '<div class="insp-grant"><label>Rebirths</label><div class="insp-grant-row"><input type="number" id="grant-rebirth" min="0" placeholder="—"><button class="small" data-grant="rebirth">Set</button></div></div>' +
+      '</div></div>';
     // Stats
     var fs = d.fullStats || {};
     var stats = [
@@ -494,6 +502,28 @@
   }
 
   function wireDossier(box) {
+    // Grant resources
+    var grantEndpoints = { level: '/api/gm/set-level', gold: '/api/gm/set-gold', xp: '/api/gm/set-xp', stage: '/api/gm/stage', rebirth: '/api/gm/set-rebirth' };
+    var grantFields = { level: 'grant-level', gold: 'grant-gold', xp: 'grant-xp', stage: 'grant-stage', rebirth: 'grant-rebirth' };
+    var grantKeys = { level: 'level', gold: 'amount', xp: 'amount', stage: 'stage', rebirth: 'count' };
+    Array.prototype.forEach.call(box.querySelectorAll('[data-grant]'), function (btn) {
+      btn.addEventListener('click', function () {
+        var kind = btn.dataset.grant;
+        var input = box.querySelector('#' + grantFields[kind]);
+        var val = input ? Number(input.value) : NaN;
+        if (!isFinite(val) || val < 0) { fail('Enter a valid number.'); return; }
+        var body = { username: inspTarget };
+        body[grantKeys[kind]] = Math.floor(val);
+        opsErr.textContent = '';
+        api(grantEndpoints[kind], { method: 'POST', body: JSON.stringify(body) })
+          .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+          .then(function (res) {
+            if (!res.ok) { fail((res.j && res.j.error) || 'Grant failed.'); return; }
+            loadDossier(inspTarget);
+          })
+          .catch(function () { fail('Could not reach server.'); });
+      });
+    });
     // Mod item
     Array.prototype.forEach.call(box.querySelectorAll('.insp-mod-item'), function (btn) {
       btn.addEventListener('click', function () {
