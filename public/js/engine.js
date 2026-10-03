@@ -3736,6 +3736,11 @@ export const TITLE_DEFS = {
   // Halloween 2026 seasonal titles (Oct 3-31).
   'pumpkin-king': { name: '🎃 Pumpkin King', desc: 'Halloween 2026: +5% gold.', check: (s) => (s.materials && (s.materials.pumpkin_shard || 0) >= 20), boost: { goldPct: 5 } },
   'phantom': { name: '👻 Phantom', desc: 'Halloween 2026: +3% dodge.', check: (s) => (s.materials && (s.materials.pumpkin_shard || 0) >= 10), boost: { dodge: 3 } },
+  // Halloween 2026 SUPER OP titles (mega-spec).
+  'slayer-demon-king': { name: '👑 Slayer of the Demon King', desc: 'Defeat the Demon King 10x: +10% all damage, +10% crit, +500 HP.', check: (s) => (s.stats && (s.stats.demonKingKills || 0) >= 10), boost: { allDamagePct: 10, critPct: 10, hpFlat: 500 }, fx: { 1: 'name-demon-god' } },
+  'harbinger-doom': { name: '☠️ Harbinger of Doom', desc: 'Clear Tower Floor 100 during Halloween: +15% shadow damage, +5% lifesteal.', check: (s) => (s.tower && (s.tower.floor || 0) >= 100) && Engine.isEventActive('HALLOWEEN'), boost: { shadowDamagePct: 15, lifestealPct: 5 }, fx: { 1: 'name-void-king' } },
+  'pumpkin-sovereign': { name: '🎃 The Pumpkin Sovereign', desc: 'Collect 500 shards: +12% gold, +12% XP.', check: (s) => (s.materials && (s.materials.pumpkin_shard || 0) >= 500), boost: { goldPct: 12, xpPct: 12 }, fx: { 1: 'name-jacko-master' } },
+  'phantom-lord': { name: '👻 Phantom Lord', desc: 'Dodge 1,000 attacks in October: +7% dodge, +10% speed.', check: (s) => (s.stats && (s.stats.octoberDodges || 0) >= 1000), boost: { dodge: 7, speedPct: 10 }, fx: { 1: 'name-phantom-lord' } },
 };
 // Every def carries its id (used by find/filter/map across the codebase).
 for (const [id, t] of Object.entries(TITLE_DEFS)) t.id = id;
