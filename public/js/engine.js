@@ -2404,6 +2404,16 @@ export const PET_SPECIES = {
   lion:  { name: 'Lion',  emoji: '🦁', icon: 'img/pets/lion.webp', rarity: 'common', weight: 0, baseDmg: 12, growth: 1.065,
            starterOnly: true, flavor: 'A keen hunter — swift, sharp, and sure.', style: 'Keen · balanced strikes',
            baseStats: { atk: 12, def: 5, hp: 70 }, bond: { atk: 2, def: 1, hp: 20 } },
+  // Halloween 2026 pets (mega-spec). Obtainable during the event.
+  shadowbat: { name: 'Shadow Bat', emoji: '🦇', rarity: 'mythic', weight: 0, baseDmg: 30, growth: 1.08,
+           event: 'HALLOWEEN', flavor: '+5% movement speed, auto-collects gold drops.', style: 'Swift · eerie strikes',
+           baseStats: { atk: 25, def: 8, hp: 80 }, bond: { atk: 2, def: 1, hp: 20 } },
+  obsidiancat: { name: 'Obsidian Black Cat', emoji: '🐈‍⬛', rarity: 'mythic', weight: 0, baseDmg: 28, growth: 1.08,
+           event: 'HALLOWEEN', flavor: '+5% luck/drop rate.', style: 'Lucky · mysterious strikes',
+           baseStats: { atk: 22, def: 10, hp: 85 }, bond: { atk: 2, def: 2, hp: 20 } },
+  pumpkingolem: { name: 'Pumpkin Golem', emoji: '🎃', rarity: 'mythic', weight: 0, baseDmg: 35, growth: 1.075,
+           event: 'HALLOWEEN', flavor: '+300 HP, draws enemy aggro.', style: 'Sturdy · crushing strikes',
+           baseStats: { atk: 30, def: 15, hp: 400 }, bond: { atk: 2, def: 3, hp: 50 } },
 };
 export const HUNTER_STARTERS = ['tiger', 'bear', 'lion', 'cinderpup'];
 export const PET_STRIKE_SEC = 4;
