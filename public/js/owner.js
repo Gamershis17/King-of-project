@@ -14,7 +14,8 @@
     $('pane-' + b.dataset.tab).classList.remove('hidden');
   }));
   // Login
-  $('login-btn').addEventListener('click', async () => {
+  // Login (click or Enter)
+  const doLogin = async () => {
     $('login-err').textContent = '';
     const { ok, j } = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: $('login-user').value.trim(), password: $('login-pass').value }) });
     if (!ok || !j.user) { $('login-err').textContent = (j && j.error) || 'Login failed.'; return; }
@@ -30,12 +31,13 @@
     $('owner-pane').classList.remove('hidden');
     $('owner-who').textContent = 'Signed in as ' + user.username + ' (owner)';
     loadAll();
-  });
+  };
+  $('login-btn').addEventListener('click', doLogin);
+  $('login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+  $('login-user').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   async function loadAll() {
-    loadRoster(); checkMaint(); loadHealth(); loadAuditLog(); loadChatSpy();
+    loadRoster(); checkMaint(); loadChatSpy();
     setInterval(loadRoster, 30000);
-    setInterval(loadHealth, 5000);
-    setInterval(loadAuditLog, 10000);
     setInterval(loadChatSpy, 8000);
     setInterval(loadSnapshots, 10000);
     initMultipliers();
@@ -136,59 +138,6 @@
     // Keep last 100
     while (box.children.length > 100) box.removeChild(box.firstChild);
   }
-  // Server health
-  let lastPing = 0;
-  async function loadHealth() {
-    try {
-      const t0 = performance.now();
-      const { ok, j } = await api('/api/status');
-      const ping = Math.round(performance.now() - t0);
-      lastPing = ping;
-      if ($('health-ping')) $('health-ping').textContent = ping + ' ms';
-      // FPS approximation via rAF
-      if ($('health-fps')) {
-        let frames = 0;
-        const start = performance.now();
-        const count = () => { frames++; if (performance.now() - start < 1000) requestAnimationFrame(count); else $('health-fps').textContent = frames; };
-        requestAnimationFrame(count);
-      }
-    } catch {}
-    try {
-      const { ok, j } = await api('/api/online-count');
-      if (ok && j && typeof j.count === 'number' && $('health-users')) {
-        $('health-users').textContent = j.count;
-      }
-    } catch {}
-  }
-  // World zones from roster
-  function updateWorldZones(players) {
-    const box = $('world-zones');
-    if (!box || !players) return;
-    const zones = {};
-    players.forEach(p => {
-      const key = 'Stage ' + (p.stage || '?');
-      zones[key] = (zones[key] || 0) + 1;
-    });
-    const sorted = Object.entries(zones).sort((a, b) => b[1] - a[1]).slice(0, 10);
-    box.innerHTML = sorted.map(([zone, count]) =>
-      `<div class="telemetry-line"><span>${zone}</span><span class="telemetry-val">${count} Player${count > 1 ? 's' : ''}</span></div>`
-    ).join('') || '<p style="color:#888;font-size:13px">No active players.</p>';
-  }
-  // Audit log from server
-  async function loadAuditLog() {
-    try {
-      const { ok, j } = await api('/api/gm/audit');
-      if (!ok || !j || !Array.isArray(j.entries)) return;
-      const box = $('audit-log');
-      if (!box) return;
-      box.innerHTML = j.entries.slice(0, 50).map(e => {
-        const ts = e.ts ? new Date(e.ts).toLocaleTimeString() : '--';
-        const msg = `${e.action || '?'}: ${e.detail || ''}`.replace(/</g, '&lt;');
-        return `<div class="log-entry"><span class="log-ts">[${ts}]</span> <span class="log-msg">${msg}</span></div>`;
-      }).join('') || '<div style="color:#555">No entries yet.</div>';
-      box.scrollTop = box.scrollHeight;
-    } catch {}
-  }
   // Economy multipliers
   function initMultipliers() {
     const pairs = [['xp'], ['gold'], ['drop']];
@@ -240,7 +189,6 @@
     try {
       const { ok, j } = await api('/api/gm/roster-live');
       if (!ok || !j.ok) throw 0;
-      updateWorldZones(j.players);
       const fmtGold = (g) => g >= 1e33 ? (g/1e33).toFixed(1)+'Dc' : g >= 1e12 ? (g/1e12).toFixed(1)+'T' : g >= 1e9 ? (g/1e9).toFixed(1)+'B' : g >= 1e6 ? (g/1e6).toFixed(1)+'M' : g >= 1e3 ? (g/1e3).toFixed(1)+'K' : String(g);
       const fmtTime = (s) => { const h = Math.floor(s/3600), m = Math.floor(s%3600/60); return h > 0 ? h+'h '+m+'m' : m+'m'; };
       box.innerHTML = j.players.map(p =>
