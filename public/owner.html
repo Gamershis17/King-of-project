@@ -31,12 +31,6 @@
   .mult-row label { flex: 1; margin: 0; }
   .mult-row input[type="number"] { width: 80px; flex: none; }
   .mult-row input[type="range"] { flex: 2; accent-color: #fff; }
-  /* Inspector */
-  .inspector-meta { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; font-size: 13px; }
-  .inspector-meta:last-of-type { border-bottom: none; }
-  .inspector-val { color: #ff0; font-weight: bold; }
-  .inspector-btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
-  .inspector-btns button { flex: 1; min-width: 140px; }
   /* Tactical player edit modal */
   .player-edit-modal {
     display: none; position: fixed; z-index: 1000;
@@ -69,9 +63,6 @@
   /* Clickable roster rows */
   .roster-row { cursor: pointer; transition: background 0.15s; }
   .roster-row:hover { background: #1a2a1a; border-color: #00ff66; }
-  /* Spotify embed */
-  .spotify-embed { border: 2px solid #fff; border-radius: 8px; overflow: hidden; background: #0a0a0a; }
-  .spotify-embed iframe { display: block; border: none; }
   h1 { font-size: 24px; text-align: center; margin-bottom: 4px; letter-spacing: 2px; }
   .sub { text-align: center; color: #888; font-size: 12px; margin-bottom: 16px; }
   .clock { text-align: center; font-size: 14px; border: 1px solid #fff; display: inline-block; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; }
@@ -161,16 +152,8 @@
           </div>
         </div>
 
-        <div class="card">
-          <h1 style="font-size:18px">🎵 BACKGROUND AUDIO</h1>
-          <div class="spotify-embed">
-            <iframe src="https://open.spotify.com/embed/playlist/37i9dQZF1DX8Uebhn9wzrS?utm_source=generator&theme=0"
-              width="100%" height="152" frameborder="0" allowfullscreen=""
-              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-              loading="lazy" title="Spotify player"></iframe>
-          </div>
-          <p class="sub" style="margin-top:8px">Replace the playlist ID in the iframe src with your own</p>
-        </div>
+      <!-- BACKGROUND AUDIO REMOVED -->
+
       </div>
 
       <!-- CENTER COLUMN: Main Actions & Database -->
@@ -389,24 +372,8 @@
         </div>
       </div>
 
-      <!-- LIVE PLAYER INTERFACE INSPECTOR -->
-      <div class="card">
-        <h1 style="font-size:18px">👁️ LIVE PLAYER INTERFACE INSPECTOR</h1>
-        <label>Target Player</label>
-        <select id="inspector-target" style="margin-bottom:8px">
-          <option value="">— Select player —</option>
-        </select>
-        <div class="inspector-meta"><span>Selected Target</span><span class="inspector-val" id="insp-target">—</span></div>
-        <div class="inspector-meta"><span>Active UI Layer</span><span class="inspector-val" id="insp-layer">—</span></div>
-        <div class="inspector-meta"><span>Active Interaction</span><span class="inspector-val" id="insp-action">—</span></div>
-        <div class="inspector-btns">
-          <button class="small danger" id="insp-close-gui">🚫 Force-Close Target GUI</button>
-          <button class="small" id="insp-freeze">❄️ Freeze Player Screen Input</button>
-          <button class="small gold" id="insp-notice">📢 Send Admin Floating Notice</button>
-        </div>
-        <input id="insp-notice-msg" placeholder="Notice message…" maxlength="200" style="margin-top:8px">
-        <div class="err" id="insp-err"></div>
-      </div>
+      <!-- LIVE PLAYER INTERFACE INSPECTOR REMOVED -->
+
         </div>
       </div>
 
