@@ -209,6 +209,27 @@
         </div>
 
         <div class="card">
+          <h1 style="font-size:18px">🎁 GIVE TOOLS</h1>
+          <p class="sub">Quick grants & cleanup</p>
+          <label>Target Player</label>
+          <input id="give-user" placeholder="username" style="margin-bottom:8px">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div><label>Gold Amount</label><input type="number" id="give-gold" placeholder="Gold" min="0"></div>
+            <div><label>Rebirth Tokens</label><input type="number" id="give-rebirth" placeholder="Tokens" min="0"></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <button class="small gold" id="give-gold-btn" style="flex:1">💰 Give Gold</button>
+            <button class="small gold" id="give-rebirth-btn" style="flex:1">🌀 Give Tokens</button>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+            <button class="small" id="give-buff-btn" style="flex:1">✨ +50% Buffs</button>
+            <button class="small" id="give-heal-btn" style="flex:1">💚 Full Heal</button>
+          </div>
+          <button id="give-clear-btn" style="width:100%;margin-top:10px;padding:12px;background:#a00;color:#fff;border:2px solid #fff;border-radius:6px;font-weight:bold;cursor:pointer;font-family:inherit;font-size:14px">🎒 CLEAR BAGS</button>
+          <div class="err" id="give-err"></div>
+        </div>
+
+        <div class="card">
           <h1 style="font-size:18px">💰 GLOBAL ECONOMY MULTIPLIERS</h1>
           <p class="sub">Server-wide rates (1.0x = normal)</p>
           <div class="mult-row">
