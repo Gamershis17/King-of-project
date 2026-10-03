@@ -568,9 +568,9 @@ router.get(
 // (kills, depth, titles) are extracted from server-stored state_json and
 // sorted in JS. Unknown keys are rejected with 400. Class/spec ids come
 // from validation.js (canonical sets mirroring Engine.CLASSES / SPECS).
-const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths', 'bossrush'];
+const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths', 'bossrush', 'tower'];
 const LB_INDEXED = new Set(['level', 'stage', 'bosses', 'rebirths']);
-const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles', bossrush: 'bossRushMs' };
+const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles', bossrush: 'bossRushMs', tower: 'towerFloor' };
 router.get(
   '/leaderboard',
   asyncHandler(async (req, res) => {
@@ -596,6 +596,7 @@ router.get(
       let depth = 0;
       let titles = 0;
       let bossRushMs = 0;
+      let towerFloor = 0;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
@@ -622,6 +623,9 @@ router.get(
         if (blob && blob.bossRush && Number.isFinite(blob.bossRush.bestTimeMs) && blob.bossRush.bestTimeMs > 0) {
           bossRushMs = Math.floor(blob.bossRush.bestTimeMs);
         }
+        if (blob && blob.tower && Number.isFinite(blob.tower.floor) && blob.tower.floor >= 0) {
+          towerFloor = Math.floor(blob.tower.floor);
+        }
       } catch {
         // leave race/title/badge/country/playerClass/spec null
       }
@@ -645,6 +649,7 @@ router.get(
         depth,
         titles,
         bossRushMs,
+        towerFloor,
       };
     });
     if (!LB_INDEXED.has(by)) {
