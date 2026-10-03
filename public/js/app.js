@@ -193,6 +193,8 @@ async function boot() {
     onLeaveInn: () => leaveInn(true),
     onEquip: doEquip,
     onSell: doSell,
+    onClearBags: doClearBags,
+    onToggleAutoSell: doToggleAutoSell,
     onMine: doMine,
     onPickaxeUpgrade: doPickaxeUpgrade,
     onForgeTier: doForgeTier,
@@ -1213,10 +1215,19 @@ function onKillEnemy() {
       UI.combatLog(`🗼 Tower Floor ${cleared} cleared!`, 'boss');
       const milestone = Engine.towerMilestoneFor(cleared);
       if (milestone) {
-        // Divine blueprint + Mythic pet egg + title
-        if (Engine.grantTitle) Engine.grantTitle(s, milestone.title);
-        UI.toast(`🏆 Milestone! Floor ${cleared}: ${milestone.title} + Divine Blueprint + Mythic Egg!`, 'success');
-        UI.combatLog(`🏆 Milestone rewards: ${milestone.title} title, Divine Blueprint, Mythic Pet Egg!`, 'loot');
+        // Title: unlock directly by ID
+        if (!s.titlesUnlocked) s.titlesUnlocked = [];
+        if (!s.titlesUnlocked.includes(milestone.titleId)) {
+          s.titlesUnlocked.push(milestone.titleId);
+        }
+        // Mythic pet egg
+        Engine.ensurePets(s).eggs += 1;
+        // Divine gear piece (the "Divine Blueprint" reward as real loot)
+        const divineItem = Engine.makeLootItem(Math.max(1, s.stage || 1), 'divine',
+          Engine.SLOTS[Math.floor(Math.random() * Engine.SLOTS.length)], s.playerClass);
+        if (divineItem) s.inventory.push(divineItem);
+        UI.toast(`🏆 Milestone! Floor ${cleared}: ${milestone.titleName} + Divine Gear + Mythic Egg!`, 'success');
+        UI.combatLog(`🏆 Milestone rewards: ${milestone.titleName} title, Divine ${divineItem ? divineItem.name : 'gear'}, Mythic Pet Egg!`, 'loot');
       }
     }
   }
@@ -1233,10 +1244,19 @@ function onKillEnemy() {
   const loot = Engine.rollLoot(stage, enemy.boss, raidLoot ? raidLoot.lootTier : null,
     { bonusChance: streakBonus, guaranteed: radiant, classId: s.playerClass });
   if (loot) {
-    s.inventory.push(loot);
-    const tag = radiant ? '🌟 Radiant loot' : '🎒 Loot';
-    UI.notify('loot', `${tag}: ${loot.name}`, 'loot');
-    UI.combatLog(`${tag} ${loot.name} (${loot.rarity})`, 'loot');
+    // Auto-sell: convert loot straight to gold when the toggle is on.
+    // Set pieces and unsellables are always kept.
+    if (s.settings && s.settings.autoSell && !loot.set && !loot.unsellable) {
+      const gold = Math.max(1, Math.round(loot.value || 1));
+      Engine.addGold(s, gold);
+      UI.notify('loot', `💰 Auto-sold ${loot.name} (+${formatNum(gold)} gold)`, 'loot');
+      UI.combatLog(`💰 Auto-sold ${loot.name} (${loot.rarity})`, 'loot');
+    } else {
+      s.inventory.push(loot);
+      const tag = radiant ? '🌟 Radiant loot' : '🎒 Loot';
+      UI.notify('loot', `${tag}: ${loot.name}`, 'loot');
+      UI.combatLog(`${tag} ${loot.name} (${loot.rarity})`, 'loot');
+    }
     if (UI.activeTab === 'gear') UI.renderGear(s);
   }
   // Earnable set pieces (drop sources documented on Engine.PLAYER_SETS).
@@ -1907,6 +1927,29 @@ function doSell(id) {
   }
 }
 
+// Clear Bags: sell all sellable, unequipped gear at once.
+function doClearBags() {
+  const s = App.state;
+  const res = Engine.sellAllGear(s);
+  if (res.count === 0) {
+    UI.toast('Nothing to sell — bags are already clear!', 'warn');
+    return;
+  }
+  UI.toast(`🗑️ Cleared ${res.count} item${res.count === 1 ? '' : 's'} for 💰${formatNum(res.gold)}!`, 'success');
+  UI.renderGear(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+// Auto-sell toggle: when ON, looted gear auto-sells for gold.
+function doToggleAutoSell(on) {
+  const s = App.state;
+  if (!s.settings) s.settings = {};
+  s.settings.autoSell = !!on;
+  saveNow();
+  UI.toast(on ? '💰 Auto-sell ON — loot converts to gold!' : '💰 Auto-sell OFF.', 'success');
+}
+
 // ---------------- Mining & Forging ----------------
 function doMine() {
   const s = App.state;
@@ -2534,7 +2577,10 @@ function doTowerSweep() {
     return;
   }
   Engine.addGold(s, res.gold);
-  UI.toast(`🧹 Swept ${res.floors} floors! +${formatNum(res.gold)} gold${res.eggs ? `, +${res.eggs} pet eggs` : ''}!`, 'success');
+  if (res.eggs > 0) {
+    Engine.ensurePets(s).eggs += res.eggs;
+  }
+  UI.toast(`🧹 Swept ${res.floors} floors! +${formatNum(res.gold)} gold${res.eggs ? `, +${res.eggs} pet egg${res.eggs === 1 ? '' : 's'}` : ''}!`, 'success');
   UI.combatLog(`🧹 Tower sweep: ${res.floors} floors → +${formatNum(res.gold)} gold.`, 'loot');
   UI.renderBattle(s);
   UI.updateHUD(s, App.user);
