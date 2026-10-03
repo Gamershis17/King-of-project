@@ -199,14 +199,15 @@
     if (!ok || !j.ok) { $('login-err').textContent = (j && j.error) || 'Login failed.'; return; }
     // Verify owner role
     const me = await api('/api/auth/me');
-    if (!me.ok || me.j.role !== 'owner') {
-      $('login-err').textContent = '⛔ Owner only. Your role: ' + ((me.j && me.j.role) || 'unknown');
+    const user = me.j && (me.j.user || me.j);
+    if (!me.ok || !user || user.role !== 'owner') {
+      $('login-err').textContent = '⛔ Owner only. Your role: ' + ((user && user.role) || 'unknown');
       await api('/api/auth/logout', { method: 'POST' });
       return;
     }
     $('login-pane').classList.add('hidden');
     $('owner-pane').classList.remove('hidden');
-    $('owner-who').textContent = 'Signed in as ' + me.j.username + ' (owner)';
+    $('owner-who').textContent = 'Signed in as ' + user.username + ' (owner)';
     loadAll();
   });
   async function loadAll() { loadRoster(); loadLive(); checkMaint(); setInterval(loadRoster, 30000); setInterval(loadLive, 15000); }
