@@ -1,5 +1,19 @@
 [
  {
+  "version": "v28",
+  "date": "2026-10-03",
+  "time": "05:46 AM EDT",
+  "title": "2x global attack buff",
+  "changes": [
+   {
+    "system": "All classes",
+    "before": "Base attack damage at 1x.",
+    "after": "All classes now deal 2x attack damage via BALANCE_ATK_MULT.",
+    "note": "Endgame enemy HP was outpacing player damage at high stages (e.g. Stage 666). This closes the gap."
+   }
+  ]
+ },
+ {
   "version": "v27",
   "date": "2026-10-02",
   "title": "Warrior tank buff",
@@ -38,13 +52,13 @@
   "changes": [
    {
     "system": "Boss HP",
-    "before": "Bosses had 2.5× the HP of a normal enemy at the same stage.",
-    "after": "Bosses now have 1.5× the HP of a normal enemy — about 40% less boss HP at every stage.",
+    "before": "Bosses had 2.5\u00d7 the HP of a normal enemy at the same stage.",
+    "after": "Bosses now have 1.5\u00d7 the HP of a normal enemy \u2014 about 40% less boss HP at every stage.",
     "note": "Normal enemy HP and boss damage tuning are untouched."
    },
    {
     "system": "Kill Command (Hunter)",
-    "before": "Kill Command dealt 3× pet damage instantly and nothing else.",
+    "before": "Kill Command dealt 3\u00d7 pet damage instantly and nothing else.",
     "after": "Kill Command now also opens a bleeding wound for 10s: 5 ticks every 2s, each tick dealing 25% of the pet's strike damage.",
     "note": "Beast Mastery, unlocks at level 30, 10s cooldown."
    }
@@ -106,31 +120,31 @@
   "changes": [
    {
     "system": "Pet stat growth",
-    "before": "Pet stats grew at 1.12–1.21 per level — a Lv 85 Void Reaver displayed ~989M HP, a meaningless number that only ever appeared on the pet panel.",
-    "after": "Growth flattened to 1.055–1.09 per level. Same Lv 85 Void Reaver now shows ~153K HP. Display-only change; no effect on battles.",
+    "before": "Pet stats grew at 1.12\u20131.21 per level \u2014 a Lv 85 Void Reaver displayed ~989M HP, a meaningless number that only ever appeared on the pet panel.",
+    "after": "Growth flattened to 1.055\u20131.09 per level. Same Lv 85 Void Reaver now shows ~153K HP. Display-only change; no effect on battles.",
     "note": "High-level pet numbers stay readable from here on."
    },
    {
     "system": "Pet bond bonus",
-    "before": "Bond scaled flat per level (e.g. +35 HP/level) while everything else in the game scaled exponentially — at high level the bond collapsed to a rounding error.",
-    "after": "Bond is now the better of the classic per-level values and 2% of the pet's own stats. Levels 1–85 are virtually unchanged; from ~Lv 100 up the bond tracks your pet instead of fading out.",
-    "note": "Hunger rules unchanged: full bond above 50 hunger, 40% at 1–50, none at 0. Hunters with two active pets still get both bonds."
+    "before": "Bond scaled flat per level (e.g. +35 HP/level) while everything else in the game scaled exponentially \u2014 at high level the bond collapsed to a rounding error.",
+    "after": "Bond is now the better of the classic per-level values and 2% of the pet's own stats. Levels 1\u201385 are virtually unchanged; from ~Lv 100 up the bond tracks your pet instead of fading out.",
+    "note": "Hunger rules unchanged: full bond above 50 hunger, 40% at 1\u201350, none at 0. Hunters with two active pets still get both bonds."
    },
    {
     "system": "Pet strike damage",
-    "before": "Strikes scaled at 25% + 4% per pet level of your attack with no cap — a Lv 85 pet struck for 361% of your attack every 4s, far outshining the hero.",
+    "before": "Strikes scaled at 25% + 4% per pet level of your attack with no cap \u2014 a Lv 85 pet struck for 361% of your attack every 4s, far outshining the hero.",
     "after": "Strike scaling capped at 150% of your attack per pet (cap reached at pet level 32). Pets stay meaningful without replacing the hero.",
     "note": "Hunger, species, and Hunter pet-damage perks still multiply on top of the capped base."
    },
    {
     "system": "New pets: Starlight line",
     "before": "Starlight pets were a coming-soon teaser in the Pet Shop.",
-    "after": "Three real species: Star Wisp 💫, Luna Cub 🐻‍❄️, Astral Drake 🐲 — celestial natives on par with the Shadow line, hatchable from the new 500K-gold Starlight Egg (🌠) or rarely from wild eggs.",
+    "after": "Three real species: Star Wisp \ud83d\udcab, Luna Cub \ud83d\udc3b\u200d\u2744\ufe0f, Astral Drake \ud83d\udc32 \u2014 celestial natives on par with the Shadow line, hatchable from the new 500K-gold Starlight Egg (\ud83c\udf20) or rarely from wild eggs.",
     "note": "Shadow demons remain teased as coming soon."
    },
    {
     "system": "Staff roles",
-    "before": "The admin role could open the GM console but every grant, set-level, set-gold, and inventory action failed — admins had moderation powers but none of the console powers.",
+    "before": "The admin role could open the GM console but every grant, set-level, set-gold, and inventory action failed \u2014 admins had moderation powers but none of the console powers.",
     "after": "Admin is now the senior staff role: owner > admin > gm > moderator. Admins keep ban/kick/mute and gain the full GM console.",
     "note": "Staff-only; normal players see nothing."
    }
@@ -143,14 +157,14 @@
   "changes": [
    {
     "system": "XP bonus stacking",
-    "before": "Gear XP capped at +40%, but the guild XP perk (up to +40%) and party XP bonus (up to +40%) multiplied on top — a fully geared, guilded party player could reach +120% XP.",
+    "before": "Gear XP capped at +40%, but the guild XP perk (up to +40%) and party XP bonus (up to +40%) multiplied on top \u2014 a fully geared, guilded party player could reach +120% XP.",
     "after": "One +40% ceiling over gear + guild perk + party bonus combined. Tooltips still show true gear totals; the cap applies at gain time.",
-    "note": "Staff-run event buffs (double-XP weekends) still multiply on top — that's their purpose."
+    "note": "Staff-run event buffs (double-XP weekends) still multiply on top \u2014 that's their purpose."
    },
    {
     "system": "GM console",
     "before": "Grants, set-values, dossier, mute, ban/kick; no record of what staff did.",
-    "after": "New: server-side staff audit log (survives restarts), full target inventory browser with per-item enchant set + removal, equipped-item enchant control, daily/weekly quest re-roll, and server-wide event buffs (1–10x XP/gold with expiry, announced to players at login). Every grant/ban/mute/kick is now audit-logged.",
+    "after": "New: server-side staff audit log (survives restarts), full target inventory browser with per-item enchant set + removal, equipped-item enchant control, daily/weekly quest re-roll, and server-wide event buffs (1\u201310x XP/gold with expiry, announced to players at login). Every grant/ban/mute/kick is now audit-logged.",
     "note": "GM powers only; normal players see nothing."
    }
   ]
@@ -163,7 +177,7 @@
    {
     "system": "New animated backgrounds",
     "before": "11 animated scenes (16 backgrounds in the Settings picker).",
-    "after": "15 animated scenes. All 7 new scenes (Frostfall, Starfall, Blood Moon, Night Sky, Sunset, Woods, Water) now use photorealistic generated art with a slow cinematic Ken Burns drift and a soft vignette, instead of procedural canvas drawing. Art is compressed to ~872KB total so phones stay light. Pickable in Settings → Background and usable in battle through the 🖼️ My background card.",
+    "after": "15 animated scenes. All 7 new scenes (Frostfall, Starfall, Blood Moon, Night Sky, Sunset, Woods, Water) now use photorealistic generated art with a slow cinematic Ken Burns drift and a soft vignette, instead of procedural canvas drawing. Art is compressed to ~872KB total so phones stay light. Pickable in Settings \u2192 Background and usable in battle through the \ud83d\uddbc\ufe0f My background card.",
     "note": "Balance-neutral: visuals only. Respects Reduce Motion and Performance Mode (static frame)."
    }
   ]
@@ -176,13 +190,13 @@
    {
     "system": "New earnable gear sets",
     "before": "3 earnable sets: Emberheart, Frostbound, Stormcaller (1% drop from any boss kill).",
-    "after": "6 earnable sets. Added 🩸 Bloodmoon Regalia (lifesteal/regen — 3pc: +10 lifesteal; 5pc: +20 lifesteal, +15 regen), 💰 Gilded Fortune (gold/XP — 3pc: +40% gold from kills; 5pc: +80% gold, +40% XP), 🌑 Nightfall Shroud (crit/dodge — 3pc: +35% crit damage; 5pc: +70% crit damage, +8% dodge).",
+    "after": "6 earnable sets. Added \ud83e\ude78 Bloodmoon Regalia (lifesteal/regen \u2014 3pc: +10 lifesteal; 5pc: +20 lifesteal, +15 regen), \ud83d\udcb0 Gilded Fortune (gold/XP \u2014 3pc: +40% gold from kills; 5pc: +80% gold, +40% XP), \ud83c\udf11 Nightfall Shroud (crit/dodge \u2014 3pc: +35% crit damage; 5pc: +70% crit damage, +8% dodge).",
     "note": "Same 1% drop chance from any boss kill; regular enemies never drop set pieces. Existing sets untouched."
    },
    {
     "system": "New animated backgrounds",
     "before": "8 animated scenes (13 backgrounds in the Settings picker).",
-    "after": "11 animated scenes. Added ❄️ Frostfall (drifting snow, glinting ice shards), ☄️ Starfall (meteor streaks over a twinkling starfield), 🌕 Blood Moon (giant red moon, drifting fog, rising ash). Pickable in Settings → Background and usable in battle through the 🖼️ My background card.",
+    "after": "11 animated scenes. Added \u2744\ufe0f Frostfall (drifting snow, glinting ice shards), \u2604\ufe0f Starfall (meteor streaks over a twinkling starfield), \ud83c\udf15 Blood Moon (giant red moon, drifting fog, rising ash). Pickable in Settings \u2192 Background and usable in battle through the \ud83d\uddbc\ufe0f My background card.",
     "note": "Balance-neutral: visuals only."
    },
    {
@@ -200,15 +214,15 @@
   "changes": [
    {
     "system": "Level cap",
-    "before": "90 — Rebirth unlocked at 90.",
-    "after": "120 — Rebirth now unlocks at 120. All gates (title check, rebirth, UI) follow MAX_LEVEL.",
+    "before": "90 \u2014 Rebirth unlocked at 90.",
+    "after": "120 \u2014 Rebirth now unlocks at 120. All gates (title check, rebirth, UI) follow MAX_LEVEL.",
     "note": "Rebirth still resets only level/XP and keeps all other progress."
    },
    {
     "system": "XP curve (levels 91-120)",
     "before": "No levels above 90.",
     "after": "Levels 91-120 continue from the level-90 value with a x1.47 exponent, continuous at 90. Level 100 costs ~3.48e15 XP, level 120 ~7.72e18 XP; level 120 is ~104,600x the level-90 cost. Total XP 1->120 is ~98,000x total 1->90, so the last 30 levels are a proper endgame grind.",
-    "note": "Levels 1-90 are unchanged. A raw x1.46-1.48 segment could never hit a 5-8x total target, so the new band is deliberately the steepest — the 91-120 climb stays honest even with the +40% party bonus."
+    "note": "Levels 1-90 are unchanged. A raw x1.46-1.48 segment could never hit a 5-8x total target, so the new band is deliberately the steepest \u2014 the 91-120 climb stays honest even with the +40% party bonus."
    },
    {
     "system": "Enemy/boss HP growth",
@@ -239,7 +253,7 @@
     "system": "Gear XP bonus cap"
    },
    {
-    "after": "90 — Rebirth now unlocks at 90. The steepened XP curve runs the full 1-90 range.",
+    "after": "90 \u2014 Rebirth now unlocks at 90. The steepened XP curve runs the full 1-90 range.",
     "before": "70",
     "note": "Rebirth still resets only level/XP and keeps all other progress.",
     "system": "Level cap"
