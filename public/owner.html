@@ -143,11 +143,21 @@
             <button class="small" id="pow-stage-btn">Set Stage</button>
             <input id="pow-tower" type="number" placeholder="tower floor" style="margin-bottom:6px;margin-top:8px">
             <button class="small" id="pow-tower-btn">Set Tower Floor</button>
+            <button class="small" id="pow-clear-btn" style="margin-top:8px;background:#a00;color:#fff">🗑️ Clear Bags</button>
           </div>
           <div class="power-card">
             <h4>📜 Patch Notes</h4>
             <p style="color:#888;font-size:12px;margin-bottom:6px">Push latest to Discord</p>
             <button class="small" id="pow-patch-btn">Push Notes</button>
+          </div>
+          <div class="power-card">
+            <h4>⚔️ Give Gear Set</h4>
+            <input id="pow-gear-user" placeholder="username" style="margin-bottom:6px">
+            <select id="pow-gear-set" style="margin-bottom:6px;width:100%;padding:8px;background:#222;color:#fff;border:1px solid #555">
+              <option value="sovereign">Sovereign (Owner)</option>
+              <option value="fateweaver">Fateweaver (GM)</option>
+            </select>
+            <button class="small" id="pow-gear-btn">Give Full Set</button>
           </div>
         </div>
         <div class="err" id="powers-err"></div>
