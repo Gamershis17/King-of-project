@@ -4260,9 +4260,9 @@ export const UI = {
         <div>×${count}</div>
         ${isGolden && f.description ? `<div class="muted tiny" style="font-size:10px">${esc(f.description)}</div>` : ''}
         ${count > 0 ? `<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
-          <button class="small" onclick="doSellFish('${id}')" style="font-size:11px">💰 Sell</button>
-          <button class="small" onclick="doEatFish('${id}')" style="font-size:11px">${isGolden ? '✨ Eat (Buff!)' : `🍽️ Eat (+${healAmt} HP)`}</button>
-          ${!isGolden ? `<button class="small" onclick="doFeedFish('${id}')" style="font-size:11px">🐾 Feed Pet</button>` : ''}
+          <button class="small" data-fish-action="sell" data-id="${id}" style="font-size:11px">💰 Sell</button>
+          <button class="small" data-fish-action="eat" data-id="${id}" style="font-size:11px">${isGolden ? '✨ Eat (Buff!)' : `🍽️ Eat (+${healAmt} HP)`}</button>
+          ${!isGolden ? `<button class="small" data-fish-action="feed" data-id="${id}" style="font-size:11px">🐾 Feed Pet</button>` : ''}
         </div>` : `<div class="muted tiny">💰 ${formatNum(f.goldValue || 0)}</div>`}
       </div>`;
     }).join('');
@@ -4307,8 +4307,8 @@ export const UI = {
         <div class="muted small">${esc(bait.desc)}</div>
         <div class="muted small">💰 ${bait.cost} for 5 · Owned: ${count}</div>
         <div style="margin-top:8px;display:flex;gap:4px">
-          <button class="btn small gold" onclick="doBuyBait('${baitId}')">Buy</button>
-          ${count > 0 && !isActive ? `<button class="btn small" onclick="doUseBait('${baitId}')">Use</button>` : ''}
+          <button class="btn small gold" data-fish-action="buy-bait" data-id="${baitId}">Buy</button>
+          ${count > 0 && !isActive ? `<button class="btn small" data-fish-action="use-bait" data-id="${baitId}">Use</button>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -4341,7 +4341,7 @@ export const UI = {
           <div class="muted small">${prog}/${q.targetCount} · Reward: ${rewardTxt}</div>
           <div style="margin-top:6px">
             ${claimed ? '<span style="color:#888">✓ Claimed</span>'
-              : done ? `<button class="btn small gold" onclick="doClaimFishingQuest('${q.id}')">Claim!</button>`
+              : done ? `<button class="btn small gold" data-fish-action="claim-quest" data-id="${q.id}">Claim!</button>`
               : '<span style="color:#888;font-size:12px">In progress...</span>'}
           </div>
         </div>`;

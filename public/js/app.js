@@ -949,6 +949,20 @@ function startGame() {
   // panel (.hero-panel). Delegated so it survives HUD re-renders.
   document.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('.hud-id, .hero-panel')) openCharacterSheet();
+    // Fishing actions (CSP-safe delegated handler)
+    const fishBtn = e.target.closest && e.target.closest('[data-fish-action]');
+    if (fishBtn) {
+      const action = fishBtn.dataset.fishAction;
+      const id = fishBtn.dataset.id;
+      if (action === 'sell') doSellFish(id);
+      else if (action === 'eat') doEatFish(id);
+      else if (action === 'feed') doFeedFish(id);
+      else if (action === 'buy-bait') doBuyBait(id);
+      else if (action === 'use-bait') doUseBait(id);
+      else if (action === 'claim-quest') doClaimFishingQuest(id);
+      else if (action === 'talk') talkToCatfish();
+      return;
+    }
   });
   UI.showView('app');
   spawnEnemy();
