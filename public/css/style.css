@@ -6115,3 +6115,19 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
   50% { transform: translateX(30px); }
   100% { transform: translateX(-30px); }
 }
+
+/* 🗼 Tower of Shadows Background */
+#tab-battle .tower-bg-wrap {
+  position: relative;
+}
+.tower-tab-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 200px;
+  background: url('../img/tower-bg.jpg') center/cover no-repeat;
+  border-radius: 12px;
+  opacity: 0.35;
+  pointer-events: none;
+  mask-image: linear-gradient(180deg, black 60%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, black 60%, transparent 100%);
+}
