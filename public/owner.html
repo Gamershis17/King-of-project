@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Owner — Throne of Shadows</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #000; color: #fff;
+    font-family: 'Courier New', monospace;
+    min-height: 100vh; padding: 16px;
+  }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  /* B&W outline theme */
+  .card {
+    background: #0a0a0a; border: 2px solid #fff; outline: 2px solid #000; outline-offset: 2px;
+    border-radius: 8px; padding: 18px; margin-bottom: 16px;
+  }
+  h1 { font-size: 24px; text-align: center; margin-bottom: 4px; letter-spacing: 2px; }
+  .sub { text-align: center; color: #888; font-size: 12px; margin-bottom: 16px; }
+  .clock { text-align: center; font-size: 14px; border: 1px solid #fff; display: inline-block; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; }
+  .clock-wrap { text-align: center; }
+  label { display: block; font-size: 12px; color: #aaa; margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 1px; }
+  input, select, textarea {
+    width: 100%; padding: 10px; background: #111; border: 1px solid #fff; color: #fff;
+    border-radius: 4px; font-family: inherit; font-size: 14px;
+  }
+  input:focus { outline: none; border-color: #0ff; }
+  button {
+    padding: 12px 18px; border: 2px solid #fff; border-radius: 6px; font-family: inherit;
+    font-weight: bold; cursor: pointer; font-size: 14px; background: #fff; color: #000;
+  }
+  button:hover { background: #ddd; }
+  button.danger { background: #c00; border-color: #fff; color: #fff; }
+  button.ghost { background: #111; color: #fff; }
+  button.gold { background: #ff0; border-color: #fff; color: #000; }
+  button.small { padding: 6px 12px; font-size: 12px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .hidden { display: none !important; }
+  .err { color: #f66; text-align: center; margin-top: 10px; min-height: 20px; }
+  /* Maintenance big toggle */
+  .maint-toggle { display: flex; gap: 12px; margin: 12px 0; }
+  .maint-toggle button { flex: 1; padding: 20px; font-size: 18px; }
+  .maint-status { text-align: center; font-size: 16px; margin: 8px 0; padding: 10px; border: 1px solid #fff; border-radius: 4px; }
+  .maint-status.on { background: #c00; color: #fff; }
+  .maint-status.off { background: #0a0; color: #fff; }
+  /* Tabs */
+  .tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tabs button { flex: 1; min-width: 100px; background: #111; color: #fff; padding: 10px 6px; font-size: 13px; }
+  .tabs button.active { background: #fff; color: #000; }
+  .tab-pane { min-height: 200px; }
+  /* Roster */
+  .roster-row { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #333; border-radius: 4px; margin-bottom: 4px; background: #111; }
+  .roster-row .nm { flex: 1; font-weight: bold; }
+  .roster-row .meta { color: #888; font-size: 12px; }
+  .online { color: #4f4; } .offline { color: #888; }
+  /* Live */
+  .live-row { padding: 8px; border-left: 3px solid #fff; margin-bottom: 6px; background: #111; }
+  .live-row .nm { font-weight: bold; } .live-row .act { color: #0ff; }
+  .live-row .det { color: #aaa; font-size: 12px; } .live-row .ts { color: #666; font-size: 11px; }
+  /* Power grid */
+  .power-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+  .power-card { border: 1px solid #fff; border-radius: 6px; padding: 12px; background: #111; }
+  .power-card h4 { margin-bottom: 8px; font-size: 14px; }
+  .power-card button { width: 100%; margin-top: 6px; }
+  .back { display: block; text-align: center; margin-top: 16px; color: #888; font-size: 13px; text-decoration: none; }
+  #login-pane { max-width: 400px; margin: 10vh auto 0; }
+  #login-pane button { width: 100%; margin-top: 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="login-pane" class="card">
+    <h1>👑 OWNER</h1>
+    <p class="sub">Restricted access — owner only</p>
+    <label>Username</label>
+    <input id="login-user" type="text" autocomplete="username">
+    <label>Password</label>
+    <input id="login-pass" type="password" autocomplete="current-password">
+    <button id="login-btn">Unlock</button>
+    <div class="err" id="login-err"></div>
+  </div>
+
+  <div id="owner-pane" class="hidden">
+    <div class="card">
+      <h1>👑 OWNER COMMAND</h1>
+      <p class="sub" id="owner-who">—</p>
+      <div class="clock-wrap"><span class="clock" id="owner-clock">—</span></div>
+    </div>
+
+    <div class="card">
+      <h1 style="font-size:18px">🛠️ MAINTENANCE</h1>
+      <div class="maint-status off" id="maint-status">● ONLINE</div>
+      <label>Message shown to players</label>
+      <input id="maint-msg" placeholder="Back soon…" maxlength="500">
+      <div class="maint-toggle">
+        <button id="maint-on" class="danger">🔴 TAKE DOWN</button>
+        <button id="maint-off">🟢 BRING UP</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="active" data-tab="roster">👥 Roster</button>
+        <button data-tab="live">👁️ Live</button>
+        <button data-tab="powers">⚡ Powers</button>
+        <button data-tab="opgear">⚔️ OP Gear</button>
+      </div>
+
+      <div class="tab-pane" id="pane-roster">
+        <div id="owner-roster"><p style="color:#888">Loading…</p></div>
+      </div>
+
+      <div class="tab-pane hidden" id="pane-live">
+        <div id="owner-live"><p style="color:#888">Loading…</p></div>
+      </div>
+
+      <div class="tab-pane hidden" id="pane-powers">
+        <div class="power-grid">
+          <div class="power-card">
+            <h4>📢 Broadcast</h4>
+            <input id="pow-broadcast" placeholder="Message to all players…" maxlength="200">
+            <button class="small" id="pow-broadcast-btn">Send</button>
+          </div>
+          <div class="power-card">
+            <h4>⚡ 2x Event</h4>
+            <p style="color:#888;font-size:12px;margin-bottom:6px">Toggle 2x XP & Gold server-wide</p>
+            <button class="small gold" id="pow-2x-btn">Toggle 2x</button>
+          </div>
+          <div class="power-card">
+            <h4>🎁 Grant Resources</h4>
+            <input id="pow-user" placeholder="username" style="margin-bottom:6px">
+            <input id="pow-gold" type="number" placeholder="gold amount" style="margin-bottom:6px">
+            <button class="small" id="pow-gold-btn">Give Gold</button>
+          </div>
+          <div class="power-card">
+            <h4>📜 Patch Notes</h4>
+            <p style="color:#888;font-size:12px;margin-bottom:6px">Push latest to Discord</p>
+            <button class="small" id="pow-patch-btn">Push Notes</button>
+          </div>
+        </div>
+        <div class="err" id="powers-err"></div>
+      </div>
+
+      <div class="tab-pane hidden" id="pane-opgear">
+        <label>Target admin username</label>
+        <input id="op-user" placeholder="username">
+        <label>Item name</label>
+        <input id="op-name" placeholder="Godslayer Blade" maxlength="60">
+        <div style="display:flex;gap:8px">
+          <div style="flex:1"><label>Slot</label><select id="op-slot">
+            <option value="weapon">⚔️ Weapon</option><option value="armor">🛡️ Armor</option>
+            <option value="helmet">🪖 Helmet</option><option value="boots">🥾 Boots</option>
+            <option value="trinket">📿 Trinket</option></select></div>
+          <div style="flex:1"><label>Rarity</label><select id="op-rarity">
+            <option value="mythic">Mythic</option><option value="celestial">Celestial</option>
+            <option value="shadow">Shadow</option><option value="legendary">Legendary</option></select></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1"><label>Attack</label><input id="op-atk" type="number" placeholder="0"></div>
+          <div style="flex:1"><label>Max HP</label><input id="op-hp" type="number" placeholder="0"></div>
+          <div style="flex:1"><label>Defense</label><input id="op-def" type="number" placeholder="0"></div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1"><label>Crit %</label><input id="op-crit" type="number" placeholder="0"></div>
+          <div style="flex:1"><label>Lifesteal</label><input id="op-ls" type="number" placeholder="0"></div>
+          <div style="flex:1"><label>Atk Speed</label><input id="op-spd" type="number" step="any" placeholder="0"></div>
+        </div>
+        <button class="gold" id="op-forge" style="width:100%;margin-top:12px">🔨 FORGE OP GEAR</button>
+        <div class="err" id="op-err"></div>
+      </div>
+    </div>
+
+    <a class="back" href="/">← Back to game</a>
+  </div>
+</div>
+
+<script>
+(function() {
+  const $ = (id) => document.getElementById(id);
+  const api = async (path, opts) => {
+    const r = await fetch(path, { credentials: 'include', headers: { 'Content-Type': 'application/json' }, ...opts });
+    return r.json().then(j => ({ ok: r.ok, j }));
+  };
+  // Clock
+  setInterval(() => { const c = $('owner-clock'); if (c) c.textContent = new Date().toLocaleString(); }, 1000);
+  // Tabs
+  document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.tabs button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+    $('pane-' + b.dataset.tab).classList.remove('hidden');
+  }));
+  // Login
+  $('login-btn').addEventListener('click', async () => {
+    $('login-err').textContent = '';
+    const { ok, j } = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: $('login-user').value.trim(), password: $('login-pass').value }) });
+    if (!ok || !j.ok) { $('login-err').textContent = (j && j.error) || 'Login failed.'; return; }
+    // Verify owner role
+    const me = await api('/api/auth/me');
+    if (!me.ok || me.j.role !== 'owner') {
+      $('login-err').textContent = '⛔ Owner only. Your role: ' + ((me.j && me.j.role) || 'unknown');
+      await api('/api/auth/logout', { method: 'POST' });
+      return;
+    }
+    $('login-pane').classList.add('hidden');
+    $('owner-pane').classList.remove('hidden');
+    $('owner-who').textContent = 'Signed in as ' + me.j.username + ' (owner)';
+    loadAll();
+  });
+  async function loadAll() { loadRoster(); loadLive(); checkMaint(); setInterval(loadRoster, 30000); setInterval(loadLive, 15000); }
+  async function loadRoster() {
+    const box = $('owner-roster');
+    try {
+      const { ok, j } = await api('/api/gm/roster-live');
+      if (!ok || !j.ok) throw 0;
+      box.innerHTML = j.players.map(p =>
+        `<div class="roster-row"><span class="${p.online ? 'online' : 'offline'}">${p.online ? '🟢' : '🔴'}</span>` +
+        `<span class="nm">${esc(p.username)}</span><span class="meta">Lv ${p.level} · ${esc(p.role)}</span>` +
+        `<span class="meta">${p.online ? 'now' : new Date(p.lastSeen).toLocaleString()}</span></div>`).join('') || '<p style="color:#888">No players.</p>';
+    } catch { box.innerHTML = '<p style="color:#f66">Failed to load.</p>'; }
+  }
+  async function loadLive() {
+    const box = $('owner-live');
+    try {
+      const { ok, j } = await api('/api/gm/snapshots');
+      if (!ok || !j.ok) throw 0;
+      const snaps = Object.entries(j.snapshots || {});
+      box.innerHTML = snaps.length ? snaps.map(([u, s]) =>
+        `<div class="live-row"><span class="nm">${esc(u)}</span> <span class="act">${esc(s.action)}</span><br>` +
+        `<span class="det">${esc(s.detail)}</span> <span class="ts">${new Date(s.ts).toLocaleTimeString()}</span></div>`).join('')
+        : '<p style="color:#888">No active players.</p>';
+    } catch { box.innerHTML = '<p style="color:#f66">Failed to load.</p>'; }
+  }
+  async function checkMaint() {
+    try {
+      const { ok, j } = await api('/api/status');
+      const on = ok && j.maintenance;
+      const st = $('maint-status');
+      st.textContent = on ? '🔴 MAINTENANCE MODE' : '🟢 ONLINE';
+      st.className = 'maint-status ' + (on ? 'on' : 'off');
+    } catch {}
+  }
+  $('maint-on').addEventListener('click', async () => {
+    const msg = $('maint-msg').value.trim() || 'Down for maintenance';
+    if (!confirm('Take the game DOWN?')) return;
+    await api('/api/gm/maintenance', { method: 'POST', body: JSON.stringify({ on: true, message: msg }) });
+    checkMaint();
+  });
+  $('maint-off').addEventListener('click', async () => {
+    if (!confirm('Bring the game back UP?')) return;
+    await api('/api/gm/maintenance', { method: 'POST', body: JSON.stringify({ on: false }) });
+    checkMaint();
+  });
+  // Powers
+  $('pow-broadcast-btn').addEventListener('click', async () => {
+    const msg = $('pow-broadcast').value.trim();
+    if (!msg) return;
+    const { ok, j } = await api('/api/gm/broadcast', { method: 'POST', body: JSON.stringify({ message: msg }) });
+    $('powers-err').textContent = ok ? '✅ Sent!' : '❌ ' + ((j && j.error) || 'failed');
+    if (ok) $('pow-broadcast').value = '';
+  });
+  $('pow-gold-btn').addEventListener('click', async () => {
+    const u = $('pow-user').value.trim(), amt = Math.floor(Number($('pow-gold').value));
+    if (!u || !amt) { $('powers-err').textContent = 'Enter username and amount.'; return; }
+    const { ok, j } = await api('/api/gm/set-gold', { method: 'POST', body: JSON.stringify({ username: u, amount: amt }) });
+    $('powers-err').textContent = ok ? `✅ Gave ${amt} gold to ${u}` : '❌ ' + ((j && j.error) || 'failed');
+  });
+  // OP gear
+  $('op-forge').addEventListener('click', async () => {
+    $('op-err').textContent = '';
+    const username = $('op-user').value.trim(), name = $('op-name').value.trim();
+    const stats = {};
+    [['op-atk','attack'],['op-hp','maxHp'],['op-def','defense'],['op-crit','critChance'],['op-ls','lifesteal'],['op-spd','attackSpeed']].forEach(([id,k]) => {
+      const v = Number($(id).value); if (Number.isFinite(v) && v !== 0) stats[k] = v;
+    });
+    if (!username || !name) { $('op-err').textContent = 'Enter username and item name.'; return; }
+    if (!Object.keys(stats).length) { $('op-err').textContent = 'Enter at least one stat.'; return; }
+    const { ok, j } = await api('/api/gm/create-op-gear', { method: 'POST', body: JSON.stringify({ username, name, slot: $('op-slot').value, rarity: $('op-rarity').value, stats }) });
+    $('op-err').textContent = ok ? `✅ Forged "${name}" for ${username}!` : '❌ ' + ((j && j.error) || 'failed');
+    $('op-err').style.color = ok ? '#4f4' : '#f66';
+  });
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+})();
+</script>
+</body>
+</html>
