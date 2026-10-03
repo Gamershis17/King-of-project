@@ -159,6 +159,23 @@
             </select>
             <button class="small" id="pow-gear-btn">Give Full Set</button>
           </div>
+          <div class="power-card">
+            <h4>✨ Grant Live Buff</h4>
+            <input id="pow-buff-user" placeholder="username" style="margin-bottom:6px">
+            <select id="pow-buff-type" style="margin-bottom:6px;width:100%;padding:8px;background:#222;color:#fff;border:1px solid #555">
+              <option value="damage">⚔️ Damage Boost (%+)</option>
+              <option value="shield">🛡️ Shield (absorb HP)</option>
+              <option value="immunity">✨ Immunity (secs)</option>
+              <option value="heal">💚 Instant Heal (HP)</option>
+              <option value="regen">💚 Regen (HP/sec)</option>
+              <option value="speed">⚡ Attack Speed (%+)</option>
+              <option value="xp">📚 XP Boost (%+)</option>
+              <option value="gold">💰 Gold Boost (%+)</option>
+            </select>
+            <input id="pow-buff-val" type="number" placeholder="value (e.g. 50 for +50%)" style="margin-bottom:6px">
+            <input id="pow-buff-dur" type="number" placeholder="duration secs (default 30)" style="margin-bottom:6px">
+            <button class="small" id="pow-buff-btn">Grant Buff (LIVE)</button>
+          </div>
         </div>
         <div class="err" id="powers-err"></div>
       </div>
@@ -196,6 +213,6 @@
   </div>
 </div>
 
-<script src="js/owner.js?v20261003b"></script>
+<script src="js/owner.js?v20261003c"></script>
 </body>
 </html>
