@@ -5105,6 +5105,7 @@ export const UI = {
     titles:   { emoji: '🏵️', label: 'Titles',   fmt: (en) => (en.titles || 0) },
     rebirths: { emoji: '🌀', label: 'Rebirths', fmt: (en) => (en.rebirth > 0 ? en.rebirth : '—') },
     bossrush: { emoji: '⚔️', label: 'Boss Rush', fmt: (en) => en.bossRushMs > 0 ? Engine.formatBossRushTime(en.bossRushMs) : '—' },
+    tower:    { emoji: '🗼', label: 'Tower',    fmt: (en) => (en.towerFloor > 0 ? 'Floor ' + en.towerFloor : '—') },
   },
   lbCategory: 'level',
 
@@ -5185,14 +5186,20 @@ export const UI = {
       const metaHtml = `${flagHtml}${badgeHtml}${clsHtml}${specHtml}${guildTag}`;
       const nameUser = this.nameHtml(en.username, isMe ? meState : en);
       // Stat grid: headline = active ranking category, then the core sub-stats
-      // as aligned icon + label + value cells.
+      // as aligned icon + label + value cells. Skip the sub-stat that matches
+      // the active category to avoid duplicates.
+      const allStats = [
+        { ic: '🏅', lb: 'Level',    v: en.level, key: 'level' },
+        { ic: '🗺️', lb: 'Stage',    v: en.stage, key: 'stage' },
+        { ic: '🗼', lb: 'Tower',    v: en.towerFloor > 0 ? 'Floor ' + en.towerFloor : '—', key: 'tower' },
+        { ic: '⚔️', lb: 'Attack',   v: formatNum(en.power || 0), key: 'attack' },
+        { ic: '👑', lb: 'Bosses',   v: en.bossesKilled, key: 'bosses' },
+        { ic: '🌀', lb: 'Rebirths', v: en.rebirth > 0 ? en.rebirth : '—', key: 'rebirths' },
+      ];
+      const activeKey = this.lbCategory;
       const stats = [
-        { ic: cat.emoji, lb: cat.label,   v: cat.fmt(en), hero: true },
-        { ic: '🏅', lb: 'Level',    v: en.level },
-        { ic: '🗺️', lb: 'Stage',    v: en.stage },
-        { ic: '⚔️', lb: 'Attack',   v: formatNum(en.power || 0) },
-        { ic: '👑', lb: 'Bosses',   v: en.bossesKilled },
-        { ic: '🌀', lb: 'Rebirths', v: en.rebirth > 0 ? en.rebirth : '—' },
+        { ic: cat.emoji, lb: cat.label, v: cat.fmt(en), hero: true },
+        ...allStats.filter(s => s.key !== activeKey),
       ].map((s) => `<div class="lb-stat${s.hero ? ' lb-stat-hero' : ''}"><span class="lb-stat-ic" aria-hidden="true">${s.ic}</span><span class="lb-stat-lb">${s.lb}</span><b class="lb-stat-v">${s.v}</b></div>`).join('');
       row.innerHTML = `
         ${this.rankCell(i + 1)}
