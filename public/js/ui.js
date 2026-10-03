@@ -4275,7 +4275,7 @@ export const UI = {
       const cls = (Engine.CLASSES && Engine.CLASSES[m.playerClass]) || {};
       const crown = m.isLeader ? ' 👑' : '';
       const flag = (Engine.countryFlag && Engine.countryFlag(m.country)) || '';
-      const mTitleCls = this.titleClsFor({ activeTitle: m.activeTitle });
+      const mTitleCls = this.titleClsFor({ activeTitle: m.activeTitle, role: m.role, createdAt: m.createdAt });
       const title = m.activeTitle ? `<div class="mp-title ${mTitleCls}">${esc(Engine.titleName(m.activeTitle))}</div>` : '';
       const mIsMe = String(m.username) === me;
       // Leader quick actions: promote to leader, or kick. Rendered as a
