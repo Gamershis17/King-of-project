@@ -3733,14 +3733,7 @@ export const UI = {
 
     // inventory
     const grid = this.els['inventory-grid'];
-    // Clear Bags button + Auto-sell toggle wiring.
-    const clearBtn = this.els['clear-bags'];
-    if (clearBtn && !clearBtn._wired) {
-      clearBtn._wired = true;
-      clearBtn.addEventListener('click', () => {
-        if (this.handlers.onClearBags) this.handlers.onClearBags();
-      });
-    }
+    // Auto-sell toggle wiring (sell actions live in the Armory now).
     const autoChk = this.els['autosell-checkbox'];
     if (autoChk) {
       autoChk.checked = !!(state.settings && state.settings.autoSell);
@@ -3800,7 +3793,6 @@ export const UI = {
           <button class="btn small gold" data-action="enchant" ${enchMaxed || !enchAfford ? 'disabled' : ''}
             title="${enchMaxed ? 'Max enchant reached' : `Enchant to +${enchLvl + 1}: stats ×${(1 + Engine.ENCHANT_PCT * (enchLvl + 1)).toFixed(2)}`}">
             ⬆️ ${enchMaxed ? 'MAX' : `Enchant +${enchLvl + 1} · 💰${formatNum(enchCost)}`}</button>
-          ${item.unsellable ? '' : `<button class="btn small ghost" data-action="sell">Sell +${formatNum(item.value || 1)}</button>`}
         </div>`;
       grid.appendChild(card);
     }
@@ -3868,8 +3860,15 @@ export const UI = {
     }
     // Sell: spare inventory gear for gold. Reuses the existing sell flow
     // (Engine.sellItem via data-action="sell") — unsellable items excluded,
-    // gold cap respected. data-id lives on the button (unlike the inventory
-    // grid, which reads it off the card).
+    // gold cap respected. data-id lives on the button.
+    // Sell All button wiring.
+    const clearBtn = this.els['clear-bags'];
+    if (clearBtn && !clearBtn._wired) {
+      clearBtn._wired = true;
+      clearBtn.addEventListener('click', () => {
+        if (this.handlers.onClearBags) this.handlers.onClearBags();
+      });
+    }
     const sell = this.els['armory-sell'];
     if (sell) {
       const items = (state.inventory || []).filter(i => !i.unsellable);

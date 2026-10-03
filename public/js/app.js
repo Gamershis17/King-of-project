@@ -1927,7 +1927,7 @@ function doSell(id) {
   }
 }
 
-// Clear Bags: sell all sellable, unequipped gear at once.
+// Clear Bags: sell all sellable, unequipped gear at once (Armory).
 function doClearBags() {
   const s = App.state;
   const res = Engine.sellAllGear(s);
@@ -1935,8 +1935,8 @@ function doClearBags() {
     UI.toast('Nothing to sell — bags are already clear!', 'warn');
     return;
   }
-  UI.toast(`🗑️ Cleared ${res.count} item${res.count === 1 ? '' : 's'} for 💰${formatNum(res.gold)}!`, 'success');
-  UI.renderGear(s);
+  UI.toast(`🗑️ Sold ${res.count} item${res.count === 1 ? '' : 's'} for 💰${formatNum(res.gold)}!`, 'success');
+  UI.renderArmory(s);
   UI.updateHUD(s, App.user);
   saveNow();
 }
