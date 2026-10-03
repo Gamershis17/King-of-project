@@ -1920,6 +1920,17 @@ export function sellItem(state, itemId) {
   return addGold(state, gold);
 }
 
+// Sell ALL sellable inventory gear at once (Clear Bags). Skips equipped
+// items and unsellable keepsakes. Returns { count, gold }.
+export function sellAllGear(state) {
+  const ids = (state.inventory || [])
+    .filter(i => !i.unsellable && (!state.equipped || state.equipped[i.slot] !== i.id))
+    .map(i => i.id);
+  let total = 0;
+  for (const id of ids) total += sellItem(state, id);
+  return { count: ids.length, gold: total };
+}
+
 // ---------------- Privileged gear sets ----------------
 // Fixed stats, granted via gift codes / GM console / staff roster.
 export const PRIVILEGED_SETS = {
@@ -3624,6 +3635,10 @@ export const TITLE_DEFS = {
   'owner-thronekeeper': { name: '👑 the Thronekeeper', desc: 'Staff only. Keeper of the Throne of Shadows.', check: () => false, staffOnly: true, staffRole: 'owner', fx: { 1: 'tl1-grad-owner', 2: 'tl2-none', 3: 'tl3-sheen-owner' } },
   'owner-shadowking': { name: '🌑 the Shadow King', desc: 'Staff only. The shadow behind the throne.', check: () => false, staffOnly: true, staffRole: 'owner', fx: { 1: 'tl1-grad-shadowking', 2: 'tl2-none', 3: 'tl3-anim-shadowking' } },
   'owner-everlasting': { name: '♾️ the Everlasting', desc: 'Staff only. Eternal as the throne itself.', check: () => false, staffOnly: true, staffRole: 'owner', fx: { 1: 'tl1-grad-owner', 2: 'tl2-none', 3: 'tl3-sheen-owner' } },
+  'tower-apprentice': { name: '🗼 Tower Apprentice', desc: 'Clear Tower Floor 25.', check: (s) => (s.tower && s.tower.floor || 0) >= 25 },
+  'tower-master': { name: '🗼 Floor Master', desc: 'Clear Tower Floor 50.', check: (s) => (s.tower && s.tower.floor || 0) >= 50 },
+  'tower-ascendant': { name: '🗼 Shadow Ascendant', desc: 'Clear Tower Floor 75.', check: (s) => (s.tower && s.tower.floor || 0) >= 75 },
+  'tower-conqueror': { name: '🗼 Tower Conqueror', desc: 'Clear Tower Floor 100.', check: (s) => (s.tower && s.tower.floor || 0) >= 100 },
 };
 // Every def carries its id (used by find/filter/map across the codebase).
 for (const [id, t] of Object.entries(TITLE_DEFS)) t.id = id;
@@ -3984,10 +3999,10 @@ export function ensureRaidState(state) {
 // Every 5 floors: random hazard modifier.
 // Milestones at 25/50/75/100: Divine blueprint + Mythic pet egg + title.
 export const TOWER_MILESTONES = {
-  25: { title: 'Tower Apprentice' },
-  50: { title: 'Floor Master' },
-  75: { title: 'Shadow Ascendant' },
-  100: { title: 'Tower Conqueror' },
+  25: { titleId: 'tower-apprentice', titleName: 'Tower Apprentice' },
+  50: { titleId: 'tower-master', titleName: 'Floor Master' },
+  75: { titleId: 'tower-ascendant', titleName: 'Shadow Ascendant' },
+  100: { titleId: 'tower-conqueror', titleName: 'Tower Conqueror' },
 };
 export const TOWER_HAZARDS = {
   vampiric: { name: 'Vampiric Heal', emoji: '🩸', desc: 'Boss heals 15% of damage it deals' },
@@ -4003,7 +4018,8 @@ export function ensureTowerState(state) {
   const floor = Number.isFinite(+t.floor) ? Math.max(0, Math.floor(+t.floor)) : 0;
   const checkpoint = Number.isFinite(+t.checkpoint) ? Math.max(0, Math.floor(+t.checkpoint)) : 0;
   const lastSweep = Number.isFinite(+t.lastSweep) ? +t.lastSweep : 0;
-  state.tower = { floor, checkpoint, lastSweep };
+  const checkpointWeek = Number.isFinite(+t.checkpointWeek) ? +t.checkpointWeek : 0;
+  state.tower = { floor, checkpoint, lastSweep, checkpointWeek };
   return state;
 }
 
