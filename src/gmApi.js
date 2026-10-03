@@ -2036,18 +2036,32 @@ router.get(
   gmOrOwner,
   asyncHandler(async (req, res) => {
     const rows = await pool.any(
-      `SELECT u.username, u.role, u.last_active as "lastSeen", ps.level
+      `SELECT u.username, u.role, u.last_active as "lastSeen", ps.level, ps.stage, ps.state_json
        FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
        ORDER BY u.last_active DESC NULLS LAST LIMIT 100`
     );
     const now = Date.now();
-    const players = rows.map((r) => ({
-      username: r.username,
-      role: r.role || 'player',
-      level: r.level || 1,
-      online: now - Number(r.lastSeen || 0) < ROSTER_ONLINE_MS,
-      lastSeen: Number(r.lastSeen || 0),
-    }));
+    const players = rows.map((r) => {
+      let gold = 0, playTime = 0, towerFloor = 0, bosses = 0;
+      try {
+        const blob = typeof r.state_json === 'string' ? JSON.parse(r.state_json) : r.state_json;
+        if (blob) {
+          gold = Math.floor(Number(blob.gold) || 0);
+          playTime = Math.floor(Number(blob.stats && blob.stats.playTimeSec) || 0);
+          towerFloor = Math.floor(Number(blob.tower && blob.tower.floor) || 0);
+          bosses = Math.floor(Number(blob.bossesKilled) || 0);
+        }
+      } catch {}
+      return {
+        username: r.username,
+        role: r.role || 'player',
+        level: r.level || 1,
+        stage: r.stage || 1,
+        gold, playTime, towerFloor, bosses,
+        online: now - Number(r.lastSeen || 0) < ROSTER_ONLINE_MS,
+        lastSeen: Number(r.lastSeen || 0),
+      };
+    });
     res.json({ ok: true, players });
   })
 );
