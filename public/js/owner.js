@@ -93,6 +93,30 @@
     const { ok, j } = await api('/api/gm/set-gold', { method: 'POST', body: JSON.stringify({ username: u, amount: amt }) });
     $('powers-err').textContent = ok ? `✅ Gave ${amt} gold to ${u}` : '❌ ' + ((j && j.error) || 'failed');
   });
+  $('pow-level-btn').addEventListener('click', async () => {
+    const u = $('pow-user').value.trim(), lvl = Math.floor(Number($('pow-level').value));
+    if (!u || !lvl) { $('powers-err').textContent = 'Enter username and level.'; return; }
+    const { ok, j } = await api('/api/gm/set-level', { method: 'POST', body: JSON.stringify({ username: u, level: lvl }) });
+    $('powers-err').textContent = ok ? `✅ Set ${u} to level ${lvl}` : '❌ ' + ((j && j.error) || 'failed');
+  });
+  $('pow-xp-btn').addEventListener('click', async () => {
+    const u = $('pow-user').value.trim(), xp = Math.floor(Number($('pow-xp').value));
+    if (!u || !xp) { $('powers-err').textContent = 'Enter username and XP.'; return; }
+    const { ok, j } = await api('/api/gm/set-xp', { method: 'POST', body: JSON.stringify({ username: u, xp }) });
+    $('powers-err').textContent = ok ? `✅ Gave ${xp} XP to ${u}` : '❌ ' + ((j && j.error) || 'failed');
+  });
+  $('pow-stage-btn').addEventListener('click', async () => {
+    const u = $('pow-user').value.trim(), stage = Math.floor(Number($('pow-stage').value));
+    if (!u || !stage) { $('powers-err').textContent = 'Enter username and stage.'; return; }
+    const { ok, j } = await api('/api/gm/set-stage', { method: 'POST', body: JSON.stringify({ username: u, stage }) });
+    $('powers-err').textContent = ok ? `✅ Set ${u} to stage ${stage}` : '❌ ' + ((j && j.error) || 'failed');
+  });
+  $('pow-tower-btn').addEventListener('click', async () => {
+    const u = $('pow-user').value.trim(), floor = Math.floor(Number($('pow-tower').value));
+    if (!u || !floor) { $('powers-err').textContent = 'Enter username and floor.'; return; }
+    const { ok, j } = await api('/api/gm/set-tower', { method: 'POST', body: JSON.stringify({ username: u, floor }) });
+    $('powers-err').textContent = ok ? `✅ Set ${u} to tower floor ${floor}` : '❌ ' + ((j && j.error) || 'failed');
+  });
   // OP gear
   $('op-forge').addEventListener('click', async () => {
     $('op-err').textContent = '';
