@@ -1901,6 +1901,7 @@ export const UI = {
     const canSweep = t.floor > 0 && (!t.lastSweep || Date.now() - t.lastSweep >= dayMs);
     panel.innerHTML = `
       <div class="tower-tab-bg"></div>
+      <div class="tower-blood"></div>
       <div class="tower-head">🗼 <b>Tower of Shadows</b></div>
       <div class="tower-stats">
         <span>🏆 Highest: <b>Floor ${t.floor}</b></span>
@@ -2123,6 +2124,8 @@ export const UI = {
       const hazard = enemy.hazard ? Engine.TOWER_HAZARDS[enemy.hazard] : null;
       e['enemy-stage'].textContent = `🗼 Tower — Floor ${enemy.towerFloor}` +
         (hazard ? ` · ${hazard.emoji} ${hazard.name}` : '');
+      // Floor 1000 gets the rainbow shine effect
+      e['enemy-stage'].classList.toggle('floor-1000-shine', enemy.towerFloor >= 1000);
     } else {
       e['enemy-stage'].textContent = enemy.raidWave
         ? `🌀 Raid — Wave ${enemy.raidWave}`
