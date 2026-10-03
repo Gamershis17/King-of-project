@@ -1334,6 +1334,13 @@ export const QUEST_DEFS = [
     target: (s) => Math.min(MAX_LEVEL, (s.level || 1) + 5), desc: (t) => `Reach level ${t}` },
   { id: 'q-raid-w', period: 'weekly', emoji: '🌀', name: 'Wave Rider', metric: 'raid', kind: 'reach',
     target: (s) => Math.max(10, ((s.raid && s.raid.best) || 0) + 5), desc: (t) => `Reach raid wave ${t}` },
+  // Halloween 2026 event quests (Oct 3-31). Give shard rewards.
+  { id: 'q-spooky-d', period: 'daily', emoji: '🎃', name: 'Spooky Slayers', metric: 'kills', kind: 'gain',
+    target: () => 50, desc: (t) => `Slay ${t} enemies`, event: 'HALLOWEEN',
+    reward: { xp: 15000, shards: 3 } },
+  { id: 'q-exorcist-d', period: 'daily', emoji: '👻', name: 'Boss Exorcist', metric: 'bosses', kind: 'gain',
+    target: () => 5, desc: (t) => `Defeat ${t} bosses`, event: 'HALLOWEEN',
+    reward: { xp: 30000, gold: 20000, shards: 5 } },
 ];
 
 // ---------------- One-time story quests ----------------
@@ -1578,12 +1585,35 @@ export function claimQuest(state, period, id, nowMs = Date.now()) {
   }
   entry.claimed = true;
   const rw = questRewardPreview(state, period);
-  addGold(state, rw.gold);
+  // Halloween event quests have custom fixed rewards (including shards).
+  const def = QUEST_DEFS.find((d) => d.id === id);
+  if (def && def.reward) {
+    if (def.reward.xp) {
+      const xpRes = gainXp(state, def.reward.xp, nowMs);
+      rw.xp = def.reward.xp;
+      rw.levels = xpRes.levels;
+    }
+    if (def.reward.gold) {
+      addGold(state, def.reward.gold);
+      rw.gold = def.reward.gold;
+    }
+    if (def.reward.shards) {
+      if (!state.materials) state.materials = {};
+      state.materials.pumpkin_shard = (state.materials.pumpkin_shard || 0) + def.reward.shards;
+      rw.shards = def.reward.shards;
+    }
+    rw.stars = 0; // Event quests don't give stars, they give shards.
+  } else {
+    addGold(state, rw.gold);
+  }
   if (!state.stats || typeof state.stats !== 'object') state.stats = {};
   state.stats.questsCompleted = Math.max(0, Math.floor(Number(state.stats.questsCompleted) || 0)) + 1;
   state.stars = Math.min(1e15, Math.max(0, Number(state.stars) || 0) + rw.stars);
-  const xpRes = gainXp(state, rw.xp, nowMs);
-  return { ok: true, rewards: rw, levels: xpRes.levels, skills: xpRes.skills };
+  if (!def || !def.reward || !def.reward.xp) {
+    const xpRes = gainXp(state, rw.xp, nowMs);
+    rw.levels = xpRes.levels;
+  }
+  return { ok: true, rewards: rw, levels: rw.levels, skills: [] };
 }
 
 // ---------------- Worlds ----------------

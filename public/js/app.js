@@ -249,6 +249,7 @@ async function boot() {
     onChangeUsername: doChangeUsername,
     onBuyArmory: doBuyArmory,
     onBuyHalloweenScythe: doBuyHalloweenScythe,
+    onBuyHalloweenGear: doBuyHalloweenGear,
     onTowerSweep: doTowerSweep,
     onBossRushStart: doBossRushStart,
     onRedeem: doRedeem,
@@ -2665,6 +2666,44 @@ function doBuyHalloweenScythe() {
   s.inventory.push(scythe);
   UI.toast(`🎃 Bought Reaper's Scythe!`, 'success');
   UI.combatLog(`🎃 Bought 🎃 Reaper's Scythe (mythic) from the Halloween shop!`, 'loot');
+  UI.renderArmory(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+// Halloween gear purchases (mega-spec weapons/armor).
+const HALLOWEEN_GEAR_DEFS = {
+  'lantern-damned': { name: '🔮 Lantern of the Damned', slot: 'trinket', stats: { spellPower: 95 }, cost: 15, gold: 30000 },
+  'bloodmoon-dagger': { name: '🗡️ Bloodmoon Dagger', slot: 'weapon', stats: { attack: 110, attackSpeed: 15 }, cost: 12, gold: 25000 },
+  'lich-staff': { name: "🦯 Lich King's Staff", slot: 'weapon', stats: { spellPower: 210 }, cost: 18, gold: 40000 },
+  'pumpkin-helm': { name: '🎃 Pumpkin Head Guard', slot: 'helmet', stats: { defense: 120, maxHp: 250 }, cost: 10, gold: 20000 },
+  'whisper-cloak': { name: '👻 Cloak of Whispers', slot: 'armor', stats: { speed: 8, dodge: 4 }, cost: 10, gold: 20000 },
+  'void-cuirass': { name: '🛡️ Void Knight Cuirass', slot: 'armor', stats: { defense: 300 }, cost: 14, gold: 35000 },
+};
+
+function doBuyHalloweenGear(itemId) {
+  const s = App.state;
+  if (!s) return;
+  const def = HALLOWEEN_GEAR_DEFS[itemId];
+  if (!def) return;
+  const shards = (s.materials && s.materials.pumpkin_shard) || 0;
+  if (shards < def.cost) { UI.toast(`Need ${def.cost} 🎃 shards.`, 'error'); return; }
+  if ((s.gold || 0) < def.gold) { UI.toast(`Not enough gold (need 💰${formatNum(def.gold)}).`, 'error'); return; }
+  if ((s.inventory || []).some(i => i.id === itemId)) { UI.toast('Already owned.', 'info'); return; }
+  s.materials.pumpkin_shard -= def.cost;
+  s.gold -= def.gold;
+  s.inventory.push({
+    id: itemId + '-' + Date.now(),
+    templateId: itemId,
+    name: def.name,
+    slot: def.slot,
+    rarity: 'mythic',
+    value: Math.round(def.gold / 2),
+    unsellable: true,
+    stats: def.stats,
+  });
+  UI.toast(`🎃 Bought ${def.name}!`, 'success');
+  UI.combatLog(`🎃 Bought ${def.name} (mythic) from the Halloween shop!`, 'loot');
   UI.renderArmory(s);
   UI.updateHUD(s, App.user);
   saveNow();

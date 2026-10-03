@@ -3,7 +3,7 @@
 // engine.js stays DOM-free; this file owns the DOM.
 // app.js wires behavior via UI.handlers.
 // ============================================================
-import * as Engine from './engine.js?v20261003x';
+import * as Engine from './engine.js?v20261003z';
 import { Audio } from './audio.js?v=20260930ar';
 import { api } from './api.js?v=20260930ar';
 
@@ -367,6 +367,7 @@ export const UI = {
       if (btn.dataset.action === 'buy-armory' && h.onBuyArmory) h.onBuyArmory(btn.dataset.id);
       if (btn.dataset.action === 'sell' && h.onSell) h.onSell(btn.dataset.id);
       if (btn.dataset.action === 'buy-halloween-scythe' && h.onBuyHalloweenScythe) h.onBuyHalloweenScythe();
+      if (btn.dataset.action === 'buy-halloween-gear' && h.onBuyHalloweenGear) h.onBuyHalloweenGear(btn.dataset.id);
       // Galaxy Forge lives in the Armory now.
       if (btn.dataset.action === 'forge-tier' && h.onForgeTier) h.onForgeTier(btn.dataset.slot, btn.dataset.tier);
       if (btn.dataset.action === 'forge-craft' && h.onForgeCraft) h.onForgeCraft(btn.dataset.slot);
@@ -3879,7 +3880,34 @@ export const UI = {
             ${owned ? 'Owned' : canAfford ? `Buy · 🎃${scytheCost} + 💰${formatNum(goldCost)}` : `Need 🎃${scytheCost} + 💰${formatNum(goldCost)}`}
           </button>
         </div>
+        ${this.renderHalloweenGear(state)}
       </div>`;
+  },
+
+  renderHalloweenGear(state) {
+    const shards = (state.materials && state.materials.pumpkin_shard) || 0;
+    const items = [
+      { id: 'lantern-damned', emoji: '🔮', name: "Lantern of the Damned", desc: '+95 Spell Power, Shadow AoE', rarity: 'Mythic · Off-Hand', cost: 15, gold: 30000 },
+      { id: 'bloodmoon-dagger', emoji: '🗡️', name: 'Bloodmoon Dagger', desc: '+110 ATK, +15% Attack Speed, Bleed', rarity: 'Mythic · Weapon', cost: 12, gold: 25000 },
+      { id: 'lich-staff', emoji: '🦯', name: "Lich King's Staff", desc: '+210 Spell Power, 10% Freeze', rarity: 'Mythic · Weapon', cost: 18, gold: 40000 },
+      { id: 'pumpkin-helm', emoji: '🎃', name: 'Pumpkin Head Guard', desc: '+120 Armor, +250 HP', rarity: 'Mythic · Helm', cost: 10, gold: 20000 },
+      { id: 'whisper-cloak', emoji: '👻', name: 'Cloak of Whispers', desc: '+8% Speed, +4% Dodge', rarity: 'Mythic · Cape', cost: 10, gold: 20000 },
+      { id: 'void-cuirass', emoji: '🛡️', name: 'Void Knight Cuirass', desc: '+300 Armor, +10% Shadow Resist', rarity: 'Mythic · Chest', cost: 14, gold: 35000 },
+    ];
+    return items.map(item => {
+      const canAfford = shards >= item.cost && (state.gold || 0) >= item.gold;
+      const owned = (state.inventory || []).some(i => i.id === item.id);
+      return `
+        <div class="shop-card r-mythic">
+          <div class="shop-emoji">${item.emoji}</div>
+          <div class="shop-name">${item.name}</div>
+          <div class="muted small shop-desc">${item.desc}. Requires ${item.cost} 🎃 + 💰${formatNum(item.gold)}.</div>
+          <div class="shop-rarity" style="color:#ff7518">${item.rarity}</div>
+          <button class="btn small" data-action="buy-halloween-gear" data-id="${item.id}" ${(!canAfford || owned) ? 'disabled' : ''}>
+            ${owned ? 'Owned' : canAfford ? `Buy · 🎃${item.cost} + 💰${formatNum(item.gold)}` : `Need 🎃${item.cost} + 💰${formatNum(item.gold)}`}
+          </button>
+        </div>`;
+    }).join('');
   },
 
   renderArmory(state) {
