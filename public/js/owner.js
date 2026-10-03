@@ -31,12 +31,133 @@
     $('owner-who').textContent = 'Signed in as ' + user.username + ' (owner)';
     loadAll();
   });
-  async function loadAll() { loadRoster(); checkMaint(); setInterval(loadRoster, 30000); }
+  async function loadAll() {
+    loadRoster(); checkMaint(); loadHealth(); loadAuditLog();
+    setInterval(loadRoster, 30000);
+    setInterval(loadHealth, 5000);
+    setInterval(loadAuditLog, 10000);
+    initMultipliers();
+  }
+  // Audit log helper
+  function logAudit(msg) {
+    const box = $('audit-log');
+    if (!box) return;
+    const ts = new Date().toLocaleTimeString();
+    const div = document.createElement('div');
+    div.className = 'log-entry';
+    div.innerHTML = `<span class="log-ts">[${ts}]</span> <span class="log-msg">${msg}</span>`;
+    // Clear placeholder
+    if (box.querySelector('div[style]')) box.innerHTML = '';
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+    // Keep last 100
+    while (box.children.length > 100) box.removeChild(box.firstChild);
+  }
+  // Server health
+  let lastPing = 0;
+  async function loadHealth() {
+    try {
+      const t0 = performance.now();
+      const { ok, j } = await api('/api/status');
+      const ping = Math.round(performance.now() - t0);
+      lastPing = ping;
+      if ($('health-ping')) $('health-ping').textContent = ping + ' ms';
+      // FPS approximation via rAF
+      if ($('health-fps')) {
+        let frames = 0;
+        const start = performance.now();
+        const count = () => { frames++; if (performance.now() - start < 1000) requestAnimationFrame(count); else $('health-fps').textContent = frames; };
+        requestAnimationFrame(count);
+      }
+    } catch {}
+    try {
+      const { ok, j } = await api('/api/online-count');
+      if (ok && j && typeof j.count === 'number' && $('health-users')) {
+        $('health-users').textContent = j.count;
+      }
+    } catch {}
+  }
+  // World zones from roster
+  function updateWorldZones(players) {
+    const box = $('world-zones');
+    if (!box || !players) return;
+    const zones = {};
+    players.forEach(p => {
+      const key = 'Stage ' + (p.stage || '?');
+      zones[key] = (zones[key] || 0) + 1;
+    });
+    const sorted = Object.entries(zones).sort((a, b) => b[1] - a[1]).slice(0, 10);
+    box.innerHTML = sorted.map(([zone, count]) =>
+      `<div class="telemetry-line"><span>${zone}</span><span class="telemetry-val">${count} Player${count > 1 ? 's' : ''}</span></div>`
+    ).join('') || '<p style="color:#888;font-size:13px">No active players.</p>';
+  }
+  // Audit log from server
+  async function loadAuditLog() {
+    try {
+      const { ok, j } = await api('/api/gm/audit');
+      if (!ok || !j || !Array.isArray(j.entries)) return;
+      const box = $('audit-log');
+      if (!box) return;
+      box.innerHTML = j.entries.slice(0, 50).map(e => {
+        const ts = e.ts ? new Date(e.ts).toLocaleTimeString() : '--';
+        const msg = `${e.action || '?'}: ${e.detail || ''}`.replace(/</g, '&lt;');
+        return `<div class="log-entry"><span class="log-ts">[${ts}]</span> <span class="log-msg">${msg}</span></div>`;
+      }).join('') || '<div style="color:#555">No entries yet.</div>';
+      box.scrollTop = box.scrollHeight;
+    } catch {}
+  }
+  // Economy multipliers
+  function initMultipliers() {
+    const pairs = [['xp'], ['gold'], ['drop']];
+    pairs.forEach(([name]) => {
+      const slider = $('mult-' + name + '-slider');
+      const num = $('mult-' + name);
+      if (slider && num) {
+        slider.addEventListener('input', () => { num.value = slider.value; });
+        num.addEventListener('input', () => { slider.value = num.value; });
+      }
+    });
+    // Load current values
+    api('/api/settings').then(({ ok, j }) => {
+      if (!ok || !j) return;
+      try {
+        const buff = j.event_buff ? JSON.parse(j.event_buff) : null;
+        if (buff) {
+          if ($('mult-xp')) { $('mult-xp').value = buff.xpMult || 1; $('mult-xp-slider').value = buff.xpMult || 1; }
+          if ($('mult-gold')) { $('mult-gold').value = buff.goldMult || 1; $('mult-gold-slider').value = buff.goldMult || 1; }
+          if (buff.dropMult && $('mult-drop')) { $('mult-drop').value = buff.dropMult; $('mult-drop-slider').value = buff.dropMult; }
+        }
+      } catch {}
+    });
+    const applyBtn = $('mult-apply');
+    if (applyBtn && !applyBtn.dataset.wired) {
+      applyBtn.dataset.wired = '1';
+      applyBtn.addEventListener('click', async () => {
+        const err = $('mult-err');
+        err.textContent = '';
+        const xpMult = parseFloat($('mult-xp').value) || 1;
+        const goldMult = parseFloat($('mult-gold').value) || 1;
+        const dropMult = parseFloat($('mult-drop').value) || 1;
+        const hours = parseInt($('mult-hours').value) || 0;
+        try {
+          const { ok, j } = await api('/api/gm/event-buff', {
+            method: 'POST',
+            body: JSON.stringify({ xpMult, goldMult, dropMult, hours, label: 'Owner Dashboard' }),
+          });
+          if (!ok || !j.ok) throw new Error((j && j.error) || 'Failed');
+          err.style.color = '#4f4';
+          err.textContent = hours === 0 ? '✅ Multipliers cleared.' : `✅ Set to ${xpMult}x XP / ${goldMult}x Gold / ${dropMult}x Drop for ${hours}h.`;
+          logAudit(`Multipliers adjusted: ${xpMult}x XP, ${goldMult}x Gold, ${dropMult}x Drop`);
+        } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+      });
+    }
+  }
   async function loadRoster() {
     const box = $('owner-roster');
     try {
       const { ok, j } = await api('/api/gm/roster-live');
       if (!ok || !j.ok) throw 0;
+      updateWorldZones(j.players);
       const fmtGold = (g) => g >= 1e33 ? (g/1e33).toFixed(1)+'Dc' : g >= 1e12 ? (g/1e12).toFixed(1)+'T' : g >= 1e9 ? (g/1e9).toFixed(1)+'B' : g >= 1e6 ? (g/1e6).toFixed(1)+'M' : g >= 1e3 ? (g/1e3).toFixed(1)+'K' : String(g);
       const fmtTime = (s) => { const h = Math.floor(s/3600), m = Math.floor(s%3600/60); return h > 0 ? h+'h '+m+'m' : m+'m'; };
       box.innerHTML = j.players.map(p =>
