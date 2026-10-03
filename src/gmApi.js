@@ -2035,11 +2035,12 @@ router.get(
   '/gm/roster-live',
   gmOrOwner,
   asyncHandler(async (req, res) => {
-    const rows = await pool.any(
+    const result = await pool.query(
       `SELECT u.username, u.role, u.last_active as "lastSeen", ps.level, ps.stage, ps.state_json
        FROM users u LEFT JOIN player_state ps ON ps.user_id = u.id
        ORDER BY u.last_active DESC NULLS LAST LIMIT 100`
     );
+    const rows = result.rows;
     const now = Date.now();
     const players = rows.map((r) => {
       let gold = 0, playTime = 0, towerFloor = 0, bosses = 0;
