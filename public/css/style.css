@@ -6131,3 +6131,59 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
   position: relative;
   z-index: 1;
 }
+
+/* ===== Tower Visual Effects ===== */
+/* Tower title: shadow fade in/out with glow pulse */
+.tower-head {
+  animation: towerShadowGlow 4s ease-in-out infinite;
+  text-shadow: 0 0 12px rgba(139, 92, 246, 0.8);
+}
+@keyframes towerShadowGlow {
+  0%, 100% { opacity: 1; text-shadow: 0 0 12px rgba(139, 92, 246, 0.8), 0 2px 8px rgba(0,0,0,0.9); }
+  50% { opacity: 0.6; text-shadow: 0 0 24px rgba(139, 92, 246, 1), 0 0 40px rgba(168, 85, 247, 0.6), 0 2px 8px rgba(0,0,0,0.9); }
+}
+
+/* Floor 1000: rainbow shine that fades in and out */
+.floor-1000-shine {
+  background: linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rainbowShine 3s linear infinite, shineFade 6s ease-in-out infinite;
+  font-weight: bold;
+}
+@keyframes rainbowShine {
+  to { background-position: 200% center; }
+}
+@keyframes shineFade {
+  0%, 100% { opacity: 1; filter: brightness(1); }
+  50% { opacity: 0.7; filter: brightness(1.5); }
+}
+
+/* Blood flowing up effect */
+.tower-blood {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.tower-blood::before,
+.tower-blood::after {
+  content: '🩸';
+  position: absolute;
+  bottom: -20px;
+  font-size: 12px;
+  opacity: 0.6;
+  animation: bloodRise 8s linear infinite;
+}
+.tower-blood::before { left: 15%; animation-delay: 0s; }
+.tower-blood::after { left: 75%; animation-delay: 4s; font-size: 16px; }
+@keyframes bloodRise {
+  0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.7; }
+  90% { opacity: 0.5; }
+  100% { transform: translateY(-300px) rotate(20deg); opacity: 0; }
+}
