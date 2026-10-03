@@ -21,7 +21,7 @@ const NAME_FX_IDS = new Set([
 // Server gold cap (owner-adjustable via server_settings). sanitizeStateBlob
 // clamps player gold to it on every save. Refreshed from the DB at boot and
 // whenever the owner changes it (see db.refreshGoldCap).
-let goldCap = 9.99e35; // 999Dc default
+let goldCap = 9.99e44; // 999Td default (was 999Dc)
 function setGoldCap(cap) {
   if (Number.isFinite(cap) && cap >= 1e12) goldCap = cap;
 }
