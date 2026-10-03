@@ -1800,8 +1800,10 @@ export function computeStats(state) {
   const tDefMult = 1 + (tb.defPct || 0) / 100;
   const tHpMult = 1 + (tb.hpPct || 0) / 100;
   const h = state.hero;
+  // Balance v26: 2x global attack buff (2026-10-03).
+  const BALANCE_ATK_MULT = 2;
   return {
-    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * tAtkMult * dmgUpMult * smithMult * guildDmgMult * (1 + (cte.atkPct || 0) / 100) * (1 + (cte.spellPowerPct || 0) / 100) + bond.atk),
+    attack: Math.max(1, (h.attack + gear.attack) * (race.atkMult || 1) * (cls.atkMult || 1) * (spec.atkMult || 1) * setMult * pAtkMult * tAtkMult * dmgUpMult * smithMult * guildDmgMult * (1 + (cte.atkPct || 0) / 100) * (1 + (cte.spellPowerPct || 0) / 100) * BALANCE_ATK_MULT + bond.atk),
     defense: Math.max(0, (h.defense + gear.defense) * defUpMult * setMult * pDefMult * tDefMult * (cls.defMult || 1) * (spec.defMult || 1) * (1 + (cte.defPct || 0) / 100) + bond.def),
     maxHp: Math.max(1, Math.round((h.maxHp + gear.maxHp) * (race.hpMult || 1) * (cls.hpMult || 1) * (spec.hpMult || 1) * setMult * pHpMult * tHpMult * (1 + (cte.maxHpPct || 0) / 100)) + bond.hp),
     critChance: clamp(h.critChance + gear.critChance + pCritCh + (tb.critCh || 0) + (cte.critCh || 0) + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
