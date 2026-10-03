@@ -198,7 +198,7 @@
   $('login-btn').addEventListener('click', async () => {
     $('login-err').textContent = '';
     const { ok, j } = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: $('login-user').value.trim(), password: $('login-pass').value }) });
-    if (!ok || !j.ok) { $('login-err').textContent = (j && j.error) || 'Login failed.'; return; }
+    if (!ok || !j.user) { $('login-err').textContent = (j && j.error) || 'Login failed.'; return; }
     // Verify owner role
     const me = await api('/api/auth/me');
     const user = me.j && (me.j.user || me.j);
