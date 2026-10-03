@@ -31,17 +31,6 @@
   .mult-row label { flex: 1; margin: 0; }
   .mult-row input[type="number"] { width: 80px; flex: none; }
   .mult-row input[type="range"] { flex: 2; accent-color: #fff; }
-  /* Chat spy terminal */
-  .chat-spy-log {
-    background: #000; border: 1px solid #333; border-radius: 4px;
-    height: 200px; overflow-y: scroll; padding: 10px;
-    font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6;
-  }
-  .chat-spy-log .spy-ts { color: #555; }
-  .chat-spy-log .spy-name { color: #4f4; font-weight: bold; }
-  .chat-spy-log .spy-msg { color: #fff; }
-  .chat-spy-log .spy-pm { color: #ff0; }
-  .chat-spy-log .spy-guild { color: #0ff; font-size: 11px; }
   /* Inspector */
   .inspector-meta { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; font-size: 13px; }
   .inspector-meta:last-of-type { border-bottom: none; }
@@ -131,8 +120,11 @@
   .power-card h4 { margin-bottom: 8px; font-size: 14px; }
   .power-card button { width: 100%; margin-top: 6px; }
   .back { display: block; text-align: center; margin-top: 16px; color: #888; font-size: 13px; text-decoration: none; }
-  #login-pane { max-width: 400px; margin: 10vh auto 0; }
+  #login-pane { max-width: 400px; margin: 10vh auto 0; background: #000; position: relative; z-index: 100; }
   #login-pane button { width: 100%; margin-top: 16px; }
+  /* Ensure dashboard is fully hidden until login */
+  #owner-pane.hidden { display: none !important; }
+  body { background: #000; }
 </style>
 </head>
 <body>
@@ -364,12 +356,9 @@
         </div>
       </div>
 
-      <!-- RIGHT COLUMN: Live Telemetry -->
+      <!-- RIGHT COLUMN -->
       <div class="dash-col">
-        <div class="card">
-          <h1 style="font-size:18px">💬 LIVE CROSS-SERVER CHAT SPY</h1>
-          <div class="chat-spy-log" id="chat-spy"><div style="color:#555">Listening for chat…</div></div>
-        </div>
+        <!-- Reserved for future modules -->
       </div>
     </div>
 
