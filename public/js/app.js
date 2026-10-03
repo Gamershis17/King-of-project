@@ -1674,7 +1674,18 @@ function tick() {
   App.petHungerAcc = (App.petHungerAcc || 0) + dt;
   if (App.petHungerAcc >= Engine.PET_HUNGER_DECAY_SEC) {
     App.petHungerAcc = 0;
-    Engine.decayPetHunger(s, 1);
+    const result = Engine.decayPetHunger(s, 1);
+    // Notify on bond tier changes (so HP jumps aren't a mystery)
+    if (result && result.changes) {
+      for (const ch of result.changes) {
+        const petName = (Engine.petSpeciesOf(ch.pet) || {}).name || 'Pet';
+        if (ch.newTier < ch.oldTier) {
+          UI.toast(`🍖 ${petName} is getting hungry! Bond bonus weakened.`, 'warning');
+        } else if (ch.newTier > ch.oldTier) {
+          UI.toast(`🍖 ${petName} is well-fed! Bond bonus restored.`, 'success');
+        }
+      }
+    }
   }
 
   // Enemy damage-over-time (traps, blizzard).
@@ -2955,6 +2966,7 @@ function doFeedPet(petUid) {
     return;
   }
   UI.toast(`🍖 Fed for 💰${formatNum(res.cost)} gold.`, 'success');
+  if (res.tierUp) UI.toast('✨ Bond bonus restored to full!', 'success');
   UI.renderPetsTab(App.state);
   saveNow();
 }
