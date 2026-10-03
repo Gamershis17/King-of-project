@@ -12,19 +12,35 @@
 
 const { pool } = require('./db');
 
-// SSE clients for live broadcast push
-const sseClients = new Set();
+// SSE clients for live broadcast push: Map<userId, Set<res>>
+const sseClients = new Map();
 
-function addSseClient(res) {
-  sseClients.add(res);
-  res.on('close', () => sseClients.delete(res));
+function addSseClient(userId, res) {
+  if (!sseClients.has(userId)) sseClients.set(userId, new Set());
+  sseClients.get(userId).add(res);
+  res.on('close', () => {
+    const set = sseClients.get(userId);
+    if (set) { set.delete(res); if (set.size === 0) sseClients.delete(userId); }
+  });
 }
 
 function pushBroadcast(broadcast) {
-  const data = `data: ${JSON.stringify(broadcast)}\n\n`;
-  for (const res of sseClients) {
-    try { res.write(data); } catch { sseClients.delete(res); }
+  const data = `data: ${JSON.stringify({ type: 'broadcast', broadcast })}\n\n`;
+  for (const set of sseClients.values()) {
+    for (const res of set) {
+      try { res.write(data); } catch { set.delete(res); }
+    }
   }
+}
+
+function pushBuff(userId, buff) {
+  const set = sseClients.get(userId);
+  if (!set) return false;
+  const data = `data: ${JSON.stringify({ type: 'buff', buff })}\n\n`;
+  for (const res of set) {
+    try { res.write(data); } catch { set.delete(res); }
+  }
+  return true;
 }
 
 async function ensureTable() {
@@ -57,4 +73,4 @@ async function latestBroadcast() {
   return rows[0] || null;
 }
 
-module.exports = { addBroadcast, latestBroadcast, addSseClient };
+module.exports = { addBroadcast, latestBroadcast, addSseClient, pushBuff };

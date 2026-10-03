@@ -68,7 +68,7 @@ const { requireRole, requireAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, VALID_ROLES, VALID_CLASSES, VALID_SPECS, NAME_FX_IDS, xpForLevelServer } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const { loadBlob, defaultStateBlob, filterChangelog } = require('./gameApi');
-const { addBroadcast, latestBroadcast, addSseClient } = require('./broadcast');
+const { addBroadcast, latestBroadcast, addSseClient, pushBuff } = require('./broadcast');
 const {
   getWebhookUrl,
   setWebhookUrl,
@@ -1270,8 +1270,56 @@ router.get(
       'X-Accel-Buffering': 'no',
     });
     res.write(': connected\n\n');
-    addSseClient(res);
+    // Track by user id if authenticated, else 'anon'
+    const userId = (req.user && req.user.id) || 'anon';
+    addSseClient(userId, res);
   }
+);
+
+// ---------- grant buff (GM, live) ----------
+const BUFF_TYPES = {
+  damage: 'Damage Boost', shield: 'Protection Shield', immunity: 'Immunity',
+  heal: 'Instant Heal', regen: 'Regeneration', speed: 'Attack Speed',
+  xp: 'XP Boost', gold: 'Gold Boost',
+};
+router.post(
+  '/gm/grant-buff',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, buffType, value, duration } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!BUFF_TYPES[buffType]) {
+      return res.status(400).json({ error: 'buffType must be one of: ' + Object.keys(BUFF_TYPES).join(', ') });
+    }
+    const val = Math.max(0, Number(value) || 0);
+    const dur = Math.min(3600, Math.max(5, Math.floor(Number(duration) || 30)));
+    const buff = {
+      id: 'buff-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+      type: buffType,
+      name: BUFF_TYPES[buffType],
+      value: val,
+      expiresAt: Date.now() + dur * 1000,
+      from: req.user.username,
+    };
+    const blob = await loadBlob(target.id);
+    if (!Array.isArray(blob.activeBuffs)) blob.activeBuffs = [];
+    // Instant heal applies immediately, no need to store
+    if (buffType === 'heal') {
+      const hero = ensureHero(blob);
+      const amount = val > 0 ? Math.min(val, hero.maxHp - hero.hp) : hero.maxHp - hero.hp;
+      hero.hp = Math.min(hero.maxHp, hero.hp + Math.max(0, amount));
+    } else {
+      // Replace existing buff of same type
+      blob.activeBuffs = blob.activeBuffs.filter(b => b.type !== buffType);
+      blob.activeBuffs.push(buff);
+    }
+    await persistMergedState(target.id, blob);
+    // Push live to the player if they're online
+    const live = pushBuff(target.id, buff);
+    await logAudit(req, 'grant-buff', target.username, `${buffType} (${val}, ${dur}s)${live ? ' [LIVE]' : ''}`);
+    res.json({ ok: true, buff, live });
+  })
 );
 
 // ---------- player list (moderators+) ----------
