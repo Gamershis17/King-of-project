@@ -2198,7 +2198,7 @@ function doFish() {
     if (inZone) {
       // CAUGHT!
       const rodId = s.fishingRod || 'stick';
-      const fish = Engine.rollFishCatch(rodId);
+      const fish = Engine.rollFishCatch(rodId, s);
       s.fish = s.fish || {};
       s.fish[fish.id] = (s.fish[fish.id] || 0) + 1;
       // Fish go to inventory — player chooses to sell, eat, or feed to pet
@@ -2220,20 +2220,45 @@ function doFish() {
 function doSellFish(fishId) {
   const s = App.state;
   if (!s || !s.fish || !(s.fish[fishId] > 0)) return;
-  const fish = Engine.FISH_SPECIES[fishId];
+  const fish = Engine.FISH_SPECIES[fishId]
+    || (Engine.FISHING_LOOT_TABLE.junk || []).find(f => f.id === fishId)
+    || (Engine.FISHING_LOOT_TABLE.special || []).find(f => f.id === fishId)
+    || (fishId === Engine.FISHING_LOOT_TABLE.golden.id ? Engine.FISHING_LOOT_TABLE.golden : null);
   if (!fish) return;
   s.fish[fishId]--;
   if (s.fish[fishId] <= 0) delete s.fish[fishId];
-  Engine.addGold(s, fish.goldValue);
-  UI.toast(`💰 Sold ${fish.name} for ${fish.goldValue.toLocaleString()}g`, 'success');
+  Engine.addGold(s, fish.goldValue || 0);
+  UI.toast(`💰 Sold ${fish.name} for ${(fish.goldValue || 0).toLocaleString()}g`, 'success');
   UI.updateFishGrid(s); UI.updateHUD(s, App.user); saveNow();
 }
 function doEatFish(fishId) {
   const s = App.state;
   if (!s || !s.fish || !(s.fish[fishId] > 0)) return;
-  const fish = Engine.FISH_SPECIES[fishId];
+  // Golden Fish: random 5-min buff!
+  if (fishId === 'golden_fish') {
+    s.fish[fishId]--;
+    if (s.fish[fishId] <= 0) delete s.fish[fishId];
+    const buffTypes = [
+      { type: 'damage', name: 'Golden Strength', icon: '⚔️' },
+      { type: 'xp', name: 'Golden Wisdom', icon: '📚' },
+      { type: 'gold', name: 'Golden Luck', icon: '💰' },
+    ];
+    const pick = buffTypes[Math.floor(Math.random() * buffTypes.length)];
+    if (!Array.isArray(s.activeBuffs)) s.activeBuffs = [];
+    s.activeBuffs = s.activeBuffs.filter(b => b.type !== pick.type);
+    s.activeBuffs.push({
+      id: 'golden-' + Date.now(), type: pick.type, name: pick.name,
+      value: 25, expiresAt: Date.now() + 5 * 60 * 1000, from: 'Golden Fish',
+    });
+    UI.toast(`${pick.icon} ${pick.name}! +25% for 5 min!`, 'success', 5000);
+    UI.updateFishGrid(s); UI.updateHUD(s, App.user);
+    if (typeof renderBuffBar === 'function') renderBuffBar();
+    saveNow();
+    return;
+  }
+  const fish = Engine.FISH_SPECIES[fishId] || Engine.FISHING_LOOT_TABLE.junk.find(f => f.id === fishId) || Engine.FISHING_LOOT_TABLE.special.find(f => f.id === fishId);
   if (!fish) return;
-  const healAmt = Math.round(fish.goldValue / 10);
+  const healAmt = Math.round((fish.goldValue || 10) / 10);
   s.fish[fishId]--;
   if (s.fish[fishId] <= 0) delete s.fish[fishId];
   s.hero.hp = Math.min(s.hero.maxHp, s.hero.hp + healAmt);

@@ -4233,26 +4233,40 @@ export const UI = {
     const grid = document.getElementById('fish-grid');
     if (!grid) return;
     const fish = (state && state.fish) || {};
-    const entries = Object.entries(Engine.FISH_SPECIES || {});
+    // Combine all catchable items
+    const allItems = {
+      ...Engine.FISH_SPECIES,
+      ...Object.fromEntries((Engine.FISHING_LOOT_TABLE.junk || []).map(f => [f.id, f])),
+      ...Object.fromEntries((Engine.FISHING_LOOT_TABLE.special || []).map(f => [f.id, f])),
+      [Engine.FISHING_LOOT_TABLE.golden.id]: Engine.FISHING_LOOT_TABLE.golden,
+    };
+    const entries = Object.entries(allItems);
     if (!entries.length) {
       grid.innerHTML = '<div class="muted">No fish yet — cast your line!</div>';
       return;
     }
-    grid.innerHTML = entries.map(([id, f]) => {
+    // Show fishing level
+    const fLvl = Engine.getFishingLevel ? Engine.getFishingLevel(state) : 1;
+    const fXp = (state && state.fishingXp) || 0;
+    let html = `<div style="grid-column:1/-1;text-align:center;padding:8px;background:#1a2a1a;border-radius:8px;margin-bottom:8px">🎣 Fishing Lv ${fLvl} <span style="color:#888">(${fXp} XP)</span></div>`;
+    html += entries.map(([id, f]) => {
       const count = fish[id] || 0;
-      const healAmt = Math.round(f.goldValue / 10);
+      const healAmt = Math.round((f.goldValue || 10) / 10);
+      const isGolden = id === 'golden_fish';
       return `<div class="fish-card ${f.rarity}">
         <div class="fish-emoji">${f.emoji}</div>
         <div><b>${esc(f.name)}</b></div>
         <div class="muted tiny">${f.rarity}</div>
         <div>×${count}</div>
+        ${isGolden && f.description ? `<div class="muted tiny" style="font-size:10px">${esc(f.description)}</div>` : ''}
         ${count > 0 ? `<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">
           <button class="small" onclick="doSellFish('${id}')" style="font-size:11px">💰 Sell</button>
-          <button class="small" onclick="doEatFish('${id}')" style="font-size:11px">🍽️ Eat (+${healAmt} HP)</button>
-          <button class="small" onclick="doFeedFish('${id}')" style="font-size:11px">🐾 Feed Pet</button>
-        </div>` : `<div class="muted tiny">💰 ${formatNum(f.goldValue)}</div>`}
+          <button class="small" onclick="doEatFish('${id}')" style="font-size:11px">${isGolden ? '✨ Eat (Buff!)' : `🍽️ Eat (+${healAmt} HP)`}</button>
+          ${!isGolden ? `<button class="small" onclick="doFeedFish('${id}')" style="font-size:11px">🐾 Feed Pet</button>` : ''}
+        </div>` : `<div class="muted tiny">💰 ${formatNum(f.goldValue || 0)}</div>`}
       </div>`;
     }).join('');
+    grid.innerHTML = html;
   },
 
   updateFishingShop(state) {
