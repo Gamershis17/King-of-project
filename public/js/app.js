@@ -2,15 +2,15 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003ac';
-import { UI, esc, formatNum } from './ui.js?v20261003ac';
+import * as Engine from './engine.js?v20261003ad';
+import { UI, esc, formatNum } from './ui.js?v20261003ad';
 import { Auth } from './auth.js?v=20260930ar';
-import { GM } from './gm.js?v20261003ac';
+import { GM } from './gm.js?v20261003ad';
 
 import { Raid } from './raid.js?v=20260930ar';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
-import { Realm } from './realm.js?v20261003ac';
+import { Realm } from './realm.js?v20261003ad';
 import { Audio } from './audio.js?v=20260930ar';
 
 const TICK_MS = 250;
@@ -1174,6 +1174,12 @@ function petStrike(stats) {
 function damageEnemy(dmg, prefix, sourceLabel) {
   const enemy = App.enemy;
   if (!enemy || App.dead || App.spawnPending) return;
+  // NaN guard: if damage is invalid, fall back to a sane default.
+  if (!Number.isFinite(dmg) || dmg < 0) {
+    const s = App.state;
+    dmg = (s && Engine.computeStats(s).dps) || 1;
+  }
+  dmg = Math.max(1, Math.round(dmg));
   // Tower hazard: Damage Reflect — 20% of damage bounces back to the hero.
   if (enemy.hazard === 'reflect' && dmg > 0) {
     const s = App.state;
