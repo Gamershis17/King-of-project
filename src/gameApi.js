@@ -568,9 +568,9 @@ router.get(
 // (kills, depth, titles) are extracted from server-stored state_json and
 // sorted in JS. Unknown keys are rejected with 400. Class/spec ids come
 // from validation.js (canonical sets mirroring Engine.CLASSES / SPECS).
-const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths', 'bossrush', 'tower'];
+const LB_CATEGORIES = ['level', 'stage', 'bosses', 'kills', 'depth', 'titles', 'rebirths', 'bossrush', 'tower', 'fish', 'biggestcatch'];
 const LB_INDEXED = new Set(['level', 'stage', 'bosses', 'rebirths']);
-const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles', bossrush: 'bossRushMs', tower: 'towerFloor' };
+const LB_BLOB_SORT_KEY = { kills: 'kills', depth: 'depth', titles: 'titles', bossrush: 'bossRushMs', tower: 'towerFloor', fish: 'totalFish', biggestcatch: 'biggestCatch' };
 router.get(
   '/leaderboard',
   asyncHandler(async (req, res) => {
@@ -597,6 +597,8 @@ router.get(
       let titles = 0;
       let bossRushMs = 0;
       let towerFloor = 0;
+      let totalFish = 0;
+      let biggestCatch = 0;
       try {
         const blob = JSON.parse(r.state_json);
         if (blob && typeof blob.race === 'string') race = blob.race;
@@ -626,6 +628,12 @@ router.get(
         if (blob && blob.tower && Number.isFinite(blob.tower.floor) && blob.tower.floor >= 0) {
           towerFloor = Math.floor(blob.tower.floor);
         }
+        if (blob && Number.isFinite(blob.totalFishCaught) && blob.totalFishCaught >= 0) {
+          totalFish = Math.floor(blob.totalFishCaught);
+        }
+        if (blob && Number.isFinite(blob.biggestCatchScore) && blob.biggestCatchScore >= 0) {
+          biggestCatch = Math.floor(blob.biggestCatchScore);
+        }
       } catch {
         // leave race/title/badge/country/playerClass/spec null
       }
@@ -650,6 +658,8 @@ router.get(
         titles,
         bossRushMs,
         towerFloor,
+        totalFish,
+        biggestCatch,
       };
     });
     if (!LB_INDEXED.has(by)) {
