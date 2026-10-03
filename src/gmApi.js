@@ -2027,4 +2027,111 @@ router.delete(
   })
 );
 
+// ---------- live player roster (owner/GM) ----------
+// Lists all players with online/offline status, last seen, and basic stats.
+// Used by the GM panel's live roster view.
+const ROSTER_ONLINE_MS = 5 * 60 * 1000;
+router.get(
+  '/gm/roster-live',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const rows = await pool.any(
+      `SELECT username, role, level, updated_at as "lastSeen"
+       FROM users ORDER BY updated_at DESC LIMIT 100`
+    );
+    const now = Date.now();
+    const players = rows.map((r) => ({
+      username: r.username,
+      role: r.role || 'player',
+      level: r.level || 1,
+      online: now - Number(r.lastSeen || 0) < ROSTER_ONLINE_MS,
+      lastSeen: Number(r.lastSeen || 0),
+    }));
+    res.json({ ok: true, players });
+  })
+);
+
+// ---------- gameplay snapshots (owner/GM live view) ----------
+// In-memory store of recent gameplay activity per player.
+// Client POSTs snapshots; GM panel GETs them for the live view.
+const gameplaySnapshots = new Map(); // username -> {action, detail, ts}
+router.post(
+  '/gm/snapshot',
+  asyncHandler(async (req, res) => {
+    if (!req.user) return res.status(401).json({ error: 'Auth required.' });
+    const { action, detail } = req.body || {};
+    gameplaySnapshots.set(req.user.username, {
+      action: String(action || 'idle').slice(0, 50),
+      detail: String(detail || '').slice(0, 200),
+      ts: Date.now(),
+    });
+    // Keep it bounded
+    if (gameplaySnapshots.size > 200) {
+      const oldest = [...gameplaySnapshots.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+      gameplaySnapshots.delete(oldest[0]);
+    }
+    res.json({ ok: true });
+  })
+);
+
+router.get(
+  '/gm/snapshots',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const out = {};
+    for (const [user, snap] of gameplaySnapshots.entries()) {
+      // Only include recent snapshots (last 2 min)
+      if (Date.now() - snap.ts < 120000) out[user] = snap;
+    }
+    res.json({ ok: true, snapshots: out });
+  })
+);
+
+// ---------- OP gear creator (owner only) ----------
+// Creates a custom overpowered item with arbitrary stats and grants it
+// directly to the target player's inventory.
+router.post(
+  '/gm/create-op-gear',
+  ownerOnly,
+  asyncHandler(async (req, res) => {
+    const { username, name, slot, rarity, stats } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    if (!name || typeof name !== 'string' || name.length > 60) {
+      return res.status(400).json({ error: 'Name required (max 60 chars).' });
+    }
+    const validSlots = ['weapon', 'armor', 'helmet', 'boots', 'trinket'];
+    if (!validSlots.includes(slot)) {
+      return res.status(400).json({ error: 'Slot must be one of: ' + validSlots.join(', ') });
+    }
+    const blob = await loadBlob(target.id);
+    const inv = blob.inventory || [];
+    const item = {
+      id: 'op-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      name: String(name).slice(0, 60),
+      slot,
+      rarity: rarity || 'mythic',
+      stats: {},
+      opCreated: true,
+      createdBy: req.user.username,
+      createdAt: Date.now(),
+    };
+    // Copy numeric stats (no upper bound — this is OP gear)
+    if (stats && typeof stats === 'object') {
+      for (const [k, v] of Object.entries(stats)) {
+        const num = Number(v);
+        if (Number.isFinite(num) && num !== 0) item.stats[k] = num;
+      }
+    }
+    if (!Object.keys(item.stats).length) {
+      return res.status(400).json({ error: 'Provide at least one stat.' });
+    }
+    inv.push(item);
+    blob.inventory = inv;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'create-op-gear', target.username, `${name} (${slot})`);
+    res.json({ ok: true, item });
+  })
+);
+
 module.exports = { gmRouter: router };
