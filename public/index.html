@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Throne of Shadows">
   <title>Throne of Shadows</title>
-  <link rel="stylesheet" href="css/style.css?v20261003ai">
+  <link rel="stylesheet" href="css/style.css?v20261003aj">
 </head>
 <body>
 <canvas id="bg-canvas" aria-hidden="true"></canvas>
@@ -227,6 +227,26 @@
         <h2>⛏️ Mining Shop</h2>
         <p class="muted small" style="margin:4px 0">Buy pickaxes with ore + gold. Each tier must be bought in order — stronger picks mine deeper, faster.</p>
         <div id="mining-shop" class="shop-grid"></div>
+      </section>
+
+      <!-- FISHING -->
+      <section id="tab-fish" class="tab">
+        <h2>🎣 Lake of Whispers</h2>
+        <p class="muted small" style="margin:0 0 8px">Cast your line and time the strike when the marker hits the green zone!</p>
+        <div id="fish-lake" class="fish-lake">
+          <div id="fish-timing-bar" class="fish-timing-bar hidden">
+            <div id="fish-green-zone" class="fish-green-zone"></div>
+            <div id="fish-marker" class="fish-marker"></div>
+          </div>
+          <div id="fish-status" class="fish-status muted">Tap CAST to begin fishing...</div>
+        </div>
+        <button id="fish-btn" class="btn tap-btn fish-btn"><span class="fish-emoji">🎣</span><span id="fish-btn-text">CAST</span></button>
+        <div id="fish-catch" class="fish-catch"></div>
+        <h2>🐟 Fish Collection</h2>
+        <div id="fish-grid" class="fish-grid"></div>
+        <h2>🎣 Tackle Shop</h2>
+        <p class="muted small" style="margin:4px 0">Better rods = bigger green zone + rarer catches.</p>
+        <div id="fishing-shop" class="shop-grid"></div>
       </section>
 
       <!-- GEAR -->
@@ -547,6 +567,7 @@
       <button class="tab-btn active" data-tab="battle"><span class="ticon">⚔️</span><span>Battle</span></button>
       <button class="tab-btn" id="spellbook-open"><span class="ticon">📖</span><span>Spells</span></button>
       <button class="tab-btn" data-tab="mine"><span class="ticon">⛏️</span><span>Mine</span></button>
+      <button class="tab-btn" data-tab="fish"><span class="ticon">🎣</span><span>Fish</span></button>
       <button class="tab-btn" data-tab="gear"><span class="ticon">🎒</span><span>Inventory</span></button>
       <button class="tab-btn" data-tab="armory"><span class="ticon">⚒️</span><span>Armory</span></button>
       <button class="tab-btn" data-tab="tokenshop"><span class="ticon">🌀</span><span>Token Shop</span></button>
@@ -578,7 +599,7 @@
 <div id="modal-root"></div>
 <div id="toast-root"></div>
 
-<script type="module" src="js/app.js?v20261003ai"></script>
+<script type="module" src="js/app.js?v20261003aj"></script>
 <script type="module" src="js/gamepad.js?v=20260930ar"></script>
 </body>
 </html>
