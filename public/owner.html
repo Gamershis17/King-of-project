@@ -44,6 +44,23 @@
   .audit-log .log-entry { margin-bottom: 4px; word-wrap: break-word; }
   .audit-log .log-ts { color: #888; }
   .audit-log .log-msg { color: #0f0; }
+  /* Chat spy terminal */
+  .chat-spy-log {
+    background: #000; border: 1px solid #333; border-radius: 4px;
+    height: 200px; overflow-y: scroll; padding: 10px;
+    font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6;
+  }
+  .chat-spy-log .spy-ts { color: #555; }
+  .chat-spy-log .spy-name { color: #4f4; font-weight: bold; }
+  .chat-spy-log .spy-msg { color: #fff; }
+  .chat-spy-log .spy-pm { color: #ff0; }
+  .chat-spy-log .spy-guild { color: #0ff; font-size: 11px; }
+  /* Inspector */
+  .inspector-meta { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #222; font-size: 13px; }
+  .inspector-meta:last-of-type { border-bottom: none; }
+  .inspector-val { color: #ff0; font-weight: bold; }
+  .inspector-btns { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .inspector-btns button { flex: 1; min-width: 140px; }
   h1 { font-size: 24px; text-align: center; margin-bottom: 4px; letter-spacing: 2px; }
   .sub { text-align: center; color: #888; font-size: 12px; margin-bottom: 16px; }
   .clock { text-align: center; font-size: 14px; border: 1px solid #fff; display: inline-block; padding: 4px 12px; border-radius: 4px; margin-bottom: 12px; }
@@ -293,6 +310,27 @@
         </div>
       </div>
 
+      <!-- LIVE PLAYER INTERFACE INSPECTOR -->
+      <div class="card">
+        <h1 style="font-size:18px">👁️ LIVE PLAYER INTERFACE INSPECTOR</h1>
+        <label>Target Player</label>
+        <select id="inspector-target" style="margin-bottom:8px">
+          <option value="">— Select player —</option>
+        </select>
+        <div class="inspector-meta"><span>Selected Target</span><span class="inspector-val" id="insp-target">—</span></div>
+        <div class="inspector-meta"><span>Active UI Layer</span><span class="inspector-val" id="insp-layer">—</span></div>
+        <div class="inspector-meta"><span>Active Interaction</span><span class="inspector-val" id="insp-action">—</span></div>
+        <div class="inspector-btns">
+          <button class="small danger" id="insp-close-gui">🚫 Force-Close Target GUI</button>
+          <button class="small" id="insp-freeze">❄️ Freeze Player Screen Input</button>
+          <button class="small gold" id="insp-notice">📢 Send Admin Floating Notice</button>
+        </div>
+        <input id="insp-notice-msg" placeholder="Notice message…" maxlength="200" style="margin-top:8px">
+        <div class="err" id="insp-err"></div>
+      </div>
+        </div>
+      </div>
+
       <!-- RIGHT COLUMN: Live Telemetry -->
       <div class="dash-col">
         <div class="card">
@@ -310,6 +348,11 @@
         <div class="card">
           <h1 style="font-size:18px">📋 LIVE AUDIT LOG</h1>
           <div class="audit-log" id="audit-log"><div style="color:#555">Waiting for actions…</div></div>
+        </div>
+
+        <div class="card">
+          <h1 style="font-size:18px">💬 LIVE CROSS-SERVER CHAT SPY</h1>
+          <div class="chat-spy-log" id="chat-spy"><div style="color:#555">Listening for chat…</div></div>
         </div>
       </div>
     </div>
