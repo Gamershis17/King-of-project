@@ -218,6 +218,7 @@ export const UI = {
       'dead-overlay', 'hero-hpfill', 'hero-hptext', 'hero-stats', 'dungeon-chips',
       'tap-btn', 'skill-row', 'combo-meter', 'rebirth-box', 'rebirth-btn',
       'rebirth-note', 'combat-log', 'loadout-strip', 'upgrade-list', 'inventory-grid', 'inv-count', 'set-progress',
+      'clear-bags', 'autosell-checkbox',
       'armory-stock', 'armory-sell',
       'quest-daily', 'quest-weekly', 'quest-guide', 'quest-class', 'quest-mastery',
       'party-slots', 'recruit-list', 'lb-body', 'lb-refresh', 'lb-cats', 'lb-note', 'profile-card',
@@ -3732,6 +3733,24 @@ export const UI = {
 
     // inventory
     const grid = this.els['inventory-grid'];
+    // Clear Bags button + Auto-sell toggle wiring.
+    const clearBtn = this.els['clear-bags'];
+    if (clearBtn && !clearBtn._wired) {
+      clearBtn._wired = true;
+      clearBtn.addEventListener('click', () => {
+        if (this.handlers.onClearBags) this.handlers.onClearBags();
+      });
+    }
+    const autoChk = this.els['autosell-checkbox'];
+    if (autoChk) {
+      autoChk.checked = !!(state.settings && state.settings.autoSell);
+      if (!autoChk._wired) {
+        autoChk._wired = true;
+        autoChk.addEventListener('change', () => {
+          if (this.handlers.onToggleAutoSell) this.handlers.onToggleAutoSell(autoChk.checked);
+        });
+      }
+    }
     const inv = [...(state.inventory || [])].sort((a, b) =>
       (Engine.RARITY_IDX[b.rarity] ?? 0) - (Engine.RARITY_IDX[a.rarity] ?? 0));
     this.els['inv-count'].textContent = `(${inv.length})`;
