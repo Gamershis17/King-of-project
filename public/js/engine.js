@@ -2496,6 +2496,21 @@ export const FISH_SPECIES = {
   void_leviathan: { name: 'Void Leviathan', emoji: '🐋', rarity: 'mythic', weight: 3, goldValue: 10000 },
 };
 
+// Gemini loot additions: junk, treasure, golden fish
+export const FISHING_LOOT_TABLE = {
+  junk: [
+    { id: 'old_boot', name: 'Old Boot', emoji: '🥾', rarity: 'junk', goldValue: 1, weight: 25 },
+    { id: 'seaweed', name: 'Tangled Seaweed', emoji: '🌿', rarity: 'junk', goldValue: 2, weight: 25 },
+  ],
+  special: [
+    { id: 'treasure_chest', name: 'Treasure Chest', emoji: '📦', rarity: 'epic', goldValue: 150, weight: 5 },
+  ],
+  golden: {
+    id: 'golden_fish', name: 'Golden Fish', emoji: '🐠✨', rarity: 'legendary',
+    goldValue: 250, description: 'Eat for a 5-min Golden Buff (+25% Damage, XP, or Gold)!',
+  },
+};
+
 export const FISHING_RODS = {
   stick:     { name: 'Old Stick',     cost: 0,     greenZone: 0.15, rarityBoost: 0 },
   bamboo:    { name: 'Bamboo Rod',    cost: 5000,  greenZone: 0.20, rarityBoost: 5 },
@@ -2504,12 +2519,34 @@ export const FISHING_RODS = {
   whisper:   { name: 'Whisper Rod',   cost: 500000, greenZone: 0.40, rarityBoost: 35 },
 };
 
-export function rollFishCatch(rodId) {
+export function getFishingLevel(state) {
+  const xp = (state && state.fishingXp) || 0;
+  return 1 + Math.floor(xp / 500);
+}
+
+export function rollFishCatch(rodId, state) {
   const rod = FISHING_RODS[rodId] || FISHING_RODS.stick;
+  const fishingLevel = getFishingLevel(state);
+  const rodMult = 1 + (rod.rarityBoost / 100);
+
+  // 1. Golden Fish (Gemini formula)
+  const goldenChance = 0.02 * (1 + fishingLevel * 0.1) * rodMult;
+  if (Math.random() < goldenChance) {
+    return { ...FISHING_LOOT_TABLE.golden };
+  }
+  // 2. Treasure Chest (special)
+  if (Math.random() < 0.05 * (1 + fishingLevel * 0.02)) {
+    return { ...FISHING_LOOT_TABLE.special[0] };
+  }
+  // 3. Junk (15%)
+  if (Math.random() < 0.15) {
+    const junk = FISHING_LOOT_TABLE.junk;
+    return { ...junk[Math.floor(Math.random() * junk.length)] };
+  }
+  // 4. Normal fish (weighted)
   const entries = Object.entries(FISH_SPECIES);
   const totalWeight = entries.reduce((sum, [, f]) => sum + f.weight, 0);
   let roll = Math.random() * totalWeight;
-  // Rarity boost shifts roll toward rarer fish
   roll = roll * (1 - rod.rarityBoost / 100);
   for (const [id, fish] of entries) {
     roll -= fish.weight;
