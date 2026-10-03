@@ -5571,6 +5571,51 @@ body:is(.perf, .os-reduced) .pet-slot { transition: none; }
   50% { text-shadow: 0 0 16px #800080, 0 0 32px #ff7518, 0 0 48px #ff7518; }
 }
 
+/* Halloween 2026 SUPER OP title effects (mega-spec) */
+.name-demon-god {
+  color: #ff2222;
+  text-shadow: 0 0 10px #ff0000, 0 0 20px #8b0000, 0 0 30px #ff0000;
+  animation: name-demon-god-pulse 1.5s ease-in-out infinite;
+}
+@keyframes name-demon-god-pulse {
+  0%, 100% { text-shadow: 0 0 10px #ff0000, 0 0 20px #8b0000; transform: scale(1); }
+  50% { text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000, 0 0 60px #8b0000; transform: scale(1.02); }
+}
+
+.name-void-king {
+  color: #b366ff;
+  text-shadow: 0 0 8px #4b0082, 0 0 16px #800080;
+  animation: name-void-king-glitch 2s steps(2) infinite;
+}
+@keyframes name-void-king-glitch {
+  0%, 100% { text-shadow: 0 0 8px #4b0082, 0 0 16px #800080; opacity: 1; }
+  25% { text-shadow: 2px 0 8px #ff00ff, -2px 0 8px #4b0082; opacity: 0.9; }
+  50% { text-shadow: 0 0 16px #800080, 0 0 32px #b366ff; opacity: 1; }
+  75% { text-shadow: -2px 0 8px #ff00ff, 2px 0 8px #4b0082; opacity: 0.9; }
+}
+
+.name-jacko-master {
+  background: linear-gradient(90deg, #ff7518, #00ff88, #ff7518);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: name-jacko-master-flow 3s linear infinite;
+}
+@keyframes name-jacko-master-flow {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+.name-phantom-lord {
+  color: #88ffff;
+  text-shadow: 0 0 12px #00ffff, 0 0 24px #0088ff;
+  animation: name-phantom-lord-fade 4s ease-in-out infinite;
+}
+@keyframes name-phantom-lord-fade {
+  0%, 100% { opacity: 1; text-shadow: 0 0 12px #00ffff, 0 0 24px #0088ff; }
+  50% { opacity: 0.3; text-shadow: 0 0 24px #00ffff, 0 0 48px #0088ff; }
+}
+
 .halloween-banner {
   background: linear-gradient(90deg, #2d1b4e, #800080, #ff7518, #800080, #2d1b4e);
   color: #fff;
