@@ -38,9 +38,7 @@
   async function loadAll() {
     loadRoster(); checkMaint();
     setInterval(loadRoster, 30000);
-    setInterval(loadSnapshots, 10000);
     initMultipliers();
-    initInspector();
     initPlayerModal();
     initProgression();
     initGearFactory();
@@ -187,81 +185,9 @@
     });
   }
   // Player snapshots for inspector
-  let inspectorTarget = '';
-  async function loadSnapshots() {
-    try {
-      const { ok, j } = await api('/api/gm/snapshots');
-      if (!ok || !j || !j.snapshots) return;
-      const snaps = j.snapshots;
-      // Populate target dropdown
-      const sel = $('inspector-target');
-      if (sel) {
-        const current = sel.value;
-        const names = Object.keys(snaps).sort();
-        sel.innerHTML = '<option value="">— Select player —</option>' +
-          names.map(n => `<option value="${n.replace(/"/g, '&quot;')}" ${n === current ? 'selected' : ''}>${n.replace(/</g, '&lt;')}</option>`).join('');
-        if (current && names.includes(current)) sel.value = current;
-      }
-      // Update inspector display
-      if (inspectorTarget && snaps[inspectorTarget]) {
-        const s = snaps[inspectorTarget];
-        if ($('insp-target')) $('insp-target').textContent = inspectorTarget;
-        if ($('insp-layer')) $('insp-layer').textContent = s.detail || s.action || '—';
-        if ($('insp-action')) $('insp-action').textContent = s.action || '—';
-      }
-    } catch {}
-  }
-  function initInspector() {
-    const sel = $('inspector-target');
-    if (sel && !sel.dataset.wired) {
-      sel.dataset.wired = '1';
-      sel.addEventListener('change', () => {
-        inspectorTarget = sel.value;
-        if ($('insp-target')) $('insp-target').textContent = inspectorTarget || '—';
-        if ($('insp-layer')) $('insp-layer').textContent = '—';
-        if ($('insp-action')) $('insp-action').textContent = '—';
-        loadSnapshots();
-      });
-    }
-    const sendCmd = async (cmd, data) => {
-      const err = $('insp-err');
-      err.textContent = '';
-      if (!inspectorTarget) { err.textContent = '❌ Select a target player first.'; return; }
-      try {
-        const { ok, j } = await api('/api/gm/player-command', {
-          method: 'POST', body: JSON.stringify({ username: inspectorTarget, cmd, data: data || {} }),
-        });
-        if (!ok || !j.ok) throw new Error((j && j.error) || 'Failed');
-        err.style.color = '#4f4';
-        err.textContent = `✅ Sent ${cmd} to ${inspectorTarget}`;
-        logAudit(`Player command: ${cmd} → ${inspectorTarget}`);
-      } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
-    };
-    const bind = (id, cmd, getData) => {
-      const btn = $(id);
-      if (btn && !btn.dataset.wired) {
-        btn.dataset.wired = '1';
-        btn.addEventListener('click', () => sendCmd(cmd, getData ? getData() : {}));
-      }
-    };
-    bind('insp-close-gui', 'close-gui');
-    bind('insp-freeze', 'freeze-input');
-    bind('insp-notice', 'admin-notice', () => ({ msg: ($('insp-notice-msg') || {}).value || 'Admin notice' }));
-  }
-  // Audit log helper
+  // Audit log helper (local console logging)
   function logAudit(msg) {
-    const box = $('audit-log');
-    if (!box) return;
-    const ts = new Date().toLocaleTimeString();
-    const div = document.createElement('div');
-    div.className = 'log-entry';
-    div.innerHTML = `<span class="log-ts">[${ts}]</span> <span class="log-msg">${msg}</span>`;
-    // Clear placeholder
-    if (box.querySelector('div[style]')) box.innerHTML = '';
-    box.appendChild(div);
-    box.scrollTop = box.scrollHeight;
-    // Keep last 100
-    while (box.children.length > 100) box.removeChild(box.firstChild);
+    try { console.log('[owner]', new Date().toLocaleTimeString(), msg); } catch {}
   }
   // Economy multipliers
   function initMultipliers() {
