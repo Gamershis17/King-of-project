@@ -94,7 +94,15 @@ app.use('/api', gmRouter);
 app.use('/api', accountRouter);
 
 // --- static frontend ---
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    // Never cache JS/CSS — always fetch fresh to avoid stale syntax errors.
+    if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+    }
+  }
+}));
 
 // --- 404 JSON handler (API + unknown paths) ---
 app.use((req, res) => {
