@@ -1698,8 +1698,11 @@ export function enemyFor(stage, playerStats = null) {
   const world = worldForStage(stage);
   // v26: boss HP growth 1.115 -> 1.10 (was 8+ hours per boss at high stages).
   // Safety: cap stage at 5000 to prevent Math.pow overflow to Infinity.
+  // Hybrid curve (Gemini suggestion): 1.10^stage up to 500, then 1.05^stage
+  // past 500 to prevent the Stage 666+ HP explosion / soft-lock.
   const safeStage = Math.max(1, Math.min(Math.floor(Number(stage) || 1), 5000));
-  const hp = Math.round(18 * Math.pow(1.10, safeStage) * (boss ? 1 : 0.6));
+  const stageCurve = Math.pow(1.10, Math.min(safeStage, 500)) * Math.pow(1.05, Math.max(0, safeStage - 500));
+  const hp = Math.round(18 * stageCurve * (boss ? 1 : 0.6));
   const atk = Math.round(4 * Math.pow(1.085, stage));
   const roster = boss ? world.bosses : world.enemies;
   // Boss identity is deterministic per stage: the announced boss and the
