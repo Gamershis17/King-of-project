@@ -2207,7 +2207,10 @@ function doFish() {
       UI.toast(`🎣 Caught ${fish.name}!`, 'success');
       // Fishing XP
       s.fishingXp = (s.fishingXp || 0) + 10;
+      // Consume active bait (one use per catch)
+      if (s.activeBait) s.activeBait = null;
       UI.updateFishGrid(s);
+      UI.updateFishingShop(s);
       UI.updateHUD(s, App.user);
       saveNow();
     } else {
@@ -2326,6 +2329,30 @@ function doBuyRod(rodId) {
   UI.updateHUD(s, App.user);
   saveNow();
 }
+
+function doBuyBait(baitId) {
+  const s = App.state;
+  if (!s) return;
+  const bait = Engine.FISHING_BAIT[baitId];
+  if (!bait) return;
+  if (s.gold < bait.cost) { UI.toast('Not enough gold!', 'error'); return; }
+  s.gold -= bait.cost;
+  s.bait = s.bait || {};
+  s.bait[baitId] = (s.bait[baitId] || 0) + 5; // Buy 5 at a time
+  UI.toast(`${bait.emoji} Bought 5x ${bait.name}!`, 'success');
+  UI.updateFishingShop(s); UI.updateHUD(s, App.user); saveNow();
+}
+function doUseBait(baitId) {
+  const s = App.state;
+  if (!s || !s.bait || !(s.bait[baitId] > 0)) { UI.toast('No bait!', 'warn'); return; }
+  s.bait[baitId]--;
+  if (s.bait[baitId] <= 0) delete s.bait[baitId];
+  s.activeBait = baitId;
+  const bait = Engine.FISHING_BAIT[baitId];
+  UI.toast(`${bait.emoji} ${bait.name} equipped! Next catch boosted.`, 'success');
+  UI.updateFishingShop(s); saveNow();
+}
+window.doBuyBait = doBuyBait; window.doUseBait = doUseBait;
 
 // ---------------- Pickaxe upgrades ----------------
 function doPickaxeUpgrade() {

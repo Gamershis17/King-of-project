@@ -4275,7 +4275,8 @@ export const UI = {
     const order = ['stick', 'bamboo', 'steel', 'mithril', 'whisper'];
     const curRod = (state && state.fishingRod) || 'stick';
     const curIdx = order.indexOf(curRod);
-    shop.innerHTML = order.map((rodId, i) => {
+    let html = '<div style="grid-column:1/-1"><h3 style="margin:8px 0 4px">🎣 Rods</h3></div>';
+    html += order.map((rodId, i) => {
       const rod = Engine.FISHING_RODS[rodId];
       const owned = i <= curIdx;
       const isNext = i === curIdx + 1;
@@ -4293,6 +4294,25 @@ export const UI = {
         <div style="margin-top:8px">${btn}</div>
       </div>`;
     }).join('');
+    // Catfish bait shop
+    html += '<div style="grid-column:1/-1"><h3 style="margin:12px 0 4px">🪱 Catfish\'s Bait</h3></div>';
+    const baitInv = (state && state.bait) || {};
+    const activeBait = state && state.activeBait;
+    html += Object.entries(Engine.FISHING_BAIT || {}).map(([baitId, bait]) => {
+      const count = baitInv[baitId] || 0;
+      const isActive = activeBait === baitId;
+      return `<div class="shop-card">
+        <div class="shop-emoji">${bait.emoji}</div>
+        <div class="shop-name">${esc(bait.name)}${isActive ? ' ✅' : ''}</div>
+        <div class="muted small">${esc(bait.desc)}</div>
+        <div class="muted small">💰 ${bait.cost} for 5 · Owned: ${count}</div>
+        <div style="margin-top:8px;display:flex;gap:4px">
+          <button class="btn small gold" onclick="doBuyBait('${baitId}')">Buy</button>
+          ${count > 0 && !isActive ? `<button class="btn small" onclick="doUseBait('${baitId}')">Use</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    shop.innerHTML = html;
   },
 
   // ---------------- quests ----------------

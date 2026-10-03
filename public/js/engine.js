@@ -2519,6 +2519,12 @@ export const FISHING_RODS = {
   whisper:   { name: 'Whisper Rod',   cost: 500000, greenZone: 0.40, rarityBoost: 35 },
 };
 
+// Catfish bait shop
+export const FISHING_BAIT = {
+  standard: { name: 'Standard Bait', emoji: '🪱', cost: 10, desc: '+15% catch rate', effect: { catchRate: 0.15 } },
+  shiny:    { name: 'Shiny Bait',    emoji: '✨', cost: 50, desc: '+10% rare/golden chance', effect: { rareBoost: 0.10 } },
+};
+
 export function getFishingLevel(state) {
   const xp = (state && state.fishingXp) || 0;
   return 1 + Math.floor(xp / 500);
@@ -2528,18 +2534,23 @@ export function rollFishCatch(rodId, state) {
   const rod = FISHING_RODS[rodId] || FISHING_RODS.stick;
   const fishingLevel = getFishingLevel(state);
   const rodMult = 1 + (rod.rarityBoost / 100);
+  // Bait effects
+  const bait = (state && state.activeBait) || null;
+  const baitCatchBonus = bait === 'standard' ? 0.15 : 0;
+  const baitRareBonus = bait === 'shiny' ? 0.10 : 0;
 
-  // 1. Golden Fish (Gemini formula)
-  const goldenChance = 0.02 * (1 + fishingLevel * 0.1) * rodMult;
+  // 1. Golden Fish (Gemini formula + shiny bait)
+  const goldenChance = (0.02 * (1 + fishingLevel * 0.1) * rodMult) + baitRareBonus;
   if (Math.random() < goldenChance) {
     return { ...FISHING_LOOT_TABLE.golden };
   }
-  // 2. Treasure Chest (special)
-  if (Math.random() < 0.05 * (1 + fishingLevel * 0.02)) {
+  // 2. Treasure Chest (special + shiny bait)
+  if (Math.random() < (0.05 * (1 + fishingLevel * 0.02)) + baitRareBonus * 0.5) {
     return { ...FISHING_LOOT_TABLE.special[0] };
   }
-  // 3. Junk (15%)
-  if (Math.random() < 0.15) {
+  // 3. Junk (15%, reduced by standard bait)
+  const junkChance = Math.max(0.05, 0.15 - baitCatchBonus);
+  if (Math.random() < junkChance) {
     const junk = FISHING_LOOT_TABLE.junk;
     return { ...junk[Math.floor(Math.random() * junk.length)] };
   }
