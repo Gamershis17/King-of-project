@@ -234,6 +234,7 @@ async function boot() {
     onChangePassword: doChangePassword,
     onChangeUsername: doChangeUsername,
     onBuyArmory: doBuyArmory,
+    onBuyHalloweenScythe: doBuyHalloweenScythe,
     onTowerSweep: doTowerSweep,
     onRedeem: doRedeem,
     onLogout: doLogout,
@@ -1177,6 +1178,8 @@ function onKillEnemy() {
   const pb = partyBonus();
   let gold = Engine.goldForKill(stage, stats.goldBonus + (stats.talentGoldPct || 0) + pb.goldPct);
   gold = Math.floor(gold * Engine.eventGoldMult());
+  // Manual 2x event multiplier (staff toggle).
+  gold = Math.floor(gold * (s.goldMultiplier || 1.0));
   if (raidLoot) gold = Math.floor(gold * raidLoot.goldMult);
   const addedGold = Engine.addGold(s, gold);
   Audio.play('coin');
@@ -1203,6 +1206,13 @@ function onKillEnemy() {
   if (enemy.boss) {
     s.bossesKilled += 1;
     s.stars += 1; // bosses grant a star
+    // Halloween event: Tower bosses drop 1-3 pumpkin shards (Oct 3-31).
+    if (Engine.isEventActive('HALLOWEEN') && isTowerBoss && enemy.towerFloor % 10 === 0) {
+      const shards = 1 + Math.floor(Math.random() * 3);
+      s.materials = s.materials || {};
+      s.materials.pumpkin_shard = (s.materials.pumpkin_shard || 0) + shards;
+      UI.combatLog(`🎃 +${shards} Jack-o'-Lantern Shard${shards > 1 ? 's' : ''}!`, 'loot');
+    }
     UI.combatLog(`👹 Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'boss');
     UI.toast(`Boss slain! +${formatNum(addedGold)} gold${cappedNote}, +1 ⭐`, 'success');
   }
@@ -2564,6 +2574,34 @@ function doBuyArmory(stockId) {
   const priceNote = s.infGold ? ' (∞ gold)' : ` for 💰${formatNum(entry.price)} gold`;
   UI.toast(`${entry.emoji} Bought ${res.item.name}${priceNote}!`, 'success');
   UI.combatLog(`⚒️ Bought ${entry.emoji} ${res.item.name} (${res.item.rarity}) from the Armory.`, 'loot');
+  UI.renderArmory(s);
+  UI.updateHUD(s, App.user);
+  saveNow();
+}
+
+// Halloween 2026: Reaper's Scythe (20 pumpkin shards + 50k gold).
+function doBuyHalloweenScythe() {
+  const s = App.state;
+  if (!s) return;
+  const shards = (s.materials && s.materials.pumpkin_shard) || 0;
+  const goldCost = 50000;
+  if (shards < 20) { UI.toast('Need 20 🎃 Jack-o\'-Lantern Shards.', 'error'); return; }
+  if ((s.gold || 0) < goldCost) { UI.toast('Not enough gold (need 💰50K).', 'error'); return; }
+  if ((s.inventory || []).some(i => i.id === 'reapers-scythe')) { UI.toast('Already owned.', 'info'); return; }
+  s.materials.pumpkin_shard -= 20;
+  s.gold -= goldCost;
+  const scythe = {
+    id: 'reapers-scythe-' + Date.now(),
+    name: "🎃 Reaper's Scythe",
+    slot: 'weapon',
+    rarity: 'mythic',
+    value: 25000,
+    unsellable: true,
+    stats: { attack: 500, critChance: 10, lifesteal: 5 },
+  };
+  s.inventory.push(scythe);
+  UI.toast(`🎃 Bought Reaper's Scythe!`, 'success');
+  UI.combatLog(`🎃 Bought 🎃 Reaper's Scythe (mythic) from the Halloween shop!`, 'loot');
   UI.renderArmory(s);
   UI.updateHUD(s, App.user);
   saveNow();

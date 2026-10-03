@@ -49,6 +49,19 @@ export const GM = {
     const $ = (id) => root.querySelector('#' + id);
     // Cards render per role tier; elements for other tiers are absent.
     const on = (id, evt, fn) => { const el = $(id); if (el) el.addEventListener(evt, fn); };
+    // 2x event toggle
+    on('gm-toggle-2x', 'click', () => {
+      const s = window.App && window.App.state;
+      if (!s) return;
+      const is2x = (s.xpMultiplier || 1.0) >= 2.0;
+      s.xpMultiplier = is2x ? 1.0 : 2.0;
+      s.goldMultiplier = is2x ? 1.0 : 2.0;
+      if (window.UI) {
+        window.UI.toast(is2x ? '2x event OFF' : '🔥 2x XP & Gold ON!', is2x ? 'info' : 'success');
+        if (window.UI.updateHUD) window.UI.updateHUD(s, window.App.user);
+      }
+      if (window.saveNow) window.saveNow();
+    });
     // ID reference toggle
     let idrefLoaded = false;
     on('gm-idref-toggle', 'click', async () => {
@@ -1074,6 +1087,12 @@ export const GM = {
       <div class="card" style="margin-bottom:12px">
         <button id="gm-idref-toggle" class="btn small" style="width:100%">📋 ID Reference (pets, items, titles, quests)</button>
         <div id="gm-idref-panel" class="hidden" style="margin-top:8px"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <h4 style="margin:0 0 8px">⚡ Event Multipliers</h4>
+        <button id="gm-toggle-2x" class="btn small" style="width:100%">⚡ TOGGLE 2X EVENT</button>
+        <div class="muted small" style="margin-top:4px">Toggles 2x XP and 2x Gold for your session.</div>
       </div>
 
       ${canTarget ? `

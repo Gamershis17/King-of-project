@@ -362,6 +362,7 @@ export const UI = {
       }
       if (btn.dataset.action === 'buy-armory' && h.onBuyArmory) h.onBuyArmory(btn.dataset.id);
       if (btn.dataset.action === 'sell' && h.onSell) h.onSell(btn.dataset.id);
+      if (btn.dataset.action === 'buy-halloween-scythe' && h.onBuyHalloweenScythe) h.onBuyHalloweenScythe();
       // Galaxy Forge lives in the Armory now.
       if (btn.dataset.action === 'forge-tier' && h.onForgeTier) h.onForgeTier(btn.dataset.slot, btn.dataset.tier);
       if (btn.dataset.action === 'forge-craft' && h.onForgeCraft) h.onForgeCraft(btn.dataset.slot);
@@ -1469,8 +1470,34 @@ export const UI = {
     if (forms) forms.classList.toggle('hidden', !!isGuest);
   },
 
+  // Event banner: shows Halloween and/or 2x multiplier status.
+  updateEventBanner(state) {
+    const banner = document.getElementById('event-banner');
+    if (!banner) return;
+    const parts = [];
+    const is2x = (state && (state.xpMultiplier || 1.0) >= 2.0);
+    const halloween = Engine.isEventActive && Engine.isEventActive('HALLOWEEN');
+    if (is2x && halloween) {
+      banner.className = 'event-2x-banner';
+      banner.innerHTML = '🔥 2X XP & 2X GOLD IS LIVE! 🔥 | 🎃 HALLOWEEN EVENT ACTIVE! 🎃';
+      banner.classList.remove('hidden');
+    } else if (is2x) {
+      banner.className = 'event-2x-banner';
+      banner.innerHTML = '🔥 2X XP & 2X GOLD IS LIVE! 🔥';
+      banner.classList.remove('hidden');
+    } else if (halloween) {
+      banner.className = 'halloween-banner';
+      banner.innerHTML = '🎃 HALLOWEEN EVENT IS LIVE! BATTLE TOWER BOSSES FOR PUMPKIN SHARDS! 🎃';
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
+  },
+
   updateHUD(state, user) {
     const e = this.els;
+    // Event banners (Halloween + 2x).
+    this.updateEventBanner(state);
     const race = Engine.RACES[state.race] || {};
     const cls = Engine.CLASSES[state.playerClass] || {};
     const spec = Engine.SPECS[state.spec] || {};
@@ -3799,6 +3826,32 @@ export const UI = {
   },
 
   // ---------------- armory ----------------
+  // Halloween 2026 seasonal shop (Oct 3-31).
+  renderHalloweenShop(state) {
+    if (!Engine.isEventActive || !Engine.isEventActive('HALLOWEEN')) return '';
+    const shards = (state.materials && state.materials.pumpkin_shard) || 0;
+    const scytheCost = 20;
+    const goldCost = 50000;
+    const canAfford = shards >= scytheCost && (state.gold || 0) >= goldCost;
+    const owned = (state.inventory || []).some(i => i.id === 'reapers-scythe');
+    return `
+      <div class="shop-head" style="margin-top:16px">
+        <span class="shop-title">🎃 Halloween 2026</span>
+        <span class="muted small">🎃 ${shards} shards</span>
+      </div>
+      <div class="shop-grid">
+        <div class="shop-card r-mythic">
+          <div class="shop-emoji">🎃</div>
+          <div class="shop-name">Reaper's Scythe</div>
+          <div class="muted small shop-desc">Seasonal mythic weapon. Requires 20 🎃 + 💰50K.</div>
+          <div class="shop-rarity" style="color:#ff7518">Mythic · Weapon</div>
+          <button class="btn small" data-action="buy-halloween-scythe" ${(!canAfford || owned) ? 'disabled' : ''}>
+            ${owned ? 'Owned' : canAfford ? `Buy · 🎃${scytheCost} + 💰${formatNum(goldCost)}` : `Need 🎃${scytheCost} + 💰${formatNum(goldCost)}`}
+          </button>
+        </div>
+      </div>`;
+  },
+
   renderArmory(state) {
     const E = Engine;
     this._lastState = state;
@@ -3856,7 +3909,8 @@ export const UI = {
           <span class="shop-title">⚒️ Armory Stock</span>
           <span class="muted small">forged for your class · stage-scaled</span>
         </div>
-        <div class="shop-grid">${cards}</div>`;
+        <div class="shop-grid">${cards}</div>
+        ${this.renderHalloweenShop(state)}`;
     }
     // Sell: spare inventory gear for gold. Reuses the existing sell flow
     // (Engine.sellItem via data-action="sell") — unsellable items excluded,

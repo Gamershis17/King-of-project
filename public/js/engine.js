@@ -15,6 +15,21 @@ export const BG_STYLE_IDS = ['default', 'deepspace', 'crimson', 'emerald', 'midn
 // character past this. Rebirth unlocks at MAX_LEVEL.
 export const MAX_LEVEL = 120;
 
+// ---------------- Seasonal Event Framework ----------------
+// Central event key: "HALLOWEEN", "HARVEST", "WINTER", "VALENTINES",
+// "LUCK", "SPRING", "SUMMER", "NONE". Drives Armory tabs and drop routing.
+export const ACTIVE_EVENT = "HALLOWEEN";
+// Event windows (timestamps). Halloween 2026: Oct 3 – Oct 31.
+export const EVENT_WINDOWS = {
+  HALLOWEEN: { start: new Date('2026-10-03T00:00:00').getTime(), end: new Date('2026-10-31T23:59:59').getTime() },
+};
+export function isEventActive(key) {
+  const w = EVENT_WINDOWS[key || ACTIVE_EVENT];
+  if (!w) return false;
+  const now = Date.now();
+  return now >= w.start && now <= w.end;
+}
+
 // ---------------- Guild perks ----------------
 // Set by the guild module after fetching the player's guild (server-side
 // guild level). Applied in computeStats / gainXp below. Defaults to no
@@ -1248,8 +1263,10 @@ export function gainXp(state, baseAmount, nowMs = Date.now(), partyXpPct = 0) {
   const guildPct = Math.max(0, Math.min(40, GUILD_PERKS.xpPct || 0));
   const partyPct = Math.max(0, Math.min(40, Number(partyXpPct) || 0));
   const xpBonusPct = Math.min(40, gearPct + guildPct + partyPct);
+  // Manual 2x event multiplier (staff toggle).
+  const eventMult = state.xpMultiplier || 1.0;
   const amount = Math.max(1, Math.round(
-    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1)
+    baseAmount * (race.xpMult || 1) * (1 + xpBonusPct / 100) * (rested ? 1.25 : 1) * eventMult
   ));
   state.xp += amount;
   const levels = [];
@@ -1790,7 +1807,7 @@ export function computeStats(state) {
     critChance: clamp(h.critChance + gear.critChance + pCritCh + (tb.critCh || 0) + (cte.critCh || 0) + (cls.critChBonus || 0) + (spec.critChBonus || 0), 0, 100),
     critDamage: Math.max(100, h.critDamage + gear.critDamage + pCritDmg + (cte.critDmgPct || 0) + (race.critDmgBonus || 0) + (cls.critDmgBonus || 0)),
     parry: clamp(h.parry + gear.parry + (race.parryBonus || 0), 0, 60),
-    dodge: clamp(h.dodge + gear.dodge + pDodge + (cte.dodge || 0) + (race.dodgeBonus || 0) + (race.dodgeMod || 0) + (cls.dodgeBonus || 0), 0, 75),
+    dodge: clamp(h.dodge + gear.dodge + pDodge + (tb.dodge || 0) + (cte.dodge || 0) + (race.dodgeBonus || 0) + (race.dodgeMod || 0) + (cls.dodgeBonus || 0), 0, 75),
     lifesteal: Math.max(0, h.lifesteal + gear.lifesteal + pLifesteal + (tb.lifesteal || 0) + (cte.lifesteal || 0) + (race.lifestealBonus || 0) + (spec.lifestealBonus || 0)),
     attackSpeed: clamp((h.attackSpeed + gear.attackSpeed + pAtkSpd + (cls.atkSpdBonus || 0)) * (race.atkSpdMult || 1) * (1 + (cte.atkSpdPct || 0) / 100) * (1 + (tb.atkSpdPct || 0) / 100), 0.2, 5),
     regen: Math.max(0, h.regen + gear.regen + pRegen + (race.regenBonus || 0) + (spec.regenBonus || 0) + herbRegen),
@@ -3716,6 +3733,9 @@ export const TITLE_DEFS = {
   'warlord': { name: '👹 Warlord', desc: '+8% attack, +8% defense.', check: (s) => (s.bossesKilled || 0) >= 100, boost: { atkPct: 8, defPct: 8 } },
   'titan': { name: '🦍 Titan', desc: '+25% max HP.', check: (s) => (s.stats.maxHpReached || 0) >= 100000, boost: { hpPct: 25 } },
   'golden-touch': { name: '✨ Golden Touch', desc: '+20% gold from all sources.', check: (s) => (s.stats.goldEarned || 0) >= 100000000, boost: { goldPct: 20 } },
+  // Halloween 2026 seasonal titles (Oct 3-31).
+  'pumpkin-king': { name: '🎃 Pumpkin King', desc: 'Halloween 2026: +5% gold.', check: (s) => (s.materials && (s.materials.pumpkin_shard || 0) >= 20), boost: { goldPct: 5 } },
+  'phantom': { name: '👻 Phantom', desc: 'Halloween 2026: +3% dodge.', check: (s) => (s.materials && (s.materials.pumpkin_shard || 0) >= 10), boost: { dodge: 3 } },
 };
 // Every def carries its id (used by find/filter/map across the codebase).
 for (const [id, t] of Object.entries(TITLE_DEFS)) t.id = id;
