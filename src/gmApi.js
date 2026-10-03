@@ -636,6 +636,63 @@ router.post(
   })
 );
 
+// ---------- give gear set (GM) ----------
+// Grants a full privileged gear set (sovereign, fateweaver, etc.)
+router.post(
+  '/gm/give-gear-set',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username, setId } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const eng = await serverEngine();
+    const sets = eng.PRIVILEGED_SETS || {};
+    const set = sets[setId];
+    if (!set) return res.status(400).json({ error: 'Unknown set. Available: ' + Object.keys(sets).join(', ') });
+    const blob = await loadBlob(target.id);
+    if (!Array.isArray(blob.inventory)) blob.inventory = [];
+    const granted = [];
+    for (const [slot, piece] of Object.entries(set.pieces || {})) {
+      const item = {
+        id: 'gmset-' + setId + '-' + slot + '-' + Date.now(),
+        name: piece.name,
+        slot,
+        rarity: 'mythic',
+        stats: { ...(piece.stats || {}) },
+        unsellable: true,
+        gmGranted: true,
+        setId,
+      };
+      blob.inventory.push(item);
+      granted.push(piece.name);
+    }
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'give-gear-set', target.username, `${setId} (${granted.length} pieces)`);
+    res.json({ ok: true, granted });
+  })
+);
+
+// ---------- clear bags (GM) ----------
+// Removes all unequipped, sellable items from target's inventory.
+router.post(
+  '/gm/clear-bags',
+  gmOrOwner,
+  asyncHandler(async (req, res) => {
+    const { username } = req.body || {};
+    const target = await resolveTarget(username);
+    if (!target) return res.status(404).json({ error: 'Target user not found.' });
+    const blob = await loadBlob(target.id);
+    const before = (blob.inventory || []).length;
+    blob.inventory = (blob.inventory || []).filter(i =>
+      i.unsellable || (blob.equipped && blob.equipped[i.slot] === i.id)
+    );
+    const cleared = before - blob.inventory.length;
+    await persistMergedState(target.id, blob);
+    await logAudit(req, 'clear-bags', target.username, `cleared ${cleared} items`);
+    res.json({ ok: true, cleared });
+  })
+);
+
 // ---------- set level (absolute) ----------
 // Sets the target's level directly. Hero base stats are recomputed
 // deterministically from the per-level formula (level 1 base 10 atk / 100 HP /
