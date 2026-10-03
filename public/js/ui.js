@@ -1900,6 +1900,7 @@ export const UI = {
     const dayMs = 24 * 60 * 60 * 1000;
     const canSweep = t.floor > 0 && (!t.lastSweep || Date.now() - t.lastSweep >= dayMs);
     panel.innerHTML = `
+      <div class="tower-tab-bg"></div>
       <div class="tower-head">🗼 <b>Tower of Shadows</b></div>
       <div class="tower-stats">
         <span>🏆 Highest: <b>Floor ${t.floor}</b></span>
