@@ -6209,3 +6209,46 @@ body.theme-gothic-manor .panel, body.theme-gothic-manor .card {
 .tower-blood .blood-drop:nth-child(2) { left: 30%; color: #991b1b; animation-delay: 2.5s; font-size: 14px; }
 .tower-blood .blood-drop:nth-child(3) { left: 55%; color: #7f1d1d; animation-delay: 5s; }
 .tower-blood .blood-drop:nth-child(4) { left: 80%; color: #b91c1c; animation-delay: 7.5s; font-size: 13px; }
+
+/* ===== GM Command Center (owner) — black & white outline theme ===== */
+.gm-command-center {
+  border: 2px solid #fff;
+  outline: 2px solid #000;
+  outline-offset: 2px;
+  background: #0a0a0a;
+  margin-bottom: 12px;
+}
+.gm-cc-head {
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid #fff;
+  padding-bottom: 8px; margin-bottom: 10px;
+}
+.gm-cc-head h3 { margin: 0; color: #fff; text-shadow: 1px 1px 0 #000; }
+.gm-cc-time { color: #fff; font-family: monospace; font-size: 13px; border: 1px solid #fff; padding: 2px 8px; border-radius: 4px; }
+.gm-cc-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.gm-cc-tab {
+  flex: 1; padding: 8px; background: #111; color: #fff;
+  border: 1px solid #fff; border-radius: 6px; cursor: pointer; font-size: 13px;
+}
+.gm-cc-tab.active { background: #fff; color: #000; font-weight: bold; }
+.gm-cc-pane { border: 1px solid #555; border-radius: 6px; padding: 10px; background: #0d0d0d; }
+.gm-roster-row {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border: 1px solid #333; border-radius: 4px; margin-bottom: 4px; background: #111;
+}
+.gm-roster-row .nm { flex: 1; color: #fff; font-weight: bold; }
+.gm-roster-row .meta { color: #999; font-size: 12px; }
+.gm-online { color: #4f4; font-weight: bold; }
+.gm-offline { color: #888; }
+.gm-live-row {
+  padding: 6px 8px; border-left: 3px solid #fff; margin-bottom: 6px;
+  background: #111; border-radius: 0 4px 4px 0;
+}
+.gm-live-row .nm { color: #fff; font-weight: bold; }
+.gm-live-row .act { color: #0ff; }
+.gm-live-row .det { color: #aaa; font-size: 12px; }
+.gm-live-row .ts { color: #666; font-size: 11px; font-family: monospace; }
+.gm-opgear-form .fld { margin-bottom: 8px; }
+.gm-opgear-form input, .gm-opgear-form select {
+  background: #111; color: #fff; border: 1px solid #fff; border-radius: 4px;
+}
