@@ -587,6 +587,10 @@ export function renderGuildSection(container, api, myState) {
 
   function fmtNum(n) {
     const v = Number(n) || 0;
+    if (v >= 1e18) return (v / 1e18).toFixed(1) + 'Q';
+    if (v >= 1e15) return (v / 1e15).toFixed(1) + 'q';
+    if (v >= 1e12) return (v / 1e12).toFixed(1) + 'T';
+    if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
     if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
     if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
     return String(Math.floor(v));

@@ -2020,7 +2020,7 @@ export const UI = {
         bpWrap.style.display = 'none'; // hidden during raids
       }
     } catch { /* ignore */ }
-    e['enemy-atk'].textContent = `⚔️ ${formatNum(enemy.attack)} attack`;
+    e['enemy-atk'].textContent = `⚔️ ${formatNum(enemy.attack)} atk · 🛡️ ${formatNum(enemy.defense || 0)} def`;
     this.updateEnemy(enemy);
   },
 
