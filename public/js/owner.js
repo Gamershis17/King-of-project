@@ -36,30 +36,12 @@
   $('login-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   $('login-user').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
   async function loadAll() {
-    loadRoster(); checkMaint(); loadChatSpy();
+    loadRoster(); checkMaint();
     setInterval(loadRoster, 30000);
-    setInterval(loadChatSpy, 8000);
     setInterval(loadSnapshots, 10000);
     initMultipliers();
     initInspector();
     initPlayerModal();
-  }
-  // Chat spy
-  async function loadChatSpy() {
-    try {
-      const { ok, j } = await api('/api/gm/chat-spy');
-      if (!ok || !j || !Array.isArray(j.messages)) return;
-      const box = $('chat-spy');
-      if (!box) return;
-      box.innerHTML = j.messages.map(m => {
-        const ts = m.created_at ? new Date(m.created_at).toLocaleTimeString() : '--';
-        const name = String(m.username || '?').replace(/</g, '&lt;');
-        const msg = String(m.message || '').replace(/</g, '&lt;');
-        const guild = m.guild_name ? ` <span class="spy-guild">[${String(m.guild_name).replace(/</g, '&lt;')}]</span>` : '';
-        return `<div><span class="spy-ts">[${ts}]</span>${guild} <span class="spy-name">${name}:</span> <span class="spy-msg">${msg}</span></div>`;
-      }).join('') || '<div style="color:#555">No messages yet.</div>';
-      box.scrollTop = box.scrollHeight;
-    } catch {}
   }
   // Player snapshots for inspector
   let inspectorTarget = '';
