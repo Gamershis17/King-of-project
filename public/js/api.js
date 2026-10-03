@@ -5,14 +5,43 @@
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 
+// Session token fallback: cookies are primary, localStorage is the mobile fallback.
+const TOKEN_KEY = 'tos_session_token';
+
+function getToken() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+}
+
+function setToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {}
+}
+
+function clearStaleAuth() {
+  setToken(null);
+  try {
+    // Clear any stale guest data that might cause a loop.
+    localStorage.removeItem('tos_guest');
+  } catch {}
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(path, { credentials: 'same-origin', ...options });
+  const headers = { ...JSON_HEADERS, ...(options.headers || {}) };
+  const token = getToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const res = await fetch(path, { credentials: 'same-origin', ...options, headers });
   let data = null;
   const text = await res.text();
   if (text) {
     try { data = JSON.parse(text); } catch { data = null; }
   }
+  // Capture session token from login/register responses.
+  if (data && data.token) setToken(data.token);
   if (!res.ok) {
+    // On 401, clear stale credentials to prevent auth loops.
+    if (res.status === 401) clearStaleAuth();
     const message = (data && (data.error || data.message)) ||
       `Request failed (HTTP ${res.status})`;
     const err = new Error(message);

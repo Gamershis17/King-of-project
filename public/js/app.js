@@ -2,15 +2,15 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003x';
-import { UI, esc, formatNum } from './ui.js?v20261003x';
+import * as Engine from './engine.js?v20261003y';
+import { UI, esc, formatNum } from './ui.js?v20261003y';
 import { Auth } from './auth.js?v=20260930ar';
-import { GM } from './gm.js?v20261003x';
+import { GM } from './gm.js?v20261003y';
 
 import { Raid } from './raid.js?v=20260930ar';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
-import { Realm } from './realm.js?v20261003x';
+import { Realm } from './realm.js?v20261003y';
 import { Audio } from './audio.js?v=20260930ar';
 
 const TICK_MS = 250;
@@ -379,7 +379,13 @@ async function boot() {
     const res = await api.me();
     user = res.user;
   } catch (e) {
-    if (e.status !== 401) UI.toast('Could not reach the server.', 'error');
+    if (e.status === 401) {
+      // Stale session — clear it and fall through to auth view (no loop).
+      try { localStorage.removeItem('tos_session_token'); } catch {}
+      try { localStorage.removeItem('tos_guest'); } catch {}
+    } else {
+      UI.toast('Could not reach the server.', 'error');
+    }
   }
 
   // Someone may already have logged in (or entered as guest) while the gate
@@ -900,6 +906,8 @@ function applyEventIcon() {
     // Update apple-touch-icon
     let apple = document.querySelector('link[rel="apple-touch-icon"]');
     if (apple) apple.href = applePath;
+    // Halloween auth theme
+    document.body.classList.toggle('halloween-auth', !!halloween);
   } catch (e) { /* fail gracefully */ }
 }
 
