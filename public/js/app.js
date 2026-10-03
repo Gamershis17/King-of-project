@@ -985,7 +985,7 @@ function startGame() {
   App.saveTimer = setInterval(() => saveNow(), AUTOSAVE_MS);
   App.statusTimer = setInterval(() => pollMaintenance(), 60000);
   pollBroadcast();
-  App.broadcastTimer = setInterval(() => pollBroadcast(), 60000);
+  startBroadcastStream();
   // Online presence: ping every 60s, refresh count every 60s
   const updateOnlineCount = async () => {
     try {
@@ -3129,19 +3129,34 @@ function mountGuild() {
   try { renderGuildSection(el, api, App.state); } catch (e) { console.warn('guild mount failed', e); }
 }
 
-// Polls for staff broadcasts; toasts any announcement newer than the last seen.
+// Live broadcasts via SSE (instant) with polling fallback.
+function showBroadcast(b) {
+  if (!b || !b.id) return;
+  let seen = 0;
+  try { seen = Number(localStorage.getItem('kop-broadcast-seen') || 0); } catch { /* ignore */ }
+  if (b.id > seen) {
+    try { localStorage.setItem('kop-broadcast-seen', String(b.id)); } catch { /* ignore */ }
+    UI.toast(`📢 ${b.message}`, 'info', 8000);
+  }
+}
 async function pollBroadcast() {
   try {
     const r = await api.latestBroadcast();
-    const b = r && r.broadcast;
-    if (!b || !b.id) return;
-    let seen = 0;
-    try { seen = Number(localStorage.getItem('kop-broadcast-seen') || 0); } catch { /* ignore */ }
-    if (b.id > seen) {
-      try { localStorage.setItem('kop-broadcast-seen', String(b.id)); } catch { /* ignore */ }
-      UI.toast(`📢 ${b.message}`, 'info', 6000);
-    }
+    showBroadcast(r && r.broadcast);
   } catch { /* offline-tolerant */ }
+}
+function startBroadcastStream() {
+  try {
+    const es = new EventSource('/api/broadcasts/stream');
+    es.onmessage = (e) => {
+      try { showBroadcast(JSON.parse(e.data)); } catch { /* ignore */ }
+    };
+    es.onerror = () => { /* auto-reconnects; polling covers gaps */ };
+    // Keep polling as fallback (every 60s) in case SSE drops
+    App.broadcastTimer = setInterval(pollBroadcast, 60000);
+  } catch {
+    App.broadcastTimer = setInterval(pollBroadcast, 10000);
+  }
 }
 
 async function onTabSwitch(tab, force = false) {
