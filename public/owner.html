@@ -105,7 +105,7 @@
     <div class="card">
       <div class="tabs">
         <button class="active" data-tab="roster">👥 Roster</button>
-        <button data-tab="live">👁️ Live</button>
+        <button data-tab="buffs">✨ Buffs</button>
         <button data-tab="powers">⚡ Powers</button>
         <button data-tab="opgear">⚔️ OP Gear</button>
       </div>
@@ -114,8 +114,34 @@
         <div id="owner-roster"><p style="color:#888">Loading…</p></div>
       </div>
 
-      <div class="tab-pane hidden" id="pane-live">
-        <div id="owner-live"><p style="color:#888">Loading…</p></div>
+      <div class="tab-pane hidden" id="pane-buffs">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">
+          <div class="power-card">
+            <h4>✨ Grant Live Buff</h4>
+            <input id="buff-user" placeholder="username" style="margin-bottom:6px">
+            <select id="buff-type" style="margin-bottom:6px;width:100%;padding:8px;background:#222;color:#fff;border:1px solid #555">
+              <option value="damage">⚔️ Damage Boost (%+)</option>
+              <option value="shield">🛡️ Shield (absorb HP)</option>
+              <option value="immunity">✨ Immunity (secs)</option>
+              <option value="heal">💚 Instant Heal (HP)</option>
+              <option value="regen">💚 Regen (HP/sec)</option>
+              <option value="speed">⚡ Attack Speed (%+)</option>
+              <option value="xp">📚 XP Boost (%+)</option>
+              <option value="gold">💰 Gold Boost (%+)</option>
+            </select>
+            <input id="buff-val" type="number" placeholder="value (e.g. 50 for +50%)" style="margin-bottom:6px">
+            <input id="buff-dur" type="number" placeholder="duration secs (default 30)" style="margin-bottom:6px">
+            <button class="small" id="buff-grant-btn">Grant Buff (LIVE)</button>
+          </div>
+          <div class="power-card">
+            <h4>📋 Active Buffs</h4>
+            <p style="color:#888;font-size:12px;margin-bottom:6px">Check a player's buffs</p>
+            <input id="buff-check-user" placeholder="username" style="margin-bottom:6px">
+            <button class="small" id="buff-check-btn">Check Buffs</button>
+            <div id="buff-list" style="margin-top:8px;font-size:13px"></div>
+          </div>
+        </div>
+        <div class="err" id="buffs-err"></div>
       </div>
 
       <div class="tab-pane hidden" id="pane-powers">
@@ -213,6 +239,6 @@
   </div>
 </div>
 
-<script src="js/owner.js?v20261003c"></script>
+<script src="js/owner.js?v20261003d"></script>
 </body>
 </html>
