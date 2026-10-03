@@ -44,6 +44,76 @@
     initPlayerModal();
     initProgression();
     initGearFactory();
+    initGiveTools();
+  }
+  // Give tools (quick grants + clear bags)
+  function initGiveTools() {
+    const err = $('give-err');
+    const getUser = () => (($('give-user') || {}).value || '').trim();
+    const showErr = (msg, ok) => {
+      err.style.color = ok ? '#4f4' : '#f66';
+      err.textContent = msg;
+    };
+    const needUser = () => {
+      const u = getUser();
+      if (!u) { showErr('❌ Enter a target username.'); return null; }
+      return u;
+    };
+    const bind = (id, fn) => {
+      const btn = $(id);
+      if (btn && !btn.dataset.wired) { btn.dataset.wired = '1'; btn.addEventListener('click', fn); }
+    };
+    bind('give-gold-btn', async () => {
+      const u = needUser(); if (!u) return;
+      const amt = parseInt(($('give-gold') || {}).value) || 0;
+      if (amt <= 0) { showErr('❌ Enter a gold amount.'); return; }
+      try {
+        const { ok, j } = await api('/api/gm/set-gold', { method: 'POST', body: JSON.stringify({ username: u, gold: amt }) });
+        if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+        showErr(`✅ Gave ${amt.toLocaleString()} gold to ${u}`, true);
+        logAudit(`Give gold: ${amt} → ${u}`);
+      } catch (e) { showErr('❌ ' + e.message); }
+    });
+    bind('give-rebirth-btn', async () => {
+      const u = needUser(); if (!u) return;
+      const amt = parseInt(($('give-rebirth') || {}).value) || 0;
+      if (amt <= 0) { showErr('❌ Enter a token amount.'); return; }
+      try {
+        const { ok, j } = await api('/api/gm/set-rebirth', { method: 'POST', body: JSON.stringify({ username: u, rebirths: amt }) });
+        if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+        showErr(`✅ Gave ${amt} rebirth tokens to ${u}`, true);
+        logAudit(`Give tokens: ${amt} → ${u}`);
+      } catch (e) { showErr('❌ ' + e.message); }
+    });
+    bind('give-buff-btn', async () => {
+      const u = needUser(); if (!u) return;
+      try {
+        for (const type of ['damage', 'xp', 'gold']) {
+          await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: u, type, value: 50, duration: 3600 }) });
+        }
+        showErr(`✅ +50% damage/XP/gold (1h) → ${u}`, true);
+        logAudit(`Buffs granted → ${u}`);
+      } catch (e) { showErr('❌ ' + e.message); }
+    });
+    bind('give-heal-btn', async () => {
+      const u = needUser(); if (!u) return;
+      try {
+        const { ok, j } = await api('/api/gm/heal', { method: 'POST', body: JSON.stringify({ username: u }) });
+        if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+        showErr(`✅ Healed ${u}`, true);
+        logAudit(`Heal → ${u}`);
+      } catch (e) { showErr('❌ ' + e.message); }
+    });
+    bind('give-clear-btn', async () => {
+      const u = needUser(); if (!u) return;
+      if (!confirm(`Clear ${u}'s bags? (keeps equipped items)`)) return;
+      try {
+        const { ok, j } = await api('/api/gm/clear-bags', { method: 'POST', body: JSON.stringify({ username: u }) });
+        if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+        showErr(`✅ Cleared ${u}'s bags`, true);
+        logAudit(`Clear bags → ${u}`);
+      } catch (e) { showErr('❌ ' + e.message); }
+    });
   }
   // Live progression overrides
   function initProgression() {
