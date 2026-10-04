@@ -77,7 +77,7 @@
       const amt = parseInt(($('give-rebirth') || {}).value) || 0;
       if (amt <= 0) { showErr('❌ Enter a token amount.'); return; }
       try {
-        const { ok, j } = await api('/api/gm/set-rebirth', { method: 'POST', body: JSON.stringify({ username: u, rebirths: amt }) });
+        const { ok, j } = await api('/api/gm/set-rebirth', { method: 'POST', body: JSON.stringify({ username: u, count: amt }) });
         if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
         showErr(`✅ Gave ${amt} rebirth tokens to ${u}`, true);
         logAudit(`Give tokens: ${amt} → ${u}`);
