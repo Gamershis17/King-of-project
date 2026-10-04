@@ -66,7 +66,7 @@
       const amt = parseInt(($('give-gold') || {}).value) || 0;
       if (amt <= 0) { showErr('❌ Enter a gold amount.'); return; }
       try {
-        const { ok, j } = await api('/api/gm/set-gold', { method: 'POST', body: JSON.stringify({ username: u, gold: amt }) });
+        const { ok, j } = await api('/api/gm/set-gold', { method: 'POST', body: JSON.stringify({ username: u, amount: amt }) });
         if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
         showErr(`✅ Gave ${amt.toLocaleString()} gold to ${u}`, true);
         logAudit(`Give gold: ${amt} → ${u}`);
@@ -87,7 +87,7 @@
       const u = needUser(); if (!u) return;
       try {
         for (const type of ['damage', 'xp', 'gold']) {
-          await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: u, type, value: 50, duration: 3600 }) });
+          await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: u, buffType: type, value: 50, duration: 3600 }) });
         }
         showErr(`✅ +50% damage/XP/gold (1h) → ${u}`, true);
         logAudit(`Buffs granted → ${u}`);
@@ -354,7 +354,7 @@
         if (!modalPlayer) return;
         const err = $('modal-err');
         try {
-          const { ok, j } = await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: modalPlayer, type: 'damage', value: 50, duration: 300 }) });
+          const { ok, j } = await api('/api/gm/grant-buff', { method: 'POST', body: JSON.stringify({ username: modalPlayer, buffType: 'damage', value: 50, duration: 300 }) });
           if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
           err.style.color = '#4f4'; err.textContent = '✅ +50% damage buff (5min) injected.';
           logAudit(`Buff injected → ${modalPlayer}`);
@@ -368,7 +368,7 @@
         if (!modalPlayer) return;
         const err = $('modal-err');
         try {
-          const { ok, j } = await api('/api/gm/grant-class-gear', { method: 'POST', body: JSON.stringify({ username: modalPlayer, set: 'sovereign' }) });
+          const { ok, j } = await api('/api/gm/give-gear-set', { method: 'POST', body: JSON.stringify({ username: modalPlayer, setId: 'sovereign' }) });
           if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
           err.style.color = '#4f4'; err.textContent = '✅ Sovereign gear set granted.';
           logAudit(`Gear granted → ${modalPlayer}`);
@@ -433,7 +433,7 @@
   $('pow-xp-btn').addEventListener('click', async () => {
     const u = $('pow-user').value.trim(), xp = Math.floor(Number($('pow-xp').value));
     if (!u || !xp) { $('powers-err').textContent = 'Enter username and XP.'; return; }
-    const { ok, j } = await api('/api/gm/set-xp', { method: 'POST', body: JSON.stringify({ username: u, xp }) });
+    const { ok, j } = await api('/api/gm/set-xp', { method: 'POST', body: JSON.stringify({ username: u, amount: xp }) });
     $('powers-err').textContent = ok ? `✅ Gave ${xp} XP to ${u}` : '❌ ' + ((j && j.error) || 'failed');
   });
   $('pow-stage-btn').addEventListener('click', async () => {
