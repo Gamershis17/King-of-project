@@ -278,6 +278,21 @@
       </div>
 
       <div class="tab-pane" id="pane-roster">
+        <div class="card" style="margin-bottom:12px;padding:12px;border:1px solid #ffd700;border-radius:8px;background:#1a1a1a">
+          <h3 style="margin:0 0 8px 0;color:#ffd700">👑 Set Player Role</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <input id="role-user" placeholder="username" style="flex:1;min-width:140px;background:#111;color:#fff;border:1px solid #555;border-radius:4px;padding:8px">
+            <select id="role-select" style="background:#111;color:#fff;border:1px solid #555;border-radius:4px;padding:8px">
+              <option value="player">player</option>
+              <option value="tester">tester</option>
+              <option value="moderator">moderator</option>
+              <option value="admin">admin</option>
+              <option value="gm">gm</option>
+            </select>
+            <button id="role-set-btn" style="background:#ffd700;color:#000;border:none;border-radius:4px;padding:8px 16px;font-weight:bold;cursor:pointer">Set Role</button>
+          </div>
+          <div id="role-err" style="margin-top:8px;font-size:13px;min-height:18px"></div>
+        </div>
         <div id="owner-roster"><p style="color:#888">Loading…</p></div>
       </div>
 
