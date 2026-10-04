@@ -43,6 +43,18 @@ function pushBuff(userId, buff) {
   return true;
 }
 
+// Push a state update to a live player (e.g. level/stage/gold changed by GM).
+// `changes` is a flat object of top-level blob fields to merge.
+function pushStateUpdate(userId, changes) {
+  const set = sseClients.get(userId);
+  if (!set) return false;
+  const data = `data: ${JSON.stringify({ type: 'state', changes })}\n\n`;
+  for (const res of set) {
+    try { res.write(data); } catch { set.delete(res); }
+  }
+  return true;
+}
+
 async function ensureTable() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS broadcasts (
@@ -73,4 +85,4 @@ async function latestBroadcast() {
   return rows[0] || null;
 }
 
-module.exports = { addBroadcast, latestBroadcast, addSseClient, pushBuff };
+module.exports = { addBroadcast, latestBroadcast, addSseClient, pushBuff, pushStateUpdate };
