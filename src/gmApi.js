@@ -493,6 +493,7 @@ router.post(
     const blob = await loadBlob(target.id);
     blob.rebirthCount = count;
     await persistMergedState(target.id, blob);
+    pushStateUpdate(target.id, { rebirthCount: count });
     await logAudit(req, 'set-rebirth', target.username, `count → ${count}`);
     res.json({ ok: true, rebirthCount: count, state: selfState(req, target, blob) });
   })
@@ -689,6 +690,7 @@ router.post(
     );
     const cleared = before - blob.inventory.length;
     await persistMergedState(target.id, blob);
+    pushStateUpdate(target.id, { inventory: blob.inventory });
     await logAudit(req, 'clear-bags', target.username, `cleared ${cleared} items`);
     res.json({ ok: true, cleared });
   })
@@ -770,6 +772,7 @@ router.post(
     applyXpGrant(blob, amount);
     blob.xp = Math.min(1e15, blob.xp);
     await persistMergedState(target.id, blob);
+    pushStateUpdate(target.id, { xp: blob.xp, level: blob.level, xpNext: blob.xpNext });
     await logAudit(req, 'set-xp', target.username, `xp → ${amount}`);
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
@@ -1052,6 +1055,7 @@ router.post(
       }
     }
     await persistMergedState(target.id, blob);
+    pushStateUpdate(target.id, { hero: blob.hero, party: blob.party });
     await logAudit(req, 'heal', target.username, '');
     res.json({ ok: true, state: selfState(req, target, blob) });
   })
