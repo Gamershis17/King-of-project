@@ -40,6 +40,7 @@
     setInterval(loadRoster, 30000);
     initMultipliers();
     initPlayerModal();
+    initRoleSetter();
     initProgression();
     initGearFactory();
     initGiveTools();
@@ -291,6 +292,26 @@
     $('player-edit-modal').classList.remove('open');
     modalPlayer = '';
   }
+  function initRoleSetter() {
+    const btn = $('role-set-btn');
+    if (!btn || btn.dataset.wired) return;
+    btn.dataset.wired = '1';
+    btn.addEventListener('click', async () => {
+      const err = $('role-err');
+      const username = $('role-user').value.trim();
+      const role = $('role-select').value;
+      err.style.color = ''; err.textContent = '';
+      if (!username) { err.style.color = '#f66'; err.textContent = 'Enter a username.'; return; }
+      if (!confirm(`Set ${username}'s role to ${role}?`)) return;
+      try {
+        const { ok, j } = await api('/api/roles', { method: 'POST', body: JSON.stringify({ username, role }) });
+        if (!ok || !j.ok) throw new Error((j && j.error) || 'failed');
+        err.style.color = '#4f4'; err.textContent = `✅ ${username} is now ${role}.`;
+        logAudit(`Role set: ${username} → ${role}`);
+        loadRoster();
+      } catch (e) { err.style.color = '#f66'; err.textContent = '❌ ' + e.message; }
+    });
+  }
   function initPlayerModal() {
     const closeBtn = $('modal-close');
     if (closeBtn && !closeBtn.dataset.wired) {
@@ -411,6 +432,26 @@
     checkMaint();
   });
   // Powers
+  bind('pow-2x-btn', async () => {
+    if (!confirm('Toggle 2x XP & Gold server-wide for 24 hours?')) return;
+    const { ok, j } = await api('/api/gm/event-buff', { method: 'POST', body: JSON.stringify({ xpMult: 2, goldMult: 2, dropMult: 1, hours: 24, label: '2x Event' }) });
+    $('powers-err').textContent = ok ? '✅ 2x Event activated (24h)!' : '❌ ' + ((j && j.error) || 'failed');
+    if (ok) logAudit('2x Event activated');
+  });
+  bind('pow-patch-btn', async () => {
+    const { ok, j } = await api('/api/gm/push-patch-notes', { method: 'POST', body: JSON.stringify({}) });
+    $('powers-err').textContent = ok ? '✅ Patch notes pushed to Discord!' : '❌ ' + ((j && j.error) || 'failed');
+  });
+  bind('buff-check-btn', async () => {
+    const u = $('buff-check-user').value.trim();
+    const list = $('buff-list');
+    if (!u) { list.innerHTML = '<span style="color:#f66">Enter a username.</span>'; return; }
+    list.innerHTML = '<span style="color:#888">Loading…</span>';
+    const { ok, j } = await api('/api/gm/inspect', { method: 'POST', body: JSON.stringify({ username: u }) });
+    if (!ok || !j.ok) { list.innerHTML = '<span style="color:#f66">❌ ' + ((j && j.error) || 'failed') + '</span>'; return; }
+    const buffs = (j.dossier && j.dossier.buffs) || [];
+    list.innerHTML = buffs.length ? buffs.map(b => `<div>✨ ${esc(b.type || b.buffType)} +${b.value}% (${Math.round((b.expiresAt - Date.now()) / 60000)}m left)</div>`).join('') : '<span style="color:#888">No active buffs.</span>';
+  });
   $('pow-broadcast-btn').addEventListener('click', async () => {
     const msg = $('pow-broadcast').value.trim();
     if (!msg) return;
