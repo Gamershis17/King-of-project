@@ -2219,6 +2219,7 @@ router.get(
 const gameplaySnapshots = new Map(); // username -> {action, detail, ts}
 router.post(
   '/gm/snapshot',
+  requireAuth,
   asyncHandler(async (req, res) => {
     if (!req.user) return res.status(401).json({ error: 'Auth required.' });
     const { action, detail } = req.body || {};
