@@ -2345,8 +2345,9 @@ router.post(
     inv.push(item);
     blob.inventory = inv;
     await persistMergedState(target.id, blob);
-    await logAudit(req, 'create-op-gear', target.username, `${name} (${slot})`);
-    res.json({ ok: true, item });
+    const live = pushStateUpdate(target.id, { inventory: blob.inventory });
+    await logAudit(req, 'create-op-gear', target.username, `${name} (${slot})${live ? ' [LIVE]' : ''}`);
+    res.json({ ok: true, live, item });
   })
 );
 
