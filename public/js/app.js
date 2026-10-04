@@ -11,7 +11,7 @@ import { Raid } from './raid.js?v=20260930ar';
 import { renderGuildSection, syncGuildPerks } from './guild.js?v=20261001e';
 import { loadGuest, saveGuest, clearGuest, GUEST_ROLE } from './guest.js?v=20260930ar';
 import { Realm } from './realm.js?v20261003ad';
-import { Audio } from './audio.js?v=20261003bd';
+import { Audio } from './audio.js?v=20261003bg';
 
 const TICK_MS = 250;
 const AUTOSAVE_MS = 15000;
