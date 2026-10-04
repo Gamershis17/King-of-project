@@ -2280,8 +2280,8 @@ router.post(
 // Player polls for pending admin commands (authenticated players only).
 router.get(
   '/player-commands',
+  requireAuth,
   asyncHandler(async (req, res) => {
-    if (!req.user) return res.status(401).json({ error: 'Auth required.' });
     const queue = playerCommands.get(req.user.username) || [];
     playerCommands.delete(req.user.username);
     res.json({ ok: true, commands: queue });
