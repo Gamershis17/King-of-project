@@ -341,7 +341,22 @@ export const Audio = {
   _switchTrack(track) {
     this._musicTrackId = track;
     this._musicChord = 0;
-    if (this._ctx) this._musicPluckAt = this._ctx.currentTime + 2.5;
+    if (this._ctx) {
+      this._musicPluckAt = this._ctx.currentTime + 2.5;
+      // Fade out ringing pads from the previous track so the switch is
+      // immediately audible instead of muddying the new track for 10+ seconds.
+      try {
+        (this._padNodes || []).forEach((n) => {
+          try { n.gain.gain.cancelScheduledValues(this._ctx.currentTime); } catch {}
+          try { n.gain.gain.setTargetAtTime(0.0001, this._ctx.currentTime, 0.3); } catch {}
+          try { n.oscs.forEach((o) => o.stop(this._ctx.currentTime + 1.2)); } catch {}
+        });
+      } catch {}
+      this._padNodes = [];
+      // Start the new track's chords promptly instead of waiting out the
+      // old track's schedule.
+      this._musicNext = this._ctx.currentTime + 0.1;
+    }
   },
 
   get state() {
