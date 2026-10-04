@@ -4233,7 +4233,7 @@ export const UI = {
     const grid = document.getElementById('fish-grid');
     if (!grid) return;
     // Return early if player data is gone (kicked to login, session cleared)
-    if (!state || !App || !App.state) return;
+    if (!state || typeof App === 'undefined' || !App.state) return;
     const fish = (state && state.fish) || {};
     const lootTable = Engine.FISHING_LOOT_TABLE || {};
     // Combine all catchable items
