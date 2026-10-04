@@ -19,10 +19,14 @@
     background: #0a0a0a; border: 2px solid #fff; outline: 2px solid #000; outline-offset: 2px;
     border-radius: 8px; padding: 18px; margin-bottom: 16px;
   }
-  /* 3-column dashboard grid */
+  /* 3-column dashboard grid - balanced for PC */
   .dashboard-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
   @media (min-width: 1200px) {
-    .dashboard-grid { grid-template-columns: 320px 1fr 350px; align-items: start; }
+    .dashboard-grid { grid-template-columns: 300px minmax(0, 1fr) minmax(0, 1.2fr); align-items: start; }
+  }
+  @media (min-width: 1600px) {
+    .dashboard-grid { grid-template-columns: 320px minmax(0, 1fr) minmax(0, 1.3fr); gap: 24px; }
+  }
   }
   .dash-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
   .dash-col .card { margin-bottom: 0; }
@@ -211,7 +215,10 @@
           <button id="give-clear-btn" style="width:100%;margin-top:10px;padding:12px;background:#a00;color:#fff;border:2px solid #fff;border-radius:6px;font-weight:bold;cursor:pointer;font-family:inherit;font-size:14px">🎒 CLEAR BAGS</button>
           <div class="err" id="give-err"></div>
         </div>
+      </div>
 
+      <!-- RIGHT COLUMN: Multipliers & Roster -->
+      <div class="dash-col">
         <div class="card">
           <h1 style="font-size:18px">💰 GLOBAL ECONOMY MULTIPLIERS</h1>
           <p class="sub">Server-wide rates (1.0x = normal)</p>
@@ -238,7 +245,7 @@
           <div class="err" id="mult-err"></div>
         </div>
 
-        <div class="card">
+<div class="card">
       <div class="tabs">
         <button class="active" data-tab="roster">👥 Roster</button>
         <button data-tab="buffs">✨ Buffs</button>
@@ -369,17 +376,6 @@
         <button class="gold" id="op-forge" style="width:100%;margin-top:12px">🔨 FORGE OP GEAR</button>
         <div class="err" id="op-err"></div>
       </div>
-        </div>
-      </div>
-
-      <!-- LIVE PLAYER INTERFACE INSPECTOR REMOVED -->
-
-        </div>
-      </div>
-
-      <!-- RIGHT COLUMN -->
-      <div class="dash-col">
-        <!-- Reserved for future modules -->
       </div>
     </div>
 
