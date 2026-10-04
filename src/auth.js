@@ -194,9 +194,26 @@ router.get(
   })
 );
 
+/** Optional auth: sets req.user if a valid session exists, otherwise continues as guest. */
+async function optionalAuth(req, res, next) {
+  try {
+    const userId = req.session && req.session.userId;
+    if (!userId) return next();
+    const user = await getUserById(userId);
+    if (!user || user.banned) return next();
+    const sessionVersion = Number(user.session_version) || 0;
+    if ((Number(req.session.sessionVersion) || 0) !== sessionVersion) return next();
+    req.user = user;
+    next();
+  } catch (err) {
+    next();
+  }
+}
+
 module.exports = {
   authRouter: router,
   requireAuth,
   requireRole,
+  optionalAuth,
   asyncHandler,
 };
