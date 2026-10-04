@@ -3420,6 +3420,8 @@ function startBroadcastStream() {
         const msg = JSON.parse(e.data);
         if (msg.type === 'buff') {
           applyLiveBuff(msg.buff);
+        } else if (msg.type === 'state' && msg.changes) {
+          applyLiveState(msg.changes);
         } else if (msg.type === 'broadcast' || msg.broadcast) {
           showBroadcast(msg.broadcast || msg);
         } else {
@@ -3433,6 +3435,20 @@ function startBroadcastStream() {
   } catch {
     App.broadcastTimer = setInterval(pollBroadcast, 10000);
   }
+}
+
+// Apply live state changes pushed by GM via SSE (no refresh needed)
+function applyLiveState(changes) {
+  if (!changes || typeof changes !== 'object') return;
+  const s = App.state;
+  if (!s) return;
+  for (const [key, value] of Object.entries(changes)) {
+    s[key] = value;
+  }
+  UI.toast('⚡ Owner updated your stats!', 'info', 4000);
+  UI.updateHUD(s, App.user);
+  if (typeof renderBuffBar === 'function') renderBuffBar();
+  saveNow();
 }
 
 // Apply a live buff pushed by GM via SSE
