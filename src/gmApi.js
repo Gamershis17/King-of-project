@@ -2310,6 +2310,7 @@ router.post(
   '/gm/create-op-gear',
   ownerOnly,
   asyncHandler(async (req, res) => {
+    try {
     const { username, name, slot, rarity, stats } = req.body || {};
     const target = await resolveTarget(username);
     if (!target) return res.status(404).json({ error: 'Target user not found.' });
@@ -2348,6 +2349,10 @@ router.post(
     const live = pushStateUpdate(target.id, { inventory: blob.inventory });
     await logAudit(req, 'create-op-gear', target.username, `${name} (${slot})${live ? ' [LIVE]' : ''}`);
     res.json({ ok: true, live, item });
+    } catch (e) {
+      console.error('[create-op-gear] ERROR:', e && e.message, e && e.stack);
+      return res.status(500).json({ error: 'Debug: ' + (e && e.message) });
+    }
   })
 );
 
