@@ -64,7 +64,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const rateLimit = require('express-rate-limit');
-const { requireRole, requireAuth, asyncHandler } = require('./auth');
+const { requireRole, requireAuth, optionalAuth, asyncHandler } = require('./auth');
 const { sanitizeStateBlob, VALID_ROLES, VALID_CLASSES, VALID_SPECS, NAME_FX_IDS, xpForLevelServer } = require('./validation');
 const { makeGearItems, isValidSetId } = require('./gearSets');
 const { loadBlob, defaultStateBlob, filterChangelog } = require('./gameApi');
@@ -1270,6 +1270,7 @@ router.get(
 // ---------- live broadcast stream (SSE, public) ----------
 router.get(
   '/broadcasts/stream',
+  optionalAuth,
   (req, res) => {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
