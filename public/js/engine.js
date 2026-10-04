@@ -483,6 +483,7 @@ export const RARITIES = [
   { id: 'cosmic',    weight: 0.35, color: '#7df9ff', stats: 5, mult: 22, prefix: 'Cosmic',   emoji: '🌌' },
   { id: 'enduring',  weight: 0.18, color: '#e0a458', stats: 5, mult: 45, prefix: 'Enduring', emoji: '🛡️' },
   { id: 'infinite',  weight: 0.09, color: '#ff6ef5', stats: 6, mult: 65, prefix: 'Infinite', emoji: '♾️' },
+  { id: 'rainbowstar', weight: 0.04, color: '#ff00ff', stats: 7, mult: 100, prefix: 'Rainbow', emoji: '🌈⭐' },
 ];
 export const RARITY_BY_ID = Object.fromEntries(RARITIES.map(r => [r.id, r]));
 export const RARITY_IDX = Object.fromEntries(RARITIES.map((r, i) => [r.id, i]));
@@ -491,6 +492,7 @@ export const RARITY_NAMES = {
   common: 'Common', magic: 'Uncommon', rare: 'Rare', epic: 'Epic',
   legendary: 'Legendary', mythic: 'Mythic', divine: 'Divine',
   cosmic: 'Cosmic', enduring: 'Enduring', infinite: 'Infinite',
+  rainbowstar: 'Rainbow Star',
 };
 export function rarityName(id) { return RARITY_NAMES[id] || String(id); }
 
