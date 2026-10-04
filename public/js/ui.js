@@ -4233,12 +4233,13 @@ export const UI = {
     const grid = document.getElementById('fish-grid');
     if (!grid) return;
     const fish = (state && state.fish) || {};
+    const lootTable = Engine.FISHING_LOOT_TABLE || {};
     // Combine all catchable items
     const allItems = {
-      ...Engine.FISH_SPECIES,
-      ...Object.fromEntries((Engine.FISHING_LOOT_TABLE.junk || []).map(f => [f.id, f])),
-      ...Object.fromEntries((Engine.FISHING_LOOT_TABLE.special || []).map(f => [f.id, f])),
-      [Engine.FISHING_LOOT_TABLE.golden.id]: Engine.FISHING_LOOT_TABLE.golden,
+      ...(Engine.FISH_SPECIES || {}),
+      ...Object.fromEntries(((lootTable.junk) || []).map(f => [f.id, f])),
+      ...Object.fromEntries(((lootTable.special) || []).map(f => [f.id, f])),
+      ...(lootTable.golden && lootTable.golden.id ? { [lootTable.golden.id]: lootTable.golden } : {}),
     };
     const entries = Object.entries(allItems);
     if (!entries.length) {
