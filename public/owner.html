@@ -64,6 +64,26 @@
   .modal-apply { background: #00ff66; color: #000; border: 2px solid #00ff66; }
   .modal-apply:hover { background: #00cc52; }
   .modal-close { background: #111; color: #fff; border: 2px solid #fff; }
+  /* Spinning 3D rainbow name */
+  .spin-3d-box {
+    perspective: 600px; text-align: center; padding: 20px 10px;
+    overflow: hidden;
+  }
+  .spin-3d-text {
+    display: inline-block; font-size: 28px; font-weight: 900;
+    letter-spacing: 2px; transform-style: preserve-3d;
+    animation: spin3d 4s linear infinite, rainbow 3s linear infinite;
+    text-shadow: 0 0 10px currentColor;
+  }
+  @keyframes spin3d {
+    from { transform: rotateY(0deg); }
+    to { transform: rotateY(360deg); }
+  }
+  @keyframes rainbow {
+    0% { color: #ff0000; } 14% { color: #ff8800; } 28% { color: #ffff00; }
+    42% { color: #00ff00; } 57% { color: #0088ff; } 71% { color: #8800ff; }
+    85% { color: #ff00ff; } 100% { color: #ff0000; }
+  }
   /* Clickable roster rows */
   .roster-row { cursor: pointer; transition: background 0.15s; }
   .roster-row:hover { background: #1a2a1a; border-color: #00ff66; }
@@ -154,6 +174,10 @@
             <button id="maint-on" class="danger">🔴 TAKE DOWN</button>
             <button id="maint-off">🟢 BRING UP</button>
           </div>
+        </div>
+
+        <div class="card spin-3d-box">
+          <div class="spin-3d-text">🌈 Gamershis17 🌈</div>
         </div>
 
       <!-- BACKGROUND AUDIO REMOVED -->
