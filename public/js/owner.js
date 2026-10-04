@@ -335,7 +335,7 @@
             ops.push('stage');
           }
           if (rebirth) {
-            const { ok, j } = await api('/api/gm/set-rebirth', { method: 'POST', body: JSON.stringify({ username: modalPlayer, rebirths: parseInt(rebirth) }) });
+            const { ok, j } = await api('/api/gm/set-rebirth', { method: 'POST', body: JSON.stringify({ username: modalPlayer, count: parseInt(rebirth) }) });
             if (!ok || !j.ok) throw new Error('Rebirth: ' + ((j && j.error) || 'failed'));
             ops.push('rebirth');
           }
