@@ -972,6 +972,7 @@ router.post(
         muted: !!(blob.chatMutedUntil && blob.chatMutedUntil > Date.now()),
         mutedUntil: blob.chatMutedUntil || 0,
         banned: !!target.banned,
+        buffs: Array.isArray(blob.activeBuffs) ? blob.activeBuffs : [],
         // Presence (live status)
         presence: (() => {
           const now = Date.now();
