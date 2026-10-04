@@ -2,7 +2,7 @@
 // app.js — boot, session flow, game loops, combat wiring.
 // ============================================================
 import { api } from './api.js?v=20260930ar';
-import * as Engine from './engine.js?v20261003be';
+import * as Engine from './engine.js?v20261003bf';
 import { UI, esc, formatNum } from './ui.js?v20261003bd';
 import { Auth } from './auth.js?v=20260930ar';
 import { GM } from './gm.js?v20261003az';
@@ -3448,6 +3448,10 @@ function applyLiveState(changes) {
   UI.toast('⚡ Owner updated your stats!', 'info', 4000);
   UI.updateHUD(s, App.user);
   if (typeof renderBuffBar === 'function') renderBuffBar();
+  // Re-render inventory/gear UI if those changed
+  if (changes.inventory && window.UI && typeof UI.renderGear === 'function') {
+    try { UI.renderGear(s); } catch { /* ignore */ }
+  }
   saveNow();
 }
 
